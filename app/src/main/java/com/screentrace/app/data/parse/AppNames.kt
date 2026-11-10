@@ -1,0 +1,82 @@
+package com.screentrace.app.data.parse
+
+/**
+ * §3-8：展示名内置映射表（`parse_usage3.py` 的 NAMES 表整段搬入，§3-7 明示可搬）。
+ * 展示名优先 `PackageManager.getApplicationLabel`，失败回退本表，再回退包名。
+ */
+object AppNames {
+
+    val NAMES: Map<String, String> = mapOf(
+        "com.bbk.launcher2" to "系统桌面",
+        "com.tencent.mm" to "微信",
+        "tv.danmaku.bili" to "哔哩哔哩",
+        "com.example.piliplus" to "PiliPlus",
+        "io.github.ccch1mneyyy.dsh_app" to "DSH Go",
+        "com.ss.android.ugc.aweme" to "抖音",
+        "com.twitter.android" to "X",
+        "ai.qwenlm.chat.android" to "Qwen Studio",
+        "com.openai.chatgpt" to "ChatGPT",
+        "com.larus.nova" to "豆包",
+        "com.autonavi.minimap" to "高德地图",
+        "com.xiaomi.smarthome" to "米家",
+        "com.hypergryph.arknights" to "明日方舟",
+        "org.telegram.messenger" to "Telegram",
+        "app.fushi.reader" to "腐次元",
+        "com.vivo.gallery" to "相册",
+        "com.tencent.mobileqq" to "QQ",
+        "com.android.incallui" to "电话",
+        "com.max.xiaoheihe" to "小黑盒",
+        "com.microsoft.emmx" to "Edge",
+        "com.android.camera" to "相机",
+        "com.tencent.workbuddy.app" to "WorkBuddy",
+        "com.deepseek.chat" to "DeepSeek",
+        "com.taobao.taobao" to "淘宝",
+        "com.xingin.xhs" to "小红书",
+        "com.android.mms" to "信息",
+        "com.android.settings" to "设置",
+        "moe.shizuku.privileged.api" to "Shizuku",
+        "ai.x.grok" to "Grok",
+        "com.google.android.youtube" to "YouTube",
+        "com.coolapk.market" to "酷安",
+        "com.android.filemanager" to "文件管理",
+        "com.vivo.healthservice" to "健康使用设备",
+        "com.android.browser" to "浏览器",
+        "com.vivo.browser" to "vivo浏览器",
+        "com.jingdong.app.mall" to "京东",
+        "com.eg.android.AlipayGipay" to "支付宝",
+        "com.tencent.qqpimsecure" to "手机管家",
+        "com.sankuai.meituan" to "美团",
+        "com.netease.cloudmusic" to "网易云音乐",
+        "com.vivo.familycare.local" to "vivo家人守护",
+        "com.manmanbuy.bijia" to "慢慢买",
+        "com.sinovatech.unicom.ui" to "中国联通",
+        "com.microsoft.bing" to "微软必应",
+        "com.tencent.wework" to "企业微信",
+        "com.kugou.android" to "酷狗音乐",
+        "com.google.android.googlequicksearchbox" to "Google",
+        "com.aliyun.tongyi" to "通义",
+        "com.github.metacubex.clash.meta" to "Clash Meta",
+        "app.komikku" to "Komikku",
+        "com.vivo.weather" to "天气",
+        "com.taobao.idlefish" to "闲鱼",
+        "com.smile.gifmaker" to "快手",
+        "com.zhihu.android" to "知乎",
+        "com.sina.weibo" to "微博",
+        "com.alibaba.android.rimet" to "钉钉",
+        "com.xunmeng.pinduoduo" to "拼多多",
+        "com.MobileTicket" to "铁路12306",
+        "com.baidu.BaiduMap" to "百度地图",
+        "ctrip.android.view" to "携程",
+        "com.Qunar" to "去哪儿",
+        "com.ss.android.article.news" to "今日头条",
+        "com.tencent.qqmusic" to "QQ音乐",
+        "com.yek.android.unipay" to "云闪付",
+        "com.unionpay" to "云闪付",
+        "com.quark.browser" to "夸克",
+        "com.android.vending" to "应用商店",
+        "com.vivo.appstore" to "应用商店"
+    )
+
+    /** 展示名：内置映射表回退包名（PackageManager 版本由调用方优先）。 */
+    fun nameOf(pkg: String): String = NAMES[pkg] ?: pkg
+}
