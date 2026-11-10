@@ -9,8 +9,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.temporal.TemporalAdjusters
 
 /**
  * 领域计算器的纯 JVM 回归测试，覆盖需求文档 §5.6 / §5.7 / §7-11 的关键口径。
@@ -152,13 +154,17 @@ class UsageCalculatorTest {
     }
 
     @Test
-    fun yearLevelsEndAtAnchorAndUseYearThresholds() {
+    fun yearLevelsAlignToMondayWeeksAndKeepAnchorLevel() {
         val records = listOf(record(day7, 400)) // ≥6h → 4 档
         val levels = UsageCalculator.yearLevels(day7, 2, records)
         assertEquals(14, levels.size)
-        assertEquals(day7.minusDays(13), levels.first().date)
-        assertEquals(day7, levels.last().date)
-        assertTrue(levels.last().recorded)
-        assertEquals(4, levels.last().level)
+        // 周一对齐：锚点所在周 + 往前 1 周，共 2 周 × 7 天
+        val anchorMonday = day7.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        assertEquals(anchorMonday.minusDays(7), levels.first().date)
+        assertEquals(anchorMonday.plusDays(6), levels.last().date)
+        // 锚点自身在网格内且保留档位（锚点之后为「未来」空档）
+        val anchorCell = levels.first { it.date == day7 }
+        assertTrue(anchorCell.recorded)
+        assertEquals(4, anchorCell.level)
     }
 }

@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.Color
 /**
  * 需求文档 §5.4 / §6：全 App 唯一允许的语义颜色来源。
  * 业务组件只能读 LocalFreshPalette.current 或 MaterialTheme.colorScheme，
- * 禁止直接写十六进制颜色、Color.White 或 FreshColors.*（legacy 包除外，见其文件头）。
+ * 禁止直接写十六进制颜色、Color.White 或任何旧调色板符号。
  */
 data class FreshPalette(
     val background: Color,
@@ -146,9 +146,11 @@ fun ThemeVariant.palette(darkTheme: Boolean): FreshPalette {
             chart3 = seed.mix(White, 0.50f),
             chart4 = seed.mix(White, 0.70f),
             chart5 = seed.mix(White, 0.86f),
+            // 浅色月阶 0.82/0.66/0.50：0.42 的月3（如靓青）落入亮暗文字均不达标的
+            // 死区（3.9），提亮到 0.50 后深色日号全主题 ≥4.5（测试复算）
             month1 = seed.mix(White, 0.82f),
-            month2 = seed.mix(White, 0.62f),
-            month3 = seed.mix(White, 0.42f),
+            month2 = seed.mix(White, 0.66f),
+            month3 = seed.mix(White, 0.50f),
             heat0 = seed.mix(White, 0.94f),
             heat1 = seed.mix(White, 0.78f),
             heat2 = seed.mix(White, 0.56f),
@@ -189,9 +191,11 @@ fun ThemeVariant.palette(darkTheme: Boolean): FreshPalette {
         chart3 = seed.mix(White, 0.42f),
         chart4 = seed.mix(White, 0.26f),
         chart5 = seed.mix(White, 0.16f),
-        month1 = seed.mix(White, 0.30f),
-        month2 = seed.mix(White, 0.48f),
-        month3 = seed.mix(White, 0.66f),
+        // month1 取 0.38：≥0.211 亮度后深色日号（onPrimary）全主题 ≥4.5；
+        // 0.30/0.22 对深色系 seed 会落入「亮暗文字均不达标」死区（测试复算验证）
+        month1 = seed.mix(White, 0.38f),
+        month2 = seed.mix(White, 0.54f),
+        month3 = seed.mix(White, 0.70f),
         heat0 = background.mix(White, 0.10f),
         heat1 = seed.mix(White, 0.12f),
         heat2 = seed.mix(White, 0.28f),

@@ -14,7 +14,9 @@ import org.junit.Test
  */
 class FreshPaletteContrastTest {
 
-    private fun assertAtLeast(
+    private val violations = mutableListOf<String>()
+
+    private fun checkAtLeast(
         fg: Color,
         bg: Color,
         min: Double,
@@ -23,10 +25,13 @@ class FreshPaletteContrastTest {
         dark: Boolean
     ) {
         val ratio = contrastRatio(fg, bg)
-        assertTrue(
-            "%s%s %s 对比度 %.2f < %.1f".format(variant.label, if (dark) "深色" else "浅色", name, ratio, min),
-            ratio >= min
-        )
+        if (ratio < min) {
+            violations += "%s%s %s 对比度 %.2f < %.1f".format(variant.label, if (dark) "深色" else "浅色", name, ratio, min)
+        }
+    }
+
+    private fun report() {
+        assertTrue("对比度违规 ${violations.size} 项:\n" + violations.joinToString("\n"), violations.isEmpty())
     }
 
     @Test
@@ -35,25 +40,26 @@ class FreshPaletteContrastTest {
             for (dark in listOf(false, true)) {
                 val p = variant.palette(dark)
                 for (bg in listOf(p.background, p.surface, p.surfaceVariant)) {
-                    assertAtLeast(p.onSurface, bg, 4.5, "onSurface", variant, dark)
-                    assertAtLeast(p.onSurfaceVariant, bg, 4.5, "onSurfaceVariant", variant, dark)
+                    checkAtLeast(p.onSurface, bg, 4.5, "onSurface", variant, dark)
+                    checkAtLeast(p.onSurfaceVariant, bg, 4.5, "onSurfaceVariant", variant, dark)
                     // §5.4 单位色规则：任意背景上经 mutedOn 派生后不得破 4.5
-                    assertAtLeast(p.mutedOn(bg), bg, 4.5, "mutedOn(bg)", variant, dark)
+                    checkAtLeast(p.mutedOn(bg), bg, 4.5, "mutedOn(bg)", variant, dark)
                 }
                 // onSurfaceMuted 是白卡系（surface/background）上的固定取值
-                assertAtLeast(p.onSurfaceMuted, p.surface, 4.5, "onSurfaceMuted/surface", variant, dark)
-                assertAtLeast(p.onSurfaceMuted, p.background, 4.5, "onSurfaceMuted/background", variant, dark)
-                assertAtLeast(p.onPrimary, p.primary, 4.5, "onPrimary/primary", variant, dark)
-                assertAtLeast(
+                checkAtLeast(p.onSurfaceMuted, p.surface, 4.5, "onSurfaceMuted/surface", variant, dark)
+                checkAtLeast(p.onSurfaceMuted, p.background, 4.5, "onSurfaceMuted/background", variant, dark)
+                checkAtLeast(p.onPrimary, p.primary, 4.5, "onPrimary/primary", variant, dark)
+                checkAtLeast(
                     p.onPrimaryContainer, p.primaryContainer, 4.5, "onPrimaryContainer", variant, dark
                 )
-                assertAtLeast(
+                checkAtLeast(
                     p.onSecondaryContainer, p.secondaryContainer, 4.5, "onSecondaryContainer", variant, dark
                 )
-                assertAtLeast(p.error, p.background, 4.5, "error/background", variant, dark)
-                assertAtLeast(p.error, p.surface, 4.5, "error/surface", variant, dark)
+                checkAtLeast(p.error, p.background, 4.5, "error/background", variant, dark)
+                checkAtLeast(p.error, p.surface, 4.5, "error/surface", variant, dark)
             }
         }
+        report()
     }
 
     /** §5.3/§5.5：MetricCard 数值（数字 onSurface）与单位色在 tonal 容器上的色对。 */
@@ -64,13 +70,14 @@ class FreshPaletteContrastTest {
                 val p = variant.palette(dark)
                 for (container in listOf(p.primaryContainer, p.secondaryContainer)) {
                     val name = if (container == p.primaryContainer) "primaryContainer" else "secondaryContainer"
-                    assertAtLeast(p.onSurface, container, 4.5, "数字/$name", variant, dark)
-                    assertAtLeast(p.mutedOn(container), container, 4.5, "单位/$name", variant, dark)
+                    checkAtLeast(p.onSurface, container, 4.5, "数字/$name", variant, dark)
+                    checkAtLeast(p.mutedOn(container), container, 4.5, "单位/$name", variant, dark)
                     // §5.3 对比行（14sp/600 + primary）落在 tonal 卡上
-                    assertAtLeast(p.primary, container, 4.5, "对比行/$name", variant, dark)
+                    checkAtLeast(p.primary, container, 4.5, "对比行/$name", variant, dark)
                 }
             }
         }
+        report()
     }
 
     /** §5.4：onSurfaceMuted 白卡取值应与规格一致地「明显高于」4.5（浅 ≈5.2 / 深 ≈4.6）。 */
@@ -83,15 +90,31 @@ class FreshPaletteContrastTest {
         )
     }
 
+    /** §5.7 月视图：色档上的日号文字取 onSurface/onPrimary 中对比更优者，须 ≥4.5。 */
+    @Test
+    fun monthFillDayTextMeets45InAllVariants() {
+        for (variant in ThemeVariant.values()) {
+            for (dark in listOf(false, true)) {
+                val p = variant.palette(dark)
+                for (fill in listOf(p.month1, p.month2, p.month3)) {
+                    val best = listOf(p.onSurface, p.onPrimary).maxBy { contrastRatio(it, fill) }
+                    checkAtLeast(best, fill, 4.5, "月历日号/色档", variant, dark)
+                }
+            }
+        }
+        report()
+    }
+
     @Test
     fun graphicsPairsMeet3InAllVariants() {
         for (variant in ThemeVariant.values()) {
             for (dark in listOf(false, true)) {
                 val p = variant.palette(dark)
                 for (bg in listOf(p.background, p.surface, p.navSurface)) {
-                    assertAtLeast(p.primary, bg, 3.0, "primary(图形)", variant, dark)
+                    checkAtLeast(p.primary, bg, 3.0, "primary(图形)", variant, dark)
                 }
             }
         }
+        report()
     }
 }

@@ -1,7 +1,9 @@
 package com.screentrace.app.contract
 
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.temporal.TemporalAdjusters
 
 /**
  * §6：单日、区间、上一等长周期、记录覆盖数由统一领域计算器产生，
@@ -176,13 +178,18 @@ object UsageCalculator {
         }
     }
 
-    /** 年视图：截至锚点的过去 weeks 周，每天一个色档点（§5.7 五档）。 */
+    /**
+     * 年视图：截至锚点的过去 weeks 个整周——锚点所在周与其前 weeks-1 周，
+     * 周一起始、每周 7 天（§5.6「截至该日的过去 20 周」按周语义对齐，
+     * 保证 20 列 × 7 行热力网格与星期列严格对位；锚点之后的格子为「未来」空档）。
+     */
     fun yearLevels(anchor: LocalDate, weeks: Int, records: List<DaySummary>): List<CalendarLevel> {
         val byDate = records.associateBy { it.date }
-        val start = anchor.minusDays(weeks.toLong() * 7 - 1)
+        val anchorMonday = anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val start = anchorMonday.minusDays((weeks.toLong() - 1) * 7)
         var cursor = start
         return buildList {
-            while (!cursor.isAfter(anchor)) {
+            repeat(weeks * 7) {
                 val record = byDate[cursor]
                 add(
                     CalendarLevel(
