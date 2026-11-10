@@ -9,13 +9,14 @@ import com.screentrace.app.data.db.NotificationEventEntity
 import com.screentrace.app.data.db.PullLogEntity
 import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.db.UnlockEventEntity
+import com.screentrace.app.data.parse.AppNames
 import com.screentrace.app.data.parse.ParseResult
 
 /**
  * 解析入库管道（批 6a）：ParseResult（日聚合 + 事件流）→ 合并入 Room + pull_log。
  * 全部写库在**单事务**中完成，失败整体回滚（§6）；连续拉取不重复计数
  * （day/app/hour 取大合并、unlock 主键去重、notification 秒级分组取大——
- * 策略集中在 [MergePolicy]，JVM 单测覆盖）。
+ * 策略集中在 [MergePolicy]，管道级行为由 `IngestPipelineTest` 覆盖）。
  * Shizuku 拉取通道（把 dump 文本变成 ParseResult）在批 6b 接入。
  */
 class IngestPipeline(private val db: ScreenTraceDatabase) {
@@ -24,79 +25,103 @@ class IngestPipeline(private val db: ScreenTraceDatabase) {
         result: ParseResult,
         source: String,
         pulledAtMs: Long = System.currentTimeMillis()
-    ): PullResult = try {
-        db.withTransaction {
-            val dayDao = db.daySummaryDao()
-            for ((date, metrics) in result.days) {
-                val key = date.toString()
-                val incoming = DaySummaryEntity(
-                    date = key,
-                    screenMin = metrics.screenMin,
-                    screenUnlockMin = metrics.screenUnlockMin,
-                    unlocks = metrics.unlocks,
-                    launches = metrics.launches,
-                    longestSessionMin = metrics.longestSessionMin,
-                    pulledAt = pulledAtMs
-                )
-                dayDao.insert(MergePolicy.mergeDay(dayDao.get(key), incoming))
-            }
+    ): PullResult {
+        // 6a 评审 P2-2：dump 为空不记成功（§6「dump 为空或失败保留旧数据并记录」）
+        val empty = result.days.isEmpty() && result.appUsage.isEmpty() &&
+            result.unlockEvents.isEmpty() && result.notificationEvents.isEmpty()
+        if (empty) {
+            logPull(source, pulledAtMs, ok = false, note = "dump 为空")
+            return PullResult(ok = false, message = "dump 为空")
+        }
 
-            val appDao = db.appUsageDao()
-            for (row in result.appUsage) {
-                val key = row.date.toString()
-                val incoming = AppUsageEntity(
-                    date = key,
-                    pkg = row.pkg,
-                    name = row.pkg, // 展示名由调用方（批 6b）用 PackageManager/映射表回填
-                    // 四舍五入而非截断：59 秒真实使用不得存成 0 分钟（§5.5，复审意见）
-                    minutes = Math.round(row.totalMs / 60_000.0).toInt(),
-                    launches = row.launches,
-                    category = "OTHER"
-                )
-                appDao.insert(MergePolicy.mergeApp(appDao.get(key, row.pkg), incoming))
-            }
-
-            val hourDao = db.hourUsageDao()
-            for ((date, buckets) in result.hourMinutes) {
-                val key = date.toString()
-                val existingByHour = hourDao.getForDate(key).associateBy { it.hour } // 一次查询（复审意见）
-                buckets.forEachIndexed { hour, minutes ->
-                    val incoming = HourUsageEntity(key, hour, minutes)
-                    hourDao.insert(MergePolicy.mergeHour(existingByHour[hour], incoming))
+        return try {
+            db.withTransaction {
+                val dayDao = db.daySummaryDao()
+                for ((date, metrics) in result.days) {
+                    val key = date.toString()
+                    val incoming = DaySummaryEntity(
+                        date = key,
+                        screenMin = metrics.screenMin,
+                        screenUnlockMin = metrics.screenUnlockMin,
+                        unlocks = metrics.unlocks,
+                        launches = metrics.launches,
+                        longestSessionMin = metrics.longestSessionMin,
+                        pulledAt = pulledAtMs
+                    )
+                    val existing = dayDao.get(key)
+                    val merged = MergePolicy.mergeDay(existing, incoming)
+                    // P2-7：命中「保留旧值」时不写回，避免无意义的 REPLACE
+                    if (merged != existing) dayDao.insert(merged)
                 }
-            }
 
-            // CR-01 事件流：unlock 主键去重；notification 秒级分组取大
-            db.unlockEventDao().insertIgnore(result.unlockEvents.map { UnlockEventEntity(it.occurredAtMs) })
-
-            val notifDao = db.notificationEventDao()
-            val incomingNotifs = result.notificationEvents.map {
-                NotificationEventEntity(it.occurredAtMs, it.type.name, it.pkg, it.channelId)
-            }
-            if (incomingNotifs.isNotEmpty()) {
-                val startMs = incomingNotifs.minOf { it.occurredAtMs } - 1000
-                val endMs = incomingNotifs.maxOf { it.occurredAtMs } + 1000
-                val existingNotifs = notifDao.between(startMs, endMs)
-                val merged = MergePolicy.mergeNotifications(existingNotifs, incomingNotifs)
-                if (merged != existingNotifs.sortedBy { it.occurredAtMs }) {
-                    notifDao.deleteByMs(existingNotifs.map { it.occurredAtMs })
-                    notifDao.insertIgnore(merged)
+                val appDao = db.appUsageDao()
+                for (row in result.appUsage) {
+                    val key = row.date.toString()
+                    val incoming = AppUsageEntity(
+                        date = key,
+                        pkg = row.pkg,
+                        name = row.pkg, // 展示名由调用方（批 6b）用 PackageManager/映射表回填
+                        // 四舍五入而非截断：59 秒真实使用不得存成 0 分钟（§5.5，复审意见）
+                        minutes = Math.round(row.totalMs / 60_000.0).toInt(),
+                        launches = row.launches,
+                        // P1-1：内置分类映射写库，用户覆盖在仓库读取层叠加
+                        category = AppNames.categoryOf(row.pkg).name
+                    )
+                    val existing = appDao.get(key, row.pkg)
+                    val merged = MergePolicy.mergeApp(existing, incoming)
+                    if (merged != existing) appDao.insert(merged)
                 }
-            }
 
+                val hourDao = db.hourUsageDao()
+                for ((date, buckets) in result.hourMinutes) {
+                    val key = date.toString()
+                    val existingByHour = hourDao.getForDate(key).associateBy { it.hour } // 一次查询（复审意见）
+                    buckets.forEachIndexed { hour, minutes ->
+                        val incoming = HourUsageEntity(key, hour, minutes)
+                        val existing = existingByHour[hour]
+                        val merged = MergePolicy.mergeHour(existing, incoming)
+                        if (merged != existing) hourDao.insert(merged)
+                    }
+                }
+
+                // CR-01 事件流：unlock 主键去重；notification 秒级分组取大
+                db.unlockEventDao().insertIgnore(result.unlockEvents.map { UnlockEventEntity(it.occurredAtMs) })
+
+                val notifDao = db.notificationEventDao()
+                val incomingNotifs = result.notificationEvents.map {
+                    NotificationEventEntity(it.occurredAtMs, it.type.name, it.pkg, it.channelId)
+                }
+                if (incomingNotifs.isNotEmpty()) {
+                    val startMs = incomingNotifs.minOf { it.occurredAtMs } - 1000
+                    val endMs = incomingNotifs.maxOf { it.occurredAtMs } + 1000
+                    val existingNotifs = notifDao.between(startMs, endMs)
+                    val merged = MergePolicy.mergeNotifications(existingNotifs, incomingNotifs)
+                    if (merged != existingNotifs.sortedBy { it.occurredAtMs }) {
+                        // P0：区间删除，避免 `IN (:msList)` 在多日重拉时超过
+                        // Android 8–11 的 SQLite 绑定变量上限（999）
+                        notifDao.deleteBetween(startMs, endMs)
+                        notifDao.insertIgnore(merged)
+                    }
+                }
+
+                db.pullLogDao().insert(
+                    PullLogEntity(pulledAt = pulledAtMs, source = source, ok = true, note = null)
+                )
+            }
+            PullResult(ok = true, message = "入库完成：${result.days.size} 天")
+        } catch (e: Exception) {
+            // 失败整体回滚后记录 pull_log（§6：dump 为空或失败保留旧数据并记录）
+            logPull(source, pulledAtMs, ok = false, note = e.message)
+            PullResult(ok = false, message = e.message ?: "入库失败")
+        }
+    }
+
+    /** 失败日志本身再失败不得盖掉原始异常（写日志失败=无可记录）。 */
+    private suspend fun logPull(source: String, pulledAtMs: Long, ok: Boolean, note: String?) {
+        runCatching {
             db.pullLogDao().insert(
-                PullLogEntity(pulledAt = pulledAtMs, source = source, ok = true, note = null)
+                PullLogEntity(pulledAt = pulledAtMs, source = source, ok = ok, note = note)
             )
         }
-        PullResult(ok = true, message = "入库完成：${result.days.size} 天")
-    } catch (e: Exception) {
-        // 失败整体回滚后记录 pull_log（§6：dump 为空或失败保留旧数据并记录）
-        try {
-            db.pullLogDao().insert(
-                PullLogEntity(pulledAt = pulledAtMs, source = source, ok = false, note = e.message)
-            )
-        } catch (_: Exception) {
-        }
-        PullResult(ok = false, message = e.message ?: "入库失败")
     }
 }

@@ -39,6 +39,19 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    testOptions {
+        unitTests {
+            // Room / Robolectric 管道测试需要读取 manifest 与资源
+            isIncludeAndroidResources = true
+        }
+    }
+}
+
+// P2-1（6a 评审）：导出 Room schema JSON。注意与「备份 schemaVersion」是两套版本号——
+// 前者是数据库结构版本（本文件 version = 1），后者是备份文件格式版本（§5.10 C07，首版 2）。
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -59,6 +72,11 @@ dependencies {
 
     // 纯 JVM 单测：领域计算器不依赖 Android 框架，可直接 Run
     testImplementation("junit:junit:4.13.2")
+    // 批 6a 评审 P1-2：管道测试（Room + Robolectric 跑真 SQLite 语义，含 SQLite 变量上限）
+    testImplementation("org.robolectric:robolectric:4.12.2")
+    testImplementation("androidx.test:core-ktx:1.5.0")
+    testImplementation("androidx.room:room-testing:2.6.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
 
     // ---- 批 6a：数据层（KSP 已配置，版本 1.9.24-1.0.20 与 Kotlin 对齐）----
     implementation("androidx.room:room-runtime:2.6.1")

@@ -46,7 +46,13 @@ data class PullLogEntity(
     val note: String?
 )
 
-/** §4 unlock_event（CR-01，只增不改）：occurred_at_ms 主键去重。 */
+/**
+ * §4 unlock_event（CR-01，只增不改）：occurred_at_ms 主键去重。
+ * 注意（6a 评审 P2-4）：PK 只有毫秒。跨账户（user=0 / 666 隐私空间 / 999 分身）
+ * 两个真实解锁若撞同一毫秒会折叠成一行——`day_summary.unlocks` 计 2 而事件表只有 1。
+ * 解析器已把系统广播事件跨账户收敛（|Δt|≤1000ms），物理同毫秒概率极低；
+ * 若后续对账出现「日计数 > 事件数」，再考虑 PK 加 user（DB version 已为 1，需迁移）。
+ */
 @Entity(tableName = "unlock_event")
 data class UnlockEventEntity(
     @PrimaryKey val occurredAtMs: Long

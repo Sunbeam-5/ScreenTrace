@@ -19,6 +19,7 @@ import com.screentrace.app.contract.UsageRepository
 import com.screentrace.app.data.db.DaySummaryEntity
 import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.parse.AppNames
+import kotlinx.coroutines.flow.first
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
@@ -26,10 +27,14 @@ import java.time.temporal.TemporalAdjusters
 
 /**
  * Room 实现（批 6a）：查询 + 聚合全部经 [UsageCalculator]（§6：聚合口径唯一出处）。
- * 展示名按 §3-8：内置映射表回退包名（PackageManager 优先版由调用方/批 6b 回填）。
+ * 展示名按 §3-8：库内 name 优先（6b 用 PackageManager 回填后），回退内置映射表再回退包名；
+ * 分类按 §4：库内存默认映射，用户覆盖（SettingsStore.categoryOverrides）读取层叠加。
  * pullLatest 的 Shizuku 拉取通道在批 6b 接入。
  */
-class RoomUsageRepository(private val db: ScreenTraceDatabase) : UsageRepository {
+class RoomUsageRepository(
+    private val db: ScreenTraceDatabase,
+    private val settings: com.screentrace.app.data.prefs.SettingsStore? = null
+) : UsageRepository {
 
     private suspend fun recordsBetween(start: LocalDate, end: LocalDate): List<DaySummary> =
         db.daySummaryDao().getBetween(start.toString(), end.toString()).map { it.toDomain() }
@@ -40,22 +45,25 @@ class RoomUsageRepository(private val db: ScreenTraceDatabase) : UsageRepository
     override suspend fun dailyTrend(selection: DateSelection): List<DailyPoint> =
         UsageCalculator.dailyPoints(selection, recordsBetween(selection.startDate, selection.endDate))
 
-    override suspend fun appRanking(selection: DateSelection, limit: Int): List<AppUsage> =
-        db.appUsageDao()
+    override suspend fun appRanking(selection: DateSelection, limit: Int): List<AppUsage> {
+        // 分类覆盖（用户修改）读取层叠加，优先于库内默认（§4，6a 评审 P1-1）
+        val overrides = settings?.categoryOverrides?.first() ?: emptyMap()
+        return db.appUsageDao()
             .sumBetween(selection.startDate.toString(), selection.endDate.toString())
             .take(limit)
             .map {
                 AppUsage(
                     date = selection.endDate, // 区间聚合行（§5.7 排行显示区间累计）
                     pkg = it.pkg,
-                    name = AppNames.nameOf(it.pkg),
+                    name = displayName(it.pkg, it.name),
                     minutes = it.minutes,
                     launches = it.launches,
-                    category = runCatching {
+                    category = overrides[it.pkg] ?: runCatching {
                         com.screentrace.app.contract.AppCategory.valueOf(it.category)
                     }.getOrDefault(com.screentrace.app.contract.AppCategory.OTHER)
                 )
             }
+    }
 
     override suspend fun hourlyDistribution(selection: DateSelection): List<HourBucket> =
         db.hourUsageDao()
@@ -84,8 +92,9 @@ class RoomUsageRepository(private val db: ScreenTraceDatabase) : UsageRepository
 
     /**
      * CR-01（C04）：解锁/通知详情统一查询——图表/表格/卡片同源于此（§7-16）。
-     * 事件覆盖窗口起点 = 事件表最早事件日期（§3-7 累积窗口）；
-     * gapDays 暂空（批 6b 起从 pull_log 拉取失败记录推导，批 9 细化）。
+     * 事件覆盖窗口起点按指标分别取本表最早事件（6a 评审 P2-3）；
+     * gapDays 从 pull_log 推导：有失败记录且当天无成功拉取的日期为 GAP（6a 评审 P1-3，
+     * 覆盖三态不再退化）。
      */
     override suspend fun metricDetail(metric: MetricKind, selection: DateSelection): MetricDetail {
         val zone = ZoneId.systemDefault()
@@ -93,11 +102,17 @@ class RoomUsageRepository(private val db: ScreenTraceDatabase) : UsageRepository
         val endMs = selection.endDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
         val unlockMs = db.unlockEventDao().msBetween(startMs, endMs)
         val notifs = db.notificationEventDao().between(startMs, endMs)
-        val windowStartMs = minOfNotNull(db.unlockEventDao().minMs(), db.notificationEventDao().minMs())
+        val windowStartMs = when (metric) {
+            MetricKind.UNLOCK -> db.unlockEventDao().minMs()
+            MetricKind.NOTIFICATION -> db.notificationEventDao().minMs()
+        }
         val windowStart = windowStartMs?.let {
             java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate()
         }
-        val appLabels = db.appUsageDao().allNames().associate { it.pkg to AppNames.nameOf(it.pkg) }
+        val gapDays = computeGapDays(zone)
+        val appLabels = db.appUsageDao().allNames().associate {
+            it.pkg to displayName(it.pkg, it.name)
+        }
         return UsageCalculator.metricDetail(
             metric = metric,
             selection = selection,
@@ -111,10 +126,22 @@ class RoomUsageRepository(private val db: ScreenTraceDatabase) : UsageRepository
                 )
             },
             windowStart = windowStart,
-            gapDays = emptySet(),
+            gapDays = gapDays,
             appLabels = appLabels
         )
     }
+
+    /** 覆盖三态的 GAP 日（§4）：拉取失败且当天没有成功拉取的日期。 */
+    private suspend fun computeGapDays(zone: ZoneId): Set<LocalDate> {
+        val toDay: (Long) -> LocalDate = { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
+        val failed = db.pullLogDao().failedMs().map(toDay).toSet()
+        val ok = db.pullLogDao().okMs().map(toDay).toSet()
+        return failed - ok
+    }
+
+    /** §3-8 展示名：库内 name（6b 回填）优先 → 内置映射表 → 包名。 */
+    private fun displayName(pkg: String, storedName: String): String =
+        if (storedName.isNotBlank() && storedName != pkg) storedName else AppNames.nameOf(pkg)
 
     override suspend fun pullLatest(): PullResult = PullResult(
         ok = false,

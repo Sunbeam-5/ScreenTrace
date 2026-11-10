@@ -83,6 +83,13 @@ interface PullLogDao {
 
     @Query("SELECT * FROM pull_log ORDER BY pulledAt DESC LIMIT 1")
     suspend fun latest(): PullLogEntity?
+
+    /** 6a 评审 P1-3：拉取失败/成功的毫秒时间戳（推导覆盖三态的 GAP 日）。 */
+    @Query("SELECT pulledAt FROM pull_log WHERE ok = 0")
+    suspend fun failedMs(): List<Long>
+
+    @Query("SELECT pulledAt FROM pull_log WHERE ok = 1")
+    suspend fun okMs(): List<Long>
 }
 
 @Dao
@@ -115,8 +122,12 @@ interface NotificationEventDao {
     @Query("SELECT * FROM notification_event ORDER BY occurredAtMs")
     suspend fun getAll(): List<NotificationEventEntity>
 
-    @Query("DELETE FROM notification_event WHERE occurredAtMs IN (:msList)")
-    suspend fun deleteByMs(msList: List<Long>)
+    /**
+     * 按区间删除（6a 评审 P0）：Android 8–11 的 SQLite 绑定参数上限 999，
+     * `IN (:msList)` 多日重拉必炸——区间删除无变量上限问题。
+     */
+    @Query("DELETE FROM notification_event WHERE occurredAtMs BETWEEN :startMs AND :endMs")
+    suspend fun deleteBetween(startMs: Long, endMs: Long)
 
     @Query("SELECT MIN(occurredAtMs) FROM notification_event")
     suspend fun minMs(): Long?

@@ -329,7 +329,8 @@ class AppViewModel(
     }
 
     companion object {
-        /** 设置默认值：每日目标 240 分钟（批 7 设置页可改、批 6a 持久化）。 */
-        const val DEFAULT_GOAL_MIN = 240
+        /** 设置默认值：每日目标 240 分钟（批 7 设置页可改、批 6a 持久化）。
+         *  P2-5：单一出处 = SettingsStore，避免 UI 与持久化层各写一份 240。 */
+        const val DEFAULT_GOAL_MIN = com.screentrace.app.data.prefs.SettingsStore.DEFAULT_GOAL_MIN
     }
 }
