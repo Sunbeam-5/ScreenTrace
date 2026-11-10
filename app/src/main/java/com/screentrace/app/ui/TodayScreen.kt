@@ -1,17 +1,203 @@
 package com.screentrace.app.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.screentrace.app.contract.AppCategory
+import com.screentrace.app.contract.AppUsage
+import com.screentrace.app.contract.DateSelection
+import com.screentrace.app.contract.MetricDetail
+import com.screentrace.app.contract.Summary
+import com.screentrace.app.contract.UsageCalculator
+import com.screentrace.app.theme.FreshType
+import com.screentrace.app.theme.LocalFreshPalette
+import com.screentrace.app.theme.ScreenTimeTheme
+import com.screentrace.app.uikit.CompareLine
 import com.screentrace.app.uikit.EmptyState
+import com.screentrace.app.uikit.ErrorRetry
+import com.screentrace.app.uikit.LoadingSkeleton
+import com.screentrace.app.uikit.MetricCardPair
+import com.screentrace.app.uikit.MetricValue
+import com.screentrace.app.uikit.RatioBar
+import com.screentrace.app.uikit.RingProgress
+import com.screentrace.app.uikit.SecondaryButton
+import com.screentrace.app.uikit.Segment
+import com.screentrace.app.uikit.SegmentedBar
 
 /**
- * 今日页占位（批次 3）：EmptyUsageRepository 空态即产品真实空态（§5.5 禁止假数据）。
- * 批次 4 按 §5.7 填充：hero 圆环卡（副信息含最长连续）→ 可下钻双卡
- * 「解锁次数 / 通知打扰」（6d 前按纯摘要卡渲染）→ 应用构成卡。
+ * 今日页（§5.7 CR-01 版）：① hero 圆环卡（H:MM / 目标进度 / 对比，副信息含最长连续）
+ * → ② tonal 双卡「解锁次数 / 通知打扰」（区间态「日均解锁 / 日均通知打扰」，
+ * 通知卡副行「已查看 X 次」）→ ③ 应用构成卡（top4+其他、日间/夜间比值条、
+ * 「查看全部应用」进排行）。双卡按 §5.5 **纯摘要卡**渲染（无箭头无点击）——
+ * 可下钻样式在批 6d 接线详情页后升级。
+ * 空数据用统一 EmptyState（§5.5），不渲染假 0 值。
  */
 @Composable
-fun TodayScreen() {
-    EmptyState(
-        title = "尚无使用记录",
-        description = "连接 Shizuku 并完成首次拉取后，这里会显示今日的使用数据"
+fun TodayScreen(
+    state: LoadState<TodayData>,
+    dailyGoalMin: Int,
+    onOpenRanking: () -> Unit,
+    onRetry: () -> Unit
+) {
+    when {
+        state.loading -> LoadingSkeleton()
+        state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
+        state.data == null -> EmptyState(
+            title = "尚无使用记录",
+            description = "连接 Shizuku 并完成首次拉取后，这里会显示今日的使用数据"
+        )
+        else -> TodayContent(data = state.data, dailyGoalMin = dailyGoalMin, onOpenRanking = onOpenRanking)
+    }
+}
+
+@Composable
+private fun TodayContent(data: TodayData, dailyGoalMin: Int, onOpenRanking: () -> Unit) {
+    val palette = LocalFreshPalette.current
+    val single = data.summary.selection is DateSelection.Day
+    val usageMin =
+        if (single) data.summary.totalScreenUnlockMin else data.summary.averageScreenUnlockMin
+
+    // ① hero 圆环卡
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(palette.surface)
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        RingProgress(
+            progress = if (dailyGoalMin <= 0) 0f else usageMin.toFloat() / dailyGoalMin,
+            timeText = UsageCalculator.formatClock(usageMin),
+            caption = "小时 : 分钟"
+        )
+        CompareLine(text = data.compare.text, up = data.compare.increase)
+        Text(
+            text = "最长连续 ${UsageCalculator.formatDuration(data.summary.longestSessionMin)}",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+    }
+
+    // ② tonal 双卡（纯摘要，无箭头无点击——§5.5 / CR-01）
+    val notification = data.notification
+    MetricCardPair(
+        leftLabel = if (single) "解锁次数" else "日均解锁",
+        leftValue = MetricValue.Number("${data.summary.averageUnlocks}"),
+        rightLabel = if (single) "通知打扰" else "日均通知打扰",
+        rightValue = MetricValue.Number(
+            notification?.let { if (single) "${it.total}" else "${it.dailyAverage ?: 0}" } ?: "—"
+        ),
+        rightNote = notification?.notification?.let { "已查看 ${it.seen} 次" }
     )
+
+    // ③ 应用构成卡
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(palette.surface)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(text = "应用构成", style = FreshType.sectionTitle, color = palette.onSurface)
+        val segments = buildList {
+            data.topApps.forEachIndexed { index, app ->
+                add(
+                    Segment(
+                        weight = app.minutes.toFloat(),
+                        color = palette.chartList()[index % 5],
+                        label = "${app.name} · ${UsageCalculator.formatDuration(app.minutes)}"
+                    )
+                )
+            }
+            if (data.otherMinutes > 0) {
+                add(
+                    Segment(
+                        weight = data.otherMinutes.toFloat(),
+                        color = palette.chartList()[4],
+                        label = "其他 · ${UsageCalculator.formatDuration(data.otherMinutes)}"
+                    )
+                )
+            }
+        }
+        if (segments.isEmpty()) {
+            EmptyState(title = "暂无应用数据")
+        } else {
+            SegmentedBar(segments = segments)
+        }
+        Spacer(Modifier.height(4.dp)) // 与比值条的 16dp 分隔（含列间距 12dp）
+        RatioBar(leftLabel = "日间", leftPercent = data.dayPercent, rightLabel = "夜间")
+        SecondaryButton(
+            text = "查看全部应用",
+            onClick = onOpenRanking,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+private fun com.screentrace.app.theme.FreshPalette.chartList() =
+    listOf(chart1, chart2, chart3, chart4, chart5)
+
+@Preview(widthDp = 360, showBackground = true)
+@Composable
+private fun TodayScreenPreview() {
+    ScreenTimeTheme {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            TodayScreen(
+                state = LoadState(
+                    data = TodayData(
+                        summary = Summary(
+                            selection = DateSelection.today(),
+                            totalDays = 1,
+                            recordedDays = 1,
+                            hasAnyRecord = true,
+                            totalScreenUnlockMin = 272,
+                            averageScreenUnlockMin = 272,
+                            averageUnlocks = 87,
+                            longestSessionMin = 72
+                        ),
+                        compare = UsageCalculator.CompareInfo("较昨日增加 12 分钟", true),
+                        notification = null,
+                        topApps = listOf(
+                            AppUsage(
+                                java.time.LocalDate.now(), "tv.danmaku.bili", "哔哩哔哩",
+                                130, 20, AppCategory.VIDEO
+                            ),
+                            AppUsage(
+                                java.time.LocalDate.now(), "com.tencent.mm", "微信",
+                                82, 40, AppCategory.SOCIAL
+                            )
+                        ),
+                        otherMinutes = 60,
+                        dayPercent = 72
+                    )
+                ),
+                dailyGoalMin = 240,
+                onOpenRanking = {},
+                onRetry = {}
+            )
+        }
+    }
+}
+
+@Preview(widthDp = 360, showBackground = true)
+@Composable
+private fun TodayScreenEmptyPreview() {
+    ScreenTimeTheme {
+        TodayScreen(state = LoadState(data = null), dailyGoalMin = 240, onOpenRanking = {}, onRetry = {})
+    }
 }

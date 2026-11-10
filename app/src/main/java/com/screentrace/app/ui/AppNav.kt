@@ -62,7 +62,13 @@ fun AppNav(
     val dynamicColor by viewModel.dynamicColor
     val page by viewModel.page
     val selection by viewModel.selection
-    val summaryState by viewModel.summaryState
+    val todayState by viewModel.todayState
+    val statsState by viewModel.statsState
+    val calendarState by viewModel.calendarState
+    val rankingState by viewModel.rankingState
+    val monthLevelsState by viewModel.monthLevelsState
+    val calendarMonth by viewModel.calendarMonth
+    val dailyGoalMin by viewModel.dailyGoalMin
     val notice by viewModel.notice
 
     var showDateSheet by rememberSaveable { mutableStateOf(false) }
@@ -82,6 +88,18 @@ fun AppNav(
                         title = "设置",
                         subtitle = null,
                         onBack = viewModel::goBack
+                    )
+                    is AppPage.UnlockDetail -> AppHeader(
+                        title = "解锁详情",
+                        subtitle = null,
+                        onBack = viewModel::goBack,
+                        onDateClick = { showDateSheet = true }
+                    )
+                    is AppPage.NotificationDetail -> AppHeader(
+                        title = "通知详情",
+                        subtitle = null,
+                        onBack = viewModel::goBack,
+                        onDateClick = { showDateSheet = true }
                     )
                     else -> AppHeader(
                         title = when (AppPage.mainOf(page)) {
@@ -122,23 +140,44 @@ fun AppNav(
         ) {
             FilterChipBar(
                 selection = selection,
-                recordedDays = summaryState.summary?.recordedDays,
+                recordedDays = todayState.data?.summary?.recordedDays,
                 onClear = viewModel::clearFilter
             )
             notice?.let { text ->
                 NoticeBar(text = text, onDismiss = viewModel::consumeNotice)
             }
             when (page) {
-                AppPage.Today -> TodayScreen()
-                AppPage.Stats -> StatsScreen()
-                AppPage.Calendar -> CalendarScreen()
-                is AppPage.Ranking -> RankingScreen()
+                AppPage.Today -> TodayScreen(
+                    state = todayState,
+                    dailyGoalMin = dailyGoalMin,
+                    onOpenRanking = viewModel::openRanking,
+                    onRetry = viewModel::reload
+                )
+                AppPage.Stats -> StatsScreen(
+                    state = statsState,
+                    selection = selection,
+                    onApplySelection = viewModel::applySelection,
+                    onRetry = viewModel::reload
+                )
+                AppPage.Calendar -> CalendarScreen(
+                    state = calendarState,
+                    monthLevelsState = monthLevelsState,
+                    calendarMonth = calendarMonth,
+                    onMonthChange = viewModel::setCalendarMonth,
+                    onRetry = viewModel::reload
+                )
+                is AppPage.Ranking -> RankingScreen(
+                    state = rankingState,
+                    onRetry = viewModel::reload
+                )
                 is AppPage.Settings -> SettingsScreen(
                     darkTheme = darkTheme,
                     dynamicColor = dynamicColor,
                     onDarkThemeChange = viewModel::setDarkTheme,
                     onDynamicColorChange = viewModel::setDynamicColor
                 )
+                is AppPage.UnlockDetail -> UnlockDetailScreen()
+                is AppPage.NotificationDetail -> NotificationDetailScreen()
             }
         }
 

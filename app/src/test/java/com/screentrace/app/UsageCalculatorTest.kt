@@ -178,6 +178,27 @@ class UsageCalculatorTest {
 
     // ---- CR-01（C04）：metricDetail 事件聚合 ----
 
+    @Test
+    fun compareUsesUnifiedWording() {
+        val selection = DateSelection.Range(day1, day4)
+        val current = UsageCalculator.summarize(selection, listOf(record(day1, 200), record(day3, 100)))
+        // 单日：分钟差
+        val single = UsageCalculator.compare(
+            current, UsageCalculator.summarize(selection, listOf(record(day1, 100))), single = true
+        )
+        assertEquals("较昨日增加 3小时20分钟", single.text)
+        assertEquals(true, single.increase)
+        // 无上一周期 → 不得显示 0%
+        val none = UsageCalculator.compare(current, previous = null, single = true)
+        assertEquals("暂无上一周期数据", none.text)
+        assertNull(none.increase)
+        // 区间：百分比（上一区间日均 100 → 当前 150 = +50%）
+        val range = UsageCalculator.compare(
+            current, UsageCalculator.summarize(selection, listOf(record(day1, 100))), single = false
+        )
+        assertEquals("较上一区间增加 50%", range.text)
+    }
+
     /** 毫秒时间戳按设备本地时区构造，与计算器同口径（测试与实现时区无关）。 */
     private fun ms(date: LocalDate, hour: Int, minute: Int = 0): Long =
         date.atTime(hour, minute).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()

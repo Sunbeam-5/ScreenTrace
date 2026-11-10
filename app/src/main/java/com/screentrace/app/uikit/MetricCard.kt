@@ -37,7 +37,7 @@ fun MetricCard(
     modifier: Modifier = Modifier,
     note: String? = null,
     noteAsCompare: Boolean = false,
-    noteUp: Boolean = true,
+    noteUp: Boolean? = true,
     variant: MetricCardVariant = MetricCardVariant.Secondary
 ) {
     val palette = LocalFreshPalette.current
@@ -87,8 +87,8 @@ fun MetricCardPair(
     rightNote: String? = null,
     leftNoteAsCompare: Boolean = false,
     rightNoteAsCompare: Boolean = false,
-    leftNoteUp: Boolean = true,
-    rightNoteUp: Boolean = true
+    leftNoteUp: Boolean? = true,
+    rightNoteUp: Boolean? = true
 ) {
     Row(
         modifier = modifier

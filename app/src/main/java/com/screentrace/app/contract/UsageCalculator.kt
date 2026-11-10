@@ -72,6 +72,20 @@ object UsageCalculator {
     fun nightMinutes(hours: List<HourUsage>): Int =
         hours.filter { it.hour >= 22 || it.hour < 6 }.sumOf { it.minutes }
 
+    /** 聚合桶口径重载（Repository 的 hourlyDistribution 输出，HourBucket 已按小时合并）。 */
+    @JvmName("periodBucketsOfAggregated")
+    fun periodBuckets(buckets: List<HourBucket>): List<Int> = listOf(
+        buckets.filter { it.hour in 6..11 }.sumOf { it.minutes },
+        buckets.filter { it.hour in 12..17 }.sumOf { it.minutes },
+        buckets.filter { it.hour in 18..21 }.sumOf { it.minutes },
+        buckets.filter { it.hour >= 22 || it.hour < 6 }.sumOf { it.minutes }
+    )
+
+    /** 聚合桶口径重载。 */
+    @JvmName("nightMinutesOfAggregated")
+    fun nightMinutes(buckets: List<HourBucket>): Int =
+        buckets.filter { it.hour >= 22 || it.hour < 6 }.sumOf { it.minutes }
+
     /** §5.7 月视图三档：(0,2h) / [2h,4h) / ≥4h；0 分钟与无记录均不着色。 */
     fun monthLevel(minutes: Int, recorded: Boolean): Int = when {
         !recorded || minutes <= 0 -> 0
@@ -162,6 +176,48 @@ object UsageCalculator {
             shortestMinutes = shortest.screenUnlockMin,
             under2hDays = inRange.count { it.screenUnlockMin < 120 }
         )
+    }
+
+    /**
+     * §5.3 对比文案口径（统一在计算器，禁止各页自算）：
+     * 单日=「较昨日增加/减少 X 分钟」；区间=「较上一区间增加/减少 X%」；
+     * 上一周期无记录 →「暂无上一周期数据」（increase=null，UI 不画箭头，不得显示 0%）。
+     * 持平 →「较昨日/较上一区间持平」（increase=null）。
+     */
+    data class CompareInfo(val text: String, val increase: Boolean?)
+
+    fun compare(current: Summary, previous: Summary?, single: Boolean): CompareInfo {
+        if (previous == null || !previous.hasAnyRecord) return CompareInfo("暂无上一周期数据", null)
+        return if (single) {
+            val delta = current.totalScreenUnlockMin - previous.totalScreenUnlockMin
+            when {
+                delta > 0 -> CompareInfo("较昨日增加 ${formatDuration(delta)}", true)
+                delta < 0 -> CompareInfo("较昨日减少 ${formatDuration(-delta)}", false)
+                else -> CompareInfo("较昨日持平", null)
+            }
+        } else {
+            val prevAvg = previous.averageScreenUnlockMin
+            val curAvg = current.averageScreenUnlockMin
+            when {
+                prevAvg <= 0 -> {
+                    // 上一区间日均为 0，百分比无意义——退化为分钟差文案
+                    val delta = curAvg - prevAvg
+                    when {
+                        delta > 0 -> CompareInfo("较上一区间增加 ${formatDuration(delta)}", true)
+                        delta < 0 -> CompareInfo("较上一区间减少 ${formatDuration(-delta)}", false)
+                        else -> CompareInfo("较上一区间持平", null)
+                    }
+                }
+                else -> {
+                    val percent = (curAvg - prevAvg) * 100 / prevAvg
+                    when {
+                        percent > 0 -> CompareInfo("较上一区间增加 $percent%", true)
+                        percent < 0 -> CompareInfo("较上一区间减少 ${-percent}%", false)
+                        else -> CompareInfo("较上一区间持平", null)
+                    }
+                }
+            }
+        }
     }
 
     /**

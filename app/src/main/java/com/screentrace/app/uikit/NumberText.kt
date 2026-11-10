@@ -143,11 +143,12 @@ private fun buildMetricAnnotated(
 /**
  * §5.3 对比行：14sp/600 文字 + 12dp 箭头图标，颜色用 primary；
  * 增减方向由箭头形状表达，不单靠颜色（§5.4）。
+ * up=null 表示持平或无对比数据（「暂无上一周期数据」），不画箭头。
  */
 @Composable
 fun CompareLine(
     text: String,
-    up: Boolean,
+    up: Boolean?,
     modifier: Modifier = Modifier
 ) {
     val palette = LocalFreshPalette.current
@@ -156,12 +157,14 @@ fun CompareLine(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Icon(
-            imageVector = if (up) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-            contentDescription = null, // 方向信息由文案「增加/减少」承载，图标不重复播报（§5.9）
-            tint = palette.primary,
-            modifier = Modifier.size(12.dp)
-        )
+        if (up != null) {
+            Icon(
+                imageVector = if (up) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = null, // 方向信息由文案「增加/减少」承载，图标不重复播报（§5.9）
+                tint = palette.primary,
+                modifier = Modifier.size(12.dp)
+            )
+        }
         Text(text = text, style = FreshType.button, color = palette.primary)
     }
 }
