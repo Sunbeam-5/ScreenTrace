@@ -1,0 +1,554 @@
+  In-memory daily stats
+  timeRange="2026/11/8 22:58 – 2026/11/9 15:50" 
+    packages
+      package=com.quark.browser totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.weather.provider totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:38:42" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.google.android.youtube totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.browser.novel.widget totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:52:04" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.adservices.api totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:36:20" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.healthservice totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 12:58:35" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.sohu.inputmethod.sogou.vivo totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:22:20" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.providers.telephony totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:43" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.smartmultiwindow totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.unionpay.tsmservice totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 14:14:10" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.fuelsummary totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 00:00:31" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.google.android.googlequicksearchbox totalTimeUsed="01:21" lastTimeUsed="2026-11-09 10:56:59" totalTimeVisible="01:23" lastTimeVisible="2026-11-09 10:56:59" lastTimeComponentUsed="2026-11-09 10:55:57" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=3 
+      package=com.android.providers.calendar totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:20:18" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.huawei.health totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:34:21" totalTimeFS="15:17:55" lastTimeFS="2026-11-09 15:49:47" appLaunchCount=0 
+      package=org.telegram.messenger totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.providers.media totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.vivo3rdalgoservice totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:14:56" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.abe totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:24:35" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.epm totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.pem totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.pie totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.sos totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:49:38" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.sps totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.vms totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:03:43" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.desktopstickers totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:27" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.safecenter totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:24" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.telephonyapp totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:17:12" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.appfilter totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.nightpearl totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:00:29" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.bankabc totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.widgetweather totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:19:42" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.hiboard totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 10:23:14" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.sinovatech.unicom.ui totalTimeUsed="02:58" lastTimeUsed="2026-11-09 13:49:57" totalTimeVisible="03:00" lastTimeVisible="2026-11-09 13:49:57" lastTimeComponentUsed="2026-11-09 13:49:50" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=3 
+      package=com.os.callservice totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 12:08:02" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.externalstorage totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:21:48" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.musicwidgetmix totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:24:30" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.numbermark totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:38:41" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.qualcomm.qti.uceShimService totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.recents totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 09:29:36" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.widget.healthcare totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:18:53" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.mms.service totalTimeUsed="00:00" lastTimeUsed="2026-11-09 13:06:14" totalTimeVisible="00:00" lastTimeVisible="2026-11-09 13:06:14" lastTimeComponentUsed="2026-11-09 02:06:36" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.providers.downloads totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:46:11" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.smartanswer totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:17:25" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.taou.maimai totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.ai.gptagent totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:34:19" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.vivokaraoke totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:17:25" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.weather totalTimeUsed="01:06" lastTimeUsed="2026-11-09 07:54:31" totalTimeVisible="01:11" lastTimeVisible="2026-11-09 07:54:31" lastTimeComponentUsed="2026-11-09 15:17:25" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=6 
+      package=vendor.qti.hardware.cacert.server totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=cmb.pb totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.openai.chatgpt totalTimeUsed="09:21" lastTimeUsed="2026-11-09 14:00:07" totalTimeVisible="09:22" lastTimeVisible="2026-11-09 14:00:07" lastTimeComponentUsed="2026-11-09 14:00:07" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=7 
+      package=com.aliyun.tongyi totalTimeUsed="01:20" lastTimeUsed="2026-11-09 11:14:00" totalTimeVisible="01:22" lastTimeVisible="2026-11-09 11:14:00" lastTimeComponentUsed="2026-11-09 11:13:43" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=4 
+      package=app.komikku totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:21:48" totalTimeFS="45:45" lastTimeFS="2026-11-09 12:07:37" appLaunchCount=0 
+      package=com.qualcomm.qti.telephonyservice totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.bbk.updater totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:03:55" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.gamecube totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:39" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.bbkcalculator totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=vendor.qti.iwlan totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.iotserver totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:08:18" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.pushservice totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:24:35" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=vendor.qti.data.txpwradmin totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=moe.shizuku.privileged.api totalTimeUsed="00:34" lastTimeUsed="2026-11-09 15:18:11" totalTimeVisible="00:36" lastTimeVisible="2026-11-09 15:18:11" lastTimeComponentUsed="2026-11-09 15:18:04" totalTimeFS="00:22" lastTimeFS="2026-11-09 11:21:40" appLaunchCount=4 
+      package=com.vivo.smartoffice totalTimeUsed="00:02" lastTimeUsed="2026-11-09 08:27:51" totalTimeVisible="00:03" lastTimeVisible="2026-11-09 08:27:51" lastTimeComponentUsed="2026-11-09 08:27:48" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.hupu.games totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.vending totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 14:00:08" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.filemanager totalTimeUsed="00:58" lastTimeUsed="2026-11-09 08:28:12" totalTimeVisible="01:01" lastTimeVisible="2026-11-09 08:28:12" lastTimeComponentUsed="2026-11-09 15:17:24" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=5 
+      package=com.android.networkstack totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.xingin.xhs totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 14:13:23" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.tencent.mm totalTimeUsed="35:02" lastTimeUsed="2026-11-09 12:25:39" totalTimeVisible="35:33" lastTimeVisible="2026-11-09 12:25:40" lastTimeComponentUsed="2026-11-09 12:24:53" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=27 
+      package=com.vivo.visionaid.builtin totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:17:25" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.smartshot totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 12:30:27" totalTimeFS="00:08" lastTimeFS="2026-11-09 12:30:29" appLaunchCount=0 
+      package=com.google.android.marvin.talkback totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:17:24" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.duowan.kiwi totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.qti.qualcomm.datastatusnotification totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=android totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.contacts totalTimeUsed="00:01" lastTimeUsed="2026-11-09 08:10:35" totalTimeVisible="00:01" lastTimeVisible="2026-11-09 08:10:35" lastTimeComponentUsed="2026-11-09 08:10:33" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.bbk.cloud totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:17:24" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.timerwidget totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:19:42" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.mms totalTimeUsed="00:01" lastTimeUsed="2026-11-09 08:18:56" totalTimeVisible="00:01" lastTimeVisible="2026-11-09 08:18:56" lastTimeComponentUsed="2026-11-09 15:17:26" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.android.mtp totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.nfc totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.ons totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.stk totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:28" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.instagram.android totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:54:12" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.icbc totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 14:06:34" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.deepseek.chat totalTimeUsed="00:52" lastTimeUsed="2026-11-09 10:47:50" totalTimeVisible="00:52" lastTimeVisible="2026-11-09 10:47:50" lastTimeComponentUsed="2026-11-09 10:46:57" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.vivo.nfcbaseapp totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:29" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=org.codeaurora.ims totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:28" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.statementservice totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 14:03:05" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.BBKClock totalTimeUsed="00:08" lastTimeUsed="2026-11-09 07:15:11" totalTimeVisible="00:09" lastTimeVisible="2026-11-09 07:15:12" lastTimeComponentUsed="2026-11-09 07:15:03" totalTimeFS="00:09" lastTimeFS="2026-11-09 07:15:11" appLaunchCount=1 
+      package=com.google.android.gm totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=bin.mt.plus totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:21:48" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.fileobserver totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 08:27:01" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.microsoft.bing totalTimeUsed="02:54" lastTimeUsed="2026-11-09 08:19:28" totalTimeVisible="02:56" lastTimeVisible="2026-11-09 08:19:29" lastTimeComponentUsed="2026-11-09 08:19:24" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=2 
+      package=com.microsoft.emmx totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 08:18:56" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.aiengine totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.daemonService totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:17:23" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.tencent.workbuddy.app totalTimeUsed="18:55" lastTimeUsed="2026-11-09 10:43:08" totalTimeVisible="18:56" lastTimeVisible="2026-11-09 10:43:09" lastTimeComponentUsed="2026-11-09 10:43:01" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=5 
+      package=com.mfcloudcalculate.networkdisk totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.voicewakeup totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:25" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.max.xiaoheihe totalTimeUsed="02:27" lastTimeUsed="2026-11-09 15:15:04" totalTimeVisible="02:29" lastTimeVisible="2026-11-09 15:15:04" lastTimeComponentUsed="2026-11-09 15:15:02" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=2 
+      package=com.qualcomm.qcrilmsgtunnel totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.providers.settings totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.printspooler totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:14:55" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.globalanimation totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.card totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.cota totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:16:40" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.e2ee totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:03:43" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.vdfs totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:49:54" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.incallui totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:59:28" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.photopicker totalTimeUsed="00:01" lastTimeUsed="2026-11-09 11:40:43" totalTimeVisible="00:02" lastTimeVisible="2026-11-09 11:40:43" lastTimeComponentUsed="2026-11-09 11:40:41" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.android.se totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.rkpdapp totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:15:01" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.qti.dpmserviceapp totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.tencent.wework totalTimeUsed="02:23" lastTimeUsed="2026-11-09 15:08:11" totalTimeVisible="02:27" lastTimeVisible="2026-11-09 15:08:11" lastTimeComponentUsed="2026-11-09 15:08:09" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=3 
+      package=com.vivo.ai.copilot totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:49:44" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.connbase totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:49:50" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.bbk.iqoo.logsystem totalTimeUsed="00:18" lastTimeUsed="2026-11-09 11:40:38" totalTimeVisible="00:21" lastTimeVisible="2026-11-09 11:40:38" lastTimeComponentUsed="2026-11-09 11:40:32" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=4 
+      package=com.twitter.android totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.launchercopilot totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:34:18" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.google.android.apps.bard totalTimeUsed="00:00" lastTimeUsed="2026-11-09 10:55:57" totalTimeVisible="00:02" lastTimeVisible="2026-11-09 10:55:57" lastTimeComponentUsed="2026-11-09 10:55:57" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=3 
+      package=com.google.android.apps.docs totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:27" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.basemanager totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:18:12" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=vendor.qti.data.ntnsatapp totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.google.android.webview totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:34:31" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.faceui totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.server.telecom totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.cellbroadcastservice totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.health totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:03:51" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.bbklog totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 14:29:28" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.permissionmanager totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 09:26:20" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.keychain totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 14:03:06" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.hybrid totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:38" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.camera totalTimeUsed="00:08" lastTimeUsed="2026-11-09 15:03:38" totalTimeVisible="00:09" lastTimeVisible="2026-11-09 15:03:39" lastTimeComponentUsed="2026-11-09 15:14:56" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.android.chrome totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:38:42" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=cn.com.cmbc.newmbank totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.bbk.launcher2 totalTimeUsed="36:14" lastTimeUsed="2026-11-09 15:49:56" totalTimeVisible="37:57" lastTimeVisible="2026-11-09 15:49:56" lastTimeComponentUsed="2026-11-09 15:49:55" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=84 
+      package=com.vivo.cardstore totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:10:14" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.accessibilityenhance totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:46:11" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.ss.android.ugc.aweme totalTimeUsed="02:20" lastTimeUsed="2026-11-09 12:13:32" totalTimeVisible="02:21" lastTimeVisible="2026-11-09 12:13:32" lastTimeComponentUsed="2026-11-09 12:12:24" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=3 
+      package=com.google.android.gms totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:34:28" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=android.ext.services totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 14:03:06" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.calllogbackup totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 08:10:35" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.tencent.mobileqq totalTimeUsed="00:02" lastTimeUsed="2026-11-09 08:09:14" totalTimeVisible="00:03" lastTimeVisible="2026-11-09 08:09:15" lastTimeComponentUsed="2026-11-09 08:09:16" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.android.localtransport totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:27" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.getsurfboard totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 14:14:09" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.packageinstaller totalTimeUsed="00:40" lastTimeUsed="2026-11-09 11:18:53" totalTimeVisible="00:41" lastTimeVisible="2026-11-09 11:18:54" lastTimeComponentUsed="2026-11-09 11:18:50" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=app.mihon totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:21:48" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=ai.x.grok totalTimeUsed="02:04" lastTimeUsed="2026-11-09 10:59:13" totalTimeVisible="02:04" lastTimeVisible="2026-11-09 10:59:13" lastTimeComponentUsed="2026-11-09 10:57:08" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.qualcomm.qti.devicestatisticsservice totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.kugou.android totalTimeUsed="03:33" lastTimeUsed="2026-11-09 07:53:02" totalTimeVisible="03:36" lastTimeVisible="2026-11-09 07:53:02" lastTimeComponentUsed="2026-11-09 07:33:27" totalTimeFS="1:12:03" lastTimeFS="2026-11-09 08:09:17" appLaunchCount=5 
+      package=com.vivo.magazine totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:15:24" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.unionpay totalTimeUsed="00:32" lastTimeUsed="2026-11-09 15:14:56" totalTimeVisible="00:33" lastTimeVisible="2026-11-09 15:14:56" lastTimeComponentUsed="2026-11-09 15:14:49" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=3 
+      package=com.snda.wifilocating totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:23:35" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.systemuiplugin totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 12:38:35" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=zed.rainxch.githubstore totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:21:49" totalTimeFS="00:04" lastTimeFS="2026-11-09 11:21:54" appLaunchCount=0 
+      package=com.vivo.familycare.local totalTimeUsed="06:09" lastTimeUsed="2026-11-09 15:37:25" totalTimeVisible="06:11" lastTimeVisible="2026-11-09 15:37:26" lastTimeComponentUsed="2026-11-09 15:37:25" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=8 
+      package=com.google.android.syncadapters.calendar totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:15:04" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.iqoo.secure totalTimeUsed="00:09" lastTimeUsed="2026-11-09 07:23:53" totalTimeVisible="00:09" lastTimeVisible="2026-11-09 07:23:54" lastTimeComponentUsed="2026-11-09 14:03:23" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.android.networkstack.tethering totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.vtouch totalTimeUsed="00:00" lastTimeUsed="2026-11-09 15:46:14" totalTimeVisible="00:01" lastTimeVisible="2026-11-09 15:46:14" lastTimeComponentUsed="2026-11-09 15:46:13" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=3 
+      package=com.vivo.wallet totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 14:14:12" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.tencent.soter.soterserver totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:43" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.xspace totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:38:40" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.globalsearch totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:15:12" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.iqoo.powersaving totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 14:06:49" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.cipherchain totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:46:30" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.sdkplugin totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:59:28" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.bbk.appstore totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:14:57" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=io.github.ccch1mneyyy.dsh_app totalTimeUsed="54:01" lastTimeUsed="2026-11-09 15:49:56" totalTimeVisible="54:15" lastTimeVisible="2026-11-09 15:49:56" lastTimeComponentUsed="2026-11-09 15:49:56" totalTimeFS="1:24:16" lastTimeFS="2026-11-09 15:49:47" appLaunchCount=31 
+      package=com.qualcomm.atfwd2 totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.manmanbuy.bijia totalTimeUsed="03:36" lastTimeUsed="2026-11-09 13:42:55" totalTimeVisible="03:37" lastTimeVisible="2026-11-09 13:42:55" lastTimeComponentUsed="2026-11-09 13:42:25" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=4 
+      package=com.coolapk.market totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.pcsuite totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:59:28" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.findphone totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:17:24" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.networkimprove totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:08:08" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.agentsanywhere.app totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.accessibility totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:44:10" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.kugou.android.elder totalTimeUsed="00:03" lastTimeUsed="2026-11-08 23:24:21" totalTimeVisible="00:03" lastTimeVisible="2026-11-08 23:24:21" lastTimeComponentUsed="2026-11-08 23:24:18" totalTimeFS="00:01" lastTimeFS="2026-11-08 23:24:21" appLaunchCount=1 
+      package=com.yuzhoucloud totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.larus.nova totalTimeUsed="03:30" lastTimeUsed="2026-11-09 10:46:37" totalTimeVisible="03:31" lastTimeVisible="2026-11-09 10:46:37" lastTimeComponentUsed="2026-11-09 10:45:41" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=4 
+      package=com.ecitic.bank.mobile totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.vivo.tws.vivotws totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:16:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.settings totalTimeUsed="14:05" lastTimeUsed="2026-11-09 15:49:56" totalTimeVisible="14:17" lastTimeVisible="2026-11-09 15:49:56" lastTimeComponentUsed="2026-11-09 15:49:50" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=26 
+      package=com.qualcomm.qti.cne totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.hypergryph.arknights totalTimeUsed="07:17" lastTimeUsed="2026-11-09 09:43:16" totalTimeVisible="07:19" lastTimeVisible="2026-11-09 09:43:17" lastTimeComponentUsed="2026-11-09 09:40:26" totalTimeFS="00:54" lastTimeFS="2026-11-09 09:27:19" appLaunchCount=9 
+      package=com.jingdong.app.mall totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=ai.qwenlm.chat.android totalTimeUsed="09:44" lastTimeUsed="2026-11-09 11:09:06" totalTimeVisible="09:44" lastTimeVisible="2026-11-09 11:09:06" lastTimeComponentUsed="2026-11-09 11:05:37" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=2 
+      package=com.vivo.video.floating totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:17:25" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.example.piliplus totalTimeUsed="1:12:28" lastTimeUsed="2026-11-09 13:31:30" totalTimeVisible="1:12:30" lastTimeVisible="2026-11-09 13:31:30" lastTimeComponentUsed="2026-11-09 13:31:09" totalTimeFS="42:11" lastTimeFS="2026-11-09 13:17:18" appLaunchCount=7 
+      package=com.vivo.multinlp totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:26" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.deformer totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:17:24" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.yorick.cokotools totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:21:49" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.fido.client totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:57" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.puresearch totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:14:55" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.autonavi.minimap totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.qualcomm.location totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=li.songe.gkd totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:21:51" totalTimeFS="4:27:56" lastTimeFS="2026-11-09 15:49:47" appLaunchCount=0 
+      package=com.vivo.globaldragdrop totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:00:30" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.translator totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 08:16:23" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.upslide totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 13:34:16" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.gallery totalTimeUsed="00:12" lastTimeUsed="2026-11-09 08:28:05" totalTimeVisible="00:14" lastTimeVisible="2026-11-09 08:28:05" lastTimeComponentUsed="2026-11-09 15:03:32" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=3 
+      package=com.vivo.car.networking totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:49:45" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.agent totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:44:09" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.email totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:14:39" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.sina.weibo totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.gamewatch totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.share totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:15:04" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.space totalTimeUsed="00:02" lastTimeUsed="2026-11-09 10:23:18" totalTimeVisible="00:03" lastTimeVisible="2026-11-09 10:23:20" lastTimeComponentUsed="2026-11-09 15:37:26" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.android.notes totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 08:10:35" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.vhome totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 08:27:00" totalTimeFS="00:00" lastTimeFS="2026-11-09 07:15:02" appLaunchCount=0 
+      package=com.vivo.vmdri totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.phone totalTimeUsed="00:09" lastTimeUsed="2026-11-09 11:40:32" totalTimeVisible="00:10" lastTimeVisible="2026-11-09 11:40:32" lastTimeComponentUsed="2026-11-09 13:49:38" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=3 
+      package=com.android.providers.blockednumber totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.aiservice totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:49:55" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.providers.userdictionary totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.providers.media.module totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 08:29:47" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.baidu.youavideo totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.favorite totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:49:46" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.moonshot.kimichat totalTimeUsed="00:13" lastTimeUsed="2026-11-09 10:46:53" totalTimeVisible="00:13" lastTimeVisible="2026-11-09 10:46:53" lastTimeComponentUsed="2026-11-09 10:46:41" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.miHoYo.Nap totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.location.fused totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.systemui totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:42:09" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.connbase.deviceaccessory totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:49:45" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.dr totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:05:30" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.doubleinstance totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.fingerprintui totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.permissioncontroller totalTimeUsed="00:01" lastTimeUsed="2026-11-09 10:42:49" totalTimeVisible="00:03" lastTimeVisible="2026-11-09 10:42:50" lastTimeComponentUsed="2026-11-09 15:49:47" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=5 
+      package=com.bbk.SuperPowerSave totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 11:24:14" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.dcservice totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=vendor.qti.imsdatachannel totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.browser totalTimeUsed="00:50" lastTimeUsed="2026-11-09 15:34:23" totalTimeVisible="00:52" lastTimeVisible="2026-11-09 15:34:24" lastTimeComponentUsed="2026-11-09 15:34:21" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=3 
+      package=com.taobao.taobao totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.xiaomi.smarthome totalTimeUsed="00:01" lastTimeUsed="2026-11-09 11:23:32" totalTimeVisible="00:03" lastTimeVisible="2026-11-09 11:23:34" lastTimeComponentUsed="2026-11-09 11:23:38" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=1 
+      package=com.vivo.voicerecognition totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:17:25" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.qti.qcc totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.assistant totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:46:10" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.bluetooth totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:15:01" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.qualcomm.atfwd totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="1970-01-01 08:00:00" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.android.providers.contacts totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:25" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=vendor.qti.imsrcs totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 02:06:22" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.vivo.healthwidget totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 07:15:02" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=tv.danmaku.bili totalTimeUsed="20:13" lastTimeUsed="2026-11-09 12:37:14" totalTimeVisible="20:14" lastTimeVisible="2026-11-09 12:37:14" lastTimeComponentUsed="2026-11-09 12:37:12" totalTimeFS="04:06" lastTimeFS="2026-11-09 12:37:14" appLaunchCount=7 
+      package=com.vivo.widget.gallery totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:49:50" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.github.metacubex.clash.meta totalTimeUsed="01:01" lastTimeUsed="2026-11-09 10:57:02" totalTimeVisible="01:01" lastTimeVisible="2026-11-09 10:57:02" lastTimeComponentUsed="2026-11-09 14:14:09" totalTimeFS="1:16:17" lastTimeFS="2026-11-09 14:14:10" appLaunchCount=5 
+      package=com.google.android.inputmethod.latin totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 10:23:36" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+      package=com.bbk.account totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-09 15:49:45" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+    
+    ChooserCounts
+      package=com.quark.browser 
+      package=com.vivo.weather.provider 
+      package=com.google.android.youtube 
+      package=com.vivo.browser.novel.widget 
+      package=com.android.adservices.api 
+      package=com.vivo.healthservice 
+      package=com.sohu.inputmethod.sogou.vivo 
+      package=com.android.providers.telephony 
+      package=com.vivo.smartmultiwindow 
+      package=com.unionpay.tsmservice 
+      package=com.vivo.fuelsummary 
+      package=com.google.android.googlequicksearchbox 
+      package=com.android.providers.calendar 
+      package=com.huawei.health 
+      package=org.telegram.messenger 
+      package=com.android.providers.media 
+      package=com.vivo.vivo3rdalgoservice 
+      package=com.vivo.abe 
+      package=com.vivo.epm 
+      package=com.vivo.pem 
+      package=com.vivo.pie 
+      package=com.vivo.sos 
+      package=com.vivo.sps 
+      package=com.vivo.vms 
+      package=com.vivo.desktopstickers 
+      package=com.vivo.safecenter 
+      package=com.vivo.telephonyapp 
+      package=com.vivo.appfilter 
+      package=com.vivo.nightpearl 
+      package=com.android.bankabc 
+      package=com.vivo.widgetweather 
+      package=com.vivo.hiboard 
+      package=com.sinovatech.unicom.ui 
+      package=com.os.callservice 
+      package=com.android.externalstorage 
+      package=com.vivo.musicwidgetmix 
+      package=com.vivo.numbermark 
+      package=com.qualcomm.qti.uceShimService 
+      package=com.vivo.recents 
+      package=com.vivo.widget.healthcare 
+      package=com.android.mms.service 
+      package=com.android.providers.downloads 
+      package=com.vivo.smartanswer 
+      package=com.taou.maimai 
+      package=com.vivo.ai.gptagent 
+      package=com.vivo.vivokaraoke 
+      package=com.vivo.weather 
+      package=vendor.qti.hardware.cacert.server 
+      package=cmb.pb 
+      package=com.openai.chatgpt 
+      package=com.aliyun.tongyi 
+      package=app.komikku 
+      package=com.qualcomm.qti.telephonyservice 
+      package=com.bbk.updater 
+      package=com.vivo.gamecube 
+      package=com.android.bbkcalculator 
+      package=vendor.qti.iwlan 
+      package=com.vivo.iotserver 
+      package=com.vivo.pushservice 
+      package=vendor.qti.data.txpwradmin 
+      package=moe.shizuku.privileged.api 
+      package=com.vivo.smartoffice 
+      package=com.hupu.games 
+      package=com.android.vending 
+      package=com.android.filemanager 
+      package=com.android.networkstack 
+      package=com.xingin.xhs 
+      package=com.tencent.mm 
+      package=com.vivo.visionaid.builtin 
+      package=com.vivo.smartshot 
+      package=com.google.android.marvin.talkback 
+      package=com.duowan.kiwi 
+      package=com.qti.qualcomm.datastatusnotification 
+      package=android 
+      package=com.android.contacts 
+      package=com.bbk.cloud 
+      package=com.vivo.timerwidget 
+      package=com.android.mms 
+      package=com.android.mtp 
+      package=com.android.nfc 
+      package=com.android.ons 
+      package=com.android.stk 
+      package=com.instagram.android 
+      package=com.icbc 
+      package=com.deepseek.chat 
+      package=com.vivo.nfcbaseapp 
+      package=org.codeaurora.ims 
+      package=com.android.statementservice 
+      package=com.android.BBKClock 
+      package=com.google.android.gm 
+      package=bin.mt.plus 
+      package=com.vivo.fileobserver 
+      package=com.microsoft.bing 
+      package=com.microsoft.emmx 
+      package=com.vivo.aiengine 
+      package=com.vivo.daemonService 
+      package=com.tencent.workbuddy.app 
+      package=com.mfcloudcalculate.networkdisk 
+      package=com.vivo.voicewakeup 
+      package=com.max.xiaoheihe 
+      package=com.qualcomm.qcrilmsgtunnel 
+      package=com.android.providers.settings 
+      package=com.android.printspooler 
+      package=com.vivo.globalanimation 
+      package=com.vivo.card 
+      package=com.vivo.cota 
+      package=com.vivo.e2ee 
+      package=com.vivo.vdfs 
+      package=com.android.incallui 
+      package=com.android.photopicker 
+      package=com.android.se 
+      package=com.android.rkpdapp 
+      package=com.qti.dpmserviceapp 
+      package=com.tencent.wework 
+      package=com.vivo.ai.copilot 
+      package=com.vivo.connbase 
+      package=com.bbk.iqoo.logsystem 
+      package=com.twitter.android 
+      package=com.vivo.launchercopilot 
+      package=com.google.android.apps.bard 
+      package=com.google.android.apps.docs 
+      package=com.vivo.basemanager 
+      package=vendor.qti.data.ntnsatapp 
+      package=com.google.android.webview 
+      package=com.vivo.faceui 
+      package=com.android.server.telecom 
+      package=com.android.cellbroadcastservice 
+      package=com.vivo.health 
+      package=com.android.bbklog 
+      package=com.vivo.permissionmanager 
+      package=com.android.keychain 
+      package=com.vivo.hybrid 
+      package=com.android.camera 
+      package=com.android.chrome 
+      package=cn.com.cmbc.newmbank 
+      package=com.bbk.launcher2 
+      package=com.vivo.cardstore 
+      package=com.vivo.accessibilityenhance 
+      package=com.ss.android.ugc.aweme 
+      package=com.google.android.gms 
+      package=android.ext.services 
+      package=com.android.calllogbackup 
+      package=com.tencent.mobileqq 
+      package=com.android.localtransport 
+      package=com.getsurfboard 
+      package=com.android.packageinstaller 
+      package=app.mihon 
+      package=ai.x.grok 
+      package=com.qualcomm.qti.devicestatisticsservice 
+      package=com.kugou.android 
+      package=com.vivo.magazine 
+      package=com.unionpay 
+      package=com.snda.wifilocating 
+      package=com.vivo.systemuiplugin 
+      package=zed.rainxch.githubstore 
+      package=com.vivo.familycare.local 
+      package=com.google.android.syncadapters.calendar 
+      package=com.iqoo.secure 
+      package=com.android.networkstack.tethering 
+      package=com.vivo.vtouch 
+      package=com.vivo.wallet 
+      package=com.tencent.soter.soterserver 
+      package=com.vivo.xspace 
+      package=com.vivo.globalsearch 
+      package=com.iqoo.powersaving 
+      package=com.vivo.cipherchain 
+      package=com.vivo.sdkplugin 
+      package=com.bbk.appstore 
+      package=io.github.ccch1mneyyy.dsh_app 
+      package=com.qualcomm.atfwd2 
+      package=com.manmanbuy.bijia 
+      package=com.coolapk.market 
+      package=com.vivo.pcsuite 
+      package=com.vivo.findphone 
+      package=com.vivo.networkimprove 
+      package=com.agentsanywhere.app 
+      package=com.vivo.accessibility 
+      package=com.kugou.android.elder 
+      package=com.yuzhoucloud 
+      package=com.larus.nova 
+      package=com.ecitic.bank.mobile 
+      package=com.android.vivo.tws.vivotws 
+      package=com.android.settings 
+      package=com.qualcomm.qti.cne 
+      package=com.hypergryph.arknights 
+      package=com.jingdong.app.mall 
+      package=ai.qwenlm.chat.android 
+      package=com.vivo.video.floating 
+      package=com.example.piliplus 
+      package=com.vivo.multinlp 
+      package=com.vivo.deformer 
+      package=com.yorick.cokotools 
+      package=com.fido.client 
+      package=com.vivo.puresearch 
+      package=com.autonavi.minimap 
+      package=com.qualcomm.location 
+      package=li.songe.gkd 
+      package=com.vivo.globaldragdrop 
+      package=com.vivo.translator 
+      package=com.vivo.upslide 
+      package=com.vivo.gallery 
+      package=com.vivo.car.networking 
+      package=com.vivo.agent 
+      package=com.vivo.email 
+      package=com.sina.weibo 
+      package=com.vivo.gamewatch 
+      package=com.vivo.share 
+      package=com.vivo.space 
+      package=com.android.notes 
+      package=com.vivo.vhome 
+      package=com.vivo.vmdri 
+      package=com.android.phone 
+      package=com.android.providers.blockednumber 
+      package=com.vivo.aiservice 
+      package=com.android.providers.userdictionary 
+      package=com.android.providers.media.module 
+      package=com.baidu.youavideo 
+      package=com.vivo.favorite 
+      package=com.moonshot.kimichat 
+      package=com.miHoYo.Nap 
+      package=com.android.location.fused 
+      package=com.android.systemui 
+      package=com.vivo.connbase.deviceaccessory 
+      package=com.vivo.dr 
+      package=com.vivo.doubleinstance 
+      package=com.vivo.fingerprintui 
+      package=com.android.permissioncontroller 
+      package=com.bbk.SuperPowerSave 
+      package=com.dcservice 
+      package=vendor.qti.imsdatachannel 
+      package=com.vivo.browser 
+      package=com.taobao.taobao 
+      package=com.xiaomi.smarthome 
+      package=com.vivo.voicerecognition 
+      package=com.qti.qcc 
+      package=com.vivo.assistant 
+      package=com.android.bluetooth 
+      package=com.qualcomm.atfwd 
+      package=com.android.providers.contacts 
+      package=vendor.qti.imsrcs 
+      package=com.vivo.healthwidget 
+      package=tv.danmaku.bili 
+      package=com.vivo.widget.gallery 
+      package=com.github.metacubex.clash.meta 
+      package=com.google.android.inputmethod.latin 
+      package=com.bbk.account 
+    configurations
+      config=zh-rCN-ldltr-sw360dp-w360dp-h800dp-normal-long-notround-widecg-highdr-port-night-560dpi-finger-keysexposed-nokeys-navhidden-nonav-v36 totalTime="00:05" lastTime="2026-11-09 02:06:28" count=1 
+      config=zh-rCN-ldltr-sw360dp-w360dp-h800dp-normal-long-notround-widecg-highdr-port-night-560dpi-finger-keysexposed-nokeys-navhidden-nonav-v36 totalTime="00:00" lastTime="2026-11-09 02:06:22" count=1 
+      config=mcc460-mnc7-zh-rCN-ldltr-sw360dp-w360dp-h800dp-normal-long-notround-widecg-highdr-port-night-560dpi-finger-keysexposed-nokeys-navhidden-nonav-v36 totalTime="7:19:26" lastTime="2026-11-09 07:18:52" count=1 
+      config=mcc460-mnc7-zh-rCN-ldltr-sw360dp-w360dp-h800dp-normal-long-notround-widecg-highdr-port-notnight-560dpi-finger-keysexposed-nokeys-navhidden-nonav-v36 totalTime="5:41:55" lastTime="2026-11-09 13:17:12" count=13 
+      config=zh-rCN-ldltr-sw360dp-w360dp-h800dp-normal-long-notround-widecg-highdr-port-560dpi-finger-keysexposed-nokeys-navhidden-nonav-v36 totalTime="00:00" lastTime="2026-11-09 02:06:22" count=1 
+      config=mcc460-mnc7-zh-rCN-ldltr-sw360dp-w800dp-h360dp-normal-long-notround-widecg-highdr-land-notnight-560dpi-finger-keysexposed-nokeys-navhidden-nonav-v36 totalTime="00:27" lastTime="2026-11-09 09:30:00" count=6 
+      config=mcc460-mnc7-zh-rCN-ldltr-sw360dp-w800dp-h360dp-normal-long-notround-widecg-highdr-land-notnight-560dpi-finger-keysexposed-nokeys-navhidden-nonav-v36 totalTime="15:57" lastTime="2026-11-09 13:17:12" count=6 
+      config=mcc460-mnc1-zh-rCN-ldltr-sw360dp-w360dp-h800dp-normal-long-notround-widecg-highdr-port-night-560dpi-finger-keysexposed-nokeys-navhidden-nonav-v36 totalTime="00:02" lastTime="2026-11-09 02:06:30" count=1 
+      config=mcc460-mnc7-zh-rCN-ldltr-sw360dp-w360dp-h800dp-normal-long-notround-widecg-highdr-port-notnight-560dpi-finger-keysexposed-nokeys-navhidden-nonav-v36 totalTime="1:01:04" lastTime="2026-11-08 23:59:17" count=1 
+    event aggregations
+      screen-interactive: 51x for "5:25:33" (now running, started at )
+      screen-non-interactive: 50x for "3:12:53"
+      keyguard-shown: 46x for "3:09:24"
+      keyguard-hidden: 46x for "5:25:17" (now running, started at )
+  In-memory weekly stats
+    time="2026-11-08 15:56:21" type=STANDBY_BUCKET_CHANGED package=com.sohu.inputmethod.sogou.vivo standbyBucket=20 reason=t flags=0x0 
+    time="2026-11-08 16:33:13" type=SCREEN_INTERACTIVE package=android flags=0x0 
+    time="2026-11-08 16:33:13" type=ACTIVITY_RESUMED package=com.android.packageinstaller class=com.android.packageinstaller.PackageInterceptActivity instanceId=46979750 taskRootPackage=com.android.packageinstaller taskRootClass=com.android.packageinstaller.PackageInterceptActivity flags=0x0 
+    time="2026-11-08 16:33:13" type=KEYGUARD_HIDDEN package=android flags=0x0 
+    time="2026-11-08 16:33:15" type=ACTIVITY_PAUSED package=com.android.packageinstaller class=com.android.packageinstaller.PackageInterceptActivity instanceId=46979750 taskRootPackage=com.android.packageinstaller taskRootClass=com.android.packageinstaller.NewInstallInstalling flags=0x0 
+    time="2026-11-08 16:33:15" type=ACTIVITY_RESUMED package=com.android.packageinstaller class=com.android.packageinstaller.NewInstallInstalling instanceId=204312582 taskRootPackage=com.android.packageinstaller taskRootClass=com.android.packageinstaller.NewInstallInstalling flags=0x0 
+    time="2026-11-08 16:33:16" type=ACTIVITY_STOPPED package=com.android.packageinstaller class=com.android.packageinstaller.PackageInterceptActivity instanceId=46979750 taskRootPackage=com.android.packageinstaller taskRootClass=com.android.packageinstaller.NewInstallInstalling flags=0x0 
+    time="2026-11-08 16:33:20" type=ACTIVITY_PAUSED package=com.android.packageinstaller class=com.android.packageinstaller.NewInstallInstalling instanceId=204312582 taskRootPackage=com.android.packageinstaller taskRootClass=com.android.packageinstaller.NewInstallInstalling flags=0x0 
+    time="2026-11-08 16:33:20" type=STANDBY_BUCKET_CHANGED package=com.coolapk.market standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-08 16:33:20" type=ACTIVITY_RESUMED package=com.coolapk.market class=com.coolapk.market.view.main.MainActivity instanceId=258286835 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:21" type=ACTIVITY_STOPPED package=com.android.packageinstaller class=com.android.packageinstaller.NewInstallInstalling instanceId=204312582 taskRootPackage=com.android.packageinstaller taskRootClass=com.android.packageinstaller.NewInstallInstalling flags=0x0 
+    time="2026-11-08 16:33:25" type=ACTIVITY_PAUSED package=com.coolapk.market class=com.coolapk.market.view.main.MainActivity instanceId=258286835 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:25" type=ACTIVITY_RESUMED package=com.android.permissioncontroller class=com.android.permissioncontroller.permission.ui.GrantPermissionsActivity instanceId=228464812 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:27" type=ACTIVITY_PAUSED package=com.android.permissioncontroller class=com.android.permissioncontroller.permission.ui.GrantPermissionsActivity instanceId=228464812 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:27" type=ACTIVITY_RESUMED package=com.coolapk.market class=com.coolapk.market.view.main.MainActivity instanceId=258286835 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:27" type=ACTIVITY_PAUSED package=com.coolapk.market class=com.coolapk.market.view.main.MainActivity instanceId=258286835 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:27" type=ACTIVITY_RESUMED package=com.android.permissioncontroller class=com.android.permissioncontroller.permission.ui.GrantPermissionsActivity instanceId=217309694 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:28" type=ACTIVITY_STOPPED package=com.android.permissioncontroller class=com.android.permissioncontroller.permission.ui.GrantPermissionsActivity instanceId=228464812 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:29" type=ACTIVITY_PAUSED package=com.android.permissioncontroller class=com.android.permissioncontroller.permission.ui.GrantPermissionsActivity instanceId=217309694 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:29" type=ACTIVITY_RESUMED package=com.coolapk.market class=com.coolapk.market.view.main.MainActivity instanceId=258286835 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:30" type=ACTIVITY_STOPPED package=com.android.permissioncontroller class=com.android.permissioncontroller.permission.ui.GrantPermissionsActivity instanceId=217309694 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:36" type=ACTIVITY_PAUSED package=com.coolapk.market class=com.coolapk.market.view.main.MainActivity instanceId=258286835 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:36" type=ACTIVITY_RESUMED package=com.coolapk.market class=com.coolapk.market.view.feed.FeedDetailActivityV8 instanceId=214133147 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:37" type=ACTIVITY_STOPPED package=com.coolapk.market class=com.coolapk.market.view.main.MainActivity instanceId=258286835 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:38" type=ACTIVITY_PAUSED package=com.coolapk.market class=com.coolapk.market.view.feed.FeedDetailActivityV8 instanceId=214133147 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:38" type=ACTIVITY_RESUMED package=com.coolapk.market class=com.coolapk.market.view.main.MainActivity instanceId=258286835 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:38" type=ACTIVITY_STOPPED package=com.coolapk.market class=com.coolapk.market.view.feed.FeedDetailActivityV8 instanceId=214133147 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:41" type=ACTIVITY_PAUSED package=com.coolapk.market class=com.coolapk.market.view.main.MainActivity instanceId=258286835 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:41" type=ACTIVITY_RESUMED package=com.coolapk.market class=com.coolapk.market.view.node.DynamicNodePageActivity instanceId=98735920 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:42" type=ACTIVITY_STOPPED package=com.coolapk.market class=com.coolapk.market.view.main.MainActivity instanceId=258286835 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:50" type=ACTIVITY_PAUSED package=com.coolapk.market class=com.coolapk.market.view.node.DynamicNodePageActivity instanceId=98735920 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:50" type=ACTIVITY_RESUMED package=com.coolapk.market class=com.coolapk.market.view.feed.FeedDetailActivityV8 instanceId=33140838 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:51" type=ACTIVITY_STOPPED package=com.coolapk.market class=com.coolapk.market.view.node.DynamicNodePageActivity instanceId=98735920 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:56" type=ACTIVITY_PAUSED package=com.coolapk.market class=com.coolapk.market.view.feed.FeedDetailActivityV8 instanceId=33140838 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:56" type=ACTIVITY_RESUMED package=com.coolapk.market class=com.coolapk.market.view.node.DynamicNodePageActivity instanceId=98735920 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:33:56" type=ACTIVITY_STOPPED package=com.coolapk.market class=com.coolapk.market.view.feed.FeedDetailActivityV8 instanceId=33140838 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:34:07" type=ACTIVITY_PAUSED package=com.coolapk.market class=com.coolapk.market.view.node.DynamicNodePageActivity instanceId=98735920 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:34:07" type=ACTIVITY_RESUMED package=com.coolapk.market class=com.coolapk.market.view.feed.FeedDetailActivityV8 instanceId=95623721 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:34:07" type=ACTIVITY_STOPPED package=com.coolapk.market class=com.coolapk.market.view.node.DynamicNodePageActivity instanceId=98735920 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+    time="2026-11-08 16:34:10" type=ACTIVITY_PAUSED package=com.coolapk.market class=com.coolapk.market.view.feed.FeedDetailActivityV8 instanceId=95623721 taskRootPackage=com.coolapk.market taskRootClass=com.coolapk.market.view.main.MainActivity flags=0x0 
+... (truncated: more events) ...

@@ -1,0 +1,209 @@
+package com.screentrace.app
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.screentrace.app.contract.DateSelection
+import com.screentrace.app.contract.EmptyUsageRepository
+import com.screentrace.app.contract.Summary
+import com.screentrace.app.contract.UsageCalculator
+import com.screentrace.app.theme.FreshType
+import com.screentrace.app.theme.LocalFreshPalette
+import com.screentrace.app.theme.ScreenTimeTheme
+import com.screentrace.app.theme.ThemeVariant
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { ScreenTraceApp() }
+    }
+}
+
+/**
+ * 骨架首页：验证「语义色板 + 九套主题 × 深浅 + 字体/卡片 token + 日期契约 + 空态」这条链路。
+ *
+ * 按需求文档 §6 与 §7-3，这里刻意不画任何假数据的图表或业务数值。
+ * 四个数据页面、设置页、导出与云同步均为待办，见 docs/需求文档-屏幕使用时间App.md。
+ */
+@Composable
+fun ScreenTraceApp() {
+    val variant = remember { mutableStateOf(ThemeVariant.MINT) }
+    val darkTheme = remember { mutableStateOf(false) }
+
+    ScreenTimeTheme(
+        variant = variant.value,
+        darkTheme = darkTheme.value,
+        dynamicColor = false
+    ) {
+        val palette = LocalFreshPalette.current
+        val summaryState = remember { mutableStateOf<Summary?>(null) }
+        LaunchedEffect(Unit) {
+            summaryState.value = EmptyUsageRepository().summary(DateSelection.today())
+        }
+
+        Surface(modifier = Modifier.fillMaxSize(), color = palette.background) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(text = "屏迹", style = FreshType.pageTitle, color = palette.onSurface)
+                Text(
+                    text = "ScreenTrace · 契约骨架 v0.1",
+                    style = FreshType.label,
+                    color = palette.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+
+                InfoCard("工程状态") {
+                    Text("Gradle / Compose 工程已就绪，可直接 Sync 与 Run。", style = FreshType.body, color = palette.onSurface)
+                    Text(
+                        text = "主题：${variant.value.label} · ${if (darkTheme.value) "深色" else "浅色"}",
+                        style = FreshType.body,
+                        color = palette.onSurfaceVariant
+                    )
+                }
+
+                InfoCard("数据契约（空态演示）") {
+                    val s = summaryState.value
+                    Text(
+                        text = "DateSelection：${s?.selection?.days ?: "—"} 天 · 有记录 ${s?.recordedDays ?: "—"} 天",
+                        style = FreshType.body,
+                        color = palette.onSurface
+                    )
+                    Text(
+                        text = if (s?.hasAnyRecord == true) "已接线真实数据" else "尚无数据 · 空态（未使用假数据）",
+                        style = FreshType.label,
+                        color = palette.onSurfaceVariant
+                    )
+                    Text(
+                        text = "已定义：UsageRepository / DaySummary / DateSelection / UsageCalculator",
+                        style = FreshType.label,
+                        color = palette.onSurfaceVariant
+                    )
+                }
+
+                InfoCard("界面风格 · 九套（点色块立即切换）") {
+                    ThemeVariant.values().toList().chunked(3).forEach { rowItems ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowItems.forEach { item ->
+                                val selected = item == variant.value
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(if (selected) palette.primaryContainer else palette.surfaceVariant)
+                                        .clickable { variant.value = item }
+                                        .padding(vertical = 10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .clip(RoundedCornerShape(50.dp))
+                                            .background(item.seed)
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = item.label,
+                                        style = FreshType.label,
+                                        textAlign = TextAlign.Center,
+                                        color = if (selected) palette.onPrimaryContainer else palette.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                InfoCard("外观") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("深色模式", style = FreshType.body, color = palette.onSurface)
+                        Switch(checked = darkTheme.value, onCheckedChange = { darkTheme.value = it })
+                    }
+                }
+
+                InfoCard("待接线（按 §6 实施顺序）") {
+                    listOf(
+                        "① 语义色板与字体/间距 token —— 已完成",
+                        "② 共享 DateSelection 与领域计算器 —— 已完成（含 JVM 单测）",
+                        "③ 通用组件 —— 待办：按 §5.4 整改 uikit/legacy",
+                        "④ 四个数据页面 —— 待办：今日 / 统计 / 日历 / 排行",
+                        "⑤ 设置与系统状态 —— 待办：Shizuku、Room、导出、§5.10 云同步",
+                        "⑥ 测试 —— 待办：golden fixtures（M:SS、去重、跨零点）"
+                    ).forEach { line ->
+                        Text(text = line, style = FreshType.body, color = palette.onSurfaceVariant)
+                    }
+                    Text(
+                        text = "口径示例：272 分钟 → ${UsageCalculator.formatClock(272)} / ${UsageCalculator.formatDuration(272)}",
+                        style = FreshType.label,
+                        color = palette.onSurface
+                    )
+                }
+
+                Spacer(Modifier.height(112.dp)) // §5.2：预留悬浮导航空间
+            }
+        }
+    }
+}
+
+/** §5.2：统一 24dp 无描边卡片、20dp 内边距。 */
+@Composable
+private fun InfoCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    val palette = LocalFreshPalette.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(palette.surface)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(text = title, style = FreshType.sectionTitle, color = palette.onSurface)
+        content()
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ScreenTraceAppPreview() {
+    ScreenTraceApp()
+}

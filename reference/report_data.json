@@ -1,0 +1,1630 @@
+{
+ "days": [
+  {
+   "date": "10-31",
+   "screen": 412.3,
+   "screen_unlock": 410.8,
+   "sys": 404.9,
+   "ui": null,
+   "unlocks": 82,
+   "launches": 1290,
+   "top_apps": [
+    {
+     "name": "米家",
+     "pkg": "com.xiaomi.smarthome",
+     "min": 100.5,
+     "launches": 36
+    },
+    {
+     "name": "PiliPlus",
+     "pkg": "com.example.piliplus",
+     "min": 68.5,
+     "launches": 16
+    },
+    {
+     "name": "微信",
+     "pkg": "com.tencent.mm",
+     "min": 50.6,
+     "launches": 39
+    },
+    {
+     "name": "系统桌面",
+     "pkg": "com.bbk.launcher2",
+     "min": 43.2,
+     "launches": 124
+    },
+    {
+     "name": "豆包",
+     "pkg": "com.larus.nova",
+     "min": 32.2,
+     "launches": 15
+    },
+    {
+     "name": "小黑盒",
+     "pkg": "com.max.xiaoheihe",
+     "min": 30.9,
+     "launches": 16
+    },
+    {
+     "name": "X",
+     "pkg": "com.twitter.android",
+     "min": 14.6,
+     "launches": 13
+    },
+    {
+     "name": "哔哩哔哩",
+     "pkg": "tv.danmaku.bili",
+     "min": 11.6,
+     "launches": 7
+    }
+   ]
+  },
+  {
+   "date": "11-01",
+   "screen": 524.6,
+   "screen_unlock": 522.1,
+   "sys": 493.2,
+   "ui": null,
+   "unlocks": 133,
+   "launches": 1563,
+   "top_apps": [
+    {
+     "name": "PiliPlus",
+     "pkg": "com.example.piliplus",
+     "min": 115.9,
+     "launches": 27
+    },
+    {
+     "name": "高德地图",
+     "pkg": "com.autonavi.minimap",
+     "min": 78.4,
+     "launches": 38
+    },
+    {
+     "name": "系统桌面",
+     "pkg": "com.bbk.launcher2",
+     "min": 46.8,
+     "launches": 178
+    },
+    {
+     "name": "微信",
+     "pkg": "com.tencent.mm",
+     "min": 44.1,
+     "launches": 40
+    },
+    {
+     "name": "Telegram",
+     "pkg": "org.telegram.messenger",
+     "min": 36.2,
+     "launches": 12
+    },
+    {
+     "name": "小红书",
+     "pkg": "com.xingin.xhs",
+     "min": 23.8,
+     "launches": 19
+    },
+    {
+     "name": "QQ",
+     "pkg": "com.tencent.mobileqq",
+     "min": 23.4,
+     "launches": 8
+    },
+    {
+     "name": "小黑盒",
+     "pkg": "com.max.xiaoheihe",
+     "min": 22.0,
+     "launches": 13
+    }
+   ]
+  },
+  {
+   "date": "11-02",
+   "screen": 574.4,
+   "screen_unlock": 571.9,
+   "sys": 579.3,
+   "ui": null,
+   "unlocks": 89,
+   "launches": 1565,
+   "top_apps": [
+    {
+     "name": "系统桌面",
+     "pkg": "com.bbk.launcher2",
+     "min": 106.2,
+     "launches": 174
+    },
+    {
+     "name": "抖音",
+     "pkg": "com.ss.android.ugc.aweme",
+     "min": 65.8,
+     "launches": 18
+    },
+    {
+     "name": "豆包",
+     "pkg": "com.larus.nova",
+     "min": 65.3,
+     "launches": 23
+    },
+    {
+     "name": "PiliPlus",
+     "pkg": "com.example.piliplus",
+     "min": 53.2,
+     "launches": 18
+    },
+    {
+     "name": "米家",
+     "pkg": "com.xiaomi.smarthome",
+     "min": 51.0,
+     "launches": 39
+    },
+    {
+     "name": "X",
+     "pkg": "com.twitter.android",
+     "min": 41.3,
+     "launches": 32
+    },
+    {
+     "name": "微信",
+     "pkg": "com.tencent.mm",
+     "min": 36.6,
+     "launches": 47
+    },
+    {
+     "name": "哔哩哔哩",
+     "pkg": "tv.danmaku.bili",
+     "min": 31.8,
+     "launches": 8
+    }
+   ]
+  },
+  {
+   "date": "11-03",
+   "screen": 710.3,
+   "screen_unlock": 703.9,
+   "sys": 729.9,
+   "ui": 703,
+   "unlocks": 130,
+   "launches": 2214,
+   "top_apps": [
+    {
+     "name": "微信",
+     "pkg": "com.tencent.mm",
+     "min": 132.4,
+     "launches": 123
+    },
+    {
+     "name": "系统桌面",
+     "pkg": "com.bbk.launcher2",
+     "min": 90.5,
+     "launches": 262
+    },
+    {
+     "name": "哔哩哔哩",
+     "pkg": "tv.danmaku.bili",
+     "min": 83.1,
+     "launches": 20
+    },
+    {
+     "name": "Komikku",
+     "pkg": "app.komikku",
+     "min": 65.6,
+     "launches": 3
+    },
+    {
+     "name": "X",
+     "pkg": "com.twitter.android",
+     "min": 55.7,
+     "launches": 16
+    },
+    {
+     "name": "豆包",
+     "pkg": "com.larus.nova",
+     "min": 51.0,
+     "launches": 26
+    },
+    {
+     "name": "米家",
+     "pkg": "com.xiaomi.smarthome",
+     "min": 32.5,
+     "launches": 32
+    },
+    {
+     "name": "PiliPlus",
+     "pkg": "com.example.piliplus",
+     "min": 31.5,
+     "launches": 12
+    }
+   ]
+  },
+  {
+   "date": "11-04",
+   "screen": 494.3,
+   "screen_unlock": 491.4,
+   "sys": 506.3,
+   "ui": 492,
+   "unlocks": 124,
+   "launches": 1723,
+   "top_apps": [
+    {
+     "name": "微信",
+     "pkg": "com.tencent.mm",
+     "min": 99.5,
+     "launches": 82
+    },
+    {
+     "name": "系统桌面",
+     "pkg": "com.bbk.launcher2",
+     "min": 95.9,
+     "launches": 183
+    },
+    {
+     "name": "豆包",
+     "pkg": "com.larus.nova",
+     "min": 41.4,
+     "launches": 44
+    },
+    {
+     "name": "哔哩哔哩",
+     "pkg": "tv.danmaku.bili",
+     "min": 36.8,
+     "launches": 14
+    },
+    {
+     "name": "Qwen Studio",
+     "pkg": "ai.qwenlm.chat.android",
+     "min": 32.1,
+     "launches": 36
+    },
+    {
+     "name": "腐次元",
+     "pkg": "app.fushi.reader",
+     "min": 26.5,
+     "launches": 75
+    },
+    {
+     "name": "ChatGPT",
+     "pkg": "com.openai.chatgpt",
+     "min": 26.2,
+     "launches": 9
+    },
+    {
+     "name": "小黑盒",
+     "pkg": "com.max.xiaoheihe",
+     "min": 15.0,
+     "launches": 7
+    }
+   ]
+  },
+  {
+   "date": "11-05",
+   "screen": 404.5,
+   "screen_unlock": 402.1,
+   "sys": 389.0,
+   "ui": 400,
+   "unlocks": 120,
+   "launches": 1430,
+   "top_apps": [
+    {
+     "name": "系统桌面",
+     "pkg": "com.bbk.launcher2",
+     "min": 87.6,
+     "launches": 158
+    },
+    {
+     "name": "微信",
+     "pkg": "com.tencent.mm",
+     "min": 59.2,
+     "launches": 62
+    },
+    {
+     "name": "哔哩哔哩",
+     "pkg": "tv.danmaku.bili",
+     "min": 46.0,
+     "launches": 10
+    },
+    {
+     "name": "PiliPlus",
+     "pkg": "com.example.piliplus",
+     "min": 19.1,
+     "launches": 5
+    },
+    {
+     "name": "企业微信",
+     "pkg": "com.tencent.wework",
+     "min": 15.1,
+     "launches": 11
+    },
+    {
+     "name": "Qwen Studio",
+     "pkg": "ai.qwenlm.chat.android",
+     "min": 12.3,
+     "launches": 3
+    },
+    {
+     "name": "腐次元",
+     "pkg": "app.fushi.reader",
+     "min": 12.2,
+     "launches": 18
+    },
+    {
+     "name": "小黑盒",
+     "pkg": "com.max.xiaoheihe",
+     "min": 11.8,
+     "launches": 7
+    }
+   ]
+  },
+  {
+   "date": "11-06",
+   "screen": 554.2,
+   "screen_unlock": 551.3,
+   "sys": 536.4,
+   "ui": 549,
+   "unlocks": 92,
+   "launches": 1526,
+   "top_apps": [
+    {
+     "name": "DSH Go",
+     "pkg": "io.github.ccch1mneyyy.dsh_app",
+     "min": 104.8,
+     "launches": 47
+    },
+    {
+     "name": "微信",
+     "pkg": "com.tencent.mm",
+     "min": 70.3,
+     "launches": 62
+    },
+    {
+     "name": "系统桌面",
+     "pkg": "com.bbk.launcher2",
+     "min": 69.2,
+     "launches": 158
+    },
+    {
+     "name": "哔哩哔哩",
+     "pkg": "tv.danmaku.bili",
+     "min": 63.5,
+     "launches": 12
+    },
+    {
+     "name": "抖音",
+     "pkg": "com.ss.android.ugc.aweme",
+     "min": 31.4,
+     "launches": 9
+    },
+    {
+     "name": "PiliPlus",
+     "pkg": "com.example.piliplus",
+     "min": 19.5,
+     "launches": 9
+    },
+    {
+     "name": "中国联通",
+     "pkg": "com.sinovatech.unicom.ui",
+     "min": 16.3,
+     "launches": 22
+    },
+    {
+     "name": "小黑盒",
+     "pkg": "com.max.xiaoheihe",
+     "min": 15.8,
+     "launches": 6
+    }
+   ]
+  },
+  {
+   "date": "11-07",
+   "screen": 325.1,
+   "screen_unlock": 322.8,
+   "sys": 356.4,
+   "ui": 325,
+   "unlocks": 72,
+   "launches": 833,
+   "top_apps": [
+    {
+     "name": "哔哩哔哩",
+     "pkg": "tv.danmaku.bili",
+     "min": 57.5,
+     "launches": 18
+    },
+    {
+     "name": "微信",
+     "pkg": "com.tencent.mm",
+     "min": 56.9,
+     "launches": 37
+    },
+    {
+     "name": "抖音",
+     "pkg": "com.ss.android.ugc.aweme",
+     "min": 54.1,
+     "launches": 3
+    },
+    {
+     "name": "豆包",
+     "pkg": "com.larus.nova",
+     "min": 48.2,
+     "launches": 12
+    },
+    {
+     "name": "系统桌面",
+     "pkg": "com.bbk.launcher2",
+     "min": 47.2,
+     "launches": 108
+    },
+    {
+     "name": "小黑盒",
+     "pkg": "com.max.xiaoheihe",
+     "min": 34.7,
+     "launches": 6
+    },
+    {
+     "name": "ChatGPT",
+     "pkg": "com.openai.chatgpt",
+     "min": 6.6,
+     "launches": 10
+    },
+    {
+     "name": "com.iqoo.secure",
+     "pkg": "com.iqoo.secure",
+     "min": 5.6,
+     "launches": 3
+    }
+   ]
+  },
+  {
+   "date": "11-08",
+   "screen": 309.3,
+   "screen_unlock": 307.6,
+   "sys": 305.9,
+   "ui": 288,
+   "unlocks": 61,
+   "launches": 1056,
+   "top_apps": [
+    {
+     "name": "哔哩哔哩",
+     "pkg": "tv.danmaku.bili",
+     "min": 81.6,
+     "launches": 14
+    },
+    {
+     "name": "系统桌面",
+     "pkg": "com.bbk.launcher2",
+     "min": 47.5,
+     "launches": 92
+    },
+    {
+     "name": "酷安",
+     "pkg": "com.coolapk.market",
+     "min": 24.7,
+     "launches": 5
+    },
+    {
+     "name": "抖音",
+     "pkg": "com.ss.android.ugc.aweme",
+     "min": 22.5,
+     "launches": 11
+    },
+    {
+     "name": "小黑盒",
+     "pkg": "com.max.xiaoheihe",
+     "min": 22.5,
+     "launches": 8
+    },
+    {
+     "name": "豆包",
+     "pkg": "com.larus.nova",
+     "min": 13.5,
+     "launches": 6
+    },
+    {
+     "name": "京东",
+     "pkg": "com.jingdong.app.mall",
+     "min": 13.1,
+     "launches": 12
+    },
+    {
+     "name": "相册",
+     "pkg": "com.vivo.gallery",
+     "min": 8.7,
+     "launches": 8
+    }
+   ]
+  },
+  {
+   "date": "11-09",
+   "screen": 353.0,
+   "screen_unlock": 352.3,
+   "sys": 325.6,
+   "ui": 323,
+   "unlocks": 43,
+   "launches": 712,
+   "top_apps": [
+    {
+     "name": "PiliPlus",
+     "pkg": "com.example.piliplus",
+     "min": 72.5,
+     "launches": 7
+    },
+    {
+     "name": "DSH Go",
+     "pkg": "io.github.ccch1mneyyy.dsh_app",
+     "min": 54.0,
+     "launches": 31
+    },
+    {
+     "name": "系统桌面",
+     "pkg": "com.bbk.launcher2",
+     "min": 36.2,
+     "launches": 84
+    },
+    {
+     "name": "微信",
+     "pkg": "com.tencent.mm",
+     "min": 35.0,
+     "launches": 27
+    },
+    {
+     "name": "哔哩哔哩",
+     "pkg": "tv.danmaku.bili",
+     "min": 20.2,
+     "launches": 7
+    },
+    {
+     "name": "WorkBuddy",
+     "pkg": "com.tencent.workbuddy.app",
+     "min": 18.9,
+     "launches": 5
+    },
+    {
+     "name": "设置",
+     "pkg": "com.android.settings",
+     "min": 14.1,
+     "launches": 26
+    },
+    {
+     "name": "Qwen Studio",
+     "pkg": "ai.qwenlm.chat.android",
+     "min": 9.7,
+     "launches": 2
+    }
+   ]
+  }
+ ],
+ "hour_matrix": {
+  "10-31": {
+   "7": 12.6,
+   "8": 49.8,
+   "9": 26.7,
+   "10": 23.5,
+   "11": 17.4,
+   "12": 51.9,
+   "13": 35.8,
+   "14": 41.1,
+   "15": 22.6,
+   "16": 44.9,
+   "17": 16.9,
+   "19": 5.2,
+   "20": 8.2,
+   "21": 8.2,
+   "22": 46.3,
+   "23": 1.2
+  },
+  "11-01": {
+   "0": 52.7,
+   "1": 26.4,
+   "7": 44.3,
+   "8": 9.8,
+   "9": 17.5,
+   "10": 38.3,
+   "11": 9.4,
+   "12": 7.7,
+   "13": 23.6,
+   "14": 15.6,
+   "15": 30.3,
+   "16": 26.3,
+   "17": 34.0,
+   "18": 22.4,
+   "19": 29.4,
+   "20": 24.1,
+   "21": 52.5,
+   "22": 24.7,
+   "23": 35.6
+  },
+  "11-02": {
+   "0": 40.8,
+   "1": 10.8,
+   "7": 21.0,
+   "8": 48.1,
+   "9": 33.9,
+   "10": 44.0,
+   "11": 57.6,
+   "12": 52.8,
+   "13": 32.7,
+   "14": 15.1,
+   "15": 39.2,
+   "16": 20.1,
+   "17": 27.0,
+   "18": 10.0,
+   "19": 13.6,
+   "20": 37.5,
+   "21": 23.4,
+   "22": 18.8,
+   "23": 28.1
+  },
+  "11-03": {
+   "0": 60.0,
+   "1": 39.9,
+   "7": 24.2,
+   "8": 53.1,
+   "9": 43.2,
+   "10": 24.4,
+   "11": 45.6,
+   "12": 49.7,
+   "13": 38.5,
+   "14": 21.5,
+   "15": 40.0,
+   "16": 40.9,
+   "17": 30.4,
+   "18": 35.7,
+   "19": 33.5,
+   "20": 41.1,
+   "21": 53.4,
+   "22": 23.9,
+   "23": 11.0
+  },
+  "11-04": {
+   "0": 3.5,
+   "1": 12.5,
+   "7": 22.2,
+   "8": 47.7,
+   "9": 37.0,
+   "10": 47.0,
+   "11": 33.5,
+   "12": 40.5,
+   "13": 32.7,
+   "14": 27.7,
+   "15": 36.2,
+   "16": 22.0,
+   "17": 18.4,
+   "18": 47.7,
+   "19": 22.7,
+   "20": 13.0,
+   "21": 21.2,
+   "22": 7.9,
+   "23": 1.1
+  },
+  "11-05": {
+   "7": 22.6,
+   "8": 47.7,
+   "9": 17.2,
+   "10": 32.1,
+   "11": 37.5,
+   "12": 50.1,
+   "13": 23.6,
+   "14": 33.7,
+   "15": 46.5,
+   "16": 18.5,
+   "17": 25.0,
+   "18": 3.7,
+   "19": 6.9,
+   "20": 12.2,
+   "21": 3.8,
+   "22": 11.2,
+   "23": 12.1
+  },
+  "11-06": {
+   "0": 47.1,
+   "1": 2.1,
+   "7": 23.3,
+   "8": 31.9,
+   "9": 23.8,
+   "10": 25.5,
+   "11": 39.5,
+   "12": 48.0,
+   "13": 33.7,
+   "14": 47.3,
+   "15": 8.9,
+   "16": 32.3,
+   "17": 56.8,
+   "18": 21.5,
+   "19": 1.6,
+   "20": 15.6,
+   "21": 18.1,
+   "22": 48.1,
+   "23": 29.1
+  },
+  "11-07": {
+   "0": 1.1,
+   "7": 23.1,
+   "8": 48.3,
+   "9": 27.3,
+   "10": 7.8,
+   "11": 22.7,
+   "12": 50.1,
+   "13": 31.2,
+   "14": 10.8,
+   "15": 27.2,
+   "16": 29.8,
+   "17": 30.9,
+   "18": 4.0,
+   "19": 5.0,
+   "20": 3.1,
+   "22": 1.1,
+   "23": 1.7
+  },
+  "11-08": {
+   "5": 0.2,
+   "7": 8.9,
+   "8": 23.2,
+   "9": 14.4,
+   "10": 31.0,
+   "11": 29.5,
+   "12": 29.9,
+   "13": 24.2,
+   "14": 5.9,
+   "15": 15.1,
+   "16": 25.8,
+   "17": 50.4,
+   "18": 17.2,
+   "19": 14.8,
+   "20": 12.8,
+   "22": 0.7,
+   "23": 5.2
+  },
+  "11-09": {
+   "0": 0.5,
+   "7": 14.9,
+   "8": 38.7,
+   "9": 32.0,
+   "10": 57.0,
+   "11": 57.9,
+   "12": 49.9,
+   "13": 36.2,
+   "14": 22.5,
+   "15": 43.6
+  }
+ },
+ "app_7d": [
+  {
+   "name": "系统桌面",
+   "pkg": "com.bbk.launcher2",
+   "min": 474.2,
+   "launches": 1045
+  },
+  {
+   "name": "微信",
+   "pkg": "com.tencent.mm",
+   "min": 461.0,
+   "launches": 399
+  },
+  {
+   "name": "哔哩哔哩",
+   "pkg": "tv.danmaku.bili",
+   "min": 388.7,
+   "launches": 95
+  },
+  {
+   "name": "豆包",
+   "pkg": "com.larus.nova",
+   "min": 177.6,
+   "launches": 116
+  },
+  {
+   "name": "DSH Go",
+   "pkg": "io.github.ccch1mneyyy.dsh_app",
+   "min": 161.2,
+   "launches": 81
+  },
+  {
+   "name": "PiliPlus",
+   "pkg": "com.example.piliplus",
+   "min": 160.2,
+   "launches": 41
+  },
+  {
+   "name": "抖音",
+   "pkg": "com.ss.android.ugc.aweme",
+   "min": 121.5,
+   "launches": 46
+  },
+  {
+   "name": "小黑盒",
+   "pkg": "com.max.xiaoheihe",
+   "min": 103.0,
+   "launches": 39
+  },
+  {
+   "name": "X",
+   "pkg": "com.twitter.android",
+   "min": 79.7,
+   "launches": 27
+  },
+  {
+   "name": "Komikku",
+   "pkg": "app.komikku",
+   "min": 65.6,
+   "launches": 3
+  },
+  {
+   "name": "Qwen Studio",
+   "pkg": "ai.qwenlm.chat.android",
+   "min": 59.2,
+   "launches": 50
+  },
+  {
+   "name": "米家",
+   "pkg": "com.xiaomi.smarthome",
+   "min": 54.4,
+   "launches": 54
+  },
+  {
+   "name": "ChatGPT",
+   "pkg": "com.openai.chatgpt",
+   "min": 52.4,
+   "launches": 30
+  },
+  {
+   "name": "腐次元",
+   "pkg": "app.fushi.reader",
+   "min": 42.1,
+   "launches": 94
+  },
+  {
+   "name": "明日方舟",
+   "pkg": "com.hypergryph.arknights",
+   "min": 40.9,
+   "launches": 23
+  },
+  {
+   "name": "中国联通",
+   "pkg": "com.sinovatech.unicom.ui",
+   "min": 36.4,
+   "launches": 40
+  },
+  {
+   "name": "WorkBuddy",
+   "pkg": "com.tencent.workbuddy.app",
+   "min": 31.8,
+   "launches": 20
+  },
+  {
+   "name": "小红书",
+   "pkg": "com.xingin.xhs",
+   "min": 30.6,
+   "launches": 14
+  },
+  {
+   "name": "淘宝",
+   "pkg": "com.taobao.taobao",
+   "min": 29.9,
+   "launches": 53
+  },
+  {
+   "name": "设置",
+   "pkg": "com.android.settings",
+   "min": 29.6,
+   "launches": 99
+  },
+  {
+   "name": "企业微信",
+   "pkg": "com.tencent.wework",
+   "min": 26.7,
+   "launches": 29
+  },
+  {
+   "name": "酷安",
+   "pkg": "com.coolapk.market",
+   "min": 24.7,
+   "launches": 5
+  },
+  {
+   "name": "相册",
+   "pkg": "com.vivo.gallery",
+   "min": 23.5,
+   "launches": 33
+  },
+  {
+   "name": "微软必应",
+   "pkg": "com.microsoft.bing",
+   "min": 22.0,
+   "launches": 28
+  },
+  {
+   "name": "电话",
+   "pkg": "com.android.incallui",
+   "min": 16.3,
+   "launches": 23
+  },
+  {
+   "name": "Google",
+   "pkg": "com.google.android.googlequicksearchbox",
+   "min": 14.6,
+   "launches": 9
+  },
+  {
+   "name": "com.iqoo.secure",
+   "pkg": "com.iqoo.secure",
+   "min": 13.9,
+   "launches": 27
+  },
+  {
+   "name": "京东",
+   "pkg": "com.jingdong.app.mall",
+   "min": 13.1,
+   "launches": 12
+  },
+  {
+   "name": "DeepSeek",
+   "pkg": "com.deepseek.chat",
+   "min": 13.1,
+   "launches": 8
+  },
+  {
+   "name": "Edge",
+   "pkg": "com.microsoft.emmx",
+   "min": 13.0,
+   "launches": 15
+  },
+  {
+   "name": "Telegram",
+   "pkg": "org.telegram.messenger",
+   "min": 12.2,
+   "launches": 11
+  },
+  {
+   "name": "com.greenpoint.android.mc10086.activity",
+   "pkg": "com.greenpoint.android.mc10086.activity",
+   "min": 11.0,
+   "launches": 11
+  },
+  {
+   "name": "com.bbk.appstore",
+   "pkg": "com.bbk.appstore",
+   "min": 10.4,
+   "launches": 31
+  },
+  {
+   "name": "Grok",
+   "pkg": "ai.x.grok",
+   "min": 9.7,
+   "launches": 6
+  },
+  {
+   "name": "com.icbc",
+   "pkg": "com.icbc",
+   "min": 9.6,
+   "launches": 4
+  },
+  {
+   "name": "酷狗音乐",
+   "pkg": "com.kugou.android",
+   "min": 9.5,
+   "launches": 21
+  },
+  {
+   "name": "信息",
+   "pkg": "com.android.mms",
+   "min": 8.9,
+   "launches": 31
+  },
+  {
+   "name": "微博",
+   "pkg": "com.sina.weibo",
+   "min": 8.9,
+   "launches": 4
+  },
+  {
+   "name": "Shizuku",
+   "pkg": "moe.shizuku.privileged.api",
+   "min": 8.9,
+   "launches": 9
+  },
+  {
+   "name": "com.alicloud.databox",
+   "pkg": "com.alicloud.databox",
+   "min": 8.3,
+   "launches": 9
+  },
+  {
+   "name": "vivo浏览器",
+   "pkg": "com.vivo.browser",
+   "min": 7.9,
+   "launches": 19
+  },
+  {
+   "name": "美团",
+   "pkg": "com.sankuai.meituan",
+   "min": 7.8,
+   "launches": 11
+  },
+  {
+   "name": "com.eg.android.AlipayGphone",
+   "pkg": "com.eg.android.AlipayGphone",
+   "min": 7.6,
+   "launches": 23
+  },
+  {
+   "name": "vivo家人守护",
+   "pkg": "com.vivo.familycare.local",
+   "min": 7.4,
+   "launches": 11
+  },
+  {
+   "name": "YouTube",
+   "pkg": "com.google.android.youtube",
+   "min": 7.3,
+   "launches": 5
+  },
+  {
+   "name": "相机",
+   "pkg": "com.android.camera",
+   "min": 6.6,
+   "launches": 26
+  },
+  {
+   "name": "com.hupu.games",
+   "pkg": "com.hupu.games",
+   "min": 6.5,
+   "launches": 8
+  },
+  {
+   "name": "com.cebbank.mobile.cemb",
+   "pkg": "com.cebbank.mobile.cemb",
+   "min": 6.3,
+   "launches": 8
+  },
+  {
+   "name": "com.android.bbkcalculator",
+   "pkg": "com.android.bbkcalculator",
+   "min": 6.0,
+   "launches": 15
+  },
+  {
+   "name": "Clash Meta",
+   "pkg": "com.github.metacubex.clash.meta",
+   "min": 5.9,
+   "launches": 38
+  },
+  {
+   "name": "com.vivo.wallet",
+   "pkg": "com.vivo.wallet",
+   "min": 5.7,
+   "launches": 37
+  },
+  {
+   "name": "com.snda.wifilocating",
+   "pkg": "com.snda.wifilocating",
+   "min": 5.7,
+   "launches": 15
+  },
+  {
+   "name": "com.android.packageinstaller",
+   "pkg": "com.android.packageinstaller",
+   "min": 5.5,
+   "launches": 11
+  },
+  {
+   "name": "com.android.bankabc",
+   "pkg": "com.android.bankabc",
+   "min": 5.3,
+   "launches": 12
+  },
+  {
+   "name": "com.bbk.calendar",
+   "pkg": "com.bbk.calendar",
+   "min": 4.6,
+   "launches": 5
+  },
+  {
+   "name": "com.moonshot.kimichat",
+   "pkg": "com.moonshot.kimichat",
+   "min": 4.5,
+   "launches": 3
+  },
+  {
+   "name": "com.agentsanywhere.app",
+   "pkg": "com.agentsanywhere.app",
+   "min": 4.3,
+   "launches": 7
+  },
+  {
+   "name": "QQ",
+   "pkg": "com.tencent.mobileqq",
+   "min": 4.3,
+   "launches": 24
+  },
+  {
+   "name": "com.vivo.privacylauncher",
+   "pkg": "com.vivo.privacylauncher",
+   "min": 4.1,
+   "launches": 23
+  },
+  {
+   "name": "com.zy.flt_yishang",
+   "pkg": "com.zy.flt_yishang",
+   "min": 3.8,
+   "launches": 15
+  },
+  {
+   "name": "慢慢买",
+   "pkg": "com.manmanbuy.bijia",
+   "min": 3.6,
+   "launches": 4
+  },
+  {
+   "name": "网易云音乐",
+   "pkg": "com.netease.cloudmusic",
+   "min": 3.4,
+   "launches": 10
+  },
+  {
+   "name": "com.android.contacts",
+   "pkg": "com.android.contacts",
+   "min": 3.4,
+   "launches": 20
+  },
+  {
+   "name": "夸克",
+   "pkg": "com.quark.browser",
+   "min": 3.3,
+   "launches": 6
+  },
+  {
+   "name": "云闪付",
+   "pkg": "com.unionpay",
+   "min": 3.3,
+   "launches": 9
+  },
+  {
+   "name": "com.chinamworld.bocmbci",
+   "pkg": "com.chinamworld.bocmbci",
+   "min": 3.1,
+   "launches": 4
+  },
+  {
+   "name": "通义",
+   "pkg": "com.aliyun.tongyi",
+   "min": 3.1,
+   "launches": 10
+  },
+  {
+   "name": "com.kylin.read",
+   "pkg": "com.kylin.read",
+   "min": 3.1,
+   "launches": 6
+  },
+  {
+   "name": "com.mfcloudcalculate.networkdisk",
+   "pkg": "com.mfcloudcalculate.networkdisk",
+   "min": 2.7,
+   "launches": 4
+  },
+  {
+   "name": "com.shizhuang.duapp",
+   "pkg": "com.shizhuang.duapp",
+   "min": 2.1,
+   "launches": 1
+  },
+  {
+   "name": "com.ss.android.ugc.livelite",
+   "pkg": "com.ss.android.ugc.livelite",
+   "min": 2.0,
+   "launches": 1
+  },
+  {
+   "name": "com.duowan.kiwi",
+   "pkg": "com.duowan.kiwi",
+   "min": 2.0,
+   "launches": 4
+  },
+  {
+   "name": "com.achievo.vipshop",
+   "pkg": "com.achievo.vipshop",
+   "min": 1.9,
+   "launches": 2
+  },
+  {
+   "name": "天气",
+   "pkg": "com.vivo.weather",
+   "min": 1.9,
+   "launches": 10
+  },
+  {
+   "name": "高德地图",
+   "pkg": "com.autonavi.minimap",
+   "min": 1.9,
+   "launches": 6
+  },
+  {
+   "name": "com.picacomic.fregata",
+   "pkg": "com.picacomic.fregata",
+   "min": 1.8,
+   "launches": 1
+  },
+  {
+   "name": "com.android.BBKClock",
+   "pkg": "com.android.BBKClock",
+   "min": 1.7,
+   "launches": 9
+  },
+  {
+   "name": "com.yuzhoucloud",
+   "pkg": "com.yuzhoucloud",
+   "min": 1.7,
+   "launches": 1
+  },
+  {
+   "name": "com.baidu.youavideo",
+   "pkg": "com.baidu.youavideo",
+   "min": 1.6,
+   "launches": 4
+  },
+  {
+   "name": "com.ylmf.androidclient",
+   "pkg": "com.ylmf.androidclient",
+   "min": 1.4,
+   "launches": 1
+  },
+  {
+   "name": "文件管理",
+   "pkg": "com.android.filemanager",
+   "min": 1.4,
+   "launches": 11
+  },
+  {
+   "name": "com.taou.maimai",
+   "pkg": "com.taou.maimai",
+   "min": 1.2,
+   "launches": 4
+  },
+  {
+   "name": "com.android.permissioncontroller",
+   "pkg": "com.android.permissioncontroller",
+   "min": 1.2,
+   "launches": 63
+  },
+  {
+   "name": "com.huawei.health",
+   "pkg": "com.huawei.health",
+   "min": 1.2,
+   "launches": 4
+  },
+  {
+   "name": "com.umetrip.android.msky.app",
+   "pkg": "com.umetrip.android.msky.app",
+   "min": 1.1,
+   "launches": 3
+  },
+  {
+   "name": "cmb.pb",
+   "pkg": "cmb.pb",
+   "min": 1.1,
+   "launches": 1
+  },
+  {
+   "name": "com.vivo.cipherchain",
+   "pkg": "com.vivo.cipherchain",
+   "min": 0.9,
+   "launches": 6
+  },
+  {
+   "name": "闲鱼",
+   "pkg": "com.taobao.idlefish",
+   "min": 0.9,
+   "launches": 1
+  },
+  {
+   "name": "com.vivo.card",
+   "pkg": "com.vivo.card",
+   "min": 0.9,
+   "launches": 1
+  },
+  {
+   "name": "com.github.android",
+   "pkg": "com.github.android",
+   "min": 0.8,
+   "launches": 2
+  },
+  {
+   "name": "com.iqoo.powersaving",
+   "pkg": "com.iqoo.powersaving",
+   "min": 0.7,
+   "launches": 3
+  },
+  {
+   "name": "com.hundsun.stockwinner.paqh",
+   "pkg": "com.hundsun.stockwinner.paqh",
+   "min": 0.7,
+   "launches": 1
+  },
+  {
+   "name": "com.huacheng.baiyunuser",
+   "pkg": "com.huacheng.baiyunuser",
+   "min": 0.7,
+   "launches": 4
+  },
+  {
+   "name": "com.ss.android.lark",
+   "pkg": "com.ss.android.lark",
+   "min": 0.7,
+   "launches": 2
+  },
+  {
+   "name": "nutstore.android",
+   "pkg": "nutstore.android",
+   "min": 0.5,
+   "launches": 2
+  },
+  {
+   "name": "com.ecitic.bank.mobile",
+   "pkg": "com.ecitic.bank.mobile",
+   "min": 0.5,
+   "launches": 1
+  },
+  {
+   "name": "com.antgroup.leopard.android",
+   "pkg": "com.antgroup.leopard.android",
+   "min": 0.5,
+   "launches": 1
+  },
+  {
+   "name": "com.google.android.gms",
+   "pkg": "com.google.android.gms",
+   "min": 0.5,
+   "launches": 1
+  },
+  {
+   "name": "com.android.systemui",
+   "pkg": "com.android.systemui",
+   "min": 0.5,
+   "launches": 2
+  },
+  {
+   "name": "com.adguard.android",
+   "pkg": "com.adguard.android",
+   "min": 0.5,
+   "launches": 4
+  },
+  {
+   "name": "应用商店",
+   "pkg": "com.android.vending",
+   "min": 0.5,
+   "launches": 1
+  },
+  {
+   "name": "com.phoenix.read",
+   "pkg": "com.phoenix.read",
+   "min": 0.4,
+   "launches": 1
+  },
+  {
+   "name": "com.android.vivo.tws.vivotws",
+   "pkg": "com.android.vivo.tws.vivotws",
+   "min": 0.4,
+   "launches": 4
+  },
+  {
+   "name": "com.android.phone",
+   "pkg": "com.android.phone",
+   "min": 0.4,
+   "launches": 5
+  },
+  {
+   "name": "com.tencent.gamehelper.smoba",
+   "pkg": "com.tencent.gamehelper.smoba",
+   "min": 0.4,
+   "launches": 2
+  },
+  {
+   "name": "com.One.WoodenLetter",
+   "pkg": "com.One.WoodenLetter",
+   "min": 0.4,
+   "launches": 1
+  },
+  {
+   "name": "com.dianping.v1",
+   "pkg": "com.dianping.v1",
+   "min": 0.3,
+   "launches": 1
+  },
+  {
+   "name": "com.vivo.xspace",
+   "pkg": "com.vivo.xspace",
+   "min": 0.3,
+   "launches": 31
+  },
+  {
+   "name": "com.bbk.iqoo.logsystem",
+   "pkg": "com.bbk.iqoo.logsystem",
+   "min": 0.3,
+   "launches": 4
+  },
+  {
+   "name": "top.paradoxie.sign_forgot",
+   "pkg": "top.paradoxie.sign_forgot",
+   "min": 0.3,
+   "launches": 1
+  },
+  {
+   "name": "com.chif.weather",
+   "pkg": "com.chif.weather",
+   "min": 0.3,
+   "launches": 1
+  },
+  {
+   "name": "com.meituan.retail.v.android",
+   "pkg": "com.meituan.retail.v.android",
+   "min": 0.3,
+   "launches": 1
+  },
+  {
+   "name": "com.vivo.appfilter",
+   "pkg": "com.vivo.appfilter",
+   "min": 0.3,
+   "launches": 8
+  },
+  {
+   "name": "com.vivo.doubleinstance",
+   "pkg": "com.vivo.doubleinstance",
+   "min": 0.2,
+   "launches": 10
+  },
+  {
+   "name": "com.android.chrome",
+   "pkg": "com.android.chrome",
+   "min": 0.2,
+   "launches": 1
+  },
+  {
+   "name": "com.vivo.ai.copilot",
+   "pkg": "com.vivo.ai.copilot",
+   "min": 0.2,
+   "launches": 2
+  },
+  {
+   "name": "com.vivo.smartshot",
+   "pkg": "com.vivo.smartshot",
+   "min": 0.2,
+   "launches": 2
+  },
+  {
+   "name": "com.android.photopicker",
+   "pkg": "com.android.photopicker",
+   "min": 0.2,
+   "launches": 5
+  },
+  {
+   "name": "com.chinamobile.mcloud",
+   "pkg": "com.chinamobile.mcloud",
+   "min": 0.2,
+   "launches": 1
+  },
+  {
+   "name": "com.vivo.permissionmanager",
+   "pkg": "com.vivo.permissionmanager",
+   "min": 0.2,
+   "launches": 4
+  },
+  {
+   "name": "com.bbk.updater",
+   "pkg": "com.bbk.updater",
+   "min": 0.2,
+   "launches": 2
+  },
+  {
+   "name": "com.vivo.vtouch",
+   "pkg": "com.vivo.vtouch",
+   "min": 0.2,
+   "launches": 9
+  },
+  {
+   "name": "li.songe.gkd",
+   "pkg": "li.songe.gkd",
+   "min": 0.2,
+   "launches": 2
+  },
+  {
+   "name": "com.android.intentresolver",
+   "pkg": "com.android.intentresolver",
+   "min": 0.2,
+   "launches": 6
+  },
+  {
+   "name": "com.android.documentsui",
+   "pkg": "com.android.documentsui",
+   "min": 0.1,
+   "launches": 1
+  },
+  {
+   "name": "com.android.wifi.dialog",
+   "pkg": "com.android.wifi.dialog",
+   "min": 0.1,
+   "launches": 3
+  },
+  {
+   "name": "com.vivo.space",
+   "pkg": "com.vivo.space",
+   "min": 0.1,
+   "launches": 3
+  },
+  {
+   "name": "com.vivo.pcsuite",
+   "pkg": "com.vivo.pcsuite",
+   "min": 0.1,
+   "launches": 7
+  },
+  {
+   "name": "com.fido.client",
+   "pkg": "com.fido.client",
+   "min": 0.1,
+   "launches": 3
+  },
+  {
+   "name": "com.kugou.android.elder",
+   "pkg": "com.kugou.android.elder",
+   "min": 0.1,
+   "launches": 1
+  },
+  {
+   "name": "com.bbk.account",
+   "pkg": "com.bbk.account",
+   "min": 0.0,
+   "launches": 1
+  },
+  {
+   "name": "com.vivo.systemuiplugin",
+   "pkg": "com.vivo.systemuiplugin",
+   "min": 0.0,
+   "launches": 2
+  },
+  {
+   "name": "com.vivo.defaultPlayer",
+   "pkg": "com.vivo.defaultPlayer",
+   "min": 0.0,
+   "launches": 1
+  },
+  {
+   "name": "com.vivo.smartoffice",
+   "pkg": "com.vivo.smartoffice",
+   "min": 0.0,
+   "launches": 1
+  },
+  {
+   "name": "com.masseffect.suki",
+   "pkg": "com.masseffect.suki",
+   "min": 0.0,
+   "launches": 1
+  },
+  {
+   "name": "com.miHoYo.Nap",
+   "pkg": "com.miHoYo.Nap",
+   "min": 0.0,
+   "launches": 1
+  },
+  {
+   "name": "com.vivo.Tips",
+   "pkg": "com.vivo.Tips",
+   "min": 0.0,
+   "launches": 1
+  },
+  {
+   "name": "com.cainiao.wireless",
+   "pkg": "com.cainiao.wireless",
+   "min": 0.0,
+   "launches": 1
+  },
+  {
+   "name": "com.android.nfc",
+   "pkg": "com.android.nfc",
+   "min": 0.0,
+   "launches": 6
+  },
+  {
+   "name": "com.google.android.apps.bard",
+   "pkg": "com.google.android.apps.bard",
+   "min": 0.0,
+   "launches": 6
+  }
+ ]
+}

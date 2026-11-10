@@ -1,0 +1,137 @@
+  beginTime=1793371748945 endTime=1793458148944 
+      screen-interactive: 87x for 24292778
+      time=1793371749218 type=STANDBY_BUCKET_CHANGED package=com.google.android.youtube standbyBucket=20 reason=t flags=0x0 
+      time=1793371749218 type=STANDBY_BUCKET_CHANGED package=com.vivo.browser.novel.widget standbyBucket=50 reason=t flags=0x0 
+      time=1793371749219 type=STANDBY_BUCKET_CHANGED package=com.sohu.inputmethod.sogou.vivo standbyBucket=20 reason=t flags=0x0 
+      time=1793371749219 type=STANDBY_BUCKET_CHANGED package=com.sankuai.meituan standbyBucket=40 reason=t flags=0x0 
+      time=1793371749220 type=STANDBY_BUCKET_CHANGED package=com.sinovatech.unicom.ui standbyBucket=30 reason=t flags=0x0 
+      time=1793371749220 type=STANDBY_BUCKET_CHANGED package=cn.wenyu.bodian standbyBucket=20 reason=t flags=0x0 
+      time=1793371749220 type=STANDBY_BUCKET_CHANGED package=com.aliyun.tongyi standbyBucket=30 reason=t flags=0x0 
+      time=1793371749220 type=STANDBY_BUCKET_CHANGED package=jp.pxv.android standbyBucket=40 reason=t flags=0x0 
+      time=1793371749221 type=STANDBY_BUCKET_CHANGED package=com.hupu.games standbyBucket=30 reason=t flags=0x0 
+      time=1793371749221 type=STANDBY_BUCKET_CHANGED package=com.xingin.xhs standbyBucket=40 reason=t flags=0x0 
+      time=1793371749221 type=STANDBY_BUCKET_CHANGED package=com.zy.flt_yishang standbyBucket=30 reason=t flags=0x0 
+      time=1793371749221 type=STANDBY_BUCKET_CHANGED package=com.reddit.frontpage standbyBucket=40 reason=t flags=0x0 
+      time=1793371749222 type=STANDBY_BUCKET_CHANGED package=com.android.contacts standbyBucket=20 reason=t flags=0x0 
+      time=1793371749222 type=STANDBY_BUCKET_CHANGED package=com.bbk.theme standbyBucket=20 reason=t flags=0x0 
+      time=1793371749222 type=STANDBY_BUCKET_CHANGED package=com.bbk.calendar standbyBucket=20 reason=t flags=0x0 
+      time=1793371749222 type=STANDBY_BUCKET_CHANGED package=com.clover.daysmatter standbyBucket=40 reason=t flags=0x0 
+      time=1793371749223 type=STANDBY_BUCKET_CHANGED package=com.vivo.familycare.local standbyBucket=20 reason=t flags=0x0 
+      time=1793371749223 type=STANDBY_BUCKET_CHANGED package=com.vivo.wallet standbyBucket=20 reason=u-at flags=0x0 
+      time=1793371749223 type=STANDBY_BUCKET_CHANGED package=com.vivo.globalsearch standbyBucket=20 reason=t flags=0x0 
+      time=1793371749223 type=STANDBY_BUCKET_CHANGED package=com.agentsanywhere.app standbyBucket=30 reason=t flags=0x0 
+      time=1793371749223 type=STANDBY_BUCKET_CHANGED package=com.kugou.android.elder standbyBucket=20 reason=t flags=0x0 
+      time=1793371749223 type=STANDBY_BUCKET_CHANGED package=com.huacheng.baiyunuser standbyBucket=20 reason=t flags=0x0 
+      time=1793371749223 type=STANDBY_BUCKET_CHANGED package=ai.qwenlm.chat.android standbyBucket=30 reason=t flags=0x0 
+      time=1793371749223 type=STANDBY_BUCKET_CHANGED package=com.autonavi.minimap standbyBucket=40 reason=t flags=0x0 
+      time=1793371749224 type=STANDBY_BUCKET_CHANGED package=li.songe.gkd standbyBucket=20 reason=t flags=0x0 
+      time=1793371749224 type=STANDBY_BUCKET_CHANGED package=com.vivo.vhome standbyBucket=20 reason=t flags=0x0 
+      time=1793371749224 type=STANDBY_BUCKET_CHANGED package=com.baidu.youavideo standbyBucket=45 reason=t flags=0x0 
+      time=1793371749224 type=STANDBY_BUCKET_CHANGED package=com.One.WoodenLetter standbyBucket=40 reason=t flags=0x0 
+      time=1793371749224 type=STANDBY_BUCKET_CHANGED package=com.android.systemui standbyBucket=20 reason=t flags=0x0 
+      time=1793371749225 type=STANDBY_BUCKET_CHANGED package=com.netease.cloudmusic standbyBucket=20 reason=t flags=0x0 
+      time=1793371937850 type=STANDBY_BUCKET_CHANGED package=com.vivo.health standbyBucket=10 reason=u-si flags=0x0 
+      time=1793372205208 type=STANDBY_BUCKET_CHANGED package=com.vivo.globalsearch standbyBucket=10 reason=u-si flags=0x0 
+      time=1793373931577 type=NOTIFICATION_INTERRUPTION package=com.max.xiaoheihe channelId=VPushChannel_1 flags=0x0 
+      time=1793373964702 type=NOTIFICATION_INTERRUPTION package=com.max.xiaoheihe channelId=VPushChannel_1 flags=0x0 
+      time=1793374306915 type=STANDBY_BUCKET_CHANGED package=com.vivo.health standbyBucket=45 reason=t flags=0x0 
+      time=1793374390448 type=STANDBY_BUCKET_CHANGED package=com.android.systemui standbyBucket=10 reason=u-si flags=0x0 
+      time=1793374390527 type=FOREGROUND_SERVICE_STOP package=com.huawei.health class=com.huawei.hwservicesmgr.PhoneService flags=0x0 
+      time=1793374390544 type=FOREGROUND_SERVICE_STOP package=com.huawei.health class=com.huawei.health.manager.DaemonService flags=0x0 
+      time=1793374392986 type=FOREGROUND_SERVICE_START package=com.huawei.health class=com.huawei.health.manager.DaemonService flags=0x0 
+      time=1793374403529 type=STANDBY_BUCKET_CHANGED package=com.huawei.health standbyBucket=10 reason=d flags=0x0 
+      time=1793374403530 type=STANDBY_BUCKET_CHANGED package=com.tencent.wework standbyBucket=20 reason=t flags=0x0 
+      time=1793374403530 type=STANDBY_BUCKET_CHANGED package=com.vivo.wallet standbyBucket=30 reason=t flags=0x0 
+      time=1793375534058 type=NOTIFICATION_INTERRUPTION package=com.vivo.health channelId=com.vivo.health.sleep.schedule flags=0x0 
+      time=1793376192371 type=STANDBY_BUCKET_CHANGED package=com.vivo.familycare.local standbyBucket=10 reason=u-si flags=0x0 
+      time=1793376192540 type=STANDBY_BUCKET_CHANGED package=com.vivo.health standbyBucket=10 reason=u-si flags=0x0 
+      time=1793378233404 type=NOTIFICATION_INTERRUPTION package=android channelId=ZEN_MODE_CHANNEL_LOCK flags=0x0 
+      time=1793378508089 type=FOREGROUND_SERVICE_START package=com.vivo.vhome class=com.vivo.vhome.service.VivoSystemService flags=0x0 
+      time=1793378508093 type=FOREGROUND_SERVICE_STOP package=com.vivo.vhome class=com.vivo.vhome.service.VivoSystemService flags=0x0 
+      time=1793396599552 type=STANDBY_BUCKET_CHANGED package=com.android.systemui standbyBucket=20 reason=t flags=0x0 
+      time=1793396599721 type=STANDBY_BUCKET_CHANGED package=com.android.systemui standbyBucket=10 reason=u-si flags=0x0 
+      time=1793400076685 type=STANDBY_BUCKET_CHANGED package=com.android.notes standbyBucket=10 reason=u-si flags=0x0 
+      time=1793400082927 type=STANDBY_BUCKET_CHANGED package=com.vivo.wallet standbyBucket=10 reason=u-si flags=0x0 
+      time=1793400098198 type=STANDBY_BUCKET_CHANGED package=com.huawei.health standbyBucket=5 reason=d flags=0x0 
+      time=1793400098198 type=STANDBY_BUCKET_CHANGED package=com.vivo.weather standbyBucket=20 reason=t flags=0x0 
+      time=1793400098198 type=STANDBY_BUCKET_CHANGED package=cmb.pb standbyBucket=30 reason=t flags=0x0 
+      time=1793400098198 type=STANDBY_BUCKET_CHANGED package=com.android.filemanager standbyBucket=20 reason=t flags=0x0 
+      time=1793400098198 type=STANDBY_BUCKET_CHANGED package=com.chinamworld.bocmbci standbyBucket=45 reason=t flags=0x0 
+      time=1793400098198 type=STANDBY_BUCKET_CHANGED package=com.vivo.upnpserver standbyBucket=20 reason=t flags=0x0 
+      time=1793400098198 type=STANDBY_BUCKET_CHANGED package=com.vivo.health standbyBucket=45 reason=t flags=0x0 
+      time=1793400098199 type=STANDBY_BUCKET_CHANGED package=com.ss.android.ugc.aweme standbyBucket=20 reason=t flags=0x0 
+... (truncated: more events) ...
+      time=1793408721184 type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=268214006 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+      time=1793408721297 type=ACTIVITY_STOPPED package=com.max.xiaoheihe class=com.max.xiaoheihe.module.bbs.post.ui.activitys.PicturePostPageActivity instanceId=2771137 taskRootPackage=com.max.xiaoheihe taskRootClass=com.max.xiaoheihe.MainActivity flags=0x0 
+      time=1793408721688 type=ACTIVITY_STOPPED package=com.bbk.launcher2 class=com.bbk.launcher2.Launcher instanceId=241927285 taskRootPackage=com.bbk.launcher2 taskRootClass=com.bbk.launcher2.Launcher flags=0x0 
+      time=1793408745592 type=NOTIFICATION_INTERRUPTION package=com.xiaomi.smarthome channelId=105660 flags=0x0 
+      time=1793408770134 type=ACTIVITY_RESUMED package=com.bbk.launcher2 class=com.bbk.launcher2.Launcher instanceId=241927285 taskRootPackage=com.bbk.launcher2 taskRootClass=com.bbk.launcher2.Launcher flags=0x0 
+      time=1793408770407 type=ACTIVITY_PAUSED package=com.bbk.launcher2 class=com.bbk.launcher2.Launcher instanceId=241927285 taskRootPackage=com.bbk.launcher2 taskRootClass=com.bbk.launcher2.Launcher flags=0x0 
+      time=1793408770411 type=ACTIVITY_STOPPED package=com.bbk.launcher2 class=com.bbk.launcher2.Launcher instanceId=241927285 taskRootPackage=com.bbk.launcher2 taskRootClass=com.bbk.launcher2.Launcher flags=0x0 
+      time=1793408793406 type=NOTIFICATION_INTERRUPTION package=com.xiaomi.smarthome channelId=105660 flags=0x0 
+      time=1793408806499 type=ACTIVITY_RESUMED package=com.bbk.launcher2 class=com.bbk.launcher2.Launcher instanceId=241927285 taskRootPackage=com.bbk.launcher2 taskRootClass=com.bbk.launcher2.Launcher flags=0x0 
+      time=1793408807421 type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=268214006 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+      time=1793408807436 type=ACTIVITY_RESUMED package=com.max.xiaoheihe class=com.max.xiaoheihe.module.bbs.post.ui.activitys.PicturePostPageActivity instanceId=2771137 taskRootPackage=com.max.xiaoheihe taskRootClass=com.max.xiaoheihe.MainActivity flags=0x0 
+      time=1793408807481 type=ACTIVITY_PAUSED package=com.bbk.launcher2 class=com.bbk.launcher2.Launcher instanceId=241927285 taskRootPackage=com.bbk.launcher2 taskRootClass=com.bbk.launcher2.Launcher flags=0x0 
+      time=1793408807507 type=ACTIVITY_STOPPED package=com.bbk.launcher2 class=com.bbk.launcher2.Launcher instanceId=241927285 taskRootPackage=com.bbk.launcher2 taskRootClass=com.bbk.launcher2.Launcher flags=0x0 
+      time=1793408807515 type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=268214006 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+      time=1793408841671 type=ACTIVITY_RESUMED package=com.bbk.launcher2 class=com.bbk.launcher2.Launcher instanceId=241927285 taskRootPackage=com.bbk.launcher2 taskRootClass=com.bbk.launcher2.Launcher flags=0x0 
+      time=1793408842821 type=ACTIVITY_PAUSED package=com.max.xiaoheihe class=com.max.xiaoheihe.module.bbs.post.ui.activitys.PicturePostPageActivity instanceId=2771137 taskRootPackage=com.max.xiaoheihe taskRootClass=com.max.xiaoheihe.MainActivity flags=0x0 
+      time=1793408842874 type=ACTIVITY_STOPPED package=com.max.xiaoheihe class=com.max.xiaoheihe.module.bbs.post.ui.activitys.PicturePostPageActivity instanceId=2771137 taskRootPackage=com.max.xiaoheihe taskRootClass=com.max.xiaoheihe.MainActivity flags=0x0 
+      time=1793408856309 type=STANDBY_BUCKET_CHANGED package=com.vivo.systemuiplugin standbyBucket=10 reason=u-si flags=0x0 
+      time=1793408856512 type=NOTIFICATION_INTERRUPTION package=com.xiaomi.smarthome channelId=105660 flags=0x0 
+      time=1793408856852 type=ACTIVITY_PAUSED package=com.bbk.launcher2 class=com.bbk.launcher2.Launcher instanceId=241927285 taskRootPackage=com.bbk.launcher2 taskRootClass=com.bbk.launcher2.Launcher flags=0x0 
+      time=1793408856859 type=ACTIVITY_RESUMED package=com.tencent.mm class=com.tencent.mm.ui.LauncherUI instanceId=255346100 taskRootPackage=com.tencent.mm taskRootClass=com.tencent.mm.ui.LauncherUI flags=0x0 
+  beginTime=1793458152669 endTime=1793544552668 
+      screen-interactive: 143x for 29593370
+  beginTime=1793544565027 endTime=1793630965026 
+      screen-interactive: 99x for 34759916
+  beginTime=1793631014619 endTime=1793717414618 
+      screen-interactive: 153x for 43794259
+  beginTime=1793717460503 endTime=1793803860502 
+      screen-interactive: 157x for 30378379
+  beginTime=1793803995821 endTime=1793890395820 
+      screen-interactive: 132x for 23338875
+  beginTime=1793890417279 endTime=1793976817278 
+      screen-interactive: 102x for 32184226
+  beginTime=1793976913310 endTime=1794063313309 
+      screen-interactive: 93x for 21386160
+  beginTime=1794063334625 endTime=1794149734624 
+      screen-interactive: 70x for 18351363
+  beginTime=1793422984807 endTime=1793509384806 
+      screen-interactive: 88x for 25248781
+  beginTime=1793509485069 endTime=1793595885068 
+      screen-interactive: 157x for 37942585
+  beginTime=1793596141318 endTime=1793681501520 
+      screen-interactive: 111x for 34286269
+  beginTime=1793682701593 endTime=1793769101592 
+      screen-interactive: 148x for 36512853
+  beginTime=1793769563454 endTime=1793855963453 
+      screen-interactive: 157x for 27214893
+  beginTime=1793856727854 endTime=1793943127853 
+      screen-interactive: 134x for 26359768
+  beginTime=1793943626614 endTime=1794030026613 
+      screen-interactive: 92x for 29972510
+  beginTime=1794030344414 endTime=1794116041424 
+      screen-interactive: 85x for 17148283
+  beginTime=1794117323477 endTime=1794203723476 
+      screen-interactive: 71x for 26062448
+  beginTime=1793420529231 endTime=1793506929230 
+      screen-interactive: 85x for 27640662
+  beginTime=1793507644733 endTime=1793594044732 
+      screen-interactive: 160x for 36283737
+  beginTime=1793594054108 endTime=1793680454107 
+      screen-interactive: 112x for 36361585
+  beginTime=1793680477979 endTime=1793766877978 
+      screen-interactive: 147x for 36849778
+  beginTime=1793766880000 endTime=1793853279999 
+      screen-interactive: 156x for 27597285
+  beginTime=1793853300153 endTime=1793939671667 
+      screen-interactive: 137x for 26239391
+  beginTime=1793940563641 endTime=1794026095609 
+      screen-interactive: 91x for 27239891
+  beginTime=1794026989721 endTime=1794113389720 
+      screen-interactive: 74x for 15779722
+  beginTime=1794113665325 endTime=1794199012927 
+      screen-interactive: 78x for 24301767
+... (tail sections Broadcast/Notification events omitted — parser must skip them) ...

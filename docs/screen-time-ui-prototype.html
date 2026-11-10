@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>屏幕使用时间 · Android 界面原型</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDF3F0;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1E2D28;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px 16px}
+.stage{display:flex;flex-direction:column;align-items:center;gap:16px}
+.phone{width:360px;height:740px;background:#fff;border:1px solid #DCE7E2;border-radius:38px;padding:9px;box-shadow:0 10px 34px rgba(30,70,58,.07)}
+.screen{width:100%;height:100%;background:#F6FAF8;border-radius:30px;overflow:hidden;display:flex;flex-direction:column}
+.statusbar{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:12px;font-weight:500;letter-spacing:.02em}
+.sig{display:flex;align-items:center;gap:5px}
+.sig i{display:block;background:#1E2D28;border-radius:1px;opacity:.75}
+.appbar{padding:10px 20px 14px;display:flex;align-items:flex-end;justify-content:space-between}
+.eyebrow{font-size:11px;color:#8FA19A;letter-spacing:.06em;margin-bottom:4px}
+h1{font-size:21px;font-weight:500;letter-spacing:-.02em}
+.datechip{font-size:11px;color:#3EAE8F;background:#E3F4ED;border-radius:20px;padding:6px 11px}
+.content{flex:1;overflow-y:auto;padding:0 18px 18px;scrollbar-width:none}
+.content::-webkit-scrollbar{display:none}
+.page{display:none;animation:fade .25s ease}
+.page.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.card{background:#fff;border:1px solid #E7F0EB;border-radius:20px;padding:18px}
+.hero{display:flex;flex-direction:column;align-items:center;padding:20px 18px 18px}
+.hero svg{display:block}
+.delta{margin-top:2px;font-size:12px;color:#2E8B72;background:#E8F6F0;border-radius:20px;padding:6px 12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.mini{background:#fff;border:1px solid #E7F0EB;border-radius:18px;padding:14px 16px}
+.mini-label{font-size:11px;color:#8FA19A;margin-bottom:6px}
+.mini-val{font-size:22px;font-weight:500;letter-spacing:-.02em}
+.mini-val span{font-size:11px;font-weight:400;color:#8FA19A;margin-left:2px}
+.sec{display:flex;align-items:center;justify-content:space-between;margin:20px 2px 10px}
+.sec b{font-size:13px;font-weight:500}
+.sec span{font-size:11px;color:#3EAE8F}
+.app-row{display:flex;align-items:center;gap:12px;padding:11px 0}
+.app-ico{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex:none}
+.app-main{flex:1;min-width:0}
+.app-top{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;margin-bottom:7px}
+.app-top b{font-weight:500;font-size:12px}
+.track{height:6px;background:#EFF5F2;border-radius:6px;overflow:hidden}
+.track i{display:block;height:6px;border-radius:6px}
+.chips{display:flex;gap:8px;margin-bottom:14px}
+.chip{font-size:11px;padding:6px 13px;border-radius:20px;border:1px solid #E7F0EB;background:#fff;color:#8FA19A;cursor:pointer}
+.chip.on{background:#3EAE8F;border-color:#3EAE8F;color:#fff}
+.big{font-size:30px;font-weight:500;letter-spacing:-.03em}
+.muted{font-size:11px;color:#8FA19A}
+.bars{height:172px;display:flex;align-items:flex-end;gap:9px;position:relative;margin-top:20px;padding-top:10px}
+.avgline{position:absolute;left:0;right:0;border-top:1px dashed #C9DCD4;top:64px}
+.avgtxt{position:absolute;right:0;top:52px;font-size:10px;color:#9FB1AA;background:#fff;padding:0 4px}
+.bar-col{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px}
+.bar{width:100%;max-width:24px;background:#D8EDE4;border-radius:8px}
+.bar.today{background:#3EAE8F}
+.bar-col span{font-size:10px;color:#9FB1AA}
+.notecard{margin-top:14px;background:#fff;border:1px solid #E7F0EB;border-radius:18px;padding:16px;display:flex;align-items:center;gap:14px}
+.notecard .ring{width:42px;height:42px;border-radius:50%;border:5px solid #E8F5EF;border-top-color:#F0B27A;flex:none}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:11px;color:#8FA19A}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}
+.heatbox{display:flex;gap:7px;align-items:flex-start;overflow:hidden}
+.wdays{display:grid;grid-template-rows:repeat(7,10px);gap:3px;font-size:9px;color:#A9B9B2;line-height:10px}
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,10px);grid-auto-columns:10px;gap:3px}
+.heat i{width:10px;height:10px;border-radius:2px;display:block}
+.scale{display:flex;align-items:center;gap:4px;font-size:10px;color:#9FB1AA;margin-top:14px;justify-content:flex-end}
+.scale i{width:10px;height:10px;border-radius:2px;display:block}
+.tabbar{height:70px;background:rgba(255,255,255,.94);border-top:1px solid #E7F0EB;display:flex;align-items:center;padding:0 8px}
+.tab{flex:1;background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:4px;color:#A6B6AF;font-size:10px;cursor:pointer;font-family:inherit}
+.tab.on{color:#3EAE8F}
+.tab svg{width:19px;height:19px}
+.hint{font-size:11px;color:#8FA19A;letter-spacing:.02em}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="phone">
+    <div class="screen">
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="sig"><i style="width:3px;height:7px"></i><i style="width:3px;height:10px"></i><i style="width:3px;height:13px"></i><i style="width:15px;height:8px;border:1px solid #1E2D28;background:none;opacity:.6"></i></span>
+      </div>
+      <div class="appbar">
+        <div><div class="eyebrow" id="eyebrow">11月9日 · 周一</div><h1 id="title">屏幕使用时间</h1></div>
+        <div class="datechip">今日</div>
+      </div>
+
+      <div class="content">
+        <section class="page active" id="p-today">
+          <div class="card hero">
+            <svg width="176" height="176" viewBox="0 0 176 176" role="img" aria-label="今日屏幕使用 4 小时 32 分，占每日目标的约七成五">
+              <circle cx="88" cy="88" r="70" fill="none" stroke="#EAF3EF" stroke-width="14"/>
+              <circle cx="88" cy="88" r="70" fill="none" stroke="#3EAE8F" stroke-width="14" stroke-linecap="round" stroke-dasharray="439.8" stroke-dashoffset="110" transform="rotate(-90 88 88)"/>
+              <text x="88" y="84" text-anchor="middle" font-size="29" font-weight="500" fill="#1E2D28" font-family="system-ui,sans-serif">4h 32m</text>
+              <text x="88" y="106" text-anchor="middle" font-size="11" fill="#8FA19A" font-family="system-ui,sans-serif">今日屏幕使用</text>
+            </svg>
+            <div class="delta">比昨天少 38 分钟</div>
+          </div>
+          <div class="grid2">
+            <div class="mini"><div class="mini-label">解锁次数</div><div class="mini-val">42<span>次</span></div></div>
+            <div class="mini"><div class="mini-label">最长连续</div><div class="mini-val">1h 12m</div></div>
+          </div>
+          <div class="sec"><b>使用最多的应用</b><span>查看全部</span></div>
+          <div class="card" style="padding:6px 16px">
+            <div class="app-row"><div class="app-ico" style="background:#E3F4ED;color:#2E8B72">短</div><div class="app-main"><div class="app-top"><span>短视频</span><b>1h 48m</b></div><div class="track"><i style="width:78%;background:#3EAE8F"></i></div></div></div>
+            <div class="app-row"><div class="app-ico" style="background:#E9F1F8;color:#5B87AC">微</div><div class="app-main"><div class="app-top"><span>微信</span><b>56m</b></div><div class="track"><i style="width:41%;background:#8CB6D6"></i></div></div></div>
+            <div class="app-row"><div class="app-ico" style="background:#FBF0E2;color:#B98143">B</div><div class="app-main"><div class="app-top"><span>哔哩哔哩</span><b>38m</b></div><div class="track"><i style="width:28%;background:#F0B27A"></i></div></div></div>
+          </div>
+          <div class="notecard"><div class="ring"></div><div><div style="font-size:12px;font-weight:500">夜间使用占 18%</div><div class="muted" style="margin-top:3px">22:00 后共 49 分钟，比上周少 12 分钟</div></div></div>
+        </section>
+
+        <section class="page" id="p-trend">
+          <div class="chips"><div class="chip on" data-range="7">近 7 天</div><div class="chip" data-range="30">近 30 天</div></div>
+          <div class="card">
+            <div class="muted">日均使用</div>
+            <div class="big" id="avgval">4h 12m</div>
+            <div class="delta" style="display:inline-block;margin-top:8px">比上周少 8%</div>
+            <div class="bars" id="bars"><div class="avgline"></div><div class="avgtxt">日均</div></div>
+          </div>
+          <div class="grid2" style="margin-top:10px">
+            <div class="mini"><div class="mini-label">用得最久</div><div class="mini-val">6h 08m</div></div>
+            <div class="mini"><div class="mini-label">最克制的一天</div><div class="mini-val">1h 54m</div></div>
+          </div>
+          <div class="notecard"><div class="ring" style="border-top-color:#3EAE8F"></div><div><div style="font-size:12px;font-weight:500">周末明显更长</div><div class="muted" style="margin-top:3px">周六、周日平均比工作日多 1 小时 26 分</div></div></div>
+        </section>
+
+        <section class="page" id="p-apps">
+          <div class="card" style="display:flex;align-items:center;justify-content:space-between">
+            <div><div class="muted">本周累计</div><div class="big">29h 24m</div></div>
+            <div style="text-align:right"><div class="muted">应用数</div><div style="font-size:20px;font-weight:500;margin-top:4px">37</div></div>
+          </div>
+          <div class="sec"><b>应用时长排行</b><span>本周</span></div>
+          <div class="card" style="padding:6px 16px" id="applist"></div>
+          <div class="legend"><span><i style="background:#3EAE8F"></i>视频娱乐</span><span><i style="background:#8CB6D6"></i>社交沟通</span><span><i style="background:#F0B27A"></i>工具效率</span></div>
+        </section>
+
+        <section class="page" id="p-cal">
+          <div class="card" style="display:flex;align-items:center;gap:16px">
+            <div style="width:52px;height:52px;border-radius:16px;background:#E3F4ED;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:500;color:#2E8B72">23</div>
+            <div><div style="font-size:13px;font-weight:500">连续记录 23 天</div><div class="muted" style="margin-top:4px">最长连续 41 天 · 始于 3 月 2 日</div></div>
+          </div>
+          <div class="sec"><b>过去 24 周</b><span>168 天</span></div>
+          <div class="card">
+            <div class="heatbox"><div class="wdays"><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span><span>日</span></div><div class="heat" id="heat"></div></div>
+            <div class="scale">少<i style="background:#EAF3EF"></i><i style="background:#C8E9DA"></i><i style="background:#8FD3BC"></i><i style="background:#4FB79A"></i><i style="background:#2E8B72"></i>多</div>
+          </div>
+          <div class="grid2" style="margin-top:10px">
+            <div class="mini"><div class="mini-label">最久的一天</div><div class="mini-val">8h 14m</div></div>
+            <div class="mini"><div class="mini-label">零使用天数</div><div class="mini-val">0<span>天</span></div></div>
+          </div>
+        </section>
+      </div>
+
+      <nav class="tabbar">
+        <button class="tab on" data-page="p-today"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7.2"/><path d="M10 5.6V10l3 2" stroke-linecap="round"/></svg>今日</button>
+        <button class="tab" data-page="p-trend"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 15V9M8 15V5M12 15v-4M16 15V7"/></svg>趋势</button>
+        <button class="tab" data-page="p-apps"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 5.5h12M4 10h12M4 14.5h8"/></svg>排行</button>
+        <button class="tab" data-page="p-cal"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2v3M13 2v3"/></svg>日历</button>
+      </nav>
+    </div>
+  </div>
+  <div class="hint">示例数据 · 点击底部导航切换页面</div>
+</div>
+
+<script>
+(function(){
+var tabs=document.querySelectorAll('.tab');
+var titles={p_today:['11月9日 · 周一','屏幕使用时间'],p_trend:['近 7 天','使用趋势'],p_apps:['本周','应用排行'],p_cal:['过去 24 周','使用日历']};
+tabs.forEach(function(t){t.onclick=function(){
+  tabs.forEach(function(x){x.classList.remove('on')});t.classList.add('on');
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  var id=t.dataset.page;document.getElementById(id).classList.add('active');
+  var key=id.replace('-','_');document.getElementById('title').textContent=titles[key][1];document.getElementById('eyebrow').textContent=titles[key][0];
+};});
+
+var apps=[['短视频','8h 42m',88,'#3EAE8F','#E3F4ED','#2E8B72','短'],['微信','6h 18m',64,'#8CB6D6','#E9F1F8','#5B87AC','微'],['哔哩哔哩','4h 06m',42,'#F0B27A','#FBF0E2','#B98143','B'],['浏览器','2h 34m',26,'#8FD3BC','#E3F4ED','#2E8B72','浏'],['备忘录','1h 12m',12,'#B9CFC6','#EFF5F2','#6E8B80','备']];
+document.getElementById('applist').innerHTML=apps.map(function(a){return '<div class="app-row"><div class="app-ico" style="background:'+a[4]+';color:'+a[5]+'">'+a[6]+'</div><div class="app-main"><div class="app-top"><span>'+a[0]+'</span><b>'+a[1]+'</b></div><div class="track"><i style="width:'+a[2]+'%;background:'+a[3]+'"></i></div></div></div>'}).join('');
+
+var d7=[96,118,84,132,108,152,124],d30=[104,92,128,86,140,116,98,122,88,134,106,118,92,146,110,100,126,84,138,112,96,130,104,120,88,144,108,116,98,124];
+var labels7=['一','二','三','四','五','六','日'];
+function drawBars(vals,labels){
+  var max=Math.max.apply(null,vals),box=document.getElementById('bars');
+  box.innerHTML='<div class="avgline"></div><div class="avgtxt">日均</div>'+vals.map(function(v,i){var h=Math.round(v/max*118);return '<div class="bar-col"><div class="bar'+(i===vals.length-1?' today':'')+'" style="height:'+h+'px"></div><span>'+(labels[i]||'')+'</span></div>'}).join('');
+}
+drawBars(d7,labels7);
+document.querySelectorAll('.chip').forEach(function(c){c.onclick=function(){
+  document.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on')});c.classList.add('on');
+  var is30=c.dataset.range==='30';
+  drawBars(is30?d30:d7,is30?d30.map(function(_,i){return i%5===0?(i+1):''}):labels7);
+  document.getElementById('avgval').textContent=is30?'4h 06m':'4h 12m';
+  document.getElementById('eyebrow').textContent=is30?'近 30 天':'近 7 天';
+};});
+
+var seed=27;function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647;}
+var ramp=['#EAF3EF','#C8E9DA','#8FD3BC','#4FB79A','#2E8B72'],cells='';
+for(var i=0;i<168;i++){var dow=i%7,v=Math.round(80+rnd()*230+((dow>=5)?90:0)),lv=Math.min(4,Math.floor(v/100));cells+='<i style="background:'+ramp[lv]+'" title="第 '+(i+1)+' 天 · '+Math.floor(v/60)+'h '+(v%60)+'m"></i>';}
+document.getElementById('heat').innerHTML=cells;
+})();
+</script>
+</body>
+</html>
