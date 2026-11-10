@@ -35,8 +35,8 @@ class UsageDumpParserTest {
     private fun checkin(intervalLines: List<String>, events: List<String>, pkgs: List<String> = emptyList()): String =
         (intervalLines + events + pkgs).joinToString("\n")
 
-    private fun parseOf(checkin: String, human: String = "") =
-        UsageDumpParser.parse(checkin, human, zone)
+    private fun parseOf(checkin: String, human: String = "", today: LocalDate? = null) =
+        UsageDumpParser.parse(checkin, human, zone, today)
 
     // ---- §7-5：M:SS 两段式（分:秒）与三段式 ----
 
@@ -194,24 +194,25 @@ class UsageDumpParserTest {
         assertEquals(30, result.days.getValue(day1).longestSessionMin) // 单区间 sub_kg 最大值
     }
 
-    // ---- 真人区间过滤（>50 包，§2.2）与区间归属日 ----
+    // ---- CR-02：区间全账户保留（不再 >50 包过滤），0 时长滤除 ----
 
     @Test
-    fun onlyHumanIntervalsAggregateApps() {
+    fun allIntervalsAggregateWithZeroFiltered() {
         val begin = ms(day1, 0, 0)
         val end = ms(day1, 23, 59)
-        val bigPkgs = (1..60).joinToString("\n") { i ->
+        val pkgs = (1..60).joinToString("\n") { i ->
             "      package=com.pkg$i totalTimeUsed=60000 lastTimeUsed=$begin appLaunchCount=1"
         }
-        val smallPkgs = "      package=com.shadow totalTimeUsed=60000 lastTimeUsed=$begin appLaunchCount=1"
         val text = """
             beginTime=$begin endTime=$end
-            $smallPkgs
+                package=com.small totalTimeUsed=60000 lastTimeUsed=$begin appLaunchCount=1
+                package=com.zero totalTimeUsed=0 lastTimeUsed=$begin appLaunchCount=0
             beginTime=$begin endTime=$end
-            $bigPkgs
+            $pkgs
         """.trimIndent()
         val result = parseOf(text)
-        assertTrue(result.appUsage.none { it.pkg == "com.shadow" }) // 1 包区间 = 后台账户
+        assertTrue(result.appUsage.none { it.pkg == "com.zero" }) // 0 时长滤除
+        assertTrue(result.appUsage.any { it.pkg == "com.small" }) // CR-02：小账户也收
         assertEquals(60, result.appUsage.count { it.pkg.startsWith("com.pkg") })
         assertEquals(day1, result.appUsage.first().date) // 归属日 = end-60s 所在自然日
     }
@@ -227,5 +228,153 @@ class UsageDumpParserTest {
         val result = parseOf(checkinFile.readText(), humanFile.readText())
         assertTrue("样本应解析出日指标", result.days.isNotEmpty())
         assertTrue("样本应解析出通知事件", result.notificationEvents.isNotEmpty())
+    }
+
+    // ---- 返修 P0-1（CR-02）：系统镜像事件跨账户收敛 ----
+
+    @Test
+    fun systemMirrorEventsConvergeAcrossUsers() {
+        val base = ms(day1, 8, 0, 0)
+        // 三账户各广播一条 KEYGUARD_HIDDEN（±100ms）→ 同一物理事件，收敛为 1
+        val text = listOf(
+            "user=0",
+            ev(base, "KEYGUARD_HIDDEN"),
+            "user=666",
+            ev(base + 100, "KEYGUARD_HIDDEN"),
+            "user=999",
+            ev(base + 200, "KEYGUARD_HIDDEN")
+        ).joinToString("\n")
+        val result = parseOf(text)
+        assertEquals(1, result.days.getValue(day1).unlocks) // 未收敛时为 3
+        assertEquals(1, result.unlockEvents.size)
+    }
+
+    @Test
+    fun appEventsAcrossUsersAreNeverConverged() {
+        val base = ms(day1, 9, 0, 0)
+        // 同秒同 pkg 的通知来自三个账户：应用级事件独立，全收（CR-01 红线）
+        val text = listOf(
+            "user=0",
+            ev(base + 10, "NOTIFICATION_INTERRUPTION", "com.a"),
+            "user=666",
+            ev(base + 20, "NOTIFICATION_INTERRUPTION", "com.a"),
+            "user=999",
+            ev(base + 30, "NOTIFICATION_SEEN", "com.a")
+        ).joinToString("\n")
+        val result = parseOf(text)
+        assertEquals(3, result.notificationEvents.size)
+    }
+
+    // ---- 返修 P0-2：最长连续逐日切片，不跨零点复制整段 ----
+
+    @Test
+    fun longestSessionSlicesByNaturalDay() {
+        // 23:00 – 02:00 跨零点亮屏：day1 最长 60（切片），day2 120；不得都记 180
+        val events = listOf(
+            ev(ms(day1, 23, 0), "SCREEN_INTERACTIVE"),
+            ev(ms(day1.plusDays(1), 2, 0), "SCREEN_NON_INTERACTIVE")
+        )
+        val result = parseOf(checkin(emptyList(), events))
+        assertEquals(60, result.days.getValue(day1).longestSessionMin)
+        assertEquals(120, result.days.getValue(day1.plusDays(1)).longestSessionMin)
+    }
+
+    // ---- 返修 P1-5/P1-6：In-memory 跨账户归属、与区间取大、滤 0、一行一日一包 ----
+
+    @Test
+    fun inMemoryMergesAcrossUsersPerPkg() {
+        val human = """
+            user=0
+            In-memory daily stats
+                package=com.tencent.mm totalTimeUsed="10:00" lastTimeUsed="1970-01-01 08:00:00" appLaunchCount=2
+                package=com.zero totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" appLaunchCount=0
+            In-memory weekly stats
+            user=999
+            In-memory daily stats
+                package=com.tencent.mm totalTimeUsed="05:00" lastTimeUsed="1970-01-01 08:00:00" appLaunchCount=1
+            In-memory weekly stats
+        """.trimIndent()
+        val result = parseOf("", human, today = day1)
+        val mm = result.appUsage.single { it.pkg == "com.tencent.mm" }
+        assertEquals(15 * 60_000L, mm.totalMs) // 跨账户求和（分身微信 + 主微信 = 一行）
+        assertEquals(3, mm.launches)
+        assertTrue(result.appUsage.none { it.pkg == "com.zero" }) // 0 时长行滤除
+    }
+
+    @Test
+    fun inMemoryTakesLargerInsteadOfAddingToIntervals() {
+        // 同 (date,pkg)：区间 10min + In-memory 5min → 取 10（补采不叠加）
+        val begin = ms(day1, 0, 0)
+        val end = ms(day1, 23, 59)
+        val checkinText = """
+            beginTime=$begin endTime=$end
+                package=com.foo totalTimeUsed=600000 lastTimeUsed=$begin appLaunchCount=1
+        """.trimIndent()
+        val human = """
+            user=0
+            In-memory daily stats
+                package=com.foo totalTimeUsed="05:00" lastTimeUsed="1970-01-01 08:00:00" appLaunchCount=1
+            In-memory weekly stats
+        """.trimIndent()
+        val result = parseOf(checkinText, human, today = day1)
+        val foo = result.appUsage.single { it.pkg == "com.foo" }
+        assertEquals(600_000L, foo.totalMs) // 10min（取大），不是 15min
+    }
+
+    // ---- 真实 dump 不变式对账（批 5 返修验收物；无数据时跳过）----
+
+    private fun findSourceFile(name: String): File? = listOf(
+        File("E:/project/屏幕使用时间App/源数据/$name"),
+        File("E:/project/屏幕使用时间App/$name"),
+        File("../源数据/$name")
+    ).firstOrNull { it.exists() }
+
+    @Test
+    fun realDumpReconciliationInvariants() {
+        val checkinFile = findSourceFile("usagestats-checkin.txt")
+        val humanFile = findSourceFile("usagestats(1).txt")
+        val reportFile = findSourceFile("screen_usage_report.json")
+        org.junit.Assume.assumeTrue(
+            "真实 dump 不在本机，跳过对账（fixtures 测试仍覆盖口径）",
+            checkinFile != null && humanFile != null && reportFile != null
+        )
+        // dump 归属「今天」= 2026-11-09（文件生成日）
+        val result = parseOf(
+            checkinFile!!.readText(),
+            humanFile!!.readText(),
+            today = LocalDate.of(2026, 11, 9)
+        )
+        val report = reportFile!!.readText()
+
+        // 不变式 1（DeepSeek P0-1，按 §3-9 已知口径差放宽）：应用合计不得显著超过亮屏。
+        // 滚动日界归属（end-60s）会把前一晚 22:50–24:00 计入次日，且分屏重复计时是
+        // 系统固有（§3-9）——上界取 1.2×+30min 只防「重复计数」级别的错误。
+        for ((date, day) in result.days) {
+            val appSumMin = result.appUsage.filter { it.date == date }.sumOf { it.totalMs } / 60_000
+            assertTrue(
+                "[$date] 应用合计 ${appSumMin}min 显著超过亮屏 ${day.screenMin}min（重复计数嫌疑）",
+                appSumMin <= day.screenMin * 1.2 + 30
+            )
+        }
+
+        // 不变式 2：米家 10 天合计 ≈ 356.7min（u0 205.8 + 分身 150.9，跨账户求和真值）
+        val mijiaMin = result.appUsage
+            .filter { it.pkg == "com.xiaomi.smarthome" }
+            .sumOf { it.totalMs } / 60_000
+        assertTrue("米家合计 ${mijiaMin}min 应 ≈356.7（330–390）", mijiaMin in 330..390)
+
+        // 不变式 3：逐日解锁与已验证基线比值 ∈ [0.98, 1.05]（收敛后不再 ~3× 虚高）
+        val baseUnlocks = Regex(""""unlocks": (\d+)""").findAll(report).map { it.groupValues[1].toInt() }.toList()
+        val ktUnlocks = listOf("10-31", "11-01", "11-02", "11-03", "11-04", "11-05", "11-06", "11-07", "11-08", "11-09")
+            .mapNotNull { md ->
+                val date = LocalDate.parse("2026-$md")
+                result.days[date]?.unlocks
+            }
+        if (baseUnlocks.size == ktUnlocks.size) {
+            for ((base, kt) in baseUnlocks.zip(ktUnlocks)) {
+                val ratio = kt.toDouble() / base.coerceAtLeast(1)
+                assertTrue("解锁比值 $kt/$base = $ratio 应在 [0.98,1.05]", ratio in 0.98..1.05)
+            }
+        }
     }
 }

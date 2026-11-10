@@ -20,7 +20,16 @@ data class DailyPoint(val date: LocalDate, val minutes: Int, val recorded: Boole
 
 data class HourBucket(val hour: Int, val minutes: Int)
 
-data class CalendarLevel(val date: LocalDate, val level: Int, val recorded: Boolean)
+/**
+ * 日历色档点。minutes：该日真实时长（分钟），无记录为 null——
+ * 供日历点击详情直接显示（返修 P1-4：不依赖筛选区间二次查询，§7-9）。
+ */
+data class CalendarLevel(
+    val date: LocalDate,
+    val level: Int,
+    val recorded: Boolean,
+    val minutes: Int? = null
+)
 
 data class PullResult(val ok: Boolean, val message: String)
 

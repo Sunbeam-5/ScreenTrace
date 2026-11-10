@@ -398,7 +398,8 @@ object UsageCalculator {
             CalendarLevel(
                 date = date,
                 level = monthLevel(record?.screenUnlockMin ?: 0, record != null),
-                recorded = record != null
+                recorded = record != null,
+                minutes = record?.screenUnlockMin
             )
         }
     }
@@ -420,7 +421,8 @@ object UsageCalculator {
                     CalendarLevel(
                         date = cursor,
                         level = yearLevel(record?.screenUnlockMin ?: 0, record != null),
-                        recorded = record != null
+                        recorded = record != null,
+                        minutes = record?.screenUnlockMin
                     )
                 )
                 cursor = cursor.plusDays(1)

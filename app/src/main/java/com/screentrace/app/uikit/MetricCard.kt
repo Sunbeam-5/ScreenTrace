@@ -53,7 +53,7 @@ fun MetricCard(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
             .background(background)
-            .padding(20.dp),
+            .padding(16.dp), // §5.2：tonal 卡内边距 16dp（返修 P2-3）
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(text = label, style = FreshType.label, color = contentColor)

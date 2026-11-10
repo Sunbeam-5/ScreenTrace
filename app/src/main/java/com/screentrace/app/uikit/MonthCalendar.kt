@@ -100,7 +100,8 @@ fun MonthCalendar(
                         Row(
                             modifier = Modifier
                                 .size(width = runWidth, height = cellSize)
-                                .clip(RoundedCornerShape(50.dp)),
+                                // §5.7：单日圆角 10dp，连续组外轮廓全胶囊（返修 P2-2）
+                                .clip(if (count == 1) RoundedCornerShape(10.dp) else RoundedCornerShape(50.dp)),
                             horizontalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             runCells.forEach { runCell ->

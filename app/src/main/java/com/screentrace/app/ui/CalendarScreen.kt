@@ -91,16 +91,17 @@ private fun CalendarContent(
     onMonthChange: (YearMonth) -> Unit
 ) {
     val palette = LocalFreshPalette.current
-    var selectedDay by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedMinutes by rememberSaveable { mutableStateOf<Int?>(null) }
     var viewMode by rememberSaveable { mutableStateOf(0) }
 
-    // ① 连续记录 tonal 卡（hero 大数字，本页唯一核心大数字）
+    // ① 连续记录 tonal 卡（hero 大数字，本页唯一核心大数字；tonal 卡内边距 16dp，§5.2）
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .background(palette.secondaryContainer)
-            .padding(20.dp),
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -130,7 +131,7 @@ private fun CalendarContent(
     SegmentedControl(
         items = listOf("月视图", "年视图"),
         selectedIndex = viewMode,
-        onSelect = { viewMode = it; selectedDay = null }
+        onSelect = { viewMode = it; selectedEpochDay = null; selectedMinutes = null }
     )
 
     // ③ 日历卡
@@ -165,23 +166,30 @@ private fun CalendarContent(
                 MonthCalendar(
                     yearMonth = calendarMonth,
                     levels = levels,
-                    onDayClick = { selectedDay = it.date.toEpochDay() }
+                    onDayClick = {
+                        selectedEpochDay = it.date.toEpochDay()
+                        selectedMinutes = it.minutes
+                    }
                 )
             }
         } else {
             Text(text = "过去 20 周", style = FreshType.sectionTitle, color = palette.onSurface)
             HeatmapCalendar(
                 levels = data.yearLevels,
-                onDayClick = { selectedDay = it.date.toEpochDay() }
+                onDayClick = {
+                    selectedEpochDay = it.date.toEpochDay()
+                    selectedMinutes = it.minutes
+                }
             )
             HeatmapLegend()
         }
-        // 点击详情（§5.7：真实日期、记录状态与时长；0 分钟与无记录文案区分）
-        selectedDay?.let { epochDay ->
+        // 点击详情（§5.7：真实日期、记录状态与时长；0 分钟与无记录文案区分。
+        // 返修 P1-4：时长直接来自 CalendarLevel.minutes，翻月/年视图任意格子均可显示）
+        selectedEpochDay?.let { epochDay ->
             val date = LocalDate.ofEpochDay(epochDay)
-            val minutes = data.minutesByDate[date]
-            val stateText = when {
-                minutes == null -> "无记录"
+            val minutes = selectedMinutes
+            val stateText = when (minutes) {
+                null -> "无记录"
                 else -> UsageCalculator.formatDuration(minutes)
             }
             Text(
@@ -242,8 +250,7 @@ private fun CalendarScreenPreview() {
                         longestStart = LocalDate.of(2026, 3, 2)
                     ),
                     extremes = ExtremesInfo(LocalDate.of(2026, 11, 3), 320, null, 0, 4),
-                    yearLevels = levels,
-                    minutesByDate = levels.filter { it.recorded }.associate { it.date to it.level * 60 }
+                    yearLevels = levels
                 )
             ),
             monthLevelsState = LoadState(data = levels),

@@ -2,6 +2,7 @@ package com.screentrace.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -151,6 +152,7 @@ private fun QuickChip(label: String, onClick: () -> Unit) {
         modifier = Modifier
             .clip(CircleShape)
             .background(palette.buttonSurface)
+            .defaultMinSize(minHeight = 48.dp) // §5.9 点击区 ≥48dp（返修 P2-4）
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {

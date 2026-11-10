@@ -77,13 +77,11 @@ data class StatsData(
     val extremes: ExtremesInfo
 )
 
-/** 日历页数据（连续记录 / 年视图 / 双卡 / 点击详情用分钟表）。 */
+/** 日历页数据（连续记录 / 年视图 / 双卡）。点击详情直接用 CalendarLevel.minutes（返修 P1-4）。 */
 data class CalendarData(
     val streak: StreakInfo,
     val extremes: ExtremesInfo,
-    val yearLevels: List<CalendarLevel>,
-    /** date → screenUnlockMin，供点击格子显示真实时长。 */
-    val minutesByDate: Map<LocalDate, Int>
+    val yearLevels: List<CalendarLevel>
 )
 
 /** 排行页数据（摘要 + 全量应用列表，页面自行切 top20 / 全部）。 */
@@ -258,6 +256,16 @@ class AppViewModel(
             _rankingState.value = LoadState(loading = true)
             try {
                 val summary = repository.summary(selection)
+                if (!summary.hasAnyRecord) {
+                    // 返修 P1-3（§5.5 红线）：完全无记录时 data=null → 页面统一 EmptyState，
+                    // 不得渲染 0:00 / 0 次 / 0分钟 伪装真实数据
+                    _todayState.value = LoadState(data = null)
+                    _statsState.value = LoadState(data = null)
+                    _calendarState.value = LoadState(data = null)
+                    _rankingState.value = LoadState(data = null)
+                    _monthLevelsState.value = LoadState(data = emptyList())
+                    return@launch
+                }
                 val previous = repository.summary(UsageCalculator.previousPeriod(selection))
                 val compare = UsageCalculator.compare(summary, previous, single)
                 val notification = repository.metricDetail(MetricKind.NOTIFICATION, selection)
@@ -291,10 +299,7 @@ class AppViewModel(
                     data = CalendarData(
                         streak = repository.streak(selection.endDate),
                         extremes = repository.extremes(selection),
-                        yearLevels = repository.yearLevels(selection.endDate),
-                        minutesByDate = repository.dailyTrend(selection)
-                            .filter { it.recorded }
-                            .associate { it.date to it.minutes }
+                        yearLevels = repository.yearLevels(selection.endDate)
                     )
                 )
 
