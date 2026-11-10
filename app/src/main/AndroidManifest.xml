@@ -7,16 +7,29 @@
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 
+    <!-- §2.1 主通道：向 Shizuku 申请授权（S05：只加依赖不注册 provider 会在运行期失败） -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+
     <!-- §5.10 / §6：仅云同步（WebDAV / Google Drive）使用。核心功能全离线，
          骨架阶段不发起任何网络请求。接入 §5.10 时仍需遵守「仅手动或按频率自动触发」。 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
+        android:name=".ScreenTraceApp"
         android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.ScreenTrace">
+        <!-- S05（Kimi 评审）：Shizuku provider 必须注册，否则 Shizuku 授权回调与权限查询直接失败 -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

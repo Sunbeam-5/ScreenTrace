@@ -16,8 +16,13 @@ import com.screentrace.app.contract.StreakInfo
 import com.screentrace.app.contract.Summary
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.contract.UsageRepository
+import com.screentrace.app.data.prefs.SettingsStore
+import com.screentrace.app.data.pull.HistoryCoverage
+import com.screentrace.app.data.pull.PullCoordinator
+import com.screentrace.app.data.pull.PullOutcome
 import com.screentrace.app.theme.ThemeVariant
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
@@ -97,7 +102,11 @@ data class RankingData(
  * 主题与每日目标先内存承载（旋转保持），DataStore 持久化在批 6a 接入。
  */
 class AppViewModel(
-    private val repository: UsageRepository = EmptyUsageRepository()
+    private val repository: UsageRepository = EmptyUsageRepository(),
+    /** 批 6b：真实拉取通道；为空时（预览/单测）不做任何拉取。 */
+    private val pulls: PullCoordinator? = null,
+    /** 批 6b：主题/目标持久化；为空时退回内存态。 */
+    private val settings: SettingsStore? = null
 ) : ViewModel() {
 
     private val _selection = mutableStateOf<DateSelection>(DateSelection.today())
@@ -143,8 +152,109 @@ class AppViewModel(
 
     private var loadJob: Job? = null
 
+    // ---- 批 6b：拉取状态（§5.8 未启动/未授权/拉取中/失败/空 dump） ----
+
+    private val _pulling = mutableStateOf(false)
+    val pulling: State<Boolean> = _pulling
+
+    /** 已有历史时拉取失败的内联错误（§5.8：保留旧数据 + 顶部内联错误，不整页报错）。 */
+    private val _pullError = mutableStateOf<String?>(null)
+    val pullError: State<String?> = _pullError
+
+    /** 库里已有数据的覆盖范围（「部分历史 / 完全无数据」两态判定）。 */
+    private val _coverage = mutableStateOf<HistoryCoverage?>(null)
+    val coverage: State<HistoryCoverage?> = _coverage
+
+    private val _lastPulledAt = mutableStateOf<Long?>(null)
+    val lastPulledAt: State<Long?> = _lastPulledAt
+
     init {
+        observeSettings()
         loadAll()
+        pullOnOpen()
+    }
+
+    // ---- 拉取 ----
+
+    /**
+     * §2.1：App 打开时拉取，30 分钟内不重复（节流在 [PullCoordinator] 里，
+     * 以 `pull_log` 为准，进程重启也不会重复拉）。
+     */
+    fun pullOnOpen() {
+        val coordinator = pulls ?: return
+        viewModelScope.launch {
+            _pulling.value = true
+            val outcome = runCatching { coordinator.pullIfStale() }
+                .getOrElse { PullOutcome.Failure(com.screentrace.app.data.pull.ProviderStatus.TEMPORARILY_UNAVAILABLE, it.message ?: "拉取失败", false) }
+            applyPullOutcome(outcome, coordinator)
+            _pulling.value = false
+        }
+    }
+
+    /** 设置页/内联错误条的「手动重试」：不节流。 */
+    fun retryPull() {
+        val coordinator = pulls ?: return
+        viewModelScope.launch {
+            _pulling.value = true
+            val outcome = runCatching { coordinator.pull() }
+                .getOrElse { PullOutcome.Failure(com.screentrace.app.data.pull.ProviderStatus.TEMPORARILY_UNAVAILABLE, it.message ?: "拉取失败", false) }
+            applyPullOutcome(outcome, coordinator)
+            _pulling.value = false
+        }
+    }
+
+    fun dismissPullError() {
+        _pullError.value = null
+    }
+
+    private suspend fun applyPullOutcome(outcome: PullOutcome, coordinator: PullCoordinator) {
+        when (outcome) {
+            is PullOutcome.Success -> {
+                _pullError.value = null
+                _lastPulledAt.value = outcome.pulledAtMs
+                _coverage.value = coordinator.historyCoverage()
+                loadAll()
+            }
+
+            PullOutcome.Throttled, PullOutcome.AlreadyRunning -> {
+                // 节流/并发：不动界面，只刷新一次覆盖范围与最近拉取时间
+                _coverage.value = coordinator.historyCoverage()
+            }
+
+            PullOutcome.EmptyDump -> {
+                _pullError.value = "系统暂无可解析的使用记录（dump 为空），已保留原有数据"
+                _coverage.value = coordinator.historyCoverage()
+            }
+
+            is PullOutcome.Failure -> {
+                _pullError.value = if (outcome.keptOldData) {
+                    "拉取失败：${outcome.message}（已保留原有数据）"
+                } else {
+                    "拉取失败：${outcome.message}"
+                }
+                _coverage.value = coordinator.historyCoverage()
+                loadAll()
+            }
+        }
+    }
+
+    /** 主题/目标从 DataStore 同步到界面（批 6a 已持久化，6b 接上）。 */
+    private fun observeSettings() {
+        val store = settings ?: return
+        viewModelScope.launch {
+            _dailyGoalMin.value = runCatching { store.dailyGoalMin.first() }.getOrDefault(DEFAULT_GOAL_MIN)
+        }
+        viewModelScope.launch {
+            runCatching {
+                store.themeVariant.collect { _themeVariant.value = it }
+            }
+        }
+        viewModelScope.launch {
+            runCatching { store.darkTheme.collect { _darkTheme.value = it } }
+        }
+        viewModelScope.launch {
+            runCatching { store.dynamicColor.collect { _dynamicColor.value = it } }
+        }
     }
 
     // ---- 导航 ----
@@ -229,14 +339,36 @@ class AppViewModel(
 
     fun setThemeVariant(variant: ThemeVariant) {
         _themeVariant.value = variant
+        persist { it.setThemeVariant(variant) }
     }
 
     fun setDarkTheme(dark: Boolean) {
         _darkTheme.value = dark
+        persist { it.setDarkTheme(dark) }
     }
 
     fun setDynamicColor(enabled: Boolean) {
         _dynamicColor.value = enabled
+        persist { it.setDynamicColor(enabled) }
+    }
+
+    /** §5.8 每日目标：批 7 设置页滑块调用，落 DataStore。 */
+    fun setDailyGoalMin(minutes: Int) {
+        _dailyGoalMin.value = minutes
+        persist { it.setDailyGoalMin(minutes) }
+    }
+
+    /**
+     * 设置写盘失败不阻塞交互（DataStore 极少失败，失败也能靠内存态继续用）。
+     *
+     * **显式传参而不是 `suspend SettingsStore.() -> Unit`**：后者与 AppViewModel 自身的
+     * `setThemeVariant` 同名，lambda 里的无接收者调用会解析到「最近的作用域」——写成
+     * 接收者 lambda 时极易误调 `this@AppViewModel.setThemeVariant` 造成无限递归
+     * （编译能过，运行时栈溢出）。这里用 `(SettingsStore) -> Unit` + `it.` 把歧义彻底消灭。
+     */
+    private fun persist(block: suspend (SettingsStore) -> Unit) {
+        val store = settings ?: return
+        viewModelScope.launch { runCatching { block(store) } }
     }
 
     // ---- 数据加载 ----

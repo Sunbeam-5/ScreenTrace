@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -34,6 +35,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.EmptyUsageRepository
+import com.screentrace.app.ScreenTraceApp
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.ScreenTimeTheme
@@ -49,14 +51,25 @@ private val DAY_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d�
 /**
  * 应用根组合（批次 3）：主题包裹 + 页面路由 + 底部胶囊导航 + 日期/风格弹层。
  * 二级页（排行/设置）用「返回 + 标题」顶部栏，底部导航保持进入前主页面选中（§5.2/§5.5）。
- * 仓库注入点：批 6b 由 EmptyUsageRepository 换为 RoomUsageRepository。
+ * 仓库注入点（批 6b）：由 [ScreenTraceApp] 的容器提供真实仓库与拉取协调器；
+ * 容器不可用时（预览/纯 UI 场景）退回 [EmptyUsageRepository]，不崩也不造假数据。
  */
 @Composable
-fun AppNav(
-    viewModel: AppViewModel = viewModel(factory = viewModelFactory {
-        initializer { AppViewModel(EmptyUsageRepository()) }
+fun AppNav() {
+    val container = (LocalContext.current.applicationContext as? ScreenTraceApp)?.container
+    val viewModel: AppViewModel = viewModel(factory = viewModelFactory {
+        initializer {
+            if (container != null) {
+                AppViewModel(
+                    repository = container.repository,
+                    pulls = container.pullCoordinator,
+                    settings = container.settings
+                )
+            } else {
+                AppViewModel(EmptyUsageRepository())
+            }
+        }
     })
-) {
     val variant by viewModel.themeVariant
     val darkTheme by viewModel.darkTheme
     val dynamicColor by viewModel.dynamicColor
@@ -70,6 +83,8 @@ fun AppNav(
     val calendarMonth by viewModel.calendarMonth
     val dailyGoalMin by viewModel.dailyGoalMin
     val notice by viewModel.notice
+    val pullError by viewModel.pullError
+    val pulling by viewModel.pulling
 
     var showDateSheet by rememberSaveable { mutableStateOf(false) }
     var showStyleSheet by rememberSaveable { mutableStateOf(false) }
@@ -146,6 +161,18 @@ fun AppNav(
             notice?.let { text ->
                 NoticeBar(text = text, onDismiss = viewModel::consumeNotice)
             }
+            // §5.8：已有历史时拉取失败 → 顶部内联错误 + 可重试，页面继续显示旧数据
+            pullError?.let { text ->
+                NoticeBar(
+                    text = text,
+                    onDismiss = viewModel::dismissPullError,
+                    actionText = "重试",
+                    onAction = viewModel::retryPull
+                )
+            }
+            if (pulling) {
+                PullingBar()
+            }
             when (page) {
                 AppPage.Today -> TodayScreen(
                     state = todayState,
@@ -210,9 +237,14 @@ private fun selectionSubtitle(selection: DateSelection): String = when (selectio
         "${selection.start.format(DAY_FORMAT)} – ${selection.end.format(DAY_FORMAT)}"
 }
 
-/** §5.6「完全无记录」提示条：内联展示、可关闭，不用 Toast（§5.5）。 */
+/** §5.6「完全无记录」提示条 / §5.8 拉取内联错误：内联展示、可关闭，不用 Toast（§5.5）。 */
 @Composable
-private fun NoticeBar(text: String, onDismiss: () -> Unit) {
+private fun NoticeBar(
+    text: String,
+    onDismiss: () -> Unit,
+    actionText: String? = null,
+    onAction: (() -> Unit)? = null
+) {
     val palette = LocalFreshPalette.current
     Row(
         modifier = Modifier
@@ -228,6 +260,21 @@ private fun NoticeBar(text: String, onDismiss: () -> Unit) {
             color = palette.error,
             modifier = Modifier.weight(1f)
         )
+        if (actionText != null && onAction != null) {
+            Text(
+                text = actionText,
+                style = FreshType.label,
+                color = palette.primary,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = onAction)
+                    .semantics {
+                        contentDescription = "$actionText：$text"
+                        role = Role.Button
+                    }
+                    .padding(horizontal = 12.dp, vertical = 12.dp)
+            )
+        }
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -245,5 +292,25 @@ private fun NoticeBar(text: String, onDismiss: () -> Unit) {
                 modifier = Modifier.size(16.dp)
             )
         }
+    }
+}
+
+/** §5.8「拉取中」：一行中性提示，不用遮罩（拉取期间不许锁死界面）。 */
+@Composable
+private fun PullingBar() {
+    val palette = LocalFreshPalette.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(CircleShape)
+            .background(palette.surfaceVariant)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "正在拉取使用记录…",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
     }
 }

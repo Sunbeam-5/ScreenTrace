@@ -85,8 +85,10 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
-    // TODO(批 6b)：Shizuku 拉取通道；TODO(批 8)：云同步
-    // implementation("dev.rikka.shizuku:api:13.1.5")
-    // implementation("dev.rikka.shizuku:provider:13.1.5")
+    // ---- 批 6b：Shizuku 主通道（§2.1）+ provider 注册见 AndroidManifest（S05）----
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
+
+    // TODO(批 8)：云同步
     // implementation("com.squareup.okhttp3:okhttp:4.12.0") // §5.10 云同步
 }

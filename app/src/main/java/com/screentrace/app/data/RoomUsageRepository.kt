@@ -29,11 +29,16 @@ import java.time.temporal.TemporalAdjusters
  * Room 实现（批 6a）：查询 + 聚合全部经 [UsageCalculator]（§6：聚合口径唯一出处）。
  * 展示名按 §3-8：库内 name 优先（6b 用 PackageManager 回填后），回退内置映射表再回退包名；
  * 分类按 §4：库内存默认映射，用户覆盖（SettingsStore.categoryOverrides）读取层叠加。
- * pullLatest 的 Shizuku 拉取通道在批 6b 接入。
+ *
+ * `pullLatest` 由批 6b 的 [com.screentrace.app.data.pull.PullCoordinator] 通过 [pull] 注入：
+ * 仓库**不自己持有通道**，否则契约层会反向依赖数据通道实现；未注入时返回明确的
+ * 「当前环境不支持拉取」而不是假的「成功」——§6 红线：不许有假按钮/假结果。
  */
 class RoomUsageRepository(
     private val db: ScreenTraceDatabase,
-    private val settings: com.screentrace.app.data.prefs.SettingsStore? = null
+    private val settings: com.screentrace.app.data.prefs.SettingsStore? = null,
+    /** 手动拉取入口（设置页「立即拉取」）：由 AppContainer 接到 PullCoordinator。 */
+    private val pull: (suspend () -> PullResult)? = null
 ) : UsageRepository {
 
     private suspend fun recordsBetween(start: LocalDate, end: LocalDate): List<DaySummary> =
@@ -143,10 +148,8 @@ class RoomUsageRepository(
     private fun displayName(pkg: String, storedName: String): String =
         if (storedName.isNotBlank() && storedName != pkg) storedName else AppNames.nameOf(pkg)
 
-    override suspend fun pullLatest(): PullResult = PullResult(
-        ok = false,
-        message = "拉取通道批 6b 接线（Shizuku 与 WorkManager）"
-    )
+    override suspend fun pullLatest(): PullResult =
+        pull?.invoke() ?: PullResult(ok = false, message = "当前环境未接入拉取通道")
 
     private fun minOfNotNull(a: Long?, b: Long?): Long? = when {
         a == null -> b

@@ -24,12 +24,13 @@ class IngestPipeline(private val db: ScreenTraceDatabase) {
     suspend fun ingest(
         result: ParseResult,
         source: String,
-        pulledAtMs: Long = System.currentTimeMillis()
+        pulledAtMs: Long = System.currentTimeMillis(),
+        /** 部分源缺失等需要可追溯的说明（写进 `pull_log.note`，成功时也写）。 */
+        note: String? = null
     ): PullResult {
         // 6a 评审 P2-2：dump 为空不记成功（§6「dump 为空或失败保留旧数据并记录」）
-        val empty = result.days.isEmpty() && result.appUsage.isEmpty() &&
-            result.unlockEvents.isEmpty() && result.notificationEvents.isEmpty()
-        if (empty) {
+        // 判定收敛到 ParseResult.isEmpty，与拉取协调器的「空 dump」态共用同一口径
+        if (result.isEmpty) {
             logPull(source, pulledAtMs, ok = false, note = "dump 为空")
             return PullResult(ok = false, message = "dump 为空")
         }
@@ -105,7 +106,7 @@ class IngestPipeline(private val db: ScreenTraceDatabase) {
                 }
 
                 db.pullLogDao().insert(
-                    PullLogEntity(pulledAt = pulledAtMs, source = source, ok = true, note = null)
+                    PullLogEntity(pulledAt = pulledAtMs, source = source, ok = true, note = note)
                 )
             }
             PullResult(ok = true, message = "入库完成：${result.days.size} 天")

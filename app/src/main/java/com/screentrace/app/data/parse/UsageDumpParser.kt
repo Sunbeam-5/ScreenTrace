@@ -36,7 +36,19 @@ data class ParseResult(
     val appUsage: List<AppUsageRow>,
     val unlockEvents: List<UnlockEvent>,
     val notificationEvents: List<NotificationEvent>
-)
+) {
+    /**
+     * 「空 dump」判定（§5.8 独立状态）：五类产物**全空**才算空。
+     *
+     * 必须是**单一出处**——入库管道用它决定「不记成功」，拉取协调器用它返回
+     * [com.screentrace.app.data.pull.PullOutcome.EmptyDump]。两处各写一份的话，
+     * 一旦某天补了新产物类型（如未来的亮度事件），就会出现「管道认为非空、界面认为空」
+     * 的状态错乱。
+     */
+    val isEmpty: Boolean
+        get() = days.isEmpty() && hourMinutes.isEmpty() && appUsage.isEmpty() &&
+            unlockEvents.isEmpty() && notificationEvents.isEmpty()
+}
 
 /**
  * §2–§3 解析器（照抄 `parse_usage3.py` 已对账口径 + CR-01 修正 + 批 5 返修）：
