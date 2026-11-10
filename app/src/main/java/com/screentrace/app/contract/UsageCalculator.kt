@@ -164,6 +164,175 @@ object UsageCalculator {
         )
     }
 
+    /**
+     * CR-01（C04）：解锁/通知详情统一聚合。两详情页与图表/数据表/卡片数字同源于此。
+     * - 计数层事件保留毫秒（§2.2 坑 2）；按设备本地时区归属自然日/小时（§3）；
+     * - 单日 → 24 个逐小时点；区间 → 逐日点（主指标：UNLOCK=解锁数、
+     *   NOTIFICATION=打扰数，与今日卡一致）；
+     * - 覆盖三态（§4）：RECORDED 含真实 0 次，NO_RECORD=窗口外，GAP=拉取缺口；
+     *   小时点的覆盖状态随所属日。
+     */
+    fun metricDetail(
+        metric: MetricKind,
+        selection: DateSelection,
+        unlockEvents: List<UnlockEvent> = emptyList(),
+        notificationEvents: List<NotificationEvent> = emptyList(),
+        windowStart: LocalDate? = null,
+        gapDays: Set<LocalDate> = emptySet(),
+        appLabels: Map<String, String> = emptyMap()
+    ): MetricDetail = when (metric) {
+        MetricKind.UNLOCK -> buildUnlockDetail(
+            selection, unlockEvents, windowStart, gapDays
+        )
+        MetricKind.NOTIFICATION -> buildNotificationDetail(
+            selection, notificationEvents, windowStart, gapDays, appLabels
+        )
+    }
+
+    /** 覆盖三态判定（§4）：窗口外无记录 / 拉取缺口 / 有记录（含真实 0）。 */
+    fun coverageOf(date: LocalDate, windowStart: LocalDate?, gapDays: Set<LocalDate>): Coverage =
+        when {
+            windowStart == null -> Coverage.NO_RECORD
+            date.isBefore(windowStart) -> Coverage.NO_RECORD
+            date in gapDays -> Coverage.GAP
+            else -> Coverage.RECORDED
+        }
+
+    private fun localZone(): java.time.ZoneId = java.time.ZoneId.systemDefault()
+
+    private fun localDateOf(ms: Long): LocalDate =
+        java.time.Instant.ofEpochMilli(ms).atZone(localZone()).toLocalDate()
+
+    private fun localHourOf(ms: Long): Int =
+        java.time.Instant.ofEpochMilli(ms).atZone(localZone()).hour
+
+    private fun inSelection(ms: Long, selection: DateSelection): Boolean {
+        val date = localDateOf(ms)
+        return !date.isBefore(selection.startDate) && !date.isAfter(selection.endDate)
+    }
+
+    private fun buildUnlockDetail(
+        selection: DateSelection,
+        events: List<UnlockEvent>,
+        windowStart: LocalDate?,
+        gapDays: Set<LocalDate>
+    ): MetricDetail {
+        val inRange = events.filter { inSelection(it.occurredAtMs, selection) }
+        val hourlyOf: (LocalDate) -> IntArray = { date ->
+            IntArray(24).also { buckets ->
+                inRange.forEach {
+                    if (localDateOf(it.occurredAtMs) == date) buckets[localHourOf(it.occurredAtMs)]++
+                }
+            }
+        }
+        val base = aggregatePoints(selection, hourlyOf, windowStart, gapDays)
+        val single = selection is DateSelection.Day
+        val peakHour: Int? = if (single) {
+            hourlyOf(selection.startDate).withIndex().maxByOrNull { it.value }?.takeIf { it.value > 0 }?.index
+        } else {
+            val totals = IntArray(24)
+            daysOf(selection).forEach { day ->
+                hourlyOf(day).forEachIndexed { h, v -> totals[h] += v }
+            }
+            totals.withIndex().maxByOrNull { it.value }?.takeIf { it.value > 0 }?.index
+        }
+        val busiestDate = base.points
+            .filter { it.coverage == Coverage.RECORDED }
+            .maxByOrNull { it.value }
+            ?.takeIf { it.value > 0 }
+            ?.date
+        val totalHours = if (single) 24 else selection.days * 24
+        return MetricDetail(
+            metric = MetricKind.UNLOCK,
+            selection = selection,
+            total = base.total,
+            dailyAverage = base.dailyAverage,
+            notification = null,
+            points = base.points,
+            appRanking = emptyList(), // §5.7：解锁无可靠应用归因，禁止伪造
+            peakHour = peakHour,
+            hourlyAverage = if (base.total > 0) base.total.toDouble() / totalHours else null,
+            busiestDate = busiestDate
+        )
+    }
+
+    private fun buildNotificationDetail(
+        selection: DateSelection,
+        events: List<NotificationEvent>,
+        windowStart: LocalDate?,
+        gapDays: Set<LocalDate>,
+        appLabels: Map<String, String>
+    ): MetricDetail {
+        val inRange = events.filter { inSelection(it.occurredAtMs, selection) }
+        val interruptions = inRange.filter { it.type == NotificationType.INTERRUPTION }
+        val seen = inRange.filter { it.type == NotificationType.SEEN }
+        val hourlyOf: (LocalDate) -> IntArray = { date ->
+            IntArray(24).also { buckets ->
+                interruptions.forEach {
+                    if (localDateOf(it.occurredAtMs) == date) buckets[localHourOf(it.occurredAtMs)]++
+                }
+            }
+        }
+        val base = aggregatePoints(selection, hourlyOf, windowStart, gapDays)
+        val ranking = inRange
+            .groupBy { it.pkg }
+            .map { (pkg, rows) ->
+                MetricAppCount(
+                    pkg = pkg,
+                    name = appLabels[pkg] ?: pkg,
+                    interruptions = rows.count { it.type == NotificationType.INTERRUPTION },
+                    seen = rows.count { it.type == NotificationType.SEEN }
+                )
+            }
+            .sortedWith(compareByDescending<MetricAppCount> { it.interruptions }.thenBy { it.pkg })
+        return MetricDetail(
+            metric = MetricKind.NOTIFICATION,
+            selection = selection,
+            total = base.total,
+            dailyAverage = base.dailyAverage,
+            notification = NotificationCounts(interruptions.size, seen.size),
+            points = base.points,
+            appRanking = ranking,
+            peakHour = null,
+            hourlyAverage = null,
+            busiestDate = null
+        )
+    }
+
+    /** 单日 24 逐小时点 / 区间逐日点 + 摘要（total / 有记录日日均）。 */
+    private fun aggregatePoints(
+        selection: DateSelection,
+        hourlyOf: (LocalDate) -> IntArray,
+        windowStart: LocalDate?,
+        gapDays: Set<LocalDate>
+    ): Pair3 {
+        val single = selection is DateSelection.Day
+        val points: List<MetricPoint> = if (single) {
+            val date = selection.startDate
+            val coverage = coverageOf(date, windowStart, gapDays)
+            val hours = hourlyOf(date)
+            (0..23).map { hour ->
+                MetricPoint(date, hour, hours[hour], coverage)
+            }
+        } else {
+            daysOf(selection).map { date ->
+                MetricPoint(date, null, hourlyOf(date).sum(), coverageOf(date, windowStart, gapDays))
+            }
+        }
+        val total = points.sumOf { it.value }
+        val recordedCount = points.count { it.coverage == Coverage.RECORDED }
+        val dailyAverage = if (single || recordedCount == 0) {
+            null
+        } else {
+            // §5.6：AVG 分母只含记录日（RECORDED 含真实 0），窗口外/缺口不拉低平均
+            points.filter { it.coverage == Coverage.RECORDED }.sumOf { it.value } / recordedCount
+        }
+        return Pair3(total, dailyAverage, points)
+    }
+
+    /** 内部聚合载体（total / dailyAverage / points）。 */
+    private data class Pair3(val total: Int, val dailyAverage: Int?, val points: List<MetricPoint>)
+
     /** 月视图任意月份：整月每个自然日一个色档点（§5.7 三档，真实 0 与无记录同为 0 档但 recorded 区分）。 */
     fun monthLevels(yearMonth: YearMonth, records: List<DaySummary>): List<CalendarLevel> {
         val byDate = records.associateBy { it.date }

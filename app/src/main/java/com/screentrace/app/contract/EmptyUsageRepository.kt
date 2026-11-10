@@ -37,6 +37,9 @@ class EmptyUsageRepository : UsageRepository {
     override suspend fun extremes(selection: DateSelection): ExtremesInfo =
         UsageCalculator.extremes(selection, emptyList())
 
+    override suspend fun metricDetail(metric: MetricKind, selection: DateSelection): MetricDetail =
+        UsageCalculator.metricDetail(metric, selection) // 全空事件 → 覆盖三态全 NO_RECORD
+
     override suspend fun pullLatest(): PullResult = PullResult(
         ok = false,
         message = "数据拉取尚未接线：请先完成 Shizuku 授权与解析器（需求文档 §2–§3）"

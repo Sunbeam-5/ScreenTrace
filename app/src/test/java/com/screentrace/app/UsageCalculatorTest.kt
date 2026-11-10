@@ -1,8 +1,13 @@
 package com.screentrace.app
 
+import com.screentrace.app.contract.Coverage
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.DaySummary
 import com.screentrace.app.contract.HourUsage
+import com.screentrace.app.contract.MetricKind
+import com.screentrace.app.contract.NotificationEvent
+import com.screentrace.app.contract.NotificationType
+import com.screentrace.app.contract.UnlockEvent
 import com.screentrace.app.contract.UsageCalculator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,6 +17,7 @@ import org.junit.Test
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 
 /**
@@ -21,6 +27,8 @@ import java.time.temporal.TemporalAdjusters
 class UsageCalculatorTest {
 
     private val day1 = LocalDate.of(2026, 11, 3)
+    private val day3 = LocalDate.of(2026, 11, 5)
+    private val day4 = LocalDate.of(2026, 11, 6)
     private val day7 = LocalDate.of(2026, 11, 9)
 
     private fun record(date: LocalDate, minutes: Int, unlocks: Int = 10, longest: Int = 25) =
@@ -166,5 +174,95 @@ class UsageCalculatorTest {
         val anchorCell = levels.first { it.date == day7 }
         assertTrue(anchorCell.recorded)
         assertEquals(4, anchorCell.level)
+    }
+
+    // ---- CR-01（C04）：metricDetail 事件聚合 ----
+
+    /** 毫秒时间戳按设备本地时区构造，与计算器同口径（测试与实现时区无关）。 */
+    private fun ms(date: LocalDate, hour: Int, minute: Int = 0): Long =
+        date.atTime(hour, minute).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    @Test
+    fun metricDetailHourlyAggregationForSingleDay() {
+        val events = listOf(
+            UnlockEvent(ms(day1, 8, 0)),
+            UnlockEvent(ms(day1, 8, 30)),
+            UnlockEvent(ms(day1, 9, 0))
+        )
+        val detail = UsageCalculator.metricDetail(
+            MetricKind.UNLOCK, DateSelection.Day(day1),
+            unlockEvents = events, windowStart = day1
+        )
+        assertEquals(24, detail.points.size)
+        assertEquals(2, detail.points[8].value)
+        assertEquals(1, detail.points[9].value)
+        assertEquals(0, detail.points[0].value)
+        assertEquals(Coverage.RECORDED, detail.points[0].coverage) // 真实 0 仍算有记录
+        assertEquals(3, detail.total)
+        assertNull(detail.dailyAverage) // 单日无日均
+        assertEquals(8, detail.peakHour)
+        assertEquals(day1, detail.busiestDate)
+        assertTrue(detail.appRanking.isEmpty()) // 解锁无应用归因（§5.7）
+    }
+
+    @Test
+    fun metricDetailRangeAveragesOnlyRecordedDays() {
+        // windowStart=day3：day1/day2 窗口外；day3×2、day4×4
+        val events = listOf(
+            UnlockEvent(ms(day3, 10, 0)),
+            UnlockEvent(ms(day3, 11, 0)),
+            UnlockEvent(ms(day4, 8, 0)),
+            UnlockEvent(ms(day4, 9, 0)),
+            UnlockEvent(ms(day4, 10, 0)),
+            UnlockEvent(ms(day4, 11, 0))
+        )
+        val detail = UsageCalculator.metricDetail(
+            MetricKind.UNLOCK, DateSelection.Range(day1, day4),
+            unlockEvents = events, windowStart = day3
+        )
+        assertEquals(4, detail.points.size)
+        assertEquals(Coverage.NO_RECORD, detail.points[0].coverage)
+        assertEquals(Coverage.NO_RECORD, detail.points[1].coverage)
+        assertEquals(Coverage.RECORDED, detail.points[2].coverage)
+        assertEquals(6, detail.total)
+        assertEquals(3, detail.dailyAverage) // 6 / 2 个有记录日，窗口外不拉低（§5.6）
+    }
+
+    @Test
+    fun metricDetailCoverageThreeStates() {
+        val detail = UsageCalculator.metricDetail(
+            MetricKind.UNLOCK, DateSelection.Range(day1, day7),
+            unlockEvents = emptyList(), windowStart = day3, gapDays = setOf(day1.plusDays(4))
+        )
+        assertEquals(Coverage.NO_RECORD, detail.points[0].coverage) // 窗口外
+        assertEquals(Coverage.NO_RECORD, detail.points[1].coverage)
+        assertEquals(Coverage.RECORDED, detail.points[2].coverage) // 真实 0
+        assertEquals(Coverage.RECORDED, detail.points[3].coverage)
+        assertEquals(Coverage.GAP, detail.points[4].coverage) // 拉取缺口
+        assertEquals(Coverage.RECORDED, detail.points[5].coverage)
+        assertEquals(0, detail.points[2].value)
+    }
+
+    @Test
+    fun metricDetailNotificationDualMetricsAndRanking() {
+        val events = listOf(
+            NotificationEvent(ms(day1, 8, 0), NotificationType.INTERRUPTION, "pkg.a", null),
+            NotificationEvent(ms(day1, 8, 30), NotificationType.INTERRUPTION, "pkg.a", "ch1"),
+            NotificationEvent(ms(day1, 9, 0), NotificationType.INTERRUPTION, "pkg.b", null),
+            NotificationEvent(ms(day1, 10, 0), NotificationType.SEEN, "pkg.a", null)
+        )
+        val detail = UsageCalculator.metricDetail(
+            MetricKind.NOTIFICATION, DateSelection.Day(day1),
+            notificationEvents = events, windowStart = day1,
+            appLabels = mapOf("pkg.a" to "应用A")
+        )
+        assertEquals(3, detail.notification?.interruptions) // 打扰
+        assertEquals(1, detail.notification?.seen) // 已查看
+        assertEquals(3, detail.total) // 主指标 = 打扰，与卡片一致
+        assertEquals(2, detail.appRanking.size)
+        assertEquals("应用A", detail.appRanking[0].name) // 按打扰降序
+        assertEquals(2, detail.appRanking[0].interruptions)
+        assertEquals(1, detail.appRanking[0].seen)
+        assertEquals("pkg.b", detail.appRanking[1].name) // 无映射回退包名
     }
 }

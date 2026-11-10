@@ -51,3 +51,22 @@ data class PullLog(
     val ok: Boolean,
     val note: String?
 )
+
+/** §4 unlock_event 行（CR-01，只增不改）：解锁事件，毫秒时间戳主键。 */
+data class UnlockEvent(val occurredAtMs: Long)
+
+/** §4 notification_event 的 type 取值（CR-01）：打扰 / 已查看。 */
+enum class NotificationType { INTERRUPTION, SEEN }
+
+/**
+ * §4 notification_event 行（CR-01，只增不改）：通知事件。
+ * PK = (occurredAtMs, type, pkg)；channelId 缺失为 null。
+ * 语义（§3）：INTERRUPTION = 产生视觉/声音打扰的通知（静音/静默渠道不计入）；
+ * SEEN = 用户点开通知。二者无必然包含关系。
+ */
+data class NotificationEvent(
+    val occurredAtMs: Long,
+    val type: NotificationType,
+    val pkg: String,
+    val channelId: String?
+)
