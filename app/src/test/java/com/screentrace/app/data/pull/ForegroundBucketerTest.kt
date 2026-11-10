@@ -77,4 +77,76 @@ class ForegroundBucketerTest {
         val spans = listOf(ms(day, 10)..ms(day, 10), ms(day, 11)..ms(day, 10))
         assertTrue(ForegroundBucketer.bucket(spans, zone).isEmpty())
     }
+
+    // ---------- 前后台配对（降级通道的核心风险点） ----------
+
+    @Test
+    fun `正常的前后台配对成一段`() {
+        val spans = ForegroundBucketer.spansOf(
+            listOf(
+                enter(ms(day, 10)),
+                leave(ms(day, 10, 30))
+            ),
+            endMs = ms(day, 12)
+        )
+        assertEquals(1, spans.size)
+        assertEquals(30 * 60_000L, spans[0].endMs - spans[0].startMs)
+    }
+
+    @Test
+    fun `进程被杀丢掉 paused 时以切到下一个应用收尾`() {
+        // A 进入前台后再没收到 paused（被杀），B 在 10:20 进入前台
+        val spans = ForegroundBucketer.spansOf(
+            listOf(
+                enter(ms(day, 10), "A"),
+                enter(ms(day, 10, 20), "B"),
+                leave(ms(day, 10, 50), "B")
+            ),
+            endMs = ms(day, 23, 59)
+        )
+        assertEquals("两段，而不是 A 一路延到拉取时刻", 2, spans.size)
+        val a = spans.first { it.pkg == "A" }
+        val b = spans.first { it.pkg == "B" }
+        assertEquals(20 * 60_000L, a.endMs - a.startMs)
+        assertEquals(30 * 60_000L, b.endMs - b.startMs)
+        assertTrue("A 的结束时间必须等于 B 的开始时间", a.endMs == b.startMs)
+    }
+
+    @Test
+    fun `同一应用连续多次 resumed 不切碎区间`() {
+        val spans = ForegroundBucketer.spansOf(
+            listOf(
+                enter(ms(day, 10)),
+                enter(ms(day, 10, 10)), // 切换 Activity，包名不变
+                enter(ms(day, 10, 20)),
+                leave(ms(day, 10, 30))
+            ),
+            endMs = ms(day, 12)
+        )
+        assertEquals(1, spans.size)
+        assertEquals(30 * 60_000L, spans[0].endMs - spans[0].startMs)
+    }
+
+    @Test
+    fun `仍在最前台的应用截到拉取时刻`() {
+        val spans = ForegroundBucketer.spansOf(listOf(enter(ms(day, 10))), endMs = ms(day, 10, 5))
+        assertEquals(1, spans.size)
+        assertEquals(5 * 60_000L, spans[0].endMs - spans[0].startMs)
+    }
+
+    @Test
+    fun `乱序事件按时间排序后配对`() {
+        val spans = ForegroundBucketer.spansOf(
+            listOf(leave(ms(day, 10, 30)), enter(ms(day, 10))),
+            endMs = ms(day, 12)
+        )
+        assertEquals(1, spans.size)
+        assertEquals(30 * 60_000L, spans[0].endMs - spans[0].startMs)
+    }
+
+    private fun enter(atMs: Long, pkg: String = "com.demo") =
+        ForegroundBucketer.ForegroundEvent(atMs, pkg, enter = true)
+
+    private fun leave(atMs: Long, pkg: String = "com.demo") =
+        ForegroundBucketer.ForegroundEvent(atMs, pkg, enter = false)
 }

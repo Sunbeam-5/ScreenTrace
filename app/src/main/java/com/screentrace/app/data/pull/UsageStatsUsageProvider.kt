@@ -76,33 +76,32 @@ class UsageStatsUsageProvider(
     }
 
     private fun build(manager: UsageStatsManager, startMs: Long, endMs: Long): ParseResult {
-        val spans = mutableListOf<LongRange>()
         // (date, pkg) → 毫秒与启动次数
         val perApp = HashMap<Pair<LocalDate, String>, AppAgg>()
-        val openSince = HashMap<String, Long>()
+        val events = mutableListOf<ForegroundBucketer.ForegroundEvent>()
 
-        val events = manager.queryEvents(startMs, endMs)
+        val cursor = manager.queryEvents(startMs, endMs)
         val event = UsageEvents.Event()
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
+        while (cursor.hasNextEvent()) {
+            cursor.getNextEvent(event)
             val pkg = event.packageName ?: continue
             when (event.eventType) {
-                // 1 = ACTIVITY_RESUMED（MOVE_TO_FOREGROUND），2 = ACTIVITY_PAUSED；用字面量以兼容 minSdk 26
-                1, 2, 23 -> {
-                    if (event.eventType == 1) {
-                        openSince[pkg] = event.timeStamp
-                        perApp.getOrPut(dateOf(event.timeStamp) to pkg) { AppAgg() }.launches += 1
-                    } else {
-                        val startedAt = openSince.remove(pkg) ?: continue
-                        appendSpan(spans, perApp, pkg, startedAt, event.timeStamp)
-                    }
+                // 1 = ACTIVITY_RESUMED（MOVE_TO_FOREGROUND）、2 = ACTIVITY_PAUSED、
+                // 23 = ACTIVITY_STOPPED；用字面量以兼容 minSdk 26（常量在 29 才有）
+                1 -> {
+                    events += ForegroundBucketer.ForegroundEvent(event.timeStamp, pkg, enter = true)
+                    perApp.getOrPut(dateOf(event.timeStamp) to pkg) { AppAgg() }.launches += 1
                 }
+
+                2, 23 -> events += ForegroundBucketer.ForegroundEvent(event.timeStamp, pkg, enter = false)
             }
         }
-        // 拉取时仍在前台的：截到 now
-        openSince.forEach { (pkg, startedAt) -> appendSpan(spans, perApp, pkg, startedAt, endMs) }
 
-        val hourMinutes = ForegroundBucketer.bucket(spans, zone)
+        // 配区间交给纯函数：它用「下一个应用进入前台」收尾，进程被杀丢 paused 也不会虚高
+        val foreground = ForegroundBucketer.spansOf(events, endMs)
+        foreground.forEach { appendSpan(perApp, it) }
+
+        val hourMinutes = ForegroundBucketer.bucket(foreground.map { it.startMs until it.endMs }, zone)
         val appUsage = perApp.entries
             .filter { it.value.totalMs > 0 }
             .map { (key, agg) ->
@@ -126,24 +125,18 @@ class UsageStatsUsageProvider(
     /** 逐日逐应用的累加器；用持有类而不是 `LongArray(2)`，下标语义（[0]=ms/[1]=次数）太容易写错。 */
     private class AppAgg(var totalMs: Long = 0L, var launches: Int = 0)
 
+    /** 跨零点的一段要按日拆开，否则排行页的「逐日」会全算到起始日。 */
     private fun appendSpan(
-        spans: MutableList<LongRange>,
         perApp: HashMap<Pair<LocalDate, String>, AppAgg>,
-        pkg: String,
-        startMs: Long,
-        endMs: Long
+        span: ForegroundBucketer.Span
     ) {
-        if (endMs <= startMs) return
-        val cursor = maxOf(startMs, 0L)
-        val end = endMs
-        spans.add(cursor until end)
-        // 跨零点的那一段要按日拆开，否则排行页的「逐日」会全算到起始日
-        var dayCursor = cursor
+        var dayCursor = maxOf(span.startMs, 0L)
+        val end = span.endMs
         while (dayCursor < end) {
             val date = dateOf(dayCursor)
             val nextDay = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
             val segEnd = minOf(end, nextDay)
-            perApp.getOrPut(date to pkg) { AppAgg() }.totalMs += segEnd - dayCursor
+            perApp.getOrPut(date to span.pkg) { AppAgg() }.totalMs += segEnd - dayCursor
             dayCursor = segEnd
         }
     }
