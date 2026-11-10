@@ -150,13 +150,19 @@ private fun CalendarContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                MonthArrow(isNext = false) { onMonthChange(calendarMonth.minusMonths(1)) }
+                MonthArrow(isNext = false) {
+                    selectedEpochDay = null; selectedMinutes = null // 复审 P2-A：翻月清残留选中
+                    onMonthChange(calendarMonth.minusMonths(1))
+                }
                 Text(
                     text = "${calendarMonth.year} 年 ${calendarMonth.monthValue} 月",
                     style = FreshType.sectionTitle,
                     color = palette.onSurface
                 )
-                MonthArrow(isNext = true) { onMonthChange(calendarMonth.plusMonths(1)) }
+                MonthArrow(isNext = true) {
+                    selectedEpochDay = null; selectedMinutes = null
+                    onMonthChange(calendarMonth.plusMonths(1))
+                }
             }
             MonthCalendarHeader()
             val levels = monthLevelsState.data.orEmpty()

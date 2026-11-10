@@ -56,6 +56,8 @@ data class UnlockEventEntity(
  * §4 notification_event（CR-01，只增不改）：
  * PK = (occurred_at_ms, type, pkg)；channel_id 缺失为 NULL。
  * 按时间/包名建索引（CR-01 事件表索引要求）。
+ * 注意（复审意见）：PK 不含 channelId——同毫秒同包同类型的两条记录会被
+ * `INSERT OR IGNORE` 吞掉后者；物理上同毫秒双通知概率极低，如需保留需扩展 PK。
  */
 @Entity(
     tableName = "notification_event",

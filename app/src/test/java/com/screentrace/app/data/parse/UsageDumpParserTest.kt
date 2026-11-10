@@ -321,7 +321,7 @@ class UsageDumpParserTest {
         assertEquals(600_000L, foo.totalMs) // 10min（取大），不是 15min
     }
 
-    // ---- 真实 dump 不变式对账（批 5 返修验收物；无数据时跳过）----
+    // ---- 真实 dump 不变式对账（批 5 返修验收物）----
 
     private fun findSourceFile(name: String): File? = listOf(
         File("E:/project/屏幕使用时间App/源数据/$name"),
@@ -334,10 +334,10 @@ class UsageDumpParserTest {
         val checkinFile = findSourceFile("usagestats-checkin.txt")
         val humanFile = findSourceFile("usagestats(1).txt")
         val reportFile = findSourceFile("screen_usage_report.json")
-        org.junit.Assume.assumeTrue(
-            "真实 dump 不在本机，跳过对账（fixtures 测试仍覆盖口径）",
-            checkinFile != null && humanFile != null && reportFile != null
-        )
+        // 复审 P1-B：不允许静默跳过——找不到真实 dump 直接红（假绿比红更危险）
+        if (checkinFile == null || humanFile == null || reportFile == null) {
+            org.junit.Assert.fail("真实 dump 缺失，对账未执行（需 E:/project/屏幕使用时间App/源数据/）")
+        }
         // dump 归属「今天」= 2026-11-09（文件生成日）
         val result = parseOf(
             checkinFile!!.readText(),
@@ -346,35 +346,44 @@ class UsageDumpParserTest {
         )
         val report = reportFile!!.readText()
 
-        // 不变式 1（DeepSeek P0-1，按 §3-9 已知口径差放宽）：应用合计不得显著超过亮屏。
-        // 滚动日界归属（end-60s）会把前一晚 22:50–24:00 计入次日，且分屏重复计时是
-        // 系统固有（§3-9）——上界取 1.2×+30min 只防「重复计数」级别的错误。
+        // 不变式 1（复审 P1-C 收紧）：应用合计 ≤ 亮屏 × 1.15。
+        // 实测最大 1.11×（11-07，滚动日界归属 + 分屏重复计时，§3-9）；留 4% 余量，
+        // 只防「重复计数」级别（20%+）的错误。
         for ((date, day) in result.days) {
             val appSumMin = result.appUsage.filter { it.date == date }.sumOf { it.totalMs } / 60_000
             assertTrue(
-                "[$date] 应用合计 ${appSumMin}min 显著超过亮屏 ${day.screenMin}min（重复计数嫌疑）",
-                appSumMin <= day.screenMin * 1.2 + 30
+                "[$date] 应用合计 ${appSumMin}min 超过亮屏 ${day.screenMin}min×1.15（重复计数嫌疑）",
+                appSumMin <= day.screenMin * 1.15
             )
         }
 
-        // 不变式 2：米家 10 天合计 ≈ 356.7min（u0 205.8 + 分身 150.9，跨账户求和真值）
+        // 不变式 2（复审 P1-D 收紧）：米家 10 天合计 ≈356.7min（u0 205.8 + 分身 150.9）。
+        // 上界 365 含 11-09 In-memory 覆盖滚动 24h 取大带来的 ~5min 增量（复审实测 362）。
         val mijiaMin = result.appUsage
             .filter { it.pkg == "com.xiaomi.smarthome" }
             .sumOf { it.totalMs } / 60_000
-        assertTrue("米家合计 ${mijiaMin}min 应 ≈356.7（330–390）", mijiaMin in 330..390)
+        assertTrue("米家合计 ${mijiaMin}min 应在 356–365（真值 356.7 + In-memory 增量）", mijiaMin in 356..365)
 
-        // 不变式 3：逐日解锁与已验证基线比值 ∈ [0.98, 1.05]（收敛后不再 ~3× 虚高）
-        val baseUnlocks = Regex(""""unlocks": (\d+)""").findAll(report).map { it.groupValues[1].toInt() }.toList()
+        // 不变式 3（复审 P0-A 修复）：基线 days 数组每个对象含两个同名 "unlocks" 键
+        //（尾部嵌套明细块），主值是 avg_session_min 紧邻那个——只取主序列，
+        // require 保证断言绝不静默跳过；逐日比值 ∈ [0.98, 1.05] 并打印实测对账。
+        val daysJson = report.substringAfter("\"days\":").substringBefore("\"hour_matrix_raw\"")
+        val baseUnlocks = Regex(""""avg_session_min": [\d.]+,\s*"unlocks": (\d+)""")
+            .findAll(daysJson).map { it.groupValues[1].toInt() }.toList()
+        require(baseUnlocks.size == 10) { "基线 days 主解锁序列应 10 个，实际 ${baseUnlocks.size}" }
         val ktUnlocks = listOf("10-31", "11-01", "11-02", "11-03", "11-04", "11-05", "11-06", "11-07", "11-08", "11-09")
-            .mapNotNull { md ->
+            .map { md ->
                 val date = LocalDate.parse("2026-$md")
-                result.days[date]?.unlocks
+                requireNotNull(result.days[date]) { "解析缺失 $date" }.unlocks
             }
-        if (baseUnlocks.size == ktUnlocks.size) {
-            for ((base, kt) in baseUnlocks.zip(ktUnlocks)) {
-                val ratio = kt.toDouble() / base.coerceAtLeast(1)
-                assertTrue("解锁比值 $kt/$base = $ratio 应在 [0.98,1.05]", ratio in 0.98..1.05)
-            }
+        val pairs = baseUnlocks.zip(ktUnlocks)
+        println(
+            "对账解锁逐日 kt/基线：" + pairs.joinToString(" ") { "${it.second}/${it.first}" } +
+                "；合计 ${ktUnlocks.sum()}/${baseUnlocks.sum()}"
+        )
+        for ((base, kt) in pairs) {
+            val ratio = kt.toDouble() / base.coerceAtLeast(1)
+            require(ratio in 0.98..1.05) { "解锁比值 $kt/$base = $ratio 超出 [0.98,1.05]" }
         }
     }
 }

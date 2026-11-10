@@ -48,7 +48,8 @@ class IngestPipeline(private val db: ScreenTraceDatabase) {
                     date = key,
                     pkg = row.pkg,
                     name = row.pkg, // 展示名由调用方（批 6b）用 PackageManager/映射表回填
-                    minutes = (row.totalMs / 60_000L).toInt(),
+                    // 四舍五入而非截断：59 秒真实使用不得存成 0 分钟（§5.5，复审意见）
+                    minutes = Math.round(row.totalMs / 60_000.0).toInt(),
                     launches = row.launches,
                     category = "OTHER"
                 )
@@ -58,10 +59,10 @@ class IngestPipeline(private val db: ScreenTraceDatabase) {
             val hourDao = db.hourUsageDao()
             for ((date, buckets) in result.hourMinutes) {
                 val key = date.toString()
+                val existingByHour = hourDao.getForDate(key).associateBy { it.hour } // 一次查询（复审意见）
                 buckets.forEachIndexed { hour, minutes ->
                     val incoming = HourUsageEntity(key, hour, minutes)
-                    val existing = hourDao.getForDate(key).firstOrNull { it.hour == hour }
-                    hourDao.insert(MergePolicy.mergeHour(existing, incoming))
+                    hourDao.insert(MergePolicy.mergeHour(existingByHour[hour], incoming))
                 }
             }
 
