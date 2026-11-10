@@ -1,6 +1,7 @@
 package com.screentrace.app.contract
 
 import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * 骨架期的空实现：只返回「无记录」状态，让 App 和 @Preview 能跑起来并显示空态。
@@ -24,17 +25,17 @@ class EmptyUsageRepository : UsageRepository {
     override suspend fun hourlyDistribution(selection: DateSelection): List<HourBucket> =
         UsageCalculator.hourlyBuckets(emptyList())
 
-    override suspend fun calendarLevels(anchor: LocalDate, weeks: Int): List<CalendarLevel> {
-        val end = anchor
-        val start = anchor.minusDays(weeks.toLong() * 7 - 1)
-        return buildList {
-            var cursor = start
-            while (!cursor.isAfter(end)) {
-                add(CalendarLevel(cursor, 0, recorded = false))
-                cursor = cursor.plusDays(1)
-            }
-        }
-    }
+    override suspend fun monthLevels(yearMonth: YearMonth): List<CalendarLevel> =
+        UsageCalculator.monthLevels(yearMonth, emptyList())
+
+    override suspend fun yearLevels(anchor: LocalDate, weeks: Int): List<CalendarLevel> =
+        UsageCalculator.yearLevels(anchor, weeks, emptyList())
+
+    override suspend fun streak(anchor: LocalDate): StreakInfo =
+        UsageCalculator.streak(emptyList(), anchor)
+
+    override suspend fun extremes(selection: DateSelection): ExtremesInfo =
+        UsageCalculator.extremes(selection, emptyList())
 
     override suspend fun pullLatest(): PullResult = PullResult(
         ok = false,

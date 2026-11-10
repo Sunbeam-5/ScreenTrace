@@ -1,6 +1,7 @@
 package com.screentrace.app.contract
 
 import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * §6：单日、区间、上一等长周期、记录覆盖数由统一领域计算器产生，
@@ -99,5 +100,99 @@ object UsageCalculator {
         totalMinutes < 60 -> "${totalMinutes}分钟"
         totalMinutes % 60 == 0 -> "${totalMinutes / 60}小时"
         else -> "${totalMinutes / 60}小时${totalMinutes % 60}分钟"
+    }
+
+    /**
+     * §5.6：streak 以 `screen_unlock_min > 0` 的自然日连续段计算截至锚点的全量历史。
+     * currentDays = 以锚点日为末端的连续 >0 天数，锚点日非 >0 时为 0；
+     * longestDays/longestStart = 截至锚点全量历史中最长连续段，并列取更早的一段。
+     */
+    fun streak(records: List<DaySummary>, anchor: LocalDate): StreakInfo {
+        val byDate = records.associateBy { it.date }
+        var currentDays = 0
+        var cursor = anchor
+        while ((byDate[cursor]?.screenUnlockMin ?: 0) > 0) {
+            currentDays++
+            cursor = cursor.minusDays(1)
+        }
+        var longestDays = 0
+        var longestStart: LocalDate? = null
+        var runDays = 0
+        var runStart: LocalDate? = null
+        var prev: LocalDate? = null
+        for (date in byDate.values.asSequence()
+            .filter { !it.date.isAfter(anchor) && it.screenUnlockMin > 0 }
+            .map { it.date }
+            .toSortedSet()) {
+            if (prev != null && date == prev.plusDays(1)) {
+                runDays++
+            } else {
+                runDays = 1
+                runStart = date
+            }
+            if (runDays > longestDays) {
+                longestDays = runDays
+                longestStart = runStart
+            }
+            prev = date
+        }
+        return StreakInfo(currentDays = currentDays, longestDays = longestDays, longestStart = longestStart)
+    }
+
+    /**
+     * §5.6：「最久的一天 / 最少的一天 / 低于 2 小时」只统计筛选区间内的有记录日；
+     * 真实 0 分钟计入 under2hDays 并参与最短竞争，无记录日不计。并列取更早日期。
+     */
+    fun extremes(selection: DateSelection, records: List<DaySummary>): ExtremesInfo {
+        val inRange = records.associateBy { it.date }.values
+            .filter { !it.date.isBefore(selection.startDate) && !it.date.isAfter(selection.endDate) }
+            .sortedBy { it.date }
+        if (inRange.isEmpty()) {
+            return ExtremesInfo(null, 0, null, 0, 0)
+        }
+        // sortedBy 升序 + maxBy/minBy 取首个极值 → 并列时得更早日期
+        val longest = inRange.maxBy { it.screenUnlockMin }
+        val shortest = inRange.minBy { it.screenUnlockMin }
+        return ExtremesInfo(
+            longestDate = longest.date,
+            longestMinutes = longest.screenUnlockMin,
+            shortestDate = shortest.date,
+            shortestMinutes = shortest.screenUnlockMin,
+            under2hDays = inRange.count { it.screenUnlockMin < 120 }
+        )
+    }
+
+    /** 月视图任意月份：整月每个自然日一个色档点（§5.7 三档，真实 0 与无记录同为 0 档但 recorded 区分）。 */
+    fun monthLevels(yearMonth: YearMonth, records: List<DaySummary>): List<CalendarLevel> {
+        val byDate = records.associateBy { it.date }
+        return (1..yearMonth.lengthOfMonth()).map { day ->
+            val date = yearMonth.atDay(day)
+            val record = byDate[date]
+            CalendarLevel(
+                date = date,
+                level = monthLevel(record?.screenUnlockMin ?: 0, record != null),
+                recorded = record != null
+            )
+        }
+    }
+
+    /** 年视图：截至锚点的过去 weeks 周，每天一个色档点（§5.7 五档）。 */
+    fun yearLevels(anchor: LocalDate, weeks: Int, records: List<DaySummary>): List<CalendarLevel> {
+        val byDate = records.associateBy { it.date }
+        val start = anchor.minusDays(weeks.toLong() * 7 - 1)
+        var cursor = start
+        return buildList {
+            while (!cursor.isAfter(anchor)) {
+                val record = byDate[cursor]
+                add(
+                    CalendarLevel(
+                        date = cursor,
+                        level = yearLevel(record?.screenUnlockMin ?: 0, record != null),
+                        recorded = record != null
+                    )
+                )
+                cursor = cursor.plusDays(1)
+            }
+        }
     }
 }

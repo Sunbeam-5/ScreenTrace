@@ -6,9 +6,11 @@ import com.screentrace.app.contract.HourUsage
 import com.screentrace.app.contract.UsageCalculator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * 领域计算器的纯 JVM 回归测试，覆盖需求文档 §5.6 / §5.7 / §7-11 的关键口径。
@@ -91,5 +93,72 @@ class UsageCalculatorTest {
         assertEquals("45分钟", UsageCalculator.formatDuration(45))
         assertEquals("2小时", UsageCalculator.formatDuration(120))
         assertEquals("2小时5分钟", UsageCalculator.formatDuration(125))
+    }
+
+    @Test
+    fun streakCountsConsecutiveDaysUpToAnchor() {
+        // 两段连续：day1–day3 与 day5–day7，均为 3 天；锚点 day7 有使用
+        val records = listOf(
+            record(day1, 100), record(day1.plusDays(1), 100), record(day1.plusDays(2), 100),
+            record(day1.plusDays(4), 50), record(day1.plusDays(5), 80), record(day7, 90)
+        )
+        val info = UsageCalculator.streak(records, day7)
+        assertEquals(3, info.currentDays) // 以锚点为末端的连续段
+        assertEquals(3, info.longestDays) // 并列时取更早的一段
+        assertEquals(day1, info.longestStart)
+
+        // 锚点日真实 0 分钟 → 当前 streak 归零，最长段不受影响
+        val zeroAnchor = UsageCalculator.streak(records.filter { it.date != day7 } + record(day7, 0), day7)
+        assertEquals(0, zeroAnchor.currentDays)
+        assertEquals(3, zeroAnchor.longestDays)
+    }
+
+    @Test
+    fun extremesOnlyCountRecordedDaysInRange() {
+        val selection = DateSelection.Range(day1, day7)
+        val records = listOf(
+            record(day1, 100),          // 有记录，低于 2h
+            record(day1.plusDays(1), 0), // 真实 0 分钟：计入低于 2h 且参与最短竞争
+            record(day1.plusDays(3), 250),
+            record(day7.plusDays(2), 999) // 区间外，忽略
+        )
+        val info = UsageCalculator.extremes(selection, records)
+        assertEquals(day1.plusDays(3), info.longestDate)
+        assertEquals(250, info.longestMinutes)
+        assertEquals(day1.plusDays(1), info.shortestDate)
+        assertEquals(0, info.shortestMinutes)
+        assertEquals(2, info.under2hDays)
+
+        val empty = UsageCalculator.extremes(selection, emptyList())
+        assertNull(empty.longestDate)
+        assertNull(empty.shortestDate)
+        assertEquals(0, empty.under2hDays)
+    }
+
+    @Test
+    fun monthLevelsDistinguishRealZeroFromMissing() {
+        val yearMonth = YearMonth.of(2026, 11) // 30 天
+        val records = listOf(
+            record(yearMonth.atDay(2), 0),   // 真实 0 分钟
+            record(yearMonth.atDay(3), 130)  // [2h,4h) → 2 档
+        )
+        val levels = UsageCalculator.monthLevels(yearMonth, records)
+        assertEquals(30, levels.size)
+        assertTrue(levels[1].recorded)
+        assertEquals(0, levels[1].level) // 真实 0：不着色但 recorded
+        assertEquals(2, levels[2].level)
+        assertFalse(levels[4].recorded) // 无记录
+        assertEquals(0, levels[4].level)
+    }
+
+    @Test
+    fun yearLevelsEndAtAnchorAndUseYearThresholds() {
+        val records = listOf(record(day7, 400)) // ≥6h → 4 档
+        val levels = UsageCalculator.yearLevels(day7, 2, records)
+        assertEquals(14, levels.size)
+        assertEquals(day7.minusDays(13), levels.first().date)
+        assertEquals(day7, levels.last().date)
+        assertTrue(levels.last().recorded)
+        assertEquals(4, levels.last().level)
     }
 }
