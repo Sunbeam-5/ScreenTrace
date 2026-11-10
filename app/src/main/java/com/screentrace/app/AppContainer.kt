@@ -3,6 +3,7 @@ package com.screentrace.app
 import android.content.Context
 import androidx.room.Room
 import com.screentrace.app.contract.UsageRepository
+import com.screentrace.app.data.AppLabelResolver
 import com.screentrace.app.data.IngestPipeline
 import com.screentrace.app.data.RoomUsageRepository
 import com.screentrace.app.data.db.ScreenTraceDatabase
@@ -30,7 +31,8 @@ class AppContainer(context: Context) {
 
     val settings = SettingsStore(appContext)
 
-    val pipeline = IngestPipeline(db)
+    /** §3-8 展示名：PackageManager 标签优先，入库时写库（之后列表/搜索/详情都用真实名字）。 */
+    val pipeline = IngestPipeline(db, AppLabelResolver(appContext.packageManager))
 
     /**
      * 通道优先级＝降级顺序（§2.1）：Shizuku 能拿事件流；拿不到（未装/未授权/临时故障）

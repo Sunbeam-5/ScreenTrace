@@ -17,9 +17,27 @@ object MergePolicy {
     fun mergeDay(existing: DaySummaryEntity?, incoming: DaySummaryEntity): DaySummaryEntity =
         if (existing == null || incoming.screenUnlockMin >= existing.screenUnlockMin) incoming else existing
 
-    /** §4：app_usage 同 (date,pkg) 取 `minutes` 较大值并保留对应 name/category。 */
-    fun mergeApp(existing: AppUsageEntity?, incoming: AppUsageEntity): AppUsageEntity =
-        if (existing == null || incoming.minutes >= existing.minutes) incoming else existing
+    /**
+     * §4：app_usage 同 (date,pkg) 取 `minutes` 较大值并保留对应 name/category。
+     *
+     * 名字与数值解耦：命中「保留旧值」时，如果旧行的名字还是包名占位、而另一侧有
+     * 真实名字（PackageManager 回填成功过），把真名补上——否则一次「库内占位 +
+     * 本次入库更大」就会把已回填的展示名冲回 `com.xxx`。
+     */
+    fun mergeApp(existing: AppUsageEntity?, incoming: AppUsageEntity): AppUsageEntity {
+        if (existing == null) return incoming
+        val winner = if (incoming.minutes >= existing.minutes) incoming else existing
+        val other = if (winner === incoming) existing else incoming
+        val winnerIsPlaceholder = isPlaceholderName(winner.name, winner.pkg)
+        return if (winnerIsPlaceholder && !isPlaceholderName(other.name, other.pkg)) {
+            winner.copy(name = other.name)
+        } else {
+            winner
+        }
+    }
+
+    private fun isPlaceholderName(name: String, pkg: String): Boolean =
+        name.isBlank() || name == pkg
 
     /** §4：hour_usage 同 (date,hour) 取较大值。 */
     fun mergeHour(existing: HourUsageEntity?, incoming: HourUsageEntity): HourUsageEntity =

@@ -31,6 +31,22 @@ class MergePolicyTest {
     }
 
     @Test
+    fun appUsageBackfillsRealNameOverPackagePlaceholder() {
+        // 旧行 name 还是包名占位（回填前入库的），新行数值更小但带真名
+        val placeholder = AppUsageEntity("2026-11-03", "com.miui.home", "com.miui.home", 200, 5, "OTHER")
+        val named = AppUsageEntity("2026-11-03", "com.miui.home", "系统桌面", 100, 3, "TOOLS")
+
+        // 两个方向都要收敛到「数值取大 + 名字取真名」，否则已回填的名字会被冲回包名
+        val forward = MergePolicy.mergeApp(placeholder, named)
+        assertEquals(200, forward.minutes)
+        assertEquals("系统桌面", forward.name)
+
+        val backward = MergePolicy.mergeApp(named, placeholder)
+        assertEquals(200, backward.minutes)
+        assertEquals("系统桌面", backward.name)
+    }
+
+    @Test
     fun hourUsageKeepsLarger() {
         val a = HourUsageEntity("2026-11-03", 9, 30)
         val b = HourUsageEntity("2026-11-03", 9, 50)

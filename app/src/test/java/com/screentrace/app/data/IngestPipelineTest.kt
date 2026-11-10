@@ -7,6 +7,7 @@ import com.screentrace.app.contract.NotificationType
 import com.screentrace.app.contract.UnlockEvent
 import com.screentrace.app.data.db.NotificationEventDao
 import com.screentrace.app.data.db.ScreenTraceDatabase
+import com.screentrace.app.data.parse.AppNames
 import com.screentrace.app.data.parse.AppUsageRow
 import com.screentrace.app.data.parse.DayMetrics
 import com.screentrace.app.data.parse.ParseResult
@@ -209,6 +210,31 @@ class IngestPipelineTest {
         assertEquals("SOCIAL", rows["com.tencent.mm"]?.category)
         assertEquals("VIDEO", rows["tv.danmaku.bili"]?.category)
         assertEquals("OTHER", rows["com.bbk.launcher2"]?.category)
+    }
+
+    @Test
+    fun `PackageManager 标签回填成功后库内存真实名字`() = runBlocking {
+        // 只对「映射表里没有」的包回填，才能证明名字真来自 PackageManager 而不是内置表
+        val p = IngestPipeline(db) { pkg -> if (pkg == "com.unknown.launcher") "某桌面" else null }
+        val result = emptyResult().copy(
+            appUsage = listOf(AppUsageRow(d1, "com.unknown.launcher", 40 * 60_000L, 7))
+        )
+
+        assertTrue(p.ingest(result, "dump", t0).ok)
+        assertEquals("某桌面", db.appUsageDao().get(d1.toString(), "com.unknown.launcher")?.name)
+    }
+
+    @Test
+    fun `标签拿不到时退回内置映射而不是留包名`() = runBlocking {
+        val p = IngestPipeline(db) { null } // 模拟 Android 11+ 包可见性拒绝 / 应用已卸载
+        val result = emptyResult().copy(
+            appUsage = listOf(AppUsageRow(d1, "com.tencent.mm", 12 * 60_000L, 3))
+        )
+
+        assertTrue(p.ingest(result, "dump", t0).ok)
+        val stored = db.appUsageDao().get(d1.toString(), "com.tencent.mm")?.name
+        assertEquals(AppNames.nameOf("com.tencent.mm"), stored)
+        assertTrue("映射表命中就不该把包名写进库（UI 会直接显示 com.tencent.mm）", stored != "com.tencent.mm")
     }
 
     // ---------- helpers ----------

@@ -15,6 +15,18 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- §3-8 展示名回填：Android 11+ 包可见性限制下，不声明就查不到别的应用的
+         ApplicationInfo（getApplicationInfo 直接抛 NameNotFoundException），
+         展示名只能退回包名。这里只声明「有桌面入口的应用」这一类——
+         屏幕使用时间统计的本来也都是这类；不用 QUERY_ALL_PACKAGES，
+         避免申请一个过宽的权限。 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:name=".ScreenTraceApp"
         android:allowBackup="true"

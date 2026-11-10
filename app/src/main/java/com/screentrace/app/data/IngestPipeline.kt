@@ -19,7 +19,14 @@ import com.screentrace.app.data.parse.ParseResult
  * 策略集中在 [MergePolicy]，管道级行为由 `IngestPipelineTest` 覆盖）。
  * Shizuku 拉取通道（把 dump 文本变成 ParseResult）在批 6b 接入。
  */
-class IngestPipeline(private val db: ScreenTraceDatabase) {
+class IngestPipeline(
+    private val db: ScreenTraceDatabase,
+    /**
+     * §3-8 展示名来源（批 6b 接线）：返回 null 表示拿不到，回退 [AppNames] 再回退包名。
+     * 不直接依赖 PackageManager，JVM 单测可以注入假实现。
+     */
+    private val labelOf: (String) -> String? = { null }
+) {
 
     suspend fun ingest(
         result: ParseResult,
@@ -61,7 +68,7 @@ class IngestPipeline(private val db: ScreenTraceDatabase) {
                     val incoming = AppUsageEntity(
                         date = key,
                         pkg = row.pkg,
-                        name = row.pkg, // 展示名由调用方（批 6b）用 PackageManager/映射表回填
+                        name = labelOf(row.pkg) ?: AppNames.nameOf(row.pkg),
                         // 四舍五入而非截断：59 秒真实使用不得存成 0 分钟（§5.5，复审意见）
                         minutes = Math.round(row.totalMs / 60_000.0).toInt(),
                         launches = row.launches,
