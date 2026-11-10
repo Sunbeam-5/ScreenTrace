@@ -1,0 +1,51 @@
+package com.screentrace.app.data
+
+import com.screentrace.app.data.db.AppUsageEntity
+import com.screentrace.app.data.db.DaySummaryEntity
+import com.screentrace.app.data.db.HourUsageEntity
+import com.screentrace.app.data.db.NotificationEventEntity
+
+/**
+ * §4 合并策略（纯函数，JVM 可测；调用方在单事务中执行）：
+ * - 同日重拉取较大值、历史只增不删；恢复「合并本地」复用同一策略（§5.10）；
+ * - CR-01 事件合并：unlock_event 主键去重（DAO `INSERT OR IGNORE` 即可）；
+ *   notification_event 按秒级分组取较大条数（多重集合，§2.2 坑 2）。
+ */
+object MergePolicy {
+
+    /** §4：day_summary 同日取 `screen_unlock_min` 较大的一行**整体保留**。 */
+    fun mergeDay(existing: DaySummaryEntity?, incoming: DaySummaryEntity): DaySummaryEntity =
+        if (existing == null || incoming.screenUnlockMin >= existing.screenUnlockMin) incoming else existing
+
+    /** §4：app_usage 同 (date,pkg) 取 `minutes` 较大值并保留对应 name/category。 */
+    fun mergeApp(existing: AppUsageEntity?, incoming: AppUsageEntity): AppUsageEntity =
+        if (existing == null || incoming.minutes >= existing.minutes) incoming else existing
+
+    /** §4：hour_usage 同 (date,hour) 取较大值。 */
+    fun mergeHour(existing: HourUsageEntity?, incoming: HourUsageEntity): HourUsageEntity =
+        if (existing == null || incoming.minutes >= existing.minutes) incoming else existing
+
+    /** §4：pull_log 仅追加（无合并）。 */
+
+    /**
+     * CR-01（§2.2 坑 2 / §4 事件合并）：notification_event 按
+     * `(occurredAtMs/1000, type, pkg)` 秒级分组，取两侧条数的**较大值**（整边）——
+     * 既不吞掉同秒真实通知（组内多条全保留），也不因双源/重拉重复计数。
+     * 返回涉及分组的最终行集；调用方删除旧行后写回（单事务）。
+     */
+    fun mergeNotifications(
+        existing: List<NotificationEventEntity>,
+        incoming: List<NotificationEventEntity>
+    ): List<NotificationEventEntity> {
+        val key: (NotificationEventEntity) -> Triple<Long, String, String> = {
+            Triple(it.occurredAtMs / 1000, it.type, it.pkg)
+        }
+        val ga = existing.groupBy(key)
+        val gb = incoming.groupBy(key)
+        return (ga.keys + gb.keys).flatMap { k ->
+            val la = ga[k].orEmpty().sortedBy { it.occurredAtMs }
+            val lb = gb[k].orEmpty().sortedBy { it.occurredAtMs }
+            if (la.size >= lb.size) la else lb
+        }.sortedBy { it.occurredAtMs }
+    }
+}

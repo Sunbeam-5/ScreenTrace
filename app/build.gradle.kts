@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -59,12 +60,14 @@ dependencies {
     // 纯 JVM 单测：领域计算器不依赖 Android 框架，可直接 Run
     testImplementation("junit:junit:4.13.2")
 
-    // TODO(§6)：接入数据层时再启用，届时需一并配置 KSP（版本须与 Kotlin 对齐）
-    // implementation("androidx.room:room-runtime:2.6.1")
-    // implementation("androidx.room:room-ktx:2.6.1")
-    // ksp("androidx.room:room-compiler:2.6.1")
-    // implementation("androidx.work:work-runtime-ktx:2.9.0")
-    // implementation("androidx.datastore:datastore-preferences:1.1.1")
+    // ---- 批 6a：数据层（KSP 已配置，版本 1.9.24-1.0.20 与 Kotlin 对齐）----
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // TODO(批 6b)：Shizuku 拉取通道；TODO(批 8)：云同步
     // implementation("dev.rikka.shizuku:api:13.1.5")
     // implementation("dev.rikka.shizuku:provider:13.1.5")
     // implementation("com.squareup.okhttp3:okhttp:4.12.0") // §5.10 云同步
