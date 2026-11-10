@@ -38,8 +38,19 @@ data class FreshPalette(
     val heat4: Color,
     val scrim: Color,
     val error: Color,
-    val outline: Color
-)
+    val outline: Color,
+    /** §5.4：「数字 + 小单位」排版的单位色（白卡取值）；tonal 卡用 [mutedOn] 同规则派生。 */
+    val onSurfaceMuted: Color,
+    /** 派生用：是否深色调色板（决定单位色混合上限 30% / 46%，§5.4）。 */
+    val darkTheme: Boolean
+) {
+    /**
+     * §5.3/§5.4 单位色推导（2026-11-10 增补）：前景向所在卡片背景混合，
+     * 浅色比例上限 30%、深色上限 46%，并以对比度 ≥4.5:1 为硬约束——
+     * 混合超限即破 4.5 时降低混合比例。禁止照抄 Apple 系统灰 #8E8E93。
+     */
+    fun mutedOn(background: Color): Color = muteForeground(onSurface, background, darkTheme)
+}
 
 /** 九套主题的浅色锚点色值，逐行抄自需求文档 §5.4 表格，不要凭审美改。 */
 enum class ThemeVariant(
@@ -76,6 +87,34 @@ private fun Color.mix(other: Color, fraction: Float): Color {
     )
 }
 
+/** WCAG 相对亮度（sRGB 通道线性化）。 */
+fun relativeLuminance(color: Color): Double {
+    fun channel(c: Float): Double {
+        val x = c.toDouble()
+        return if (x <= 0.04045) x / 12.92 else Math.pow((x + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * channel(color.red) + 0.7152 * channel(color.green) + 0.0722 * channel(color.blue)
+}
+
+/** WCAG 对比度（1.0–21.0）。 */
+fun contrastRatio(a: Color, b: Color): Double {
+    val la = relativeLuminance(a)
+    val lb = relativeLuminance(b)
+    return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
+}
+
+/** §5.3/§5.4 单位色：向背景混合（浅 ≤30% / 深 ≤46%），对比度 ≥4.5:1 优先于比例上限。 */
+private fun muteForeground(fg: Color, bg: Color, dark: Boolean): Color {
+    val cap = if (dark) 0.46f else 0.30f
+    var fraction = cap
+    while (fraction > 0f) {
+        val candidate = fg.mix(bg, fraction)
+        if (contrastRatio(candidate, bg) >= 4.5) return candidate
+        fraction -= 0.02f
+    }
+    return fg
+}
+
 /**
  * 每套主题同时提供浅色 / 深色调色板（§5.4、§7-10）。
  * 注意：这是骨架期的派生实现，深色不是简单反色（背景中性深、卡片略亮、主色提亮、
@@ -84,7 +123,9 @@ private fun Color.mix(other: Color, fraction: Float): Color {
 fun ThemeVariant.palette(darkTheme: Boolean): FreshPalette {
     if (!darkTheme) {
         val onSurface = Color(0xFF1D322B)
-        val onSurfaceVariant = Color(0xFF5F7268)
+        // 批次 1 评审 P1-2：#5F7268 在九套 surfaceVariant 上对比度 4.28–4.45 不达 4.5，
+        // 加深为 #556A5F；复算由 FreshPaletteContrastTest 逐套断言，不手写。
+        val onSurfaceVariant = Color(0xFF556A5F)
         return FreshPalette(
             background = backgroundLight,
             surface = White,
@@ -115,24 +156,30 @@ fun ThemeVariant.palette(darkTheme: Boolean): FreshPalette {
             heat4 = seed,
             scrim = Color(0x66000000),
             error = Color(0xFFB3261E),
-            outline = seed.mix(White, 0.78f)
+            outline = seed.mix(White, 0.78f),
+            onSurfaceMuted = muteForeground(onSurface, White, dark = false),
+            darkTheme = false
         )
     }
 
     val background = DarkNeutral.mix(seed, 0.10f)
     val surface = background.mix(White, 0.08f)
-    val primary = seed.mix(White, 0.48f)
+    // 0.48 时深色 tonal 容器上对比行 2.4–4.5 不达标（靛青最差），按 §5.4「深色主色提高亮度」
+    // 提亮到 0.58：最差主题（靛青）对比行 ≈4.8，全部色对 ≥4.5（FreshPaletteContrastTest 复算）
+    val primary = seed.mix(White, 0.58f)
+    val onSurface = Color(0xFFE9F0EC)
     return FreshPalette(
         background = background,
         surface = surface,
         surfaceVariant = background.mix(White, 0.13f),
-        onSurface = Color(0xFFE9F0EC),
+        onSurface = onSurface,
         onSurfaceVariant = Color(0xFFAABBB1),
         primary = primary,
         onPrimary = DarkNeutral,
         primaryContainer = seed.mix(DarkNeutral, 0.42f),
         onPrimaryContainer = seed.mix(White, 0.80f),
-        secondaryContainer = tonalB.mix(DarkNeutral, 0.58f),
+        // 0.58 时 tonalB 派生出中间灰（对比行 primary 对其仅 2.44），按 §5.4「tonal 容器压暗」提到 0.80
+        secondaryContainer = tonalB.mix(DarkNeutral, 0.80f),
         onSecondaryContainer = tonalB.mix(White, 0.82f),
         navSurface = background.mix(White, 0.16f),
         buttonSurface = background.mix(White, 0.20f),
@@ -152,7 +199,9 @@ fun ThemeVariant.palette(darkTheme: Boolean): FreshPalette {
         heat4 = seed.mix(White, 0.60f),
         scrim = Color(0x99000000),
         error = Color(0xFFFFB4AB),
-        outline = background.mix(White, 0.24f)
+        outline = background.mix(White, 0.24f),
+        onSurfaceMuted = muteForeground(onSurface, surface, dark = true),
+        darkTheme = true
     )
 }
 

@@ -3,6 +3,7 @@ package com.screentrace.app.uikit
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,7 +14,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.screentrace.app.theme.FreshType
@@ -24,15 +24,20 @@ import com.screentrace.app.theme.ScreenTimeTheme
 enum class MetricCardVariant { Secondary, Primary }
 
 /**
- * §5.5：MetricCard 固定「标签 / 数值 / 可选说明」结构，24dp 无描边卡片（§5.2）。
- * 数值用 FreshType.metricNumber；不设固定高度，1.3 倍字体允许增高（§5.9）。
+ * §5.5：MetricCard 固定「标签 / 数值 / 可选一句说明」结构，24dp 无描边卡片（§5.2）。
+ * 数值按 §5.3「数字 + 小单位」排版（[MetricValueText]）：数字用 onSurface，
+ * 单位用 §5.4 规则相对卡片背景派生的单位色（[androidx.compose.ui.graphics.Color] 经
+ * `palette.mutedOn(container)`）；说明为对比文案时（noteAsCompare）按 §5.3 对比行规格
+ * 渲染（14sp/600 + 12dp 箭头 + primary）。不设固定高度，1.3 倍字体允许增高（§5.9）。
  */
 @Composable
 fun MetricCard(
     label: String,
-    value: String,
+    value: MetricValue,
     modifier: Modifier = Modifier,
     note: String? = null,
+    noteAsCompare: Boolean = false,
+    noteUp: Boolean = true,
     variant: MetricCardVariant = MetricCardVariant.Secondary
 ) {
     val palette = LocalFreshPalette.current
@@ -52,9 +57,17 @@ fun MetricCard(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(text = label, style = FreshType.label, color = contentColor)
-        Text(text = value, style = FreshType.metricNumber, color = contentColor)
+        MetricValueText(
+            value = value,
+            numberColor = palette.onSurface,
+            unitColor = palette.mutedOn(background)
+        )
         if (note != null) {
-            Text(text = note, style = FreshType.label, color = contentColor)
+            if (noteAsCompare) {
+                CompareLine(text = note, up = noteUp)
+            } else {
+                Text(text = note, style = FreshType.label, color = contentColor)
+            }
         }
     }
 }
@@ -66,12 +79,16 @@ fun MetricCard(
 @Composable
 fun MetricCardPair(
     leftLabel: String,
-    leftValue: String,
+    leftValue: MetricValue,
     rightLabel: String,
-    rightValue: String,
+    rightValue: MetricValue,
     modifier: Modifier = Modifier,
     leftNote: String? = null,
-    rightNote: String? = null
+    rightNote: String? = null,
+    leftNoteAsCompare: Boolean = false,
+    rightNoteAsCompare: Boolean = false,
+    leftNoteUp: Boolean = true,
+    rightNoteUp: Boolean = true
 ) {
     Row(
         modifier = modifier
@@ -83,6 +100,8 @@ fun MetricCardPair(
             label = leftLabel,
             value = leftValue,
             note = leftNote,
+            noteAsCompare = leftNoteAsCompare,
+            noteUp = leftNoteUp,
             variant = MetricCardVariant.Secondary,
             modifier = Modifier
                 .weight(1f)
@@ -92,6 +111,8 @@ fun MetricCardPair(
             label = rightLabel,
             value = rightValue,
             note = rightNote,
+            noteAsCompare = rightNoteAsCompare,
+            noteUp = rightNoteUp,
             variant = MetricCardVariant.Primary,
             modifier = Modifier
                 .weight(1f)
@@ -110,11 +131,20 @@ private fun MetricCardPreview() {
         ) {
             MetricCardPair(
                 leftLabel = "解锁次数",
-                leftValue = "—",
+                leftValue = MetricValue.Number("87"),
                 rightLabel = "最长连续",
-                rightValue = "—",
-                leftNote = "空态示例：数值由数据层提供",
-                rightNote = null
+                rightValue = MetricValue.Duration(72),
+                leftNote = "较昨日增加 6 次",
+                leftNoteAsCompare = true,
+                rightNote = "1小时12分钟",
+                rightNoteAsCompare = true,
+                rightNoteUp = true
+            )
+            MetricCard(
+                label = "低于 2 小时",
+                value = MetricValue.Number("4"),
+                note = "共 7 个有记录日",
+                variant = MetricCardVariant.Secondary
             )
         }
     }

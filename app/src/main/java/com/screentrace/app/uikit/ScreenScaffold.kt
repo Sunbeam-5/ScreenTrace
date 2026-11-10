@@ -116,7 +116,7 @@ fun AppHeader(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .padding(top = 12.dp, bottom = 12.dp),
+            .padding(top = 12.dp, bottom = 8.dp), // §5.2：与内容间隔 8dp
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (onBack != null) {
@@ -178,6 +178,7 @@ private fun HeaderActionButton(
     Box(
         modifier = Modifier
             .size(48.dp)
+            .clip(CircleShape) // ripple 与点击区同为圆形
             .semantics {
                 this.contentDescription = contentDescription
                 role = Role.Button

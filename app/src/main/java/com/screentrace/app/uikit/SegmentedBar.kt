@@ -69,19 +69,21 @@ fun SegmentedBar(
         Spacer(Modifier.height(12.dp))
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             visible.forEach { segment ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(segment.color)
-                    )
-                    Spacer(Modifier.size(6.dp))
-                    Text(
-                        text = segment.label,
-                        style = FreshType.label,
-                        color = palette.onSurfaceVariant
-                    )
+                if (segment.label.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(segment.color)
+                        )
+                        Spacer(Modifier.size(6.dp))
+                        Text(
+                            text = segment.label,
+                            style = FreshType.label,
+                            color = palette.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -121,20 +123,25 @@ fun RatioBar(
                 .height(24.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .weight(left.coerceAtLeast(1).toFloat())
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(palette.chart1)
-            )
-            Box(
-                modifier = Modifier
-                    .weight(right.coerceAtLeast(1).toFloat())
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(palette.chart3)
-            )
+            // 0% 的一侧不绘制（不留 1% 细条假象）
+            if (left > 0) {
+                Box(
+                    modifier = Modifier
+                        .weight(left.toFloat())
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .background(palette.chart1)
+                )
+            }
+            if (right > 0) {
+                Box(
+                    modifier = Modifier
+                        .weight(right.toFloat())
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .background(palette.chart3)
+                )
+            }
         }
     }
 }

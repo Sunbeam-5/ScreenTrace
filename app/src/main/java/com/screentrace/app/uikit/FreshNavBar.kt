@@ -1,12 +1,14 @@
 package com.screentrace.app.uikit
 
 import android.provider.Settings
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -26,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
@@ -73,7 +77,8 @@ fun FreshNavBar(
         items.forEachIndexed { index, item ->
             val selected = index == selectedIndex
             val expand by animateFloatAsState(
-                targetValue = if (selected && !reduceMotion) 1f else 0f,
+                // 减少动画时宽度仍要到 150dp，只是不播 spring（§5.5「改淡入淡出」）
+                targetValue = if (selected) 1f else 0f,
                 animationSpec = if (reduceMotion) {
                     tween(0)
                 } else {
@@ -91,7 +96,7 @@ fun FreshNavBar(
                     .width(52.dp + 98.dp * expand) // 选中恰为 150dp
                     .clip(CircleShape)
                     .background(if (selected) palette.primary else Color.Transparent)
-                    .clickable { onSelect(index) },
+                    .selectable(selected = selected, role = Role.Tab) { onSelect(index) },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
@@ -102,17 +107,31 @@ fun FreshNavBar(
                     tint = tint,
                     modifier = Modifier.size(22.dp)
                 )
-                val showLabel = if (reduceMotion) selected else expand > 0.45f
-                if (showLabel) {
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = item.label,
-                        color = tint,
-                        style = FreshType.button
-                    )
+                if (reduceMotion) {
+                    AnimatedVisibility(
+                        visible = selected,
+                        enter = fadeIn(tween(120)),
+                        exit = fadeOut(tween(120))
+                    ) {
+                        NavBarLabel(item.label, tint)
+                    }
+                } else if (expand > 0.45f) {
+                    NavBarLabel(item.label, tint)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NavBarLabel(label: String, tint: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = label,
+            color = tint,
+            style = FreshType.button
+        )
     }
 }
 

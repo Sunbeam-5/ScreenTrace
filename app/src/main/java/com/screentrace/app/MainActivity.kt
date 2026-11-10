@@ -74,8 +74,10 @@ fun ScreenTraceApp() {
             header = {
                 AppHeader(
                     title = "屏迹",
-                    subtitle = "ScreenTrace · 契约骨架 v0.2",
-                    onStyleClick = { darkTheme.value = !darkTheme.value }
+                    subtitle = "ScreenTrace · 契约骨架 v0.2"
+                    // 批次 1 评审 P2-6：风格按钮的真实行为（打开风格弹层）尚不存在，
+                    // 用切换深浅色冒充会造成描述与行为不符 —— 暂不渲染，批次 3 接入后恢复。
+                    // 深浅色切换暂用下方「外观」卡片的 Switch（真实可用）。
                 )
             }
         ) {
