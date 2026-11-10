@@ -171,7 +171,9 @@ class AppViewModel(
     init {
         observeSettings()
         loadAll()
-        pullOnOpen()
+        // 拉取**不放在 init**：由 AppNav 挂在 ON_RESUME 上（§2.1「App 打开时拉取」），
+        // 否则「退到后台再回来」与「去 Shizuku 授权完切回来」都不会触发拉取。
+        // init 里再拉一次会和 ON_RESUME 首帧撞成两次调用（虽被节流/互斥兜住，但没必要）。
     }
 
     // ---- 拉取 ----
