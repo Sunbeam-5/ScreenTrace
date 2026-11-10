@@ -48,6 +48,9 @@ fun ScreenScaffold(
     header: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     floatingNav: (@Composable () -> Unit)? = null,
+    /** 由调用方持有滚动状态：二级页返回时才能把主页面滚回原处（§5.7）。 */
+    scrollState: androidx.compose.foundation.ScrollState =
+        androidx.compose.foundation.rememberScrollState(),
     content: @Composable ColumnScope.() -> Unit
 ) {
     val palette = LocalFreshPalette.current
@@ -58,7 +61,7 @@ fun ScreenScaffold(
     ) {
         Column(Modifier.fillMaxSize()) {
             header()
-            ContentColumn(content = content)
+            ContentColumn(scrollState = scrollState, content = content)
         }
         if (floatingNav != null) {
             Box(
@@ -76,12 +79,14 @@ fun ScreenScaffold(
 @Composable
 fun ContentColumn(
     modifier: Modifier = Modifier,
+    scrollState: androidx.compose.foundation.ScrollState =
+        androidx.compose.foundation.rememberScrollState(),
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = 20.dp)
             .padding(bottom = 112.dp),
         horizontalAlignment = Alignment.CenterHorizontally

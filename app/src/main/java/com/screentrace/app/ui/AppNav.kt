@@ -83,12 +83,19 @@ fun AppNav() {
     val statsState by viewModel.statsState
     val calendarState by viewModel.calendarState
     val rankingState by viewModel.rankingState
+    val unlockDetail by viewModel.unlockDetail
+    val notificationDetail by viewModel.notificationDetail
     val monthLevelsState by viewModel.monthLevelsState
     val calendarMonth by viewModel.calendarMonth
     val dailyGoalMin by viewModel.dailyGoalMin
     val notice by viewModel.notice
     val pullError by viewModel.pullError
     val pulling by viewModel.pulling
+
+    // §5.7：进详情页前记住今日页滚动位置，返回时滚回去（页面变短会把 value 夹小，
+    // 所以必须**离开前**存快照，回来再 scrollTo，而不是指望 ScrollState 自己记住）
+    val contentScroll = androidx.compose.foundation.rememberScrollState()
+    var savedTodayOffset by rememberSaveable { mutableStateOf(0) }
 
     var showDateSheet by rememberSaveable { mutableStateOf(false) }
     var showStyleSheet by rememberSaveable { mutableStateOf(false) }
@@ -108,7 +115,12 @@ fun AppNav() {
     }
 
     ScreenTimeTheme(variant = variant, darkTheme = darkTheme, dynamicColor = dynamicColor) {
+        androidx.compose.runtime.LaunchedEffect(page) {
+            if (page == AppPage.Today) contentScroll.scrollTo(savedTodayOffset)
+        }
+
         ScreenScaffold(
+            scrollState = contentScroll,
             header = {
                 when (page) {
                     is AppPage.Ranking -> AppHeader(
@@ -196,7 +208,15 @@ fun AppNav() {
                     state = todayState,
                     dailyGoalMin = dailyGoalMin,
                     onOpenRanking = viewModel::openRanking,
-                    onRetry = viewModel::reload
+                    onRetry = viewModel::reload,
+                    onOpenUnlock = {
+                        savedTodayOffset = contentScroll.value
+                        viewModel.openUnlockDetail()
+                    },
+                    onOpenNotification = {
+                        savedTodayOffset = contentScroll.value
+                        viewModel.openNotificationDetail()
+                    }
                 )
                 AppPage.Stats -> StatsScreen(
                     state = statsState,
@@ -221,8 +241,14 @@ fun AppNav() {
                     onDarkThemeChange = viewModel::setDarkTheme,
                     onDynamicColorChange = viewModel::setDynamicColor
                 )
-                is AppPage.UnlockDetail -> UnlockDetailScreen()
-                is AppPage.NotificationDetail -> NotificationDetailScreen()
+                is AppPage.UnlockDetail -> UnlockDetailScreen(
+                    state = unlockDetail,
+                    onRetry = viewModel::reload
+                )
+                is AppPage.NotificationDetail -> NotificationDetailScreen(
+                    state = notificationDetail,
+                    onRetry = viewModel::reload
+                )
             }
         }
 

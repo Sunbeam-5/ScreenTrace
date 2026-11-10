@@ -40,8 +40,9 @@ import com.screentrace.app.uikit.SegmentedBar
  * 今日页（§5.7 CR-01 版）：① hero 圆环卡（H:MM / 目标进度 / 对比，副信息含最长连续）
  * → ② tonal 双卡「解锁次数 / 通知打扰」（区间态「日均解锁 / 日均通知打扰」，
  * 通知卡副行「已查看 X 次」）→ ③ 应用构成卡（top4+其他、日间/夜间比值条、
- * 「查看全部应用」进排行）。双卡按 §5.5 **纯摘要卡**渲染（无箭头无点击）——
- * 可下钻样式在批 6d 接线详情页后升级。
+ * 「查看全部应用」进排行）。双卡按 CR-01 **统一样式的可下钻卡**渲染（箭头 + ripple +
+ * 读屏「标签 + 当前值 + 查看详情」），分别进入解锁详情 / 通知详情（§7-16）；
+ * 其余卡片（hero 圆环、应用构成）保持纯摘要样式，不显示箭头。
  * 空数据用统一 EmptyState（§5.5），不渲染假 0 值。
  */
 @Composable
@@ -49,7 +50,9 @@ fun TodayScreen(
     state: LoadState<TodayData>,
     dailyGoalMin: Int,
     onOpenRanking: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onOpenUnlock: () -> Unit = {},
+    onOpenNotification: () -> Unit = {}
 ) {
     when {
         state.loading -> LoadingSkeleton()
@@ -58,12 +61,24 @@ fun TodayScreen(
             title = "尚无使用记录",
             description = "连接 Shizuku 并完成首次拉取后，这里会显示今日的使用数据"
         )
-        else -> TodayContent(data = state.data, dailyGoalMin = dailyGoalMin, onOpenRanking = onOpenRanking)
+        else -> TodayContent(
+            data = state.data,
+            dailyGoalMin = dailyGoalMin,
+            onOpenRanking = onOpenRanking,
+            onOpenUnlock = onOpenUnlock,
+            onOpenNotification = onOpenNotification
+        )
     }
 }
 
 @Composable
-private fun TodayContent(data: TodayData, dailyGoalMin: Int, onOpenRanking: () -> Unit) {
+private fun TodayContent(
+    data: TodayData,
+    dailyGoalMin: Int,
+    onOpenRanking: () -> Unit,
+    onOpenUnlock: () -> Unit,
+    onOpenNotification: () -> Unit
+) {
     val palette = LocalFreshPalette.current
     val single = data.summary.selection is DateSelection.Day
     val usageMin =
@@ -92,16 +107,24 @@ private fun TodayContent(data: TodayData, dailyGoalMin: Int, onOpenRanking: () -
         )
     }
 
-    // ② tonal 双卡（纯摘要，无箭头无点击——§5.5 / CR-01）
+    // ② tonal 双卡（CR-01 可下钻：箭头 + ripple + 读屏描述，两卡样式一致）
     val notification = data.notification
+    // §7-16：卡片数字必须与详情页同源（读 metricDetail），不另用 Summary 算一套
+    val unlockValue = data.unlock
+        ?.let { if (single) "${it.total}" else "${it.dailyAverage ?: 0}" }
+        ?: "${data.summary.averageUnlocks}"
+    val notificationValue =
+        notification?.let { if (single) "${it.total}" else "${it.dailyAverage ?: 0}" } ?: "—"
     MetricCardPair(
         leftLabel = if (single) "解锁次数" else "日均解锁",
-        leftValue = MetricValue.Number("${data.summary.averageUnlocks}"),
+        leftValue = MetricValue.Number(unlockValue),
         rightLabel = if (single) "通知打扰" else "日均通知打扰",
-        rightValue = MetricValue.Number(
-            notification?.let { if (single) "${it.total}" else "${it.dailyAverage ?: 0}" } ?: "—"
-        ),
-        rightNote = notification?.notification?.let { "已查看 ${it.seen} 次" }
+        rightValue = MetricValue.Number(notificationValue),
+        rightNote = notification?.notification?.let { "已查看 ${it.seen} 次" },
+        leftOnClick = onOpenUnlock,
+        rightOnClick = onOpenNotification,
+        leftClickDescription = "${if (single) "解锁次数" else "日均解锁"} $unlockValue，查看详情",
+        rightClickDescription = "${if (single) "通知打扰" else "日均通知打扰"} $notificationValue，查看详情"
     )
 
     // ③ 应用构成卡
@@ -172,6 +195,7 @@ private fun TodayScreenPreview() {
                         ),
                         compare = UsageCalculator.CompareInfo("较昨日增加 12 分钟", true),
                         notification = null,
+                        unlock = null,
                         topApps = listOf(
                             AppUsage(
                                 java.time.LocalDate.now(), "tv.danmaku.bili", "哔哩哔哩",

@@ -66,6 +66,8 @@ data class TodayData(
     val compare: UsageCalculator.CompareInfo,
     /** CR-01：卡片通知数字与详情页同源于 metricDetail（§7-16）。 */
     val notification: MetricDetail?,
+    /** CR-01：卡片解锁数字同样与详情页同源，不用 Summary 另算一套（§7-16 三处一致）。 */
+    val unlock: MetricDetail?,
     val topApps: List<AppUsage>,
     val otherMinutes: Int,
     /** 日间占比（%），与夜间互补。 */
@@ -129,6 +131,17 @@ class AppViewModel(
 
     private val _rankingState = mutableStateOf(LoadState<RankingData>(loading = true))
     val rankingState: State<LoadState<RankingData>> = _rankingState
+
+    /**
+     * CR-01 详情页数据（批 6d）：与今日页双卡、图表、数据表**同源于同一 `metricDetail`
+     * 查询结果**（§7-16「三处数字必须一致」），因此这里直接复用 [loadAll] 里那次调用，
+     * 不为详情页另发一次查询——另发一次就可能因为拉取/写入时点不同而对不上。
+     */
+    private val _unlockDetail = mutableStateOf(LoadState<MetricDetail>(loading = true))
+    val unlockDetail: State<LoadState<MetricDetail>> = _unlockDetail
+
+    private val _notificationDetail = mutableStateOf(LoadState<MetricDetail>(loading = true))
+    val notificationDetail: State<LoadState<MetricDetail>> = _notificationDetail
 
     /** 日历月视图当前月份（锚点 = 区间结束日所在月，可前后翻月，§5.7）。 */
     private val _calendarMonth = mutableStateOf(YearMonth.now())
@@ -388,6 +401,9 @@ class AppViewModel(
             _statsState.value = LoadState(loading = true)
             _calendarState.value = LoadState(loading = true)
             _rankingState.value = LoadState(loading = true)
+            // §5.7「已有缓存直接渲染」：重算期间保留上一条结果，界面不闪骨架也不重播入场
+            _unlockDetail.value = LoadState(loading = true, data = _unlockDetail.value.data)
+            _notificationDetail.value = LoadState(loading = true, data = _notificationDetail.value.data)
             try {
                 val summary = repository.summary(selection)
                 if (!summary.hasAnyRecord) {
@@ -397,12 +413,17 @@ class AppViewModel(
                     _statsState.value = LoadState(data = null)
                     _calendarState.value = LoadState(data = null)
                     _rankingState.value = LoadState(data = null)
+                    _unlockDetail.value = LoadState(data = null)
+                    _notificationDetail.value = LoadState(data = null)
                     _monthLevelsState.value = LoadState(data = emptyList())
                     return@launch
                 }
                 val previous = repository.summary(UsageCalculator.previousPeriod(selection))
                 val compare = UsageCalculator.compare(summary, previous, single)
                 val notification = repository.metricDetail(MetricKind.NOTIFICATION, selection)
+                val unlock = repository.metricDetail(MetricKind.UNLOCK, selection)
+                _notificationDetail.value = LoadState(data = notification)
+                _unlockDetail.value = LoadState(data = unlock)
 
                 // 今日
                 val apps = repository.appRanking(selection, limit = Int.MAX_VALUE)
@@ -414,7 +435,15 @@ class AppViewModel(
                 val dayPercent =
                     if (totalMinutes <= 0) 0 else ((totalMinutes - night) * 100 / totalMinutes)
                 _todayState.value = LoadState(
-                    data = TodayData(summary, compare, notification, top, otherMinutes, dayPercent)
+                    data = TodayData(
+                        summary = summary,
+                        compare = compare,
+                        notification = notification,
+                        unlock = unlock,
+                        topApps = top,
+                        otherMinutes = otherMinutes,
+                        dayPercent = dayPercent
+                    )
                 )
 
                 // 统计
@@ -447,6 +476,8 @@ class AppViewModel(
                 _statsState.value = LoadState(error = message)
                 _calendarState.value = LoadState(error = message)
                 _rankingState.value = LoadState(error = message)
+                _unlockDetail.value = LoadState(error = message)
+                _notificationDetail.value = LoadState(error = message)
             }
         }
     }
