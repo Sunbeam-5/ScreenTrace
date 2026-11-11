@@ -30,7 +30,7 @@ import org.robolectric.annotation.Config
  * 拉取协调器（§5.8 状态机 / §2.1 节流与降级）的真实数据库测试。
  *
  * 覆盖的都是「纯函数测不到、真机又很难复现」的分支：
- * 1. 节流分档：成功 30 分钟、失败 60 秒（否则「刚授权完回 App」假死）；
+ * 1. 节流分档：成功 10 分钟（批 6g 收紧）、失败 60 秒（否则「刚授权完回 App」假死）；
  * 2. 通道降级：Shizuku 不可用 → UsageStats 顶上，且 `pull_log.source` 记的是降级通道；
  * 3. 失败保留旧数据：拉取失败后库里原有行必须原样不动（§6 红线）；
  * 4. 空 dump 是**独立状态**，不能混进「失败」；
@@ -68,18 +68,18 @@ class PullCoordinatorTest {
     // ---------- 节流 ----------
 
     @Test
-    fun `成功拉取后 30 分钟内再次打开不重复拉取`() = runBlocking {
+    fun `成功拉取后 10 分钟内再次打开不重复拉取`() = runBlocking {
         val provider = FakeProvider(PullChannel.SHIZUKU, parsed())
         val coordinator = coordinator(provider)
 
         assertTrue(coordinator.pullIfStale() is PullOutcome.Success)
         assertEquals(1, provider.loadCount)
 
-        now += 29 * 60_000
+        now += 9 * 60_000
         assertEquals(PullOutcome.Throttled, coordinator.pullIfStale())
         assertEquals("节流命中不应该再去读 dump", 1, provider.loadCount)
 
-        now += 2 * 60_000 // 累计 31 分钟
+        now += 2 * 60_000 // 累计 11 分钟
         assertTrue(coordinator.pullIfStale() is PullOutcome.Success)
         assertEquals(2, provider.loadCount)
     }

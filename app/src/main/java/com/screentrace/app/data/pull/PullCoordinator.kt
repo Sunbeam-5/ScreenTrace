@@ -15,8 +15,8 @@ import kotlinx.coroutines.sync.Mutex
  *
  * 三条硬约束都在这里落地：
  * 1. **拉取中禁止重复任务**：`Mutex.tryLock()`，并发调用直接返回 [PullOutcome.AlreadyRunning]；
- * 2. **打开 App 节流**：以 `pull_log` 最近一次记录为基准，成功 30 分钟、失败 60 秒
- *    （分档理由见 [pullIfStale]）；
+ * 2. **打开 App 节流**：以 `pull_log` 最近一次记录为基准，成功 10 分钟、失败 60 秒
+ *    （分档理由见 [pullIfStale]；批 6g 从 30 分钟收紧到 10 分钟，见常量注释）；
  * 3. **失败必须留痕且不动旧数据**：主通道失败 → 尝试降级通道；全不可用 →
  *    写一条 `pull_log(ok=false)`，库里的历史数据原样保留（§6）。
  *
@@ -54,7 +54,9 @@ class PullCoordinator(
      * App 打开 / 页面回前台时调用：节流窗口内不重复拉取。
      *
      * **节流窗口按上次结果分档**（这是一个必须说清的设计取舍）：
-     * - 上次**成功** → 30 分钟（§2.1 原文）；
+     * - 上次**成功** → 10 分钟（批 6g 从 §2.1 原文的 30 分钟收紧，理由：MIUI 的
+     *   usagestats 事件缓冲是滚动窗口，只保留最近几小时——拉得越勤，跨拉取的
+     *   max 合并越接近全天真实亮屏，数字越不会「越拉越少」）；
      * - 上次**失败/空 dump** → 只冷却 60 秒。
      *
      * 为什么不能「失败也算 30 分钟」：用户看到「Shizuku 未授权」→ 去 Shizuku 里点允许 →
@@ -223,8 +225,8 @@ class PullCoordinator(
     }
 
     companion object {
-        /** §2.1：打开 App 时节流 30 分钟（仅针对上次成功的情况）。 */
-        const val DEFAULT_MIN_INTERVAL_MS = 30L * 60 * 1000
+        /** §2.1：打开 App 时节流。原 30 分钟，批 6g 收紧到 10 分钟（见 pullIfStale 注释）。 */
+        const val DEFAULT_MIN_INTERVAL_MS = 10L * 60 * 1000
 
         /** 上次失败后的短冷却：挡住前台抖动，又不至于让「刚授权完」的用户等 30 分钟。 */
         const val FAILURE_RETRY_MS = 60L * 1000
