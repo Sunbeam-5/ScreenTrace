@@ -1,5 +1,7 @@
 package com.screentrace.app.ui
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,9 +48,19 @@ fun StatsScreen(
     onApplySelection: (DateSelection) -> Unit,
     onRetry: () -> Unit
 ) {
-    // 「有数据就画数据」（批 6g，理由见 TodayScreen）：切「近 7/30 天」不闪骨架
+    // 「有数据就画数据」（批 6g，理由见 TodayScreen）：切「近 7/30 天」不闪骨架。
+    // 换区间时整卡内容（柱图几何/大数字/时段分布）一帧内替换会被看成「闪」，
+    // 用 200ms 交叉淡入淡出把这次替换软化（Crossfade 只在 data 引用真正变化时触发，
+    // stale-while-revalidate 期间 data 引用不变，不会白白重播）。
     when {
-        state.data != null -> StatsContent(data = state.data, selection = selection, onApplySelection = onApplySelection)
+        state.data != null -> Crossfade(
+            targetState = state.data,
+            animationSpec = tween(200),
+            label = "statsDataSwap",
+            modifier = Modifier.fillMaxWidth()
+        ) { data ->
+            StatsContent(data = data, selection = selection, onApplySelection = onApplySelection)
+        }
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
         else -> DataEmptyState(

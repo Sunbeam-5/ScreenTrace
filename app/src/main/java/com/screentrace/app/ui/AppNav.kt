@@ -236,11 +236,9 @@ fun AppNav() {
                             .padding(bottom = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        FilterChipBar(
-                            selection = selection,
-                            recordedDays = todayState.data?.summary?.recordedDays,
-                            onClear = viewModel::clearFilter
-                        )
+                        // （批 6g 三轮）全局筛选胶囊条已移除：顶部标题栏副标题本来就
+                        // 显示当前区间，跨页常驻的「有记录 x 天」条被真机反馈点名；
+                        // 恢复「今天」用日期弹层里的「今天」快捷项。
                         AnimatedVisibility(
                             visible = notice != null,
                             enter = expandVertically(tween(140)) + fadeIn(tween(140)),
