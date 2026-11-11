@@ -1,112 +1,97 @@
-# 屏迹 / ScreenTrace —— Android 工程骨架
+# 屏迹 / ScreenTrace
 
-> 依据 `docs/需求文档-屏幕使用时间App.md`（Kimi 更新后的 **v2.3 统一设计系统版**）生成，
-> 对应文档 §6 实施顺序的**第 ①② 层**。生成时间：2026-11-10。
+Android 屏幕使用时间统计 App：**本地优先、离线、无账号**。通过 Shizuku 拉取系统
+`dumpsys usagestats`，解析后在本地库中逐日累积，提供今日概览、趋势、日历热力图、
+应用排行与解锁/通知下钻。
 
-## 这是什么 / 不是什么
+> 数据只在本机。唯一可选的联网行为是 §5.10 云同步（WebDAV / Google Drive）与
+> §5.11 用户主动点击的 AI 分析，两者默认关闭。
 
-**是**：一个可以直接用 Android Studio 打开、Sync、Run 的最小 Gradle + Jetpack Compose 工程。
-已经落地的只有「契约层」：语义色板 + 九套主题 × 深浅色 + 字体/卡片 token +
-共享 `DateSelection` + 领域计算器 + `UsageRepository` 接口 + 空态实现 + 7 个 JVM 单测。
-首屏可点击切换九套主题和深色模式，用来验证主题链路真的通了。
+## 当前状态
 
-**不是**：一个做完的 App。Shizuku 拉取、解析算法、Room、四个数据页面、设置页、
-JSON/CSV 导出、§5.10 云同步都**还没实现**，工程里也没有任何假业务数值。
-文档 §6 明确写了「不得先复制 HTML 占位数值再假装完成数据接线；未完成能力明确列为待办」，
-所以首屏是一张诚实的状态卡，不是四页图表的空壳。
+| 批次 | 内容 | 状态 |
+|---|---|---|
+| 1–5 | 组件库、图表、状态层、四个页面、解析器移植 | ✅ 已完成 |
+| 6a–6b | Room + 合并策略 + 解析入库 + Shizuku/WorkManager 接线 | ✅ 已完成 |
+| 6d | 解锁详情 / 通知详情下钻页 | ✅ 已完成 |
+| 6e–6f | 真机冒烟 + 13 条真机反馈修复 | ✅ 已完成 |
+| 6g | 会话区间真并集 ✅；下拉刷新、趋势图规范、点柱看前三、容器变换、口径 1–24h、日历对齐、日期手输、排行单日口径 | 🚧 进行中 |
+| 7–14 | 设置/向导/HTML 导出、备份与云同步、自定义主题、提醒与限额、小组件、多机型、周期总结与 AI | ⏳ 未开工 |
 
-## 直接打开
+已实现：四页骨架（今日 / 统计 / 日历 + 悬浮导航，Pager 横滑）、九套主题 × 深浅色、
+日期筛选（单日 / 区间 / 自定义）、应用排行、解锁与通知下钻、设置页（外观 / 统计口径）、
+Room 七表 + 会话区间并集、Shizuku 与 UsageStats 双通道降级、WorkManager 每日拉取。
 
-1. Android Studio → `File → Open` → 选 **`E:\project\ScreenTrace`**（不要选到 `app` 子目录）；
-2. 弹出提示时点 `Trust Project`，等 Gradle Sync 自动跑完；
-3. 真机连上后点 `Run 'app'`。首屏会显示「屏迹 / 契约骨架 v0.1」，点色块可切九套主题。
+**版本**：`0.1.0`（versionCode 1），包名 `com.screentrace.app`，minSdk 26 / targetSdk 34。
 
-跑单测：右键 `app/src/test/java/.../UsageCalculatorTest.kt` → Run，
-或在工程根目录执行 `gradlew.bat :app:testDebugUnitTest`（7 个用例，不需要真机）。
+## 技术栈
 
-## 首次 Sync 前的三个检查点
+Kotlin 1.9.24 · Compose BOM 2024.06 · Material 3 · Room 2.6.1 · WorkManager 2.9.0 ·
+DataStore 1.1.1 · Shizuku 13.1.5 · Gradle 8.7 / AGP 8.5.2（全部稳定版，不用实验性 API）。
 
-| 检查 | 说明 |
-|---|---|
-| **SDK Platform 版本** | `app/build.gradle.kts` 里 `compileSdk = 34` / `targetSdk = 34`。若 SDK Manager 装的是 35/36 而没有 34，把这两行改成已安装的版本即可（§6 要求 ≥34）。 |
-| **Gradle 下载慢** | `settings.gradle.kts` 已预置阿里云 Maven 镜像；`gradle-wrapper.properties` 的 `distributionUrl` 仍指向官方。卡住时把域名换成 `https://mirrors.cloud.tencent.com/gradle/`，保留文件名 `gradle-8.7-bin.zip`。 |
-| **JDK（Gradle JDK）** | AGP 8.5 官方表格里的 17 是**最低/默认版本**，不是「只准 17」；本工程用的 **Gradle 8.7 明确支持 Java 21 运行**（Gradle 8.5 起支持）。所以 AS 自动下载的 JBR 21 **直接用即可，不必降级**。工程里 `jvmTarget = "17"` 是生成字节码的目标版本，与运行 Gradle 的 JVM 是两件事，不冲突。只有出现 JDK 相关构建错误时才切回 17（见「常见故障」）。`gradle/wrapper/gradle-wrapper.jar`、`gradlew`、`gradlew.bat` 已随工程放好，不用自己生成。 |
+## 构建与运行
+
+环境：JDK 17（`JAVA_HOME` 指向 17 最稳；Gradle 8.7 也能跑在 21 上）、Android SDK Platform 34。
+
+```bash
+./gradlew :app:assembleDebug            # 构建 APK
+./gradlew :app:testDebugUnitTest        # 跑单测（174 个 JVM 用例，无需真机）
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+首次运行需安装并授权 [Shizuku](https://shizuku.rikka.app/)；未授权时 App 会降级到
+`UsageStatsManager`（只有应用级与时段数据，没有事件流），并在界面上明示降级状态。
 
 ## 目录结构
 
 ```
-ScreenTrace/
-├── settings.gradle.kts            插件/依赖仓库（国内镜像优先）
-├── build.gradle.kts               顶层插件版本
-├── gradle/wrapper/                Gradle 8.7 wrapper
-├── app/
-│   ├── build.gradle.kts           模块配置 + 依赖
-│   └── src/main/
-│       ├── AndroidManifest.xml    PACKAGE_USAGE_STATS + 仅同步用 INTERNET
-│       ├── res/values(-night)/    App 名「屏迹」、启动主题
-│       └── java/com/screentrace/app/
-│           ├── MainActivity.kt        骨架首页（主题切换 + 状态卡 + @Preview）
-│           ├── theme/
-│           │   ├── FreshPalette.kt      §5.4 语义 token + 九套主题 × 深浅
-│           │   └── ScreenTimeTheme.kt   §5.3 字体/形状 + §6 要求的主题入口
-│           ├── contract/
-│           │   ├── Models.kt            §4 四张表的领域模型
-│           │   ├── DateSelection.kt    §5.6 共享日期状态（Day / Range）
-│           │   ├── UsageRepository.kt  数据层契约 + 结果类型
-│           │   ├── UsageCalculator.kt  §5.6 聚合 / §5.7 阈值 / §5.3 格式
-│           │   └── EmptyUsageRepository.kt  空态实现（无假数据）
-│           └── uikit/legacy/      8 个参考组件，包名已统一，头部列了整改项
-├── app/src/test/                  UsageCalculatorTest（7 个 JVM 用例）
-├── docs/                          最新需求文档、HTML 原型、AI 评审简报（副本）
-└── reference/                     parse_usage3.py、report_data.json、两个原始切片
+app/src/main/java/com/screentrace/app/
+├── data/            拉取、解析、Room、合并与入库
+│   ├── parse/       UsageDumpParser（checkin + 明文双格式）、EventTypes、DumpShape
+│   ├── db/          七张表、DAO、MIGRATION_1_2
+│   ├── pull/        PullCoordinator（节流/降级/补读）、PullWorker、两个通道
+│   ├── prefs/       SettingsStore（DataStore）
+│   └── SessionUnion.kt / MergePolicy.kt / IngestPipeline.kt   并集与合并（纯函数 + 单事务入库）
+├── contract/        领域模型、DateSelection、UsageCalculator、仓库接口
+├── ui/              AppNav（Pager + 覆盖层）、四个页面、弹层、设置、ViewModel
+├── uikit/           卡片、图表、日历、导航条、状态视图等自绘组件
+└── theme/           语义色板（九套 × 深浅）、字体与形状 token
+app/src/test/        174 个 JVM 用例（Robolectric + 纯函数）
+docs/                需求文档（唯一权威）、批次计划、各批复盘与交付说明
 ```
 
-`docs/` 与 `reference/` 是**副本**，源在 `E:\project\屏幕使用时间App\`。
-需求文档继续由 Kimi 更新时，记得把新版同步回 `docs/`，否则工程里的实现依据会过期。
+## 数据来源与已知限制
 
-## 与需求文档的对应
+这些限制来自系统接口本身，不是 App 的 bug，界面上也有对应说明：
 
-| 需求条款 | 工程里的位置 | 状态 |
-|---|---|---|
-| §5.3 字体 token | `theme/ScreenTimeTheme.kt` → `FreshType` | 已实现 |
-| §5.2 24dp 无描边卡片、4dp 间距基数 | `FreshShapes` / `MainActivity.InfoCard` | 已实现 |
-| §5.4 / §6 语义色板 `FreshPalette` + `ScreenTimeTheme(variant, darkTheme, dynamicColor)` | `theme/` 两个文件 | 已实现（深浅对比度仍需逐套校验） |
-| §5.4 九套主题色值 | `ThemeVariant` 枚举，逐行抄自 §5.4 表格 | 已实现 |
-| §5.6 共享 `DateSelection`、区间上限 366、反选交换 | `contract/DateSelection.kt` | 已实现 |
-| §5.6 区间日均只除有记录日、缺失日≠真实 0 分钟 | `UsageCalculator.summarize/dailyPoints` + 单测 | 已实现 |
-| §5.7 月/年视图色档、22:00–06:00 时段 | `UsageCalculator.monthLevel/yearLevel/periodBuckets` | 已实现（纯计算，未画 UI） |
-| §6 Repository → ViewModel → UiState | `UsageRepository` 接口 | 契约已定，ViewModel 待建 |
-| §2–§4 Shizuku / 解析 / Room | `EmptyUsageRepository` 占位 | **待办** |
-| §5.2 / §5.5 通用组件与四页 | `uikit/legacy/` 起点 | **待办**，须按文件头整改 |
-| §5.8 设置、§5.10 导出与云同步 | — | **待办** |
-| §7-5 golden fixtures（M:SS、去重、跨零点） | — | **待办**，见下方说明 |
+- **OEM 历史窗口不同**：小米（HyperOS 3，Android 16 实测）的 `dumpsys usagestats`
+  只暴露**最近约 2 天**的按日统计；vivo 可达 10 天以上。系统自带的「屏幕使用时间」
+  读的是特权内部接口，第三方拿不到。因此本 App 采用**每日拉取、自建历史库**，用得越久
+  数据越完整。
+- **事件缓冲是滚动窗口**：单次 dump 只覆盖最近几小时，且过期事件会消失。所以屏幕时长
+  不是「单次取大」，而是把每次见到的**亮屏/锁屏会话区间入库做真并集**（`screen_session`
+  表）后重算——任何一次拉取见过的时段都会计入，只增不减。
+- **解锁次数可能缺失**：系统未上报 `KEYGUARD_*` 事件时，无法得到解锁次数。此时显示
+  `—` 而不是 `0`（区分「真实 0 次」与「拿不到」）；若设备开了「不灭屏」，整日只有一条
+  连续亮屏会话，`0` 是真实值，会正常显示。
+- **应用时长之和可能大于屏幕时长**：含前台服务、画中画与并行窗口，界面上有说明。
+- **`QUERY_ALL_PACKAGES`**：为了把包名解析成应用名与图标而声明；上架 Google Play 时
+  需要在表单中声明用途，或改为按需查询。
 
-## 几个刻意的取舍
+## 文档
 
-- **没引入 Room / KSP / Shizuku 依赖**：Room 注解处理器要与 Kotlin 版本严格对齐，是首次 Sync 最常见的失败点。契约层因此写成纯 Kotlin 接口，`app/build.gradle.kts` 里留了注释版依赖清单，接数据层时再启用并加 `com.google.devtools.ksp` 插件。
-- **`INTERNET` 权限已声明但没用**：v2.3 §6 允许「仅同步必需的 INTERNET 权限」，骨架阶段不发任何网络请求。实现 §5.10 时仍要遵守「仅手动或按频率自动触发」。
-- **没有 `FakeRepository`**：文档 §6 禁止用假数据掩盖未完成接线。UI 迭代期若需要，请单独建 `app/src/debug/` 下的实现，交付前必须移除。
-- **`uikit/legacy/` 里的 8 个 `.kt` 是待整改参考**：它们仍有硬编码颜色、不支持深色，且 `CapsuleBarChart` / `HeatmapCalendar` / `MonthCalendar` 与 §5.7 规格有差距。包名已从 `com.example.screentime.ui` 统一改为 `com.screentrace.app.uikit.legacy`，旧版单套主题函数改名为 `LegacyScreenTimeTheme` 以免和新的 `ScreenTimeTheme` 混淆。
-- **包名 `com.screentrace.app`**：`applicationId` 一旦上架不可改，要换现在换。改名时同步修改 `namespace`、`applicationId`、所有 `.kt` 的第一行（含 legacy 8 个）与目录层级。
-- **版本组合**：Gradle 8.7 / AGP 8.5.2 / Kotlin 1.9.24 / Compose Compiler 1.5.14 / Compose BOM 2024.06.00 / core-ktx 1.13.1，全部为稳定版，不使用实验性 Expressive API（§6）。
+- [`docs/需求文档-屏幕使用时间App.md`](docs/需求文档-屏幕使用时间App.md) —— 唯一权威需求（v2.6，含 CR-01~04）
+- [`docs/实施任务批次计划-v2.md`](docs/实施任务批次计划-v2.md) —— 执行基线（19 个批次）
+- `docs/批次*-交付说明.md` —— 每批的实际产出、验证方式与已知边界
 
-## 建议的下一步
+## 路线图
 
-1. 先 `git init && git add . && git commit -m "chore: ScreenTrace 契约骨架"`，之后每次交给 AI 改代码前都留一版基线，用 `git diff` 复核；
-2. 跑一次 `UsageCalculatorTest`，确认 Sync 和测试链路都通；
-3. 再按文档 §6 的固定顺序推进：通用组件整改 → 四个数据页面（用 `EmptyUsageRepository` 的空态先跑通布局）→ 数据层真实实现 → 设置与 §5.10 → 测试；
-4. 解析器测试要用**新建的 golden fixtures**，不要改动 `reference/sample-*.txt`（§6、§7-5 明确要求原切片不可修改，且它们不能单独复现完整 `report_data.json`）。
+1. **6g 收尾**：趋势图统一量程（0 → min(ceil(max), 24h) + 平均线 + 30 天细柱一屏）、
+   点柱看前三名应用、容器变换转场、下拉刷新（CR-04 终态：三页 + 60 秒轻冷却）、
+   统计口径 1–24 小时、日历居中、自定义区间手输、排行单日口径；
+2. **批 7–8**：设置页补全 + 首启向导 + HTML 报告、JSON/CSV 备份恢复、WebDAV / Drive 云同步；
+3. **批 10–14**：自定义主题引擎、提醒与应用限额、桌面小组件、多机型适配、周/月/年总结与可选 AI 分析。
 
-## 常见故障
+## 许可
 
-| 现象 | 处理 |
-|---|---|
-| `SDK platform 34 not found` | SDK Manager 勾装 Android 14 (API 34)，或把 `compileSdk/targetSdk` 改成已装版本 |
-| Gradle 下载卡住 | 按上文改 `distributionUrl` 为腾讯云镜像；Maven 依赖已走阿里云 |
-| Gradle JDK 显示 21，担心与 `jvmTarget = "17"` 冲突 | 不冲突：21 是跑 Gradle 的 JVM，17 是产物字节码目标。先照常 Sync；若报 `Unsupported class file major version 65`、R8/D8 或 Kotlin 编译器异常，再到 `Settings → Build, Execution, Deployment → Build Tools → Gradle → Gradle JDK` 选 17（没有就 `Download JDK` 装 Temurin 17），Apply 后重新 Sync。不要在 `gradle.properties` 里写 `org.gradle.java.home` 硬编码绝对路径 |
-| 命令行构建与 IDE 用的 JDK 不一致 | IDE 构建走 `Gradle JDK` 设置，Terminal 里的 `gradlew.bat` 走 `JAVA_HOME`；两者可以不同。用 `gradlew.bat -v` 看 Terminal 实际用的 JVM |
-| `Duplicate class` / Kotlin 版本冲突 | 确认 `composeOptions.kotlinCompilerExtensionVersion = 1.5.14` 未被改动 |
-| Sync 成功但 Run 报 `ClassNotFound` | 先 `Build → Clean Project` 再 Sync；确认打开的是工程根目录而不是 `app/` |
-| 想看视觉参考 | 浏览器打开 `docs/screen-time-ui-tomato.html`；截图在 `E:\project\屏幕使用时间App\ui-reference\tomato\` |
-
-—— 完 ——
+仓库暂未指定开源许可证。在添加 `LICENSE` 之前，默认保留所有权利。
