@@ -1,10 +1,13 @@
 package com.screentrace.app.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -295,7 +298,18 @@ private val RANGE_PICKER_HEIGHT = 340.dp
 
 /**
  * §5.6 筛选胶囊条「范围 · 共 N 天 · 有记录 X 天」+ 清除按钮。
- * 仅在用户应用了非默认筛选后显示；清除恢复今天。
+ * 非今天筛选时显示，清除恢复今天。
+ *
+ * ### 批 6g 二轮（真机反馈 a/b/c）：出现/消失必须有高度动画
+ *
+ * 这条在「顶部提示区」里占一行高度，原来用 `if (今天) return` 瞬间出没——
+ * 它一出现/消失，下方整个 Pager 内容就在**一帧内**跳一格，这就是：
+ * a) 点 x 清除筛选闪；b) 弹层里点近 7/30 天闪；c) 「有记录 x 天」条弹出来闪。
+ * 用 AnimatedVisibility 收展，下方内容被平滑推下/收回。
+ *
+ * 还有一个陷阱：退场动画期间 selection 已经变成「今天」，若此时直接渲染当前
+ * selection，内容为空、收缩动画白做。所以退场期间冻结最后一次非今天的内容
+ * （shownSelection/shownDays），动画播完节点移除，无跳变。
  */
 @Composable
 fun FilterChipBar(
@@ -305,43 +319,56 @@ fun FilterChipBar(
     modifier: Modifier = Modifier
 ) {
     val palette = LocalFreshPalette.current
-    if (selection is DateSelection.Day && selection.date == LocalDate.now()) return
-    Row(
+    val visible = selection !is DateSelection.Day || selection.date != LocalDate.now()
+    var shownSelection by remember { mutableStateOf(selection) }
+    var shownDays by remember { mutableStateOf(recordedDays) }
+    if (visible) {
+        shownSelection = selection
+        shownDays = recordedDays
+    }
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+        exit = shrinkVertically(tween(140)) + fadeOut(tween(100)),
         modifier = modifier
-            .fillMaxWidth()
-            .clip(CircleShape)
-            .background(palette.surfaceVariant)
-            .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        val rangeText = when (selection) {
-            is DateSelection.Day -> selection.date.format(DAY_FORMAT)
-            is DateSelection.Range ->
-                "${selection.start.format(DAY_FORMAT)} – ${selection.end.format(DAY_FORMAT)}"
-        }
-        val recordedText = recordedDays?.let { "有记录 $it 天" } ?: "有记录 —"
-        Text(
-            text = "$rangeText · 共 ${selection.days} 天 · $recordedText",
-            style = FreshType.label,
-            color = palette.onSurfaceVariant,
-            modifier = Modifier.weight(1f)
-        )
-        Box(
+        Row(
             modifier = Modifier
-                .size(48.dp)
-                .semantics {
-                    contentDescription = "清除日期筛选"
-                    role = Role.Button
-                }
-                .clickable(onClick = onClear),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .clip(CircleShape)
+                .background(palette.surfaceVariant)
+                .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = null,
-                tint = palette.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
+            val rangeText = when (val shown = shownSelection) {
+                is DateSelection.Day -> shown.date.format(DAY_FORMAT)
+                is DateSelection.Range ->
+                    "${shown.start.format(DAY_FORMAT)} – ${shown.end.format(DAY_FORMAT)}"
+            }
+            val recordedText = shownDays?.let { "有记录 $it 天" } ?: "有记录 —"
+            Text(
+                text = "$rangeText · 共 ${shownSelection.days} 天 · $recordedText",
+                style = FreshType.label,
+                color = palette.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
             )
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .semantics {
+                        contentDescription = "清除日期筛选"
+                        role = Role.Button
+                    }
+                    .clickable(onClick = onClear),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = null,
+                    tint = palette.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
     }
 }
