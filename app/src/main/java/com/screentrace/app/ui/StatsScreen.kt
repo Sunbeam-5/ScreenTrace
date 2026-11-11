@@ -59,7 +59,14 @@ fun StatsScreen(
             label = "statsDataSwap",
             modifier = Modifier.fillMaxWidth()
         ) { data ->
-            StatsContent(data = data, selection = selection, onApplySelection = onApplySelection)
+            // Crossfade 的内容 lambda 是**单插槽**（内部一个 Box，多个并列子节点全部
+            // 叠在 top-start）——StatsContent 有 4 个并列根节点（趋势卡/时段卡/双卡/
+            // 洞察），直接放进去四张卡会全部叠在一起（批 6g 真机「统计页被修坏」，
+            // 与 6f 时 TodayContent 包 AnimatedContent 是同一个坑）。
+            // 这里包一层 Column 复刻 ScrollablePage 的 12dp 卡片间距。
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatsContent(data = data, selection = selection, onApplySelection = onApplySelection)
+            }
         }
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)

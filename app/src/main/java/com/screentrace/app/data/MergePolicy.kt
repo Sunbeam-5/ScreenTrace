@@ -4,6 +4,8 @@ import com.screentrace.app.data.db.AppUsageEntity
 import com.screentrace.app.data.db.DaySummaryEntity
 import com.screentrace.app.data.db.HourUsageEntity
 import com.screentrace.app.data.db.NotificationEventEntity
+import com.screentrace.app.data.db.ScreenSessionEntity
+import com.screentrace.app.data.parse.SessionSpan
 
 /**
  * §4 合并策略（纯函数，JVM 可测；调用方在单事务中执行）：
@@ -44,6 +46,23 @@ object MergePolicy {
         if (existing == null || incoming.minutes >= existing.minutes) incoming else existing
 
     /** §4：pull_log 仅追加（无合并）。 */
+
+    /**
+     * 批 6g 三轮：会话区间**扫线真并集**（SCREEN / KEYGUARD 各自独立合并）。
+     * 旧行 ∪ 新拉取区间 → 互不重叠的规范段集；调用方删除旧重叠行后整集写回。
+     * 实现委托 [SessionUnion.union]（纯函数，单测覆盖重叠/相邻/含入）。
+     */
+    fun mergeSessions(
+        existing: List<ScreenSessionEntity>,
+        incoming: List<SessionSpan>,
+        kind: String
+    ): List<ScreenSessionEntity> =
+        SessionUnion.union(
+            // 必须按 kind 过滤：overlapping 查询返回的是全 kind 混合行，
+            // 不过滤会把 SCREEN 区间并进 KEYGUARD 输出（假锁屏会吞掉真实亮屏时长）
+            existing.filter { it.kind == kind }.map { SessionUnion.Span(it.startMs, it.endMs) } +
+                incoming.map { SessionUnion.Span(it.startMs, it.endMs) }
+        ).map { ScreenSessionEntity(it.startMs, it.endMs, kind) }
 
     /**
      * CR-01（§2.2 坑 2 / §4 事件合并）：notification_event 按

@@ -166,3 +166,28 @@ interface NotificationEventDao {
     @Query("SELECT MIN(occurredAtMs) FROM notification_event")
     suspend fun minMs(): Long?
 }
+
+/**
+ * 批 6g 三轮：会话区间 DAO（v2 新增表）。合并语义见 [ScreenSessionEntity] 注释：
+ * 读出重叠窗口的旧行 → 与新拉取区间做扫线并集 → 先删后插（单事务）。
+ */
+@Dao
+interface ScreenSessionDao {
+
+    /** 与窗口相交的全部区间（`endMs >= lo AND startMs <= hi`）。 */
+    @Query("SELECT * FROM screen_session WHERE endMs >= :startMs AND startMs <= :endMs ORDER BY startMs")
+    suspend fun overlapping(startMs: Long, endMs: Long): List<ScreenSessionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(rows: List<ScreenSessionEntity>)
+
+    /** 与窗口相交的区间整段删除（合并输出覆盖了它们的全部范围，无信息丢失）。 */
+    @Query("DELETE FROM screen_session WHERE endMs >= :startMs AND startMs <= :endMs")
+    suspend fun deleteOverlapping(startMs: Long, endMs: Long)
+
+    @Query("SELECT COUNT(*) FROM screen_session")
+    suspend fun count(): Int
+
+    @Query("SELECT MIN(startMs) FROM screen_session WHERE kind = 'SCREEN'")
+    suspend fun minScreenStartMs(): Long?
+}

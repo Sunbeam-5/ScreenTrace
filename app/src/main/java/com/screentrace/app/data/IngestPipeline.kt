@@ -7,8 +7,10 @@ import com.screentrace.app.data.db.DaySummaryEntity
 import com.screentrace.app.data.db.HourUsageEntity
 import com.screentrace.app.data.db.NotificationEventEntity
 import com.screentrace.app.data.db.PullLogEntity
+import com.screentrace.app.data.db.ScreenSessionEntity
 import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.db.UnlockEventEntity
+import java.time.ZoneId
 import com.screentrace.app.data.parse.AppNames
 import com.screentrace.app.data.parse.ParseResult
 
@@ -122,6 +124,67 @@ class IngestPipeline(
                         // Android 8–11 的 SQLite 绑定变量上限（999）
                         notifDao.deleteBetween(startMs, endMs)
                         notifDao.insertIgnore(merged)
+                    }
+                }
+
+                // 批 6g 三轮：会话区间真并集（治 MIUI 滚动缓冲少算）。
+                // ① 旧行 ∪ 新区间 → 规范段集写回；② 受影响日期的日聚合/小时矩阵从
+                // 并集重算，再与旧值取大——跨拉取的观测取「并」，不再是「单次观测取大」。
+                val incomingSessions = result.screenSessions + result.keyguardSessions
+                if (incomingSessions.isNotEmpty()) {
+                    val sessionDao = db.screenSessionDao()
+                    val lo = incomingSessions.minOf { it.startMs } - 60_000
+                    val hi = incomingSessions.maxOf { it.endMs } + 60_000
+                    val existingSessions = sessionDao.overlapping(lo, hi)
+                    val mergedScreen = MergePolicy.mergeSessions(
+                        existingSessions, result.screenSessions, ScreenSessionEntity.KIND_SCREEN
+                    )
+                    val mergedKg = MergePolicy.mergeSessions(
+                        existingSessions, result.keyguardSessions, ScreenSessionEntity.KIND_KEYGUARD
+                    )
+                    sessionDao.deleteOverlapping(lo, hi)
+                    sessionDao.insert(mergedScreen + mergedKg)
+
+                    // ② 受影响日期从**全量已存区间**重算，不是只用本次窗口合并的子集——
+                    // 同一天早先拉取见过的区间也要参与并集（滚动窗口场景：上午拉一次、
+                    // 下午拉一次，各自只覆盖几小时，重算必须吃到两段）。
+                    val zone = ZoneId.systemDefault()
+                    val rangeStart = incomingSessions.minOf { it.startMs }
+                    val rangeEnd = incomingSessions.maxOf { it.endMs }
+                    var day = java.time.Instant.ofEpochMilli(rangeStart).atZone(zone).toLocalDate()
+                    val lastDay =
+                        java.time.Instant.ofEpochMilli(rangeEnd - 1).atZone(zone).toLocalDate()
+                    while (!day.isAfter(lastDay)) {
+                        val key = day.toString()
+                        val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+                        val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                        // 该日窗口内的全部已存区间（含跨日长会话）；daySlices 内部按 kind 拆分
+                        val stored = sessionDao.overlapping(dayStart, dayEnd)
+                        val slice = SessionUnion.daySlices(stored, stored, zone)[day]
+                        if (slice != null) {
+                            val existing = dayDao.get(key)
+                            val incomingRow = DaySummaryEntity(
+                                date = key,
+                                screenMin = slice.screenMin,
+                                screenUnlockMin = slice.unlockMin,
+                                // 解锁次数以事件表（只增、主键去重）为准，不从会话推导
+                                unlocks = db.unlockEventDao().msBetween(dayStart, dayEnd - 1).size,
+                                launches = existing?.launches ?: (result.days[day]?.launches ?: 0),
+                                longestSessionMin = slice.longestMin,
+                                pulledAt = pulledAtMs
+                            )
+                            val mergedDay = MergePolicy.mergeDay(existing, incomingRow)
+                            if (mergedDay != existing) dayDao.insert(mergedDay)
+
+                            val existingByHour = hourDao.getForDate(key).associateBy { it.hour }
+                            slice.hours.forEachIndexed { hour, minutes ->
+                                val incomingHour = HourUsageEntity(key, hour, minutes)
+                                val existingHour = existingByHour[hour]
+                                val mergedHour = MergePolicy.mergeHour(existingHour, incomingHour)
+                                if (mergedHour != existingHour) hourDao.insert(mergedHour)
+                            }
+                        }
+                        day = day.plusDays(1)
                     }
                 }
 

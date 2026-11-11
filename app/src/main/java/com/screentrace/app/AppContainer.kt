@@ -27,7 +27,10 @@ class AppContainer(context: Context) {
         appContext,
         ScreenTraceDatabase::class.java,
         "screentrace.db"
-    ).build()
+    )
+        // v2：+ screen_session（会话区间真并集，批 6g 三轮）
+        .addMigrations(com.screentrace.app.data.db.MIGRATION_1_2)
+        .build()
 
     val settings = SettingsStore(appContext)
 

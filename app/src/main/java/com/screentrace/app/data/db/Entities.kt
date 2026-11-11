@@ -76,3 +76,31 @@ data class NotificationEventEntity(
     val pkg: String,
     val channelId: String?
 )
+
+/**
+ * 批 6g 三轮：屏幕亮/灭**会话区间**（跨拉取真并集的数据源，v2 新增表）。
+ *
+ * 背景：MIUI 的 usagestats 事件缓冲是**滚动窗口**（实测只保留最近几小时），单次
+ * 拉取只看到窗口内的会话；「同日取大合并」只能保住历史最大值，救不回任何一次
+ * 拉取都没覆盖到的时段（真机：凌晨 2:40 无拉取 → 亮屏少算 ≈2h40）。
+ *
+ * 解法：每次拉取把解析出的会话区间（SCREEN_INTERACTIVE→NON_INTERACTIVE 配对）
+ * 原样入库，入库时与已存区间做**扫线并集**（重叠/相邻合并、含入折叠），日聚合
+ * （screenMin/screenUnlockMin/longestSessionMin/小时矩阵）从并集重算后再与旧值
+ * 取大——任何一次拉取见过的时段都永久入账，不再依赖单次缓冲的窗口。
+ *
+ * kind：`SCREEN`（亮屏会话）/ `KEYGUARD`（锁屏期间，从 KEYGUARD_SHOWN→HIDDEN 配对），
+ * screenUnlockMin = 亮屏并集 − 锁屏并集的重叠。PK (startMs, kind)：入库前已做
+ * 扫线合并（同 kind 区间互不重叠），同毫秒跨 kind 不冲突。
+ */
+@Entity(tableName = "screen_session", primaryKeys = ["startMs", "kind"], indices = [Index("endMs")])
+data class ScreenSessionEntity(
+    val startMs: Long,
+    val endMs: Long,
+    val kind: String
+) {
+    companion object {
+        const val KIND_SCREEN = "SCREEN"
+        const val KIND_KEYGUARD = "KEYGUARD"
+    }
+}

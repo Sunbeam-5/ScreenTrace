@@ -29,6 +29,13 @@ data class DayMetrics(
 data class AppUsageRow(val date: LocalDate, val pkg: String, val totalMs: Long, val launches: Int)
 
 /**
+ * 亮屏/锁屏**会话区间**（毫秒，批 6g 三轮）：SCREEN_INTERACTIVE→NON_INTERACTIVE
+ * （或 KEYGUARD_SHOWN→HIDDEN）的配对结果。入库后跨拉取做扫线真并集
+ * （见 [com.screentrace.app.data.SessionUnion]），治 MIUI 滚动缓冲的少算。
+ */
+data class SessionSpan(val startMs: Long, val endMs: Long)
+
+/**
  * 解析输出（两段 dump 文本 → 数据类，§6 纯 Kotlin 模块）。
  * hourMinutes：24 桶分钟，**screen_unlock 口径**（§6 红线）。
  */
@@ -37,7 +44,11 @@ data class ParseResult(
     val hourMinutes: Map<LocalDate, List<Int>>,
     val appUsage: List<AppUsageRow>,
     val unlockEvents: List<UnlockEvent>,
-    val notificationEvents: List<NotificationEvent>
+    val notificationEvents: List<NotificationEvent>,
+    /** 本次拉取见到的亮屏会话（毫秒）；降级通道为空。 */
+    val screenSessions: List<SessionSpan> = emptyList(),
+    /** 本次拉取见到的锁屏会话（毫秒）；降级通道为空。 */
+    val keyguardSessions: List<SessionSpan> = emptyList()
 ) {
     /**
      * 「空 dump」判定（§5.8 独立状态）：五类产物**全空**才算空。
@@ -49,7 +60,8 @@ data class ParseResult(
      */
     val isEmpty: Boolean
         get() = days.isEmpty() && hourMinutes.isEmpty() && appUsage.isEmpty() &&
-            unlockEvents.isEmpty() && notificationEvents.isEmpty()
+            unlockEvents.isEmpty() && notificationEvents.isEmpty() &&
+            screenSessions.isEmpty() && keyguardSessions.isEmpty()
 }
 
 /**
@@ -432,6 +444,9 @@ object UsageDumpParser {
             days = days,
             hourMinutes = hourMinutes,
             appUsage = appRows,
+            // 区间层是秒粒度（intervalEvents 已 /1000），入会话表前回乘毫秒
+            screenSessions = screens.map { SessionSpan(it.first * 1000, it.second * 1000) },
+            keyguardSessions = kg.map { SessionSpan(it.first * 1000, it.second * 1000) },
             unlockEvents = counting.filter { it.type == "KEYGUARD_HIDDEN" }.map { UnlockEvent(it.ms) },
             notificationEvents = counting
                 .filter { it.type == "NOTIFICATION_INTERRUPTION" || it.type == "NOTIFICATION_SEEN" }

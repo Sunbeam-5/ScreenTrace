@@ -257,6 +257,64 @@ class IngestPipelineTest {
         assertEquals("59 秒是真实使用，必须记 1 分钟而不是 0", 1, db.appUsageDao().get(d1.toString(), "com.tencent.mm")?.minutes)
     }
 
+    // ---------- 批 6g 三轮：会话区间真并集 ----------
+
+    @Test
+    fun `两次拉取的亮屏区间取并集重算日聚合`() = runBlocking {
+        // 拉取 A 只见 09:00–12:00（滚动窗口），拉取 B 只见 13:00–15:00。
+        // 「单次观测取大」永远得不到 5 小时；真并集才对。
+        val sessionsA = listOf(
+            com.screentrace.app.data.parse.SessionSpan(msOf(d1, 9), msOf(d1, 12))
+        )
+        val sessionsB = listOf(
+            com.screentrace.app.data.parse.SessionSpan(msOf(d1, 13), msOf(d1, 15))
+        )
+        assertTrue(pipeline.ingest(emptyResult().copy(screenSessions = sessionsA), "test").ok)
+        assertTrue(pipeline.ingest(emptyResult().copy(screenSessions = sessionsB), "test").ok)
+
+        val day = db.daySummaryDao().get(d1.toString())!!
+        // 5 小时 = 300 分钟；screenMin 是亮屏并集原值（无锁屏数据 → unlock 相等）
+        assertEquals(300, day.screenMin)
+        assertEquals(300, day.screenUnlockMin)
+        assertEquals(180, day.longestSessionMin) // 最长一段 = 09:00–12:00 的 3 小时
+        // 区间表已规范合并：2 条互不重叠
+        assertEquals(2, db.screenSessionDao().count())
+    }
+
+    @Test
+    fun `重拉只覆盖子集时旧日聚合不被缩水`() = runBlocking {
+        val full = listOf(
+            com.screentrace.app.data.parse.SessionSpan(msOf(d1, 8), msOf(d1, 20))
+        )
+        val shrink = listOf(
+            com.screentrace.app.data.parse.SessionSpan(msOf(d1, 14), msOf(d1, 15))
+        )
+        assertTrue(pipeline.ingest(emptyResult().copy(screenSessions = full), "test").ok)
+        assertEquals(720, db.daySummaryDao().get(d1.toString())!!.screenMin)
+
+        // 14:06 重拉只看到 1 小时（滚动缓冲）——并入后并集仍是同一段，值不变
+        assertTrue(pipeline.ingest(emptyResult().copy(screenSessions = shrink), "test").ok)
+        assertEquals(720, db.daySummaryDao().get(d1.toString())!!.screenMin)
+        assertEquals(1, db.screenSessionDao().count())
+    }
+
+    @Test
+    fun `锁屏区间参与 unlock 口径重算`() = runBlocking {
+        val screen = listOf(
+            com.screentrace.app.data.parse.SessionSpan(msOf(d1, 10), msOf(d1, 11))
+        )
+        val kg = listOf(
+            com.screentrace.app.data.parse.SessionSpan(msOf(d1, 10) + 20 * 60_000, msOf(d1, 10) + 40 * 60_000)
+        )
+        assertTrue(pipeline.ingest(emptyResult().copy(screenSessions = screen, keyguardSessions = kg), "test").ok)
+        val day = db.daySummaryDao().get(d1.toString())!!
+        assertEquals(60, day.screenMin)
+        assertEquals(40, day.screenUnlockMin)
+        assertEquals(40, day.longestSessionMin)
+        // 小时矩阵同口径：锁屏 20 分钟全落在 10 点桶 → 60-20 = 40
+        assertEquals(40, db.hourUsageDao().getForDate(d1.toString()).first { it.hour == 10 }.minutes)
+    }
+
     // ---------- helpers ----------
 
     private fun emptyResult() = ParseResult(
