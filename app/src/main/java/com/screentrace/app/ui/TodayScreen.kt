@@ -29,6 +29,7 @@ import com.screentrace.app.uikit.EmptyState
 import com.screentrace.app.uikit.ErrorRetry
 import com.screentrace.app.uikit.LoadingSkeleton
 import com.screentrace.app.uikit.MetricCardPair
+import com.screentrace.app.uikit.transformSource
 import com.screentrace.app.uikit.MetricValue
 import com.screentrace.app.uikit.RatioBar
 import com.screentrace.app.uikit.RingProgress
@@ -205,7 +206,10 @@ private fun TodayContent(
         SecondaryButton(
             text = "查看全部应用",
             onClick = onOpenRanking,
-            modifier = Modifier.fillMaxWidth()
+            // 容器变换起点 = 这个按钮本身（§5.5）；排行页也从这个位置展开
+            modifier = Modifier
+                .fillMaxWidth()
+                .transformSource(cornerRadius = 20.dp)
         )
     }
 }

@@ -215,6 +215,9 @@ private fun HeaderActionButton(
     Box(
         modifier = Modifier
             .size(48.dp)
+            // 容器变换起点：这个按钮的矩形与圆形圆角（§5.5）。覆盖层里的按钮
+            // 读不到 Provider（为 null），因此不会把自己登记成新起点。
+            .transformSource(cornerRadius = 24.dp)
             .clip(CircleShape) // ripple 与点击区同为圆形
             .semantics {
                 this.contentDescription = contentDescription

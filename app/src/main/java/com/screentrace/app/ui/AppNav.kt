@@ -1,17 +1,12 @@
 package com.screentrace.app.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +29,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -67,10 +63,14 @@ import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.ScreenTimeTheme
 import com.screentrace.app.uikit.AppHeader
+import com.screentrace.app.uikit.ContainerTransformOverlay
+import com.screentrace.app.uikit.ContainerTransformState
 import com.screentrace.app.uikit.FreshNavBar
+import com.screentrace.app.uikit.LocalContainerTransformState
 import com.screentrace.app.uikit.NavItem
 import com.screentrace.app.uikit.PageScaffold
 import com.screentrace.app.uikit.ScrollablePage
+import com.screentrace.app.uikit.recordTransformOrigin
 import com.screentrace.app.uikit.rememberReduceMotion
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -140,6 +140,10 @@ fun AppNav() {
     var showDateSheet by rememberSaveable { mutableStateOf(false) }
     var showStyleSheet by rememberSaveable { mutableStateOf(false) }
 
+    // §5.5 / §7-22：二级页容器变换的起点（最近一次在主页面层按下的位置）。
+    // 进入与退出共用同一起点，所以「返回手势」和「返回按钮」缩回的是同一个地方。
+    val transformState = remember { ContainerTransformState() }
+
     // §2.1「App 打开时拉取」的真实落点：挂在 ON_RESUME 上而不是 ViewModel.init。
     // init 只在进程内首次建 VM 时跑一次——用户退到后台再回来（尤其是去 Shizuku 里
     // 授权完切回来）时不会重新拉，界面就永远停在旧数据。ON_RESUME 覆盖冷启动
@@ -159,6 +163,14 @@ fun AppNav() {
         val reduceMotion = rememberReduceMotion()
         val mainPage = AppPage.mainOf(page)
         val detailPage = detailOf(page)
+
+        // 退出动画期间 `detailPage` 已经变成 null，但覆盖层还得继续画**旧内容**才能缩回去。
+        // 所以缓存最后一次非空的二级页。这里的写入只在值真正变化时发生一次（写完就相等），
+        // 不会自激重组；换成 LaunchedEffect 反而会让首帧没有内容可画。
+        var lastDetail by remember { mutableStateOf<AppPage?>(null) }
+        if (detailPage != null && lastDetail != detailPage) lastDetail = detailPage
+        // 覆盖层实际渲染的页面：退出动画期间 detailPage 已为 null，退回缓存的最后一个
+        val layerDetail = detailPage ?: lastDetail
 
         val pagerState = rememberPagerState(
             initialPage = MAIN_PAGES.indexOf(mainPage).coerceAtLeast(0)
@@ -211,9 +223,15 @@ fun AppNav() {
             Modifier
                 .fillMaxSize()
                 .background(palette.background)
+                // 只在主页面层记录起点：覆盖层打开后若还记录，点「返回」会把起点改成
+                // 返回按钮的位置，退出就缩错地方了（真正想要的是缩回进入时的那个点）。
+                .recordTransformOrigin(transformState, enabled = detailPage == null)
         ) {
             // ---- 主页面层（常驻：三页都在场，切回来时滚动位置与内容都是现成的）----
-            PageScaffold(
+            // 只有这一层登记转场起点：覆盖层在 provider 之外，读到 null，里面的日期/返回
+            // 按钮不会把自己记成新起点（否则从设置页返回会缩到返回按钮上）。
+            CompositionLocalProvider(LocalContainerTransformState provides transformState) {
+                PageScaffold(
                 header = {
                     AppHeader(
                         title = titleOf(mainPage),
@@ -313,29 +331,18 @@ fun AppNav() {
                         }
                     }
                 }
+                }
             }
 
             // ---- 二级页覆盖层：自带顶部栏，盖住主页面层（含它的标题栏），但让出底部导航 ----
-            AnimatedContent(
-                targetState = detailPage,
-                modifier = Modifier.fillMaxSize(),
-                transitionSpec = {
-                    // **纯滑动，不做淡入淡出**（真机反馈 #4）：覆盖层半透明时会透出
-                    // 底下的主页面，形成「两页叠影」——这就是退场时看到的视觉残留。
-                    // 整页不透明滑动（标准 push/pop 手势的方向感）没有这个问题。
-                    if (targetState != null) {
-                        // 进入：整页从右滑入
-                        slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { it }
-                            .togetherWith(fadeOut(tween(120)))
-                    } else {
-                        // 返回：整页向右滑出，比进入更快一点，回退要「利落」
-                        fadeIn(tween(120))
-                            .togetherWith(slideOutHorizontally(tween(240, easing = FastOutSlowInEasing)) { it })
-                    }
-                },
-                contentAlignment = Alignment.TopStart,
-                label = "detail"
-            ) { detail ->
+            // 转场用容器变换（§5.5 / §7-22）：从进入时按下的位置放大到全屏、返回缩回原处，
+            // 与系统「打开 App：从图标展开」是同一套隐喻；全程不透明，不会出现两层叠影。
+            ContainerTransformOverlay(
+                visible = detailPage != null,
+                state = transformState,
+                reduceMotion = reduceMotion
+            ) {
+                val detail = layerDetail
                 if (detail != null) {
                     PageScaffold(
                         // 覆盖层的不透明背景挡住了主页面，但**触摸**并不会被挡住：
