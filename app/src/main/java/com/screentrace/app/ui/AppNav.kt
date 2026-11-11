@@ -1,33 +1,38 @@
 package com.screentrace.app.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.activity.compose.BackHandler
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -37,10 +42,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
@@ -49,30 +55,53 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.screentrace.app.ScreenTraceApp
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.EmptyUsageRepository
-import com.screentrace.app.ScreenTraceApp
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.ScreenTimeTheme
 import com.screentrace.app.uikit.AppHeader
 import com.screentrace.app.uikit.FreshNavBar
 import com.screentrace.app.uikit.NavItem
-import com.screentrace.app.uikit.ScreenScaffold
+import com.screentrace.app.uikit.PageScaffold
+import com.screentrace.app.uikit.ScrollablePage
+import com.screentrace.app.uikit.rememberReduceMotion
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 private val DAY_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日")
 
+/** 三个主页面，顺序与底部导航一致；Pager 的页索引就是这个列表的下标。 */
+private val MAIN_PAGES = listOf(AppPage.Today, AppPage.Stats, AppPage.Calendar)
+
 /**
- * 应用根组合（批次 3）：主题包裹 + 页面路由 + 底部胶囊导航 + 日期/风格弹层。
- * 二级页（排行/设置）用「返回 + 标题」顶部栏，底部导航保持进入前主页面选中（§5.2/§5.5）。
- * 仓库注入点（批 6b）：由 [ScreenTraceApp] 的容器提供真实仓库与拉取协调器；
- * 容器不可用时（预览/纯 UI 场景）退回 [EmptyUsageRepository]，不崩也不造假数据。
+ * 应用根组合：主题包裹 + 主页面 Pager + 二级页覆盖层 + 底部胶囊导航 + 日期/风格弹层。
+ *
+ * ### 批 6g：为什么从「淡入 hack」改成 Pager
+ *
+ * 上一版用一个 `Animatable(1f)` + `LaunchedEffect(page)` 里 `snapTo(0f)` 再淡入来做转场，
+ * 真机表现是「切 tab 先闪一下完整内容，再淡进来」。原因很明确：
+ * `LaunchedEffect` 在**首帧提交之后**才跑，新页面第一帧是以 alpha=1 完整画出来的，
+ * 第二帧才被按到 0 —— 那一帧就是用户看到的「闪现」。
+ * 而且三个页面共用同一个 `ScrollState`：从滚了一半的今日切到统计，统计页直接从
+ * 同样的偏移开始画，看起来也像「内容突然冒出来」。
+ *
+ * 现在的做法对齐 nsh07/Tomato 的思路（它用 NavDisplay 的 `fadeIn togetherWith fadeOut`，
+ * 新旧两页**同时在场**做交叉过渡，任何时刻都没有「先完整显示再消失」的中间帧）：
+ * 1. 三个主页面交给 `HorizontalPager`，`beyondBoundsPageCount = 2` 让三页**常驻**——
+ *    切换时目标页早已组合、布局完成，落帧就是最终内容，不存在补画。
+ * 2. 每页各自一份 `ScrollState`（在 `ScrollablePage` 内部 `remember`），互不串位。
+ * 3. 点 tab 用 `animateScrollToPage`（默认 spring），也能直接横滑，跟手且有惯性。
+ * 4. 二级页是覆盖在主页面之上的独立图层，右侧小幅滑入 + 交叉淡出；底部导航画在
+ *    最外层，所以二级页里导航条依然在（§5.2/§5.5）。
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun AppNav() {
     val container = (LocalContext.current.applicationContext as? ScreenTraceApp)?.container
@@ -108,11 +137,6 @@ fun AppNav() {
     val pulling by viewModel.pulling
     val lowThresholdMin by viewModel.lowThresholdMin
 
-    // §5.7：进详情页前记住今日页滚动位置，返回时滚回去（页面变短会把 value 夹小，
-    // 所以必须**离开前**存快照，回来再 scrollTo，而不是指望 ScrollState 自己记住）
-    val contentScroll = androidx.compose.foundation.rememberScrollState()
-    var savedTodayOffset by rememberSaveable { mutableStateOf(0) }
-
     var showDateSheet by rememberSaveable { mutableStateOf(false) }
     var showStyleSheet by rememberSaveable { mutableStateOf(false) }
 
@@ -131,6 +155,37 @@ fun AppNav() {
     }
 
     ScreenTimeTheme(variant = variant, darkTheme = darkTheme, dynamicColor = dynamicColor) {
+        val palette = LocalFreshPalette.current
+        val reduceMotion = rememberReduceMotion()
+        val mainPage = AppPage.mainOf(page)
+        val detailPage = detailOf(page)
+
+        val pagerState = rememberPagerState(
+            initialPage = MAIN_PAGES.indexOf(mainPage).coerceAtLeast(0)
+        ) { MAIN_PAGES.size }
+
+        // ① 导航状态 → Pager：点底部导航、或从二级页返回时让 Pager 滑到对应页。
+        //    `animateScrollToPage` 的默认动画就是 spring（StiffnessMediumLow），
+        //    和 Tomato 用 motionScheme 空间动画的手感一致，比固定 tween 自然。
+        LaunchedEffect(mainPage) {
+            val target = MAIN_PAGES.indexOf(mainPage)
+            if (target !in MAIN_PAGES.indices) return@LaunchedEffect
+            if (pagerState.currentPage != target) {
+                if (reduceMotion) pagerState.scrollToPage(target)
+                else pagerState.animateScrollToPage(target)
+            }
+        }
+        // ② Pager → 导航状态：用户横滑落定后把选中项同步回 ViewModel，
+        //    否则导航条高亮会和实际页面对不上。
+        //    这里读 `viewModel.page.value` 而不是组合里的 `page`：这个 effect 只起一次，
+        //    捕获的 `page` 会一直停留在首次组合时的值，判断就会失效。
+        LaunchedEffect(pagerState) {
+            snapshotFlow { pagerState.settledPage }.collect { index ->
+                val target = MAIN_PAGES.getOrNull(index) ?: return@collect
+                if (AppPage.mainOf(viewModel.page.value) != target) viewModel.selectMain(target)
+            }
+        }
+
         // 系统栏图标明暗必须跟**用户选的**深浅色走，而不是跟系统：
         // enableEdgeToEdge 只在启动时按系统深浅设一次，用户在 App 内切深色后
         // 状态栏图标会变成「深色图标压深色背景」，几乎看不见。
@@ -145,202 +200,229 @@ fun AppNav() {
         }
 
         // 系统返回键 / 全面屏返回手势：二级页必须回到上一层，而不是直接退到桌面。
-        // 之前只有顶部栏那个「返回」按钮接了 goBack，系统返回没人拦 → Activity 直接
-        // finish()，用户看到的就是「在设置里一滑返回就退出 App」。
         // 主页面（今日/统计/日历）不拦截，保持系统默认的「退出应用」。
         BackHandler(enabled = !isRootPage(page)) { viewModel.goBack() }
 
-        androidx.compose.runtime.LaunchedEffect(page) {
-            if (page == AppPage.Today) contentScroll.scrollTo(savedTodayOffset)
-        }
-
-        ScreenScaffold(
-            scrollState = contentScroll,
-            header = {
-                when (page) {
-                    is AppPage.Ranking -> AppHeader(
-                        title = "全部应用",
-                        subtitle = null,
-                        onBack = viewModel::goBack,
-                        onDateClick = { showDateSheet = true }
-                    )
-                    is AppPage.Settings -> AppHeader(
-                        title = "设置",
-                        subtitle = null,
-                        onBack = viewModel::goBack
-                    )
-                    is AppPage.UnlockDetail -> AppHeader(
-                        title = "解锁详情",
-                        subtitle = null,
-                        onBack = viewModel::goBack,
-                        onDateClick = { showDateSheet = true }
-                    )
-                    is AppPage.NotificationDetail -> AppHeader(
-                        title = "通知详情",
-                        subtitle = null,
-                        onBack = viewModel::goBack,
-                        onDateClick = { showDateSheet = true }
-                    )
-                    else -> AppHeader(
-                        title = when (AppPage.mainOf(page)) {
-                            AppPage.Stats -> "统计"
-                            AppPage.Calendar -> "日历"
-                            else -> "今日"
-                        },
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(palette.background)
+        ) {
+            // ---- 主页面层（常驻：三页都在场，切回来时滚动位置与内容都是现成的）----
+            PageScaffold(
+                header = {
+                    AppHeader(
+                        title = titleOf(mainPage),
                         subtitle = selectionSubtitle(selection),
                         onDateClick = { showDateSheet = true },
                         onStyleClick = { showStyleSheet = true },
                         onSettingsClick = viewModel::openSettings
                     )
                 }
-            },
-            floatingNav = {
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    // 提示条 / 拉取错误 / 拉取中共用一份，不跟着页面横滑（它们是全局状态，
+                    // 三页各放一份既重复又会各自播一遍展开动画）。
+                    // 底部固定留 12dp：没有提示条时就是标题与首卡之间的呼吸位，
+                    // 有提示条时它随展开动画把内容整体下推，不会出现「啪地跳一格」。
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .padding(bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChipBar(
+                            selection = selection,
+                            recordedDays = todayState.data?.summary?.recordedDays,
+                            onClear = viewModel::clearFilter
+                        )
+                        AnimatedVisibility(
+                            visible = notice != null,
+                            enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                            exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                        ) {
+                            notice?.let { text ->
+                                NoticeBar(text = text, onDismiss = viewModel::consumeNotice)
+                            }
+                        }
+                        // §5.8：已有历史时拉取失败 → 顶部内联错误 + 可重试，页面继续显示旧数据
+                        AnimatedVisibility(
+                            visible = pullError != null,
+                            enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                            exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                        ) {
+                            pullError?.let { text ->
+                                NoticeBar(
+                                    text = text,
+                                    onDismiss = viewModel::dismissPullError,
+                                    actionText = "重试",
+                                    onAction = viewModel::retryPull
+                                )
+                            }
+                        }
+                        AnimatedVisibility(
+                            visible = pulling,
+                            enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                            exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                        ) {
+                            PullingBar()
+                        }
+                    }
+
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        // 三页全部常驻：切 tab 时目标页已组合 + 已布局，落帧即终态，
+                        // 不会出现「先空一帧再补内容」的闪烁（只有 3 页，代价可忽略）。
+                        beyondBoundsPageCount = MAIN_PAGES.size,
+                        // 二级页盖在上面时禁止横滑，避免在覆盖层底下偷偷翻页
+                        userScrollEnabled = detailPage == null
+                    ) { index ->
+                        ScrollablePage {
+                            when (MAIN_PAGES[index]) {
+                                AppPage.Today -> TodayScreen(
+                                    state = todayState,
+                                    dailyGoalMin = dailyGoalMin,
+                                    // 首次 dump 要十几秒：这期间显示「正在读取」，而不是「尚无使用记录」
+                                    pulling = pulling,
+                                    onOpenRanking = viewModel::openRanking,
+                                    onRetry = viewModel::reload,
+                                    onOpenUnlock = viewModel::openUnlockDetail,
+                                    onOpenNotification = viewModel::openNotificationDetail
+                                )
+                                AppPage.Stats -> StatsScreen(
+                                    state = statsState,
+                                    selection = selection,
+                                    onApplySelection = viewModel::applySelection,
+                                    onRetry = viewModel::reload
+                                )
+                                else -> CalendarScreen(
+                                    state = calendarState,
+                                    monthLevelsState = monthLevelsState,
+                                    calendarMonth = calendarMonth,
+                                    onMonthChange = viewModel::setCalendarMonth,
+                                    onRetry = viewModel::reload,
+                                    lowThresholdMin = lowThresholdMin
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ---- 二级页覆盖层：自带顶部栏，盖住主页面层（含它的标题栏），但让出底部导航 ----
+            AnimatedContent(
+                targetState = detailPage,
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = {
+                    if (targetState != null) {
+                        // 进入：右侧小幅滑入 + 淡入。不整屏横推，避免和底部导航的
+                        // 选中项产生「整页搬家」的错觉（导航条本身不参与转场）。
+                        (slideInHorizontally(tween(260, easing = FastOutSlowInEasing)) { it / 6 } +
+                            fadeIn(tween(200)))
+                            .togetherWith(fadeOut(tween(140)))
+                    } else {
+                        // 返回：滑回右侧并淡出，比进入更快一点，回退要「利落」
+                        fadeIn(tween(120))
+                            .togetherWith(
+                                fadeOut(tween(200, easing = FastOutSlowInEasing)) +
+                                    slideOutHorizontally(tween(200, easing = FastOutSlowInEasing)) { it / 6 }
+                            )
+                    }
+                },
+                contentAlignment = Alignment.TopStart,
+                label = "detail"
+            ) { detail ->
+                if (detail != null) {
+                    PageScaffold(
+                        // 覆盖层的不透明背景挡住了主页面，但**触摸**并不会被挡住：
+                        // 空白处的点击会穿透到下层标题栏的「日期 / 设置」按钮上。
+                        // 这个 pointerInput 只接收不消费，作用是让本层成为命中目标，
+                        // 从而把下层兄弟节点排除在命中链之外（子节点仍先收到事件）。
+                        modifier = Modifier.pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) awaitPointerEvent()
+                            }
+                        },
+                        header = {
+                            when (detail) {
+                                is AppPage.Ranking -> AppHeader(
+                                    title = "全部应用",
+                                    subtitle = null,
+                                    onBack = viewModel::goBack,
+                                    onDateClick = { showDateSheet = true }
+                                )
+                                is AppPage.Settings -> AppHeader(
+                                    title = "设置",
+                                    subtitle = null,
+                                    onBack = viewModel::goBack
+                                )
+                                is AppPage.UnlockDetail -> AppHeader(
+                                    title = "解锁详情",
+                                    subtitle = null,
+                                    onBack = viewModel::goBack,
+                                    onDateClick = { showDateSheet = true }
+                                )
+                                else -> AppHeader(
+                                    title = "通知详情",
+                                    subtitle = null,
+                                    onBack = viewModel::goBack,
+                                    onDateClick = { showDateSheet = true }
+                                )
+                            }
+                        }
+                    ) {
+                        ScrollablePage {
+                            when (detail) {
+                                is AppPage.Ranking -> RankingScreen(
+                                    state = rankingState,
+                                    onRetry = viewModel::reload
+                                )
+                                is AppPage.Settings -> SettingsScreen(
+                                    darkTheme = darkTheme,
+                                    dynamicColor = dynamicColor,
+                                    onDarkThemeChange = viewModel::setDarkTheme,
+                                    onDynamicColorChange = viewModel::setDynamicColor,
+                                    lowThresholdMin = lowThresholdMin,
+                                    onLowThresholdChange = viewModel::setLowThresholdMin
+                                )
+                                is AppPage.UnlockDetail -> UnlockDetailScreen(
+                                    state = unlockDetail,
+                                    onRetry = viewModel::reload
+                                )
+                                else -> NotificationDetailScreen(
+                                    state = notificationDetail,
+                                    onRetry = viewModel::reload
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ---- 底部导航：画在最上层，二级页里也保持选中项不跳变（§5.2/§5.5）----
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    // 全面屏手势条会压住悬浮导航：垫起 navigationBars 高度，
+                    // 再留 20dp 视觉间距（§5.2）
+                    .navigationBarsPadding()
+                    .padding(bottom = 20.dp)
+            ) {
                 FreshNavBar(
                     items = listOf(
                         NavItem("今日", Icons.Default.Home),
                         NavItem("统计", Icons.AutoMirrored.Filled.List),
                         NavItem("日历", Icons.Default.DateRange)
                     ),
-                    selectedIndex = when (AppPage.mainOf(page)) {
-                        AppPage.Stats -> 1
-                        AppPage.Calendar -> 2
-                        else -> 0
-                    },
+                    selectedIndex = MAIN_PAGES.indexOf(mainPage).coerceAtLeast(0),
                     onSelect = { index ->
-                        viewModel.selectMain(
-                            when (index) {
-                                1 -> AppPage.Stats
-                                2 -> AppPage.Calendar
-                                else -> AppPage.Today
-                            }
-                        )
+                        viewModel.selectMain(MAIN_PAGES[index])
                     }
                 )
-            }
-        ) {
-            FilterChipBar(
-                selection = selection,
-                recordedDays = todayState.data?.summary?.recordedDays,
-                onClear = viewModel::clearFilter
-            )
-            // 提示条必须走 AnimatedVisibility：直接 `notice?.let {}` 会让这一行
-            // 瞬间消失，下面整页内容「啪」地往上跳一格——用户点 x 看到的就是
-            // 「页面刷新闪了一下」。展开/收起都是 140ms 的高度动画，视觉上连续。
-            AnimatedVisibility(
-                visible = notice != null,
-                enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
-            ) {
-                notice?.let { text ->
-                    NoticeBar(text = text, onDismiss = viewModel::consumeNotice)
-                }
-            }
-            // §5.8：已有历史时拉取失败 → 顶部内联错误 + 可重试，页面继续显示旧数据
-            AnimatedVisibility(
-                visible = pullError != null,
-                enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
-            ) {
-                pullError?.let { text ->
-                    NoticeBar(
-                        text = text,
-                        onDismiss = viewModel::dismissPullError,
-                        actionText = "重试",
-                        onAction = viewModel::retryPull
-                    )
-                }
-            }
-            AnimatedVisibility(
-                visible = pulling,
-                enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
-            ) {
-                PullingBar()
-            }
-            /**
-             * 页面切换过渡：整块内容淡入 + 上浮 12dp。
-             *
-             * 两个必须遵守的约束，都是踩坑换来的：
-             *
-             * 1. **必须用 `Column` 包，不能用 `Box`**。各页面的 Composable 往往有多个根节点
-             *    （`TodayContent` 就是「圆环卡 / 双卡 / 应用构成卡」三个并列），
-             *    `ContentColumn` 是 `ColumnScope`，所以它们原本是纵向排列的。
-             *    一旦包进 `Box`，三个根节点就变成 Box 的兄弟 → **全部叠在左上角**，
-             *    真机表现是「只看得见最后绘制的应用构成卡，圆环和双卡被盖住」
-             *    （UI 树里三者 bounds 互相覆盖，就是这原因）。`AnimatedContent` 同理。
-             * 2. 外层 `ContentColumn` 的 `spacedBy(12.dp)` 现在只作用于这一个 Column，
-             *    所以卡间距要在这里补上同样的 12dp，否则卡片会贴在一起。
-             */
-            val contentAlpha = remember { Animatable(1f) }
-            val reduceMotion = com.screentrace.app.uikit.rememberReduceMotion()
-            LaunchedEffect(page) {
-                if (reduceMotion) {
-                    contentAlpha.snapTo(1f)
-                    return@LaunchedEffect
-                }
-                contentAlpha.snapTo(0f)
-                contentAlpha.animateTo(1f, tween(220, easing = FastOutSlowInEasing))
-            }
-            Column(
-                modifier = Modifier.graphicsLayer {
-                    // graphicsLayer 只改绘制、不改布局，纵向排列完全不受影响
-                    alpha = contentAlpha.value
-                    translationY = (1f - contentAlpha.value) * 12.dp.toPx()
-                },
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                when (page) {
-                    AppPage.Today -> TodayScreen(
-                        state = todayState,
-                        dailyGoalMin = dailyGoalMin,
-                        // 首次 dump 要十几秒：这期间显示「正在读取」，而不是「尚无使用记录」
-                        pulling = viewModel.pulling.value,
-                        onOpenRanking = viewModel::openRanking,
-                        onRetry = viewModel::reload,
-                        onOpenUnlock = {
-                            savedTodayOffset = contentScroll.value
-                            viewModel.openUnlockDetail()
-                        },
-                        onOpenNotification = {
-                            savedTodayOffset = contentScroll.value
-                            viewModel.openNotificationDetail()
-                        }
-                    )
-                    AppPage.Stats -> StatsScreen(
-                        state = statsState,
-                        selection = selection,
-                        onApplySelection = viewModel::applySelection,
-                        onRetry = viewModel::reload
-                    )
-                    AppPage.Calendar -> CalendarScreen(
-                        state = calendarState,
-                        monthLevelsState = monthLevelsState,
-                        calendarMonth = calendarMonth,
-                        onMonthChange = viewModel::setCalendarMonth,
-                        onRetry = viewModel::reload,
-                        lowThresholdMin = lowThresholdMin
-                    )
-                    is AppPage.Ranking -> RankingScreen(
-                        state = rankingState,
-                        onRetry = viewModel::reload
-                    )
-                    is AppPage.Settings -> SettingsScreen(
-                        darkTheme = darkTheme,
-                        dynamicColor = dynamicColor,
-                        onDarkThemeChange = viewModel::setDarkTheme,
-                        onDynamicColorChange = viewModel::setDynamicColor,
-                        lowThresholdMin = lowThresholdMin,
-                        onLowThresholdChange = viewModel::setLowThresholdMin
-                    )
-                    is AppPage.UnlockDetail -> UnlockDetailScreen(
-                        state = unlockDetail,
-                        onRetry = viewModel::reload
-                    )
-                    is AppPage.NotificationDetail -> NotificationDetailScreen(
-                        state = notificationDetail,
-                        onRetry = viewModel::reload
-                    )
-                }
             }
         }
 
@@ -362,6 +444,22 @@ fun AppNav() {
             )
         }
     }
+}
+
+/** 主页面标题：与底部导航一一对应。 */
+private fun titleOf(mainPage: AppPage): String = when (mainPage) {
+    AppPage.Stats -> "统计"
+    AppPage.Calendar -> "日历"
+    else -> "今日"
+}
+
+/** 二级页（覆盖层）：需要自己的顶部栏与返回。返回 null 表示当前在主页面层。 */
+private fun detailOf(page: AppPage): AppPage? = when (page) {
+    is AppPage.Ranking -> page
+    is AppPage.Settings -> page
+    is AppPage.UnlockDetail -> page
+    is AppPage.NotificationDetail -> page
+    else -> null
 }
 
 /** §5.2 AppHeader 副标题：今天 / 指定单日 / 区间。 */

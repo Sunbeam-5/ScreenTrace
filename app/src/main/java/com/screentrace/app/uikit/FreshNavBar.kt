@@ -1,19 +1,19 @@
 package com.screentrace.app.uikit
 
-import android.provider.Settings
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
@@ -22,13 +22,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -48,9 +47,21 @@ data class NavItem(
 /**
  * §5.5：底部悬浮胶囊导航。选中项 spring 展开 52dp→150dp 显名称，未选中 52dp 仅图标；
  * 项间距 4dp、容器内边距 6dp、点击区 ≥48dp（高 50 / 宽 ≥52）。
- * 系统「减少动画」（ANIMATOR_DURATION_SCALE=0）时改为不展开宽度、名称直接显隐（淡入淡出由
- * Compose 默认切换完成），不再播放 spring。
- * 三项「今日 / 统计 / 日历」由调用方传入；颜色全部走语义 token（§5.4）。
+ *
+ * ### 批 6g：为什么不再用「宽度阈值切文字」
+ *
+ * 上一版是 `if (expand > 0.45f) { Text(...) }` —— 二元判断，文字在某一帧**整块出现**，
+ * 宽度还在继续弹，于是看起来像文字"啪"地贴上去，这是「切换僵硬」的一半来源。
+ * 另一半是选中底色 `if (selected) primary else Transparent` 硬切，没有任何过渡。
+ *
+ * 现在：
+ * - 图标放在**固定 52dp 槽位**（`width`），标签放在固定 98dp 槽位（`requiredWidth`，
+ *   故意不受父约束，多出来的部分被外层 `clip(CircleShape)` 裁掉）——
+ *   胶囊变宽时标签是"被擦出来"的，不是"跳出来"的，且图标不会横向乱跑。
+ * - 标签 alpha 由同一个 `expand` 驱动（0.35→1 区间渐变），文字和宽度同步，不会先宽后亮。
+ * - 底色/前景色走 `animateColorAsState`，选中态换色也是渐变的。
+ *
+ * 系统「减少动画」（`ANIMATOR_DURATION_SCALE = 0`）时宽度与颜色都直接到终态（§5.7）。
  */
 @Composable
 fun FreshNavBar(
@@ -60,12 +71,13 @@ fun FreshNavBar(
     modifier: Modifier = Modifier
 ) {
     val palette = LocalFreshPalette.current
-    val context = LocalContext.current
-    val reduceMotion = remember {
-        runCatching {
-            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) <= 0f
-        }.getOrDefault(false)
-    }
+    val reduceMotion = rememberReduceMotion()
+    val widthSpec: AnimationSpec<Float> = if (reduceMotion) tween(0) else spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow
+    )
+    val colorSpec = tween<Color>(if (reduceMotion) 0 else 200)
+
     Row(
         modifier = modifier
             .clip(CircleShape)
@@ -77,61 +89,64 @@ fun FreshNavBar(
         items.forEachIndexed { index, item ->
             val selected = index == selectedIndex
             val expand by animateFloatAsState(
-                // 减少动画时宽度仍要到 150dp，只是不播 spring（§5.5「改淡入淡出」）
                 targetValue = if (selected) 1f else 0f,
-                animationSpec = if (reduceMotion) {
-                    tween(0)
-                } else {
-                    spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    )
-                },
+                animationSpec = widthSpec,
                 label = "navExpand"
             )
-            val tint = if (selected) palette.onPrimary else palette.primary
+            val container by animateColorAsState(
+                targetValue = if (selected) palette.primary else Color.Transparent,
+                animationSpec = colorSpec,
+                label = "navContainer"
+            )
+            val content by animateColorAsState(
+                targetValue = if (selected) palette.onPrimary else palette.primary,
+                animationSpec = colorSpec,
+                label = "navContent"
+            )
+            // 标签 0.35→1 区间淡入：等胶囊张开一点再显字，开头那一下不会有半个字挤在边上
+            val labelAlpha = ((expand - 0.35f) / 0.65f).coerceIn(0f, 1f)
+
             Row(
                 modifier = Modifier
                     .height(50.dp)
                     .width(52.dp + 98.dp * expand) // 选中恰为 150dp
-                    .clip(CircleShape)
-                    .background(if (selected) palette.primary else Color.Transparent)
+                    .clip(CircleShape) // 兼作标签的裁剪框
+                    .background(container)
                     .selectable(selected = selected, role = Role.Tab) { onSelect(index) },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = item.icon,
-                    // 选中时名称由 Text 播报，图标不再重复（§5.9）
-                    contentDescription = if (selected) null else item.label,
-                    tint = tint,
-                    modifier = Modifier.size(22.dp)
-                )
-                if (reduceMotion) {
-                    AnimatedVisibility(
-                        visible = selected,
-                        enter = fadeIn(tween(120)),
-                        exit = fadeOut(tween(120))
-                    ) {
-                        NavBarLabel(item.label, tint)
-                    }
-                } else if (expand > 0.45f) {
-                    NavBarLabel(item.label, tint)
+                Box(
+                    modifier = Modifier
+                        .width(52.dp)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = item.icon,
+                        // 选中时名称由 Text 播报，图标不再重复（§5.9）
+                        contentDescription = if (selected) null else item.label,
+                        tint = content,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        // requiredWidth 而不是 width：父约束（此刻只有 52dp 宽）会把
+                        // 普通 width 压小，文字就会在窄框里折行；这里要的是"溢出后被裁掉"
+                        .requiredWidth(98.dp)
+                        .fillMaxHeight()
+                        .graphicsLayer { alpha = labelAlpha },
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = item.label,
+                        color = content,
+                        style = FreshType.button,
+                        maxLines = 1
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun NavBarLabel(label: String, tint: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text = label,
-            color = tint,
-            style = FreshType.button
-        )
     }
 }
 

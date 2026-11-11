@@ -1,18 +1,21 @@
 package com.screentrace.app.uikit
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -29,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -41,63 +43,63 @@ import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.ScreenTimeTheme
 
 /**
- * §5.2 页面骨架：ScreenScaffold + AppHeader + ContentColumn。
- * 左右边距 20dp、卡片间距 12dp、底部预留 112dp 给悬浮导航；宽屏内容最大 520dp 居中。
- * 悬浮导航经 floatingNav 槽位放入（由 ScreenScaffold 固定在底部中央）。
+ * 页面骨架（批 6g 重构）：背景 + 状态栏内边距 + 顶部栏 + **占满剩余高度的内容区**。
+ *
+ * 与旧版的关键区别：这里**不再自带纵向滚动**。旧版把「顶部栏以下的所有东西」包在
+ * 一个 `verticalScroll` 里，于是三个主页面只能共用一个 `ScrollState`——
+ * 从「今日」滚到一半切到「统计」，统计页会直接从同样的偏移开始画，看起来就像
+ * 内容突然蹦出来。现在滚动下沉到 [ScrollablePage]，每个页面自己一份滚动状态，
+ * Pager 里多页并存时互不影响，返回上级页也天然保住原位置。
+ *
+ * 底部悬浮导航不在这里，由 `AppNav` 画在最外层（要压在详情覆盖层之上）。
  */
 @Composable
-fun ScreenScaffold(
+fun PageScaffold(
     header: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    floatingNav: (@Composable () -> Unit)? = null,
-    /** 由调用方持有滚动状态：二级页返回时才能把主页面滚回原处（§5.7）。 */
-    scrollState: androidx.compose.foundation.ScrollState =
-        androidx.compose.foundation.rememberScrollState(),
-    content: @Composable ColumnScope.() -> Unit
+    content: @Composable BoxScope.() -> Unit
 ) {
     val palette = LocalFreshPalette.current
+    // 背景铺满整个 Box（含状态栏后面），内容侧才做 statusBarsPadding：
+    // 否则状态栏那一条会露出系统底色（§「上面有一条黑边」的根因）。
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(palette.background)
     ) {
-        // statusBarsPadding 只加在**内容**上，不加在最外层 Box：
-        // 背景色要继续铺到状态栏下方（否则状态栏那一条会露出系统底色，
-        // 就是「上面有一条黑边」的观感）。内容则必须避开状态栏与挖孔。
         Column(
             Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
             header()
-            ContentColumn(scrollState = scrollState, content = content)
-        }
-        if (floatingNav != null) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    // 全面屏手势条会压住悬浮导航：垫起 navigationBars 高度，
-                    // 再留 20dp 视觉间距（§5.2）
-                    .navigationBarsPadding()
-                    .padding(bottom = 20.dp)
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
-                floatingNav()
+                content()
             }
         }
     }
 }
 
-/** §5.2：可滚动内容列，卡片间距 12dp，宽屏 520dp 居中，底部预留 112dp。 */
+/**
+ * 可滚动内容页：左右边距 20dp、卡片间距 12dp、底部预留 112dp 给悬浮导航；
+ * 宽屏内容最大 520dp 居中（§5.2）。
+ *
+ * `fillMaxSize` + `verticalScroll` 的组合让页面高度等于视口、内容超出才滚，
+ * 这样它放进 Pager 的每一页时尺寸稳定，不会因为内容长短把 Pager 撑变形。
+ */
 @Composable
-fun ContentColumn(
+fun ScrollablePage(
     modifier: Modifier = Modifier,
-    scrollState: androidx.compose.foundation.ScrollState =
-        androidx.compose.foundation.rememberScrollState(),
+    scrollState: androidx.compose.foundation.ScrollState = rememberScrollState(),
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(
         modifier = modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .verticalScroll(scrollState)
             .padding(horizontal = 20.dp)
             // 底部预留 = 悬浮导航高度 + 系统手势条。只留 112dp 时，全面屏机型上
@@ -120,6 +122,9 @@ fun ContentColumn(
  * §5.2：左标题 + 日期副标题；右侧动作按钮「日期 / 界面风格 / 设置」视觉 40dp、点击区 ≥48dp。
  * 主页面无返回键；二级页传 onBack 显示「返回 + 标题」（§5.2）。
  * 未传入的按钮不渲染——调用方只接线真实可用的动作，避免假按钮（§6）。
+ *
+ * 标题与副标题走 `Crossfade`：主页面之间横滑时标题是跟着换的，
+ * 硬切会让顶部像"被抽掉再贴上一张"，交叉淡入淡出才跟得上页面滑动。
  */
 @Composable
 fun AppHeader(
@@ -154,9 +159,21 @@ fun AppHeader(
                 .weight(1f)
                 .padding(start = if (onBack != null) 4.dp else 0.dp)
         ) {
-            Text(text = title, style = FreshType.pageTitle, color = palette.onSurface)
+            Crossfade(
+                targetState = title,
+                animationSpec = tween(180),
+                label = "headerTitle"
+            ) { text ->
+                Text(text = text, style = FreshType.pageTitle, color = palette.onSurface)
+            }
             if (subtitle != null) {
-                Text(text = subtitle, style = FreshType.label, color = palette.onSurfaceVariant)
+                Crossfade(
+                    targetState = subtitle,
+                    animationSpec = tween(180),
+                    label = "headerSubtitle"
+                ) { text ->
+                    Text(text = text, style = FreshType.label, color = palette.onSurfaceVariant)
+                }
             }
         }
         if (onDateClick != null) {

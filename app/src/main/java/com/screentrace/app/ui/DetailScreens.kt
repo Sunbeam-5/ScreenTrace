@@ -39,7 +39,6 @@ import com.screentrace.app.uikit.EmptyState
 import com.screentrace.app.uikit.ErrorRetry
 import com.screentrace.app.uikit.LoadingSkeleton
 import com.screentrace.app.uikit.NumberEnter
-import com.screentrace.app.uikit.PageEnter
 import com.screentrace.app.uikit.SegmentedControl
 import kotlinx.coroutines.delay
 
@@ -124,7 +123,9 @@ private fun DetailStateHost(
                 }
             )
 
-            MetricTable.hasAnyRecordedPoint(detail) -> PageEnter { content(detail) }
+            // 批 6g：转场交给 AppNav 的二级页覆盖层（右侧滑入 + 交叉淡入），
+            // 这里不再套一层 PageEnter——两层淡入叠起来会让内容"慢慢浮上来"，比导航还慢。
+            MetricTable.hasAnyRecordedPoint(detail) -> content(detail)
 
             // 事件源在，只是所选区间落在窗口外 / 当天拉取有缺口
             else -> EmptyState(

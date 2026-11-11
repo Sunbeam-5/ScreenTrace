@@ -77,16 +77,22 @@ fun SegmentedControl(
             animationSpec = spec,
             label = "segIndicatorX"
         )
-        Box(
-            modifier = Modifier
-                .offset(x = indicatorX)
-                .width(itemWidth)
-                .fillMaxHeight()
-                // 2dp 内缩：指示器比轨道略小一圈，视觉上「浮」在轨道里而不是贴边
-                .padding(2.dp)
-                .clip(CircleShape)
-                .background(palette.primary)
-        )
+        // 只有真正命中某一项时才画指示器。统计页「近 7/30 天」和顶部日期快捷共用
+        // 同一份 DateSelection：用户选的是「今天」这种单日时 selectedIndex = -1，
+        // 之前被 coerce 成 0 会让「近 7 天」显示成一个谁也点不中、文字还是灰的胶囊，
+        // 看起来像「明明选中了却不生效」。此时干脆不画，才和真实筛选状态一致。
+        if (selectedIndex in items.indices) {
+            Box(
+                modifier = Modifier
+                    .offset(x = indicatorX)
+                    .width(itemWidth)
+                    .fillMaxHeight()
+                    // 2dp 内缩：指示器比轨道略小一圈，视觉上「浮」在轨道里而不是贴边
+                    .padding(2.dp)
+                    .clip(CircleShape)
+                    .background(palette.primary)
+            )
+        }
         Row(Modifier.fillMaxSize()) {
             items.forEachIndexed { index, label ->
                 val selected = index == selectedIndex
