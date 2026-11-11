@@ -28,10 +28,12 @@ class MetricTableTest {
         dailyAverage: Int? = null,
         peakHour: Int? = null,
         hourlyAverage: Double? = null,
-        busiestDate: LocalDate? = null
+        busiestDate: LocalDate? = null,
+        hasEventSource: Boolean = true
     ) = MetricDetail(
         metric = MetricKind.UNLOCK,
         selection = selection,
+        hasEventSource = hasEventSource,
         total = points.filter { it.coverage == Coverage.RECORDED }.sumOf { it.value },
         dailyAverage = dailyAverage,
         notification = null,

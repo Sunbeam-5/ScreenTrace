@@ -301,6 +301,8 @@ object UsageCalculator {
         return MetricDetail(
             metric = MetricKind.UNLOCK,
             selection = selection,
+            // 评审 P1-1：windowStart 就是「本指标事件源是否存在」的唯一判据
+            hasEventSource = windowStart != null,
             total = base.total,
             dailyAverage = base.dailyAverage,
             notification = null,
@@ -344,6 +346,7 @@ object UsageCalculator {
         return MetricDetail(
             metric = MetricKind.NOTIFICATION,
             selection = selection,
+            hasEventSource = windowStart != null,
             total = base.total,
             dailyAverage = base.dailyAverage,
             notification = NotificationCounts(interruptions.size, seen.size),

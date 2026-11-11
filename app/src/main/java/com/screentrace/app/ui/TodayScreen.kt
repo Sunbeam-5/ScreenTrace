@@ -57,9 +57,12 @@ fun TodayScreen(
     when {
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
-        state.data == null -> EmptyState(
-            title = "尚无使用记录",
-            description = "连接 Shizuku 并完成首次拉取后，这里会显示今日的使用数据"
+        state.data == null -> DataEmptyState(
+            reason = state.empty,
+            noDataTitle = "尚无使用记录",
+            noDataDescription = "连接 Shizuku 并完成首次拉取后，这里会显示今日的使用数据",
+            actionText = "查看应用排行",
+            onAction = onOpenRanking
         )
         else -> TodayContent(
             data = state.data,
@@ -109,22 +112,36 @@ private fun TodayContent(
 
     // ② tonal 双卡（CR-01 可下钻：箭头 + ripple + 读屏描述，两卡样式一致）
     val notification = data.notification
-    // §7-16：卡片数字必须与详情页同源（读 metricDetail），不另用 Summary 算一套
-    val unlockValue = data.unlock
-        ?.let { if (single) "${it.total}" else "${it.dailyAverage ?: 0}" }
-        ?: "${data.summary.averageUnlocks}"
-    val notificationValue =
-        notification?.let { if (single) "${it.total}" else "${it.dailyAverage ?: 0}" } ?: "—"
+    // §7-16：卡片数字必须与详情页同源（读 metricDetail），不另用 Summary 算一套。
+    // 评审 P1-1：`total == 0` 有两种含义，靠 `hasEventSource` 分开——
+    // 没有事件源（降级通道 / 该机型不产生锁屏事件）时渲染「—」，绝不渲染「0 次」。
+    val unlockValue = cardValue(data.unlock, single)
+    val notificationValue = cardValue(notification, single)
+    val unlockAvailable = data.unlock?.hasEventSource == true
+    val notificationAvailable = notification?.hasEventSource == true
+    val unlockLabel = if (single) "解锁次数" else "日均解锁"
+    val notificationLabel = if (single) "通知打扰" else "日均通知打扰"
     MetricCardPair(
-        leftLabel = if (single) "解锁次数" else "日均解锁",
+        leftLabel = unlockLabel,
         leftValue = MetricValue.Number(unlockValue),
-        rightLabel = if (single) "通知打扰" else "日均通知打扰",
+        rightLabel = notificationLabel,
         rightValue = MetricValue.Number(notificationValue),
-        rightNote = notification?.notification?.let { "已查看 ${it.seen} 次" },
+        // 没有事件源时「已查看 0 次」同样是假 0，一并收掉
+        rightNote = notification?.notification
+            ?.takeIf { notificationAvailable }
+            ?.let { "已查看 ${it.seen} 次" },
         leftOnClick = onOpenUnlock,
         rightOnClick = onOpenNotification,
-        leftClickDescription = "${if (single) "解锁次数" else "日均解锁"} $unlockValue，查看详情",
-        rightClickDescription = "${if (single) "通知打扰" else "日均通知打扰"} $notificationValue，查看详情"
+        leftClickDescription = if (unlockAvailable) {
+            "$unlockLabel $unlockValue，查看详情"
+        } else {
+            "$unlockLabel，暂无解锁事件，查看详情"
+        },
+        rightClickDescription = if (notificationAvailable) {
+            "$notificationLabel $notificationValue，查看详情"
+        } else {
+            "$notificationLabel，暂无通知事件，查看详情"
+        }
     )
 
     // ③ 应用构成卡
@@ -174,6 +191,19 @@ private fun TodayContent(
 
 private fun com.screentrace.app.theme.FreshPalette.chartList() =
     listOf(chart1, chart2, chart3, chart4, chart5)
+
+/**
+ * 双卡数字的统一取值（评审 P1-1）：**没有事件源就只能给「—」**。
+ *
+ * 以前 `unlock == null` 时还会退回 `summary.averageUnlocks`，那条回退路径在降级
+ * 通道下正好是 0——看起来像「今天解锁 0 次」，实际上是「拿不到」。宁可不给数字。
+ */
+private fun cardValue(detail: MetricDetail?, single: Boolean): String = when {
+    detail == null -> "—"
+    !detail.hasEventSource -> "—"
+    single -> "${detail.total}"
+    else -> "${detail.dailyAverage ?: 0}"
+}
 
 @Preview(widthDp = 360, showBackground = true)
 @Composable

@@ -14,6 +14,10 @@ import java.time.YearMonth
  */
 class EmptyUsageRepository : UsageRepository {
 
+    override suspend fun hasAnyData(): Boolean = false
+
+    override suspend fun hasDataIn(selection: DateSelection): Boolean = false
+
     override suspend fun summary(selection: DateSelection): Summary =
         UsageCalculator.summarize(selection, emptyList())
 

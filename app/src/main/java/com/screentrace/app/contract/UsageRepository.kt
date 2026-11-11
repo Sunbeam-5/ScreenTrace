@@ -93,6 +93,19 @@ data class MetricAppCount(
 data class MetricDetail(
     val metric: MetricKind,
     val selection: DateSelection,
+    /**
+     * 本指标**有没有事件源**（事件表里至少有一条记录，即 [UsageCalculator] 的
+     * `windowStart != null`）。
+     *
+     * 这是 `total == 0` 之外必须单独存在的第二位信息（6b-6d 评审 P1-1）：
+     * - `hasEventSource = false` → 从来没抓到过这类事件（降级通道拿不到 `KEYGUARD_*`、
+     *   或该机型根本不产生锁屏事件）→ UI 必须渲染「—」/「暂无…事件」；
+     * - `hasEventSource = true && total == 0` → 事件源在，只是这段区间里恰好 0 次 →
+     *   UI 渲染真实的 `0`。
+     *
+     * 少了这一位，UI 只能看到 `total = 0`，只能把「拿不到」画成「0 次」——§7-16 红线。
+     */
+    val hasEventSource: Boolean,
     /** 摘要：单日=当日合计；区间=区间合计（§5.7）。 */
     val total: Int,
     /** 区间态 = 有记录日日均（§5.6 AVG 分母只含记录日）；单日态为 null。 */
@@ -123,6 +136,19 @@ data class NotificationCounts(val interruptions: Int, val seen: Int)
  * 查询按 §5.6 的设备本地自然日；所有聚合统一走 UsageCalculator。
  */
 interface UsageRepository {
+    /**
+     * 「库里有东西吗」——`day_summary` / `app_usage` / `hour_usage` **任一非空**。
+     *
+     * 与 [Summary.hasAnyRecord] 是两个问题，**不能互相替代**（6b-6d 评审 P0-1）：
+     * `hasAnyRecord` 只数 `day_summary`，而降级通道按设计不写 `day_summary`，
+     * 于是「库里明明有 2 个应用的排行数据」会被判成「完全无数据」，四页统一盖空白。
+     * 整页空态的入口判定必须用本方法。
+     */
+    suspend fun hasAnyData(): Boolean
+
+    /** 同 [hasAnyData]，但只看 [selection] 区间（日期筛选的「该时段有无数据」拦截用）。 */
+    suspend fun hasDataIn(selection: DateSelection): Boolean
+
     suspend fun summary(selection: DateSelection): Summary
     suspend fun dailyTrend(selection: DateSelection): List<DailyPoint>
     suspend fun appRanking(selection: DateSelection, limit: Int = 20): List<AppUsage>

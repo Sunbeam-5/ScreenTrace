@@ -233,6 +233,7 @@ private fun MetricDetailPagePreview() {
         val detail = MetricDetail(
             metric = MetricKind.UNLOCK,
             selection = DateSelection.Day(day),
+            hasEventSource = true,
             total = points.sumOf { it.value },
             dailyAverage = null,
             notification = null,

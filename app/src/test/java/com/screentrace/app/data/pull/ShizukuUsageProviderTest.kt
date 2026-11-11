@@ -133,6 +133,51 @@ class ShizukuUsageProviderTest {
         )
     }
 
+    // ---------- 输出判定（评审 P1-3） ----------
+
+    @Test
+    fun `非空输出但已被超时截断时必须抛而不是返回半份数据`() {
+        // 这就是原来的 bug：13MB 被看门狗砍掉后半截，text 非空 → 直接被当成功入库，
+        // 解析器逐行特征匹配所以照样能解析出前 N 天，pull_log.ok=true，
+        // 「今天那段没了」和「今天没怎么用手机」长得一模一样。
+        val truncatedBody = "days,2026-11-01,com.tencent.mm,1200"
+        val error = runCatching {
+            checkedOutput(truncatedBody, truncated = true, command = "x", timeoutMs = 120_000)
+        }.exceptionOrNull()
+
+        assertTrue("必须失败，交给协调器去降级/保留旧数据", error is ShizukuExecException)
+        assertTrue("报错要能看出是超时截断", error!!.message!!.contains("截断"))
+    }
+
+    @Test
+    fun `未截断的正常输出原样返回`() {
+        assertEquals(
+            "body",
+            checkedOutput("body", truncated = false, command = "x", timeoutMs = 120_000)
+        )
+    }
+
+    @Test
+    fun `空输出仍然按失败处理`() {
+        val error = runCatching {
+            checkedOutput("", truncated = false, command = "x", timeoutMs = 120_000)
+        }.exceptionOrNull()
+        assertTrue(error is ShizukuExecException)
+    }
+
+    @Test
+    fun `超时截断会让整个拉取失败而不是产出不完整数据`() = runBlocking {
+        // 走完整条通道：shell 抛「截断」→ provider 必须返回 Failed，而不是 Parsed
+        val shell = FakeShell(
+            ShizukuShell.CHECKIN_CMD to
+                Result.failure(ShizukuExecException("命令执行超时（120000ms），输出已截断"))
+        )
+        val loaded = provider(shell).load()
+
+        assertTrue(loaded is LoadedUsage.Failed)
+        assertNull("不许偷偷塞半份数据给解析器", lastCheckin)
+    }
+
     // ---------- helpers ----------
 
     private var lastCheckin: String? = null

@@ -16,6 +16,13 @@ interface DaySummaryDao {
     @Query("SELECT * FROM day_summary WHERE date = :date")
     suspend fun get(date: String): DaySummaryEntity?
 
+    /** 评审 P0-1：整页空态判定用（降级通道不写本表，须三表一起看）。 */
+    @Query("SELECT COUNT(*) FROM day_summary")
+    suspend fun count(): Int
+
+    @Query("SELECT COUNT(*) FROM day_summary WHERE date BETWEEN :start AND :end")
+    suspend fun countBetween(start: String, end: String): Int
+
     @Query("DELETE FROM day_summary WHERE date = :date")
     suspend fun delete(date: String)
 
@@ -25,10 +32,18 @@ interface DaySummaryDao {
 
 @Dao
 interface AppUsageDao {
-    /** §5.7 排行：区间按 (pkg) 聚合（分钟/启动数求和，name/category 取一致值）。 */
+    /**
+     * §5.7 排行：区间按 (pkg) 聚合（分钟/启动数求和，name/category 取一致值）。
+     *
+     * name 用 `MAX(CASE WHEN name = pkg THEN '' ELSE name END)` 而不是裸 `MAX(name)`
+     * （6b-6d 评审 P2-1）：裸 MAX 是**字符串字典序**比较，包名占位（如 `com.xxx`）
+     * 会把回填过的真名（如 `Zenly`）比下去，界面又退回包名。这里先把「名字 == 包名」
+     * 视作空串参与比较，真名只要存在就一定赢。
+     */
     @Query(
         """
-        SELECT pkg, MAX(name) AS name, MAX(category) AS category,
+        SELECT pkg, MAX(CASE WHEN name = pkg THEN '' ELSE name END) AS name,
+               MAX(category) AS category,
                SUM(minutes) AS minutes, SUM(launches) AS launches
         FROM app_usage WHERE date BETWEEN :start AND :end
         GROUP BY pkg ORDER BY minutes DESC
@@ -39,8 +54,21 @@ interface AppUsageDao {
     @Query("SELECT DISTINCT pkg, name FROM app_usage")
     suspend fun allNames(): List<PkgName>
 
+    /**
+     * 有应用数据的全部日期（评审 P0-1 第 2 条）：降级通道不写 `day_summary`，
+     * 覆盖范围只数日聚合会把「只有应用数据」误判成「完全无数据」。
+     */
+    @Query("SELECT DISTINCT date FROM app_usage")
+    suspend fun dates(): List<String>
+
     @Query("SELECT * FROM app_usage WHERE date = :date AND pkg = :pkg")
     suspend fun get(date: String, pkg: String): AppUsageEntity?
+
+    @Query("SELECT COUNT(*) FROM app_usage")
+    suspend fun count(): Int
+
+    @Query("SELECT COUNT(*) FROM app_usage WHERE date BETWEEN :start AND :end")
+    suspend fun countBetween(start: String, end: String): Int
 
     @Query("DELETE FROM app_usage WHERE date = :date AND pkg = :pkg")
     suspend fun delete(date: String, pkg: String)
@@ -66,6 +94,12 @@ interface HourUsageDao {
 
     @Query("SELECT * FROM hour_usage WHERE date = :date ORDER BY hour")
     suspend fun getForDate(date: String): List<HourUsageEntity>
+
+    @Query("SELECT COUNT(*) FROM hour_usage")
+    suspend fun count(): Int
+
+    @Query("SELECT COUNT(*) FROM hour_usage WHERE date BETWEEN :start AND :end")
+    suspend fun countBetween(start: String, end: String): Int
 
     @Query("DELETE FROM hour_usage WHERE date = :date AND hour = :hour")
     suspend fun delete(date: String, hour: Int)

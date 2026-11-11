@@ -49,9 +49,10 @@ fun StatsScreen(
     when {
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
-        state.data == null -> EmptyState(
-            title = "暂无统计数据",
-            description = "完成首次拉取后，这里会显示使用趋势与时段分布"
+        state.data == null -> DataEmptyState(
+            reason = state.empty,
+            noDataTitle = "暂无统计数据",
+            noDataDescription = "完成首次拉取后，这里会显示使用趋势与时段分布"
         )
         else -> StatsContent(data = state.data, selection = selection, onApplySelection = onApplySelection)
     }

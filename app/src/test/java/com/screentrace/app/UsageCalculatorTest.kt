@@ -264,9 +264,39 @@ class UsageCalculatorTest {
         assertEquals(0, detail.points[2].value)
     }
 
+    /**
+     * 评审 P1-1 的契约：`total == 0` 必须拆成两种情况，否则 UI 只能把「拿不到」画成「0 次」。
+     * 这一位是卡片渲染「—」还是「0」的唯一依据，改错就是假 0（§7-16 红线）。
+     */
     @Test
-    fun metricDetailNotificationDualMetricsAndRanking() {
-        val events = listOf(
+    fun metricDetailDistinguishesNoEventSourceFromRealZero() {
+        // ① 从来没有事件源（windowStart == null）：降级通道 / 该机型不产生锁屏事件
+        val noSource = UsageCalculator.metricDetail(
+            MetricKind.UNLOCK, DateSelection.Day(day1),
+            unlockEvents = emptyList(), windowStart = null
+        )
+        assertFalse("拿不到事件 ≠ 0 次解锁", noSource.hasEventSource)
+        assertEquals(0, noSource.total)
+        assertTrue(noSource.points.all { it.coverage == Coverage.NO_RECORD })
+
+        // ② 事件源在，只是这一天恰好 0 次：必须说 hasEventSource = true
+        val realZero = UsageCalculator.metricDetail(
+            MetricKind.UNLOCK, DateSelection.Day(day1),
+            unlockEvents = emptyList(), windowStart = day1.minusDays(2)
+        )
+        assertTrue("窗口内有事件源但当天 0 次，这是真实的 0", realZero.hasEventSource)
+        assertEquals(0, realZero.total)
+        assertTrue(realZero.points.all { it.coverage == Coverage.RECORDED })
+
+        // 通知通道同理，两个指标都不能漏
+        val notifNoSource = UsageCalculator.metricDetail(
+            MetricKind.NOTIFICATION, DateSelection.Day(day1), windowStart = null
+        )
+        assertFalse(notifNoSource.hasEventSource)
+    }
+
+    @Test
+    fun metricDetailNotificationDualMetricsAndRanking() {        val events = listOf(
             NotificationEvent(ms(day1, 8, 0), NotificationType.INTERRUPTION, "pkg.a", null),
             NotificationEvent(ms(day1, 8, 30), NotificationType.INTERRUPTION, "pkg.a", "ch1"),
             NotificationEvent(ms(day1, 9, 0), NotificationType.INTERRUPTION, "pkg.b", null),

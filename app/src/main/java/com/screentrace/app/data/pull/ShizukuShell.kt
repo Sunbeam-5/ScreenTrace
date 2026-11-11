@@ -3,6 +3,7 @@ package com.screentrace.app.data.pull
 import android.os.ParcelFileDescriptor
 import android.os.Process
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -65,21 +66,32 @@ object ShizukuShell : ShellRunner {
             throw ShizukuExecException("启动 shell 失败：${t.message ?: t.javaClass.simpleName}", t)
         }
         try {
+            /**
+             * 看门狗是否真的开过枪（评审 P1-3）。
+             *
+             * 以前这里没有任何痕迹：到点 `destroy()` → `readAll` 捕到异常当 EOF 返回 →
+             * `text` 非空 → 不进「无输出」分支 → **半份 dump 被当成成功入库**。
+             * 解析器是逐行特征匹配、不要求完整性，所以 13MB 被截断后仍能解析出前 N 天，
+             * `pull_log.ok=true`、界面显示「已更新 N 天」，而今天那段数据就这么没了——
+             * 并且长得和「今天没怎么用手机」一模一样，是最难查的一类静默丢失。
+             *
+             * 所以超时必须变成**可见的失败**：协调器会改走降级通道或保留旧数据，
+             * 总比悄悄少半天的数据好。
+             */
+            val truncated = AtomicBoolean(false)
             val text = coroutineScope {
                 // 读取是阻塞 IO，取消不掉；用看门狗 destroy 进程让 read 返回 EOF
                 val watchdog = launch {
                     delay(timeoutMs)
+                    // 先置位再杀进程：read 之后一定能看到这个 true
+                    truncated.set(true)
                     runCatching { remote.destroy() }
                 }
                 val read = readAll(remote)
                 watchdog.cancel()
                 read
             }
-            if (text.isEmpty()) {
-                // 进程被看门狗销毁 / shell 直接退出，都落在这里
-                throw ShizukuExecException("命令无输出（疑似超时或 shell 被拒）：$command")
-            }
-            text
+            checkedOutput(text, truncated.get(), command, timeoutMs)
         } finally {
             runCatching { remote.destroy() }
         }
@@ -124,4 +136,29 @@ object ShizukuShell : ShellRunner {
 
     /** 本进程 uid（shell 子进程提权前的对照，仅日志用）。 */
     fun appUid(): Int = Process.myUid()
+}
+
+/**
+ * 「读到的输出能不能当成功」的判定（评审 P1-3）。
+ *
+ * 从 IO 里拆出来只为一件事：这个分支以前**没有测试也看不出来**，而它正好是
+ * 「半份 dump 被当成功」的所在地——`text` 非空就返回，截断完全不留痕。
+ * 抽成纯函数后，单测可以直接钉住「非空 + 已截断 ⇒ 必须抛」这条。
+ *
+ * @param truncated 看门狗是否到点杀过进程（真杀过 = 这次读到的只是前半截）
+ */
+internal fun checkedOutput(
+    text: String,
+    truncated: Boolean,
+    command: String,
+    timeoutMs: Long
+): String {
+    if (truncated) {
+        throw ShizukuExecException("命令执行超时（${timeoutMs}ms），输出已截断：$command")
+    }
+    if (text.isEmpty()) {
+        // 进程被看门狗销毁 / shell 直接退出，都落在这里
+        throw ShizukuExecException("命令无输出（疑似超时或 shell 被拒）：$command")
+    }
+    return text
 }

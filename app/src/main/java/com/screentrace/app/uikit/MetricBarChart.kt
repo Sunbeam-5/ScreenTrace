@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -77,7 +78,21 @@ fun MetricBarChart(
     val barWidth = if (thick) 24.dp else 7.dp
     val slotGap = if (thick) 10.dp else 4.dp
     val labelRowHeight = 22.dp
-    val labelEvery = ((28f / (barWidth + slotGap).value).toInt()).coerceAtLeast(1)
+    val slotWidth = barWidth + slotGap
+    /**
+     * 横轴标签的固定宽度（评审 P1-2）。标签以前直接被塞进 [slotWidth] 宽的槽里：
+     * 细柱时槽只有 11dp，而「11/8」大约 26dp，结果只画出前一两个字符——
+     * 1–7 点（34dp 槽）看不出来，**≥8 天区间全坏**，而近 7 天/30 天趋势正是主场景。
+     *
+     * 所以标签不再受槽宽约束：给固定 48dp 并居中画在槽中线上，两侧各溢出
+     * `(labelWidth - slotWidth) / 2`，再用 [edgePad] 把滚动内容的左右各留出这段，
+     * 首尾两个标签才不会贴着滚动区边缘被裁掉。
+     */
+    val labelWidth = 48.dp
+    val edgePad = ((labelWidth - slotWidth) / 2).coerceAtLeast(0.dp)
+    // 打点间隔按**标签宽度**算而不是按 28dp 常数：否则细柱每 2 槽打一个点，
+    // 相邻两个 26dp 宽的标签会叠在一起。
+    val labelEvery = ((labelWidth.value / slotWidth.value).toInt()).coerceAtLeast(1)
 
     val reduceMotion = rememberReduceMotion()
     val totalBars = points.size
@@ -92,8 +107,8 @@ fun MetricBarChart(
     // 手指按住的槽位（null = 无气泡）
     var pressedIndex by remember(points) { mutableStateOf<Int?>(null) }
     val density = LocalDensity.current
-    val slotWidthPx = with(density) { (barWidth + slotGap).toPx() }
-    val slotWidth = barWidth + slotGap
+    val slotWidthPx = with(density) { slotWidth.toPx() }
+    val edgePadPx = with(density) { edgePad.toPx() }
     val scroll = rememberScrollState()
 
     Row(modifier = modifier.fillMaxWidth()) {
@@ -115,12 +130,13 @@ fun MetricBarChart(
             Box(Modifier.horizontalScroll(scroll)) {
                 Box(
                     Modifier
-                        .width(slotWidth * points.size)
+                        .width(slotWidth * points.size + edgePad * 2)
                         .height(plotHeight + labelRowHeight)
-                        .pointerInput(points, slotWidthPx) {
+                        .pointerInput(points, slotWidthPx, edgePadPx) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
-                                pressedIndex = (down.position.x / slotWidthPx).toInt()
+                                // 减去左端留白，否则整张图会偏半格
+                                pressedIndex = ((down.position.x - edgePadPx) / slotWidthPx).toInt()
                                     .coerceIn(0, points.lastIndex)
                                 while (true) {
                                     val event = awaitPointerEvent(PointerEventPass.Main)
@@ -128,7 +144,8 @@ fun MetricBarChart(
                                     // 滚动接管（父容器消费了拖动）→ 收起气泡，别让人边滚边看旧值
                                     if (change.isConsumed) break
                                     if (!change.pressed) break
-                                    pressedIndex = (change.position.x / slotWidthPx).toInt()
+                                    pressedIndex = ((change.position.x - edgePadPx) / slotWidthPx)
+                                        .toInt()
                                         .coerceIn(0, points.lastIndex)
                                 }
                                 // 松手或滚动接管都收起气泡
@@ -136,7 +153,7 @@ fun MetricBarChart(
                             }
                         }
                 ) {
-                    Row {
+                    Row(Modifier.padding(horizontal = edgePad)) {
                         points.forEachIndexed { index, point ->
                             val start = (index * staggerMs) / totalMs
                             val end = (index * staggerMs + growMs) / totalMs
@@ -148,6 +165,7 @@ fun MetricBarChart(
                                 plotHeight = plotHeight,
                                 barWidth = barWidth,
                                 slotWidth = slotWidth,
+                                labelWidth = labelWidth,
                                 labelRowHeight = labelRowHeight,
                                 showLabel = index % labelEvery == 0 || index == points.lastIndex,
                                 xLabel = xLabel(point),
@@ -160,8 +178,10 @@ fun MetricBarChart(
                         val point = points.getOrNull(index) ?: return@let
                         val bubbleWidth = 132.dp
                         val bubbleWidthPx = with(density) { bubbleWidth.toPx() }
-                        val centerPx = slotWidthPx * index + with(density) { barWidth.toPx() } / 2f
-                        val maxX = (slotWidth * points.size).let { with(density) { it.toPx() } } - bubbleWidthPx
+                        val centerPx = edgePadPx + slotWidthPx * index +
+                            with(density) { barWidth.toPx() } / 2f
+                        val maxX = (slotWidth * points.size + edgePad * 2)
+                            .let { with(density) { it.toPx() } } - bubbleWidthPx
                         val x = (centerPx - bubbleWidthPx / 2f).coerceIn(0f, maxX.coerceAtLeast(0f))
                         Box(
                             modifier = Modifier
@@ -192,6 +212,7 @@ private fun BarSlot(
     plotHeight: androidx.compose.ui.unit.Dp,
     barWidth: androidx.compose.ui.unit.Dp,
     slotWidth: androidx.compose.ui.unit.Dp,
+    labelWidth: androidx.compose.ui.unit.Dp,
     labelRowHeight: androidx.compose.ui.unit.Dp,
     showLabel: Boolean,
     xLabel: String,
@@ -244,9 +265,16 @@ private fun BarSlot(
                 style = FreshType.label,
                 color = palette.onSurfaceVariant,
                 maxLines = 1,
+                softWrap = false,
+                // 溢出可见：requiredWidth 已经把标签从槽宽约束里解放出来，
+                // 万一标签比 48dp 还长（如「12/31」加大字号）也宁可画出去，不要切一半
+                overflow = androidx.compose.ui.text.style.TextOverflow.Visible,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(top = 0.dp)
+                    .align(Alignment.BottomCenter)
+                    // requiredWidth 而不是 width：普通 width 会被父 Box 的 maxWidth(=槽宽)
+                    // 反过来夹住，标签又变回「被裁」（这就是评审 P1-2 的成因）
+                    .requiredWidth(labelWidth)
                     .offset(y = labelRowHeight - 12.dp)
             )
         }

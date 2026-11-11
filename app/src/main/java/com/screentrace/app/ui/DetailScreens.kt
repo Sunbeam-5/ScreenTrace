@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.MetricAppCount
 import com.screentrace.app.contract.MetricDetail
+import com.screentrace.app.contract.MetricKind
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.ui.detail.MetricDetailPage
@@ -101,10 +102,28 @@ private fun DetailStateHost(
 
     val detail = state.data
     when {
-        detail != null -> if (MetricTable.hasAnyRecordedPoint(detail)) {
-            PageEnter { content(detail) }
-        } else {
-            EmptyState(
+        // 评审 P1-1：两种空态必须分开说，否则「卡片说 —（拿不到）」跳进来却看到
+        // 「该时段没有记录」（听起来像「这段真的 0 次」），同一指标两个说法（§7-16）。
+        detail != null -> when {
+            !detail.hasEventSource -> EmptyState(
+                title = if (detail.metric == MetricKind.NOTIFICATION) {
+                    "暂无通知事件"
+                } else {
+                    "暂无解锁事件"
+                },
+                description = if (detail.metric == MetricKind.NOTIFICATION) {
+                    "当前数据源没有抓到任何通知打扰事件。降级通道（仅「使用情况访问」授权）" +
+                        "拿不到通知事件，连接 Shizuku 后才能统计。"
+                } else {
+                    "当前数据源没有抓到任何锁屏事件。部分机型不产生锁屏事件，" +
+                        "降级通道（仅「使用情况访问」授权）也拿不到，连接 Shizuku 后再看。"
+                }
+            )
+
+            MetricTable.hasAnyRecordedPoint(detail) -> PageEnter { content(detail) }
+
+            // 事件源在，只是所选区间落在窗口外 / 当天拉取有缺口
+            else -> EmptyState(
                 title = "该时段没有记录",
                 description = "所选时段在事件累积窗口之外，或当天拉取存在缺口"
             )
@@ -135,10 +154,12 @@ private fun UnlockSummary(detail: MetricDetail) {
         style = FreshType.body,
         color = palette.onSurfaceVariant
     )
-    // 「拿不到事件」与「真的是 0」必须区分，否则不锁屏机型会显示成假 0（§7-16）
+    // 「拿不到事件」与「真的是 0」必须区分（§7-16）。**走到这里的 `total == 0` 已经是
+    // 真实的 0**：没有事件源的情况在 DetailStateHost 就被拦成「暂无解锁事件」了，
+    // 所以这里只需要说明「这段时间确实没解锁」，不能再拿机型说事（评审 P1-1）。
     if (detail.total == 0) {
         Text(
-            text = "本次区间内没有解锁事件记录。部分机型不产生锁屏事件，或事件流尚未拉取到。",
+            text = "本次区间内没有解锁记录（事件源正常，这段时间确实没有解锁）。",
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )

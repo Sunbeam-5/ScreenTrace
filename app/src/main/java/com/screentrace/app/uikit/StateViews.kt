@@ -23,12 +23,17 @@ import com.screentrace.app.theme.ScreenTimeTheme
 /**
  * §5.5：全 App 统一空态。禁止白屏、禁止把无数据伪装成真实的 0 分钟——
  * 空态文案必须让人看懂「没有数据」而不是「数据是零」。
+ *
+ * [actionText] + [onAction] 只给「空态里其实还有别处能看的东西」用
+ * （如降级通道下今日页空态、指向应用排行），默认不显示按钮。
  */
 @Composable
 fun EmptyState(
     title: String,
     modifier: Modifier = Modifier,
-    description: String? = null
+    description: String? = null,
+    actionText: String? = null,
+    onAction: (() -> Unit)? = null
 ) {
     val palette = LocalFreshPalette.current
     Column(
@@ -46,6 +51,9 @@ fun EmptyState(
                 color = palette.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
+        }
+        if (actionText != null && onAction != null) {
+            SecondaryButton(text = actionText, onClick = onAction)
         }
     }
 }

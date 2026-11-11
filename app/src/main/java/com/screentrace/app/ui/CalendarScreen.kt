@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -70,9 +70,10 @@ fun CalendarScreen(
     when {
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
-        state.data == null -> EmptyState(
-            title = "暂无日历数据",
-            description = "完成首次拉取后，这里会按月/年展示每日使用记录"
+        state.data == null -> DataEmptyState(
+            reason = state.empty,
+            noDataTitle = "暂无日历数据",
+            noDataDescription = "完成首次拉取后，这里会按月/年展示每日使用记录"
         )
         else -> CalendarContent(
             data = state.data,
@@ -231,7 +232,11 @@ private fun MonthArrow(isNext: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = if (isNext) Icons.Default.KeyboardArrowRight else Icons.Default.KeyboardArrowLeft,
+            imageVector = if (isNext) {
+                Icons.AutoMirrored.Filled.KeyboardArrowRight
+            } else {
+                Icons.AutoMirrored.Filled.KeyboardArrowLeft
+            },
             contentDescription = null,
             tint = palette.onSurface
         )

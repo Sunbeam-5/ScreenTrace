@@ -53,11 +53,30 @@ sealed interface AppPage {
     }
 }
 
-/** 通用加载态：加载 / 错误 / 数据（§6 各页 UiState 的统一形状）。 */
+/**
+ * 整页空态的**原因**（6b-6d 评审 P0-1）。`data == null` 只说明「没东西可画」，
+ * 但「从来没拉到过」和「拉到了、只是这条通道没有这类数据」是两件完全不同的事，
+ * 给同一句文案就是在骗用户。
+ */
+enum class EmptyReason {
+    /** 三张表全空：从未成功拉取，或系统确实没有任何可解析记录。 */
+    NO_DATA,
+
+    /**
+     * 有数据，但只有应用级数据（降级通道）：`day_summary` 为空，
+     * 所以屏幕时长 / 解锁 / 通知这些**没有事件源**的指标一律不渲染，
+     * 应用排行照常出数据。
+     */
+    NO_EVENT_DATA
+}
+
+/** 通用加载态：加载 / 错误 / 数据 / 空态原因（§6 各页 UiState 的统一形状）。 */
 data class LoadState<T>(
     val loading: Boolean = false,
     val error: String? = null,
-    val data: T? = null
+    val data: T? = null,
+    /** data == null 时说明为什么空；[EmptyReason] 决定页面用哪套文案。 */
+    val empty: EmptyReason? = null
 )
 
 /** 今日页数据（hero / 双卡 / 应用构成，§5.7 CR-01）。 */
@@ -94,7 +113,13 @@ data class CalendarData(
 /** 排行页数据（摘要 + 全量应用列表，页面自行切 top20 / 全部）。 */
 data class RankingData(
     val summary: Summary,
-    val apps: List<AppUsage>
+    val apps: List<AppUsage>,
+    /**
+     * 应用级时长合计（分钟）。降级通道下 `summary.totalScreenUnlockMin` 必为 0
+     * （没有 `day_summary`），摘要卡若照读它就是在屏幕上画一个假 0；
+     * 这时改读本字段并换标题（评审 P0-1 连带项）。
+     */
+    val appsTotalMinutes: Int
 )
 
 /**
@@ -311,12 +336,14 @@ class AppViewModel(
     /**
      * §5.6：单日/区间完全无记录时**不应用**新筛选，保留原视图并提示；
      * 部分有记录时正常应用。清除筛选（[clearFilter]）恢复今天，不做该拦截。
+     *
+     * 判据用 `hasDataIn` 而不是 `summary.hasAnyRecord`（评审 P0-1）：降级通道没有
+     * `day_summary`，用旧判据会让**每一次选日期都被拦**，用户永远只能看今天。
      */
     fun applySelection(newSelection: DateSelection) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            val summary = repository.summary(newSelection)
-            if (!summary.hasAnyRecord) {
+            if (!repository.hasDataIn(newSelection)) {
                 _notice.value = "该时段尚无数据，请先拉取"
             } else {
                 _selection.value = newSelection
@@ -405,19 +432,45 @@ class AppViewModel(
             _unlockDetail.value = LoadState(loading = true, data = _unlockDetail.value.data)
             _notificationDetail.value = LoadState(loading = true, data = _notificationDetail.value.data)
             try {
+                // 评审 P0-1：整页空态的入口判定必须看**三张表**，不能只看 day_summary。
+                // 降级通道（普通用户的唯一通道）按设计不写 day_summary，用旧判据会把
+                // 「库里有应用数据」判成「完全无数据」，四页一起盖空白——拉取成功却像坏了。
+                if (!repository.hasAnyData()) {
+                    // 三表全空：真的没数据（返修 P1-3 §5.5 红线，不得渲染 0:00 / 0 次）
+                    setAllEmpty(EmptyReason.NO_DATA)
+                    return@launch
+                }
+
                 val summary = repository.summary(selection)
+                val apps = repository.appRanking(selection, limit = Int.MAX_VALUE)
+
+                // 排行只依赖 app_usage，与日聚合无关：降级通道下它是唯一还能用的页面
+                _rankingState.value =
+                    if (apps.isEmpty()) {
+                        LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                    } else {
+                        LoadState(
+                            data = RankingData(
+                                summary = summary,
+                                apps = apps,
+                                appsTotalMinutes = apps.sumOf { it.minutes }
+                            )
+                        )
+                    }
+
                 if (!summary.hasAnyRecord) {
-                    // 返修 P1-3（§5.5 红线）：完全无记录时 data=null → 页面统一 EmptyState，
-                    // 不得渲染 0:00 / 0 次 / 0分钟 伪装真实数据
-                    _todayState.value = LoadState(data = null)
-                    _statsState.value = LoadState(data = null)
-                    _calendarState.value = LoadState(data = null)
-                    _rankingState.value = LoadState(data = null)
-                    _unlockDetail.value = LoadState(data = null)
-                    _notificationDetail.value = LoadState(data = null)
+                    // 有应用数据但没有日聚合 → 屏幕时长/解锁/通知都没有事件源。
+                    // 这些页保持空态（不能拿 summary 的 0 去渲染 0:00），但换一套文案。
+                    _todayState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                    _statsState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                    _calendarState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                    _unlockDetail.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                    _notificationDetail.value =
+                        LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
                     _monthLevelsState.value = LoadState(data = emptyList())
                     return@launch
                 }
+
                 val previous = repository.summary(UsageCalculator.previousPeriod(selection))
                 val compare = UsageCalculator.compare(summary, previous, single)
                 val notification = repository.metricDetail(MetricKind.NOTIFICATION, selection)
@@ -426,7 +479,6 @@ class AppViewModel(
                 _unlockDetail.value = LoadState(data = unlock)
 
                 // 今日
-                val apps = repository.appRanking(selection, limit = Int.MAX_VALUE)
                 val top = apps.take(4)
                 val otherMinutes = apps.drop(4).sumOf { it.minutes }
                 val hours = repository.hourlyDistribution(selection)
@@ -466,9 +518,6 @@ class AppViewModel(
                     )
                 )
 
-                // 排行
-                _rankingState.value = LoadState(data = RankingData(summary, apps))
-
                 loadMonthLevels(_calendarMonth.value)
             } catch (e: Exception) {
                 val message = e.message ?: "数据加载失败"
@@ -480,6 +529,17 @@ class AppViewModel(
                 _notificationDetail.value = LoadState(error = message)
             }
         }
+    }
+
+    /** 整页空态的单一出处：六处状态一起清，避免「关了 5 个页忘了第 6 个」。 */
+    private fun setAllEmpty(reason: EmptyReason) {
+        _todayState.value = LoadState(data = null, empty = reason)
+        _statsState.value = LoadState(data = null, empty = reason)
+        _calendarState.value = LoadState(data = null, empty = reason)
+        _rankingState.value = LoadState(data = null, empty = reason)
+        _unlockDetail.value = LoadState(data = null, empty = reason)
+        _notificationDetail.value = LoadState(data = null, empty = reason)
+        _monthLevelsState.value = LoadState(data = emptyList())
     }
 
     private fun loadMonthLevels(yearMonth: YearMonth) {

@@ -52,6 +52,10 @@ class ShizukuUsageProvider(
     }
 
     override suspend fun load(): LoadedUsage {
+        // 「抓取时刻」要在**开始 dump 之前**取（评审 P2-8）：它是 pull_log 的节流基准，
+        // 也是 ForegroundBucketer 收尾开放区间的 endMs。解析要花约 1 秒，真机上看不出差别，
+        // 但语义上「这次拉取代表的是哪一刻的数据」必须是起点而不是终点。
+        val capturedAtMs = clock()
         val checkin = try {
             shell.exec(ShizukuShell.CHECKIN_CMD)
         } catch (e: ShizukuExecException) {
@@ -72,7 +76,7 @@ class ShizukuUsageProvider(
 
         return try {
             val result = withContext(Dispatchers.Default) { parse(checkin, human) }
-            LoadedUsage.Parsed(result = result, capturedAtMs = clock(), warning = warning)
+            LoadedUsage.Parsed(result = result, capturedAtMs = capturedAtMs, warning = warning)
         } catch (e: Exception) {
             LoadedUsage.Failed(
                 ProviderStatus.TEMPORARILY_UNAVAILABLE,

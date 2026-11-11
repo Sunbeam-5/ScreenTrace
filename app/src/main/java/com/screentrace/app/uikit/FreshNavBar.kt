@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.ScreenTimeTheme
@@ -142,7 +142,7 @@ private fun FreshNavBarPreview() {
         FreshNavBar(
             items = listOf(
                 NavItem("今日", Icons.Default.Home),
-                NavItem("统计", Icons.Default.List),
+                NavItem("统计", Icons.AutoMirrored.Filled.List),
                 NavItem("日历", Icons.Default.DateRange)
             ),
             selectedIndex = 0,
@@ -159,7 +159,7 @@ private fun FreshNavBarDarkPreview() {
         FreshNavBar(
             items = listOf(
                 NavItem("今日", Icons.Default.Home),
-                NavItem("统计", Icons.Default.List),
+                NavItem("统计", Icons.AutoMirrored.Filled.List),
                 NavItem("日历", Icons.Default.DateRange)
             ),
             selectedIndex = 1,

@@ -13,7 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.lifecycle.Lifecycle
@@ -163,7 +163,7 @@ fun AppNav() {
                 FreshNavBar(
                     items = listOf(
                         NavItem("今日", Icons.Default.Home),
-                        NavItem("统计", Icons.Default.List),
+                        NavItem("统计", Icons.AutoMirrored.Filled.List),
                         NavItem("日历", Icons.Default.DateRange)
                     ),
                     selectedIndex = when (AppPage.mainOf(page)) {

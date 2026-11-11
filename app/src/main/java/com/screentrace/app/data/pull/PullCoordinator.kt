@@ -64,7 +64,11 @@ class PullCoordinator(
 
     private suspend fun runPull(): PullOutcome {
         var firstFailure: PullOutcome.Failure? = null
+        // 把「实际尝试到的最后一条通道」记下来（评审 P2-12）：失败留痕时 source 以前恒取
+        // providers.first()，两条通道都不可用时会被记成 shizuku，看日志会去查错方向。
+        var attempted: PullChannel? = null
         for (provider in providers) {
+            attempted = provider.channel
             val status = provider.status()
             if (status != ProviderStatus.AVAILABLE) {
                 if (firstFailure == null) {
@@ -138,7 +142,7 @@ class PullCoordinator(
             db.pullLogDao().insert(
                 PullLogEntity(
                     pulledAt = clock(),
-                    source = providers.firstOrNull()?.channel?.tag ?: "none",
+                    source = attempted?.tag ?: providers.firstOrNull()?.channel?.tag ?: "none",
                     ok = false,
                     note = failure.message
                 )
@@ -157,15 +161,27 @@ class PullCoordinator(
     private suspend fun hasOldData(): Boolean =
         db.daySummaryDao().getAll().isNotEmpty() || db.appUsageDao().allNames().isNotEmpty()
 
-    /** §5.8「部分历史 / 完全无数据」两态判定所需的覆盖范围。 */
+    /**
+     * §5.8「部分历史 / 完全无数据」两态判定所需的覆盖范围。
+     *
+     * **必须把 `app_usage` 的日期并进来**（6b-6d 评审 P0-1 第 2 条）：降级通道只写
+     * `app_usage` / `hour_usage`，只数 `day_summary` 会让「只有应用数据」的库返回
+     * `coverage.hasAny = false`，批 7 首启向导就会把它当成「从未拉过」再引导一遍。
+     */
     suspend fun historyCoverage(): HistoryCoverage {
-        val days = db.daySummaryDao().getAll()
-        if (days.isEmpty()) return HistoryCoverage(null, null, 0)
-        val dates = days.mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }
+        val dates = buildSet {
+            db.daySummaryDao().getAll().forEach { row ->
+                runCatching { LocalDate.parse(row.date) }.getOrNull()?.let(::add)
+            }
+            db.appUsageDao().dates().forEach { raw ->
+                runCatching { LocalDate.parse(raw) }.getOrNull()?.let(::add)
+            }
+        }
+        if (dates.isEmpty()) return HistoryCoverage(null, null, 0)
         return HistoryCoverage(
-            firstDate = dates.minOrNull(),
-            lastDate = dates.maxOrNull(),
-            dayCount = days.size
+            firstDate = dates.min(),
+            lastDate = dates.max(),
+            dayCount = dates.size
         )
     }
 

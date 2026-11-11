@@ -44,6 +44,23 @@ class RoomUsageRepository(
     private suspend fun recordsBetween(start: LocalDate, end: LocalDate): List<DaySummary> =
         db.daySummaryDao().getBetween(start.toString(), end.toString()).map { it.toDomain() }
 
+    /**
+     * 评审 P0-1：三表任一非空。**不能只看 `day_summary`**——降级通道按设计只写
+     * `app_usage` / `hour_usage`，只看日聚合会把「有排行数据」误判成「完全无数据」。
+     */
+    override suspend fun hasAnyData(): Boolean =
+        db.daySummaryDao().count() > 0 ||
+            db.appUsageDao().count() > 0 ||
+            db.hourUsageDao().count() > 0
+
+    override suspend fun hasDataIn(selection: DateSelection): Boolean {
+        val start = selection.startDate.toString()
+        val end = selection.endDate.toString()
+        return db.daySummaryDao().countBetween(start, end) > 0 ||
+            db.appUsageDao().countBetween(start, end) > 0 ||
+            db.hourUsageDao().countBetween(start, end) > 0
+    }
+
     override suspend fun summary(selection: DateSelection): Summary =
         UsageCalculator.summarize(selection, recordsBetween(selection.startDate, selection.endDate))
 
@@ -105,8 +122,18 @@ class RoomUsageRepository(
         val zone = ZoneId.systemDefault()
         val startMs = selection.startDate.atStartOfDay(zone).toInstant().toEpochMilli()
         val endMs = selection.endDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
-        val unlockMs = db.unlockEventDao().msBetween(startMs, endMs)
-        val notifs = db.notificationEventDao().between(startMs, endMs)
+        // 只读本指标要用的那张事件表（评审 P2-2）：解锁详情以前顺手把区间内全部通知
+        // 也读出来，5k 行白读一次；两个分支各自只查自己那张表，结果与之前等价。
+        val unlockMs = if (metric == MetricKind.UNLOCK) {
+            db.unlockEventDao().msBetween(startMs, endMs)
+        } else {
+            emptyList()
+        }
+        val notifs = if (metric == MetricKind.NOTIFICATION) {
+            db.notificationEventDao().between(startMs, endMs)
+        } else {
+            emptyList()
+        }
         val windowStartMs = when (metric) {
             MetricKind.UNLOCK -> db.unlockEventDao().minMs()
             MetricKind.NOTIFICATION -> db.notificationEventDao().minMs()
@@ -150,12 +177,6 @@ class RoomUsageRepository(
 
     override suspend fun pullLatest(): PullResult =
         pull?.invoke() ?: PullResult(ok = false, message = "当前环境未接入拉取通道")
-
-    private fun minOfNotNull(a: Long?, b: Long?): Long? = when {
-        a == null -> b
-        b == null -> a
-        else -> minOf(a, b)
-    }
 
     private fun DaySummaryEntity.toDomain() = DaySummary(
         date = LocalDate.parse(date),

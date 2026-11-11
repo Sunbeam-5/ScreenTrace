@@ -71,6 +71,10 @@ private fun RankingContent(data: RankingData) {
     val maxMinutes = apps.maxOf { it.minutes }.coerceAtLeast(1)
 
     // ① 摘要卡
+    // 评审 P0-1 连带项：降级通道没有 day_summary，summary.totalScreenUnlockMin 恒为 0。
+    // 照读它就是在屏幕上画一个「当天 0 分钟」的假 0（§5.5 红线），
+    // 所以这时换成真实可算的「应用使用合计」并换标题说明口径。
+    val dayAggregatesAvailable = data.summary.hasAnyRecord
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -80,12 +84,18 @@ private fun RankingContent(data: RankingData) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = if (data.summary.selection is DateSelection.Day) "当日累计" else "区间累计",
+            text = when {
+                !dayAggregatesAvailable -> "应用使用累计（降级通道，不含锁屏统计）"
+                data.summary.selection is DateSelection.Day -> "当日累计"
+                else -> "区间累计"
+            },
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )
         MetricValueText(
-            value = MetricValue.Duration(data.summary.totalScreenUnlockMin),
+            value = MetricValue.Duration(
+                if (dayAggregatesAvailable) data.summary.totalScreenUnlockMin else data.appsTotalMinutes
+            ),
             numberColor = palette.onSurface,
             unitColor = palette.onSurfaceMuted
         )
@@ -226,7 +236,8 @@ private fun RankingScreenPreview() {
                         averageUnlocks = 95,
                         longestSessionMin = 80
                     ),
-                    apps = apps
+                    apps = apps,
+                    appsTotalMinutes = apps.sumOf { it.minutes }
                 )
             ),
             onRetry = {}
