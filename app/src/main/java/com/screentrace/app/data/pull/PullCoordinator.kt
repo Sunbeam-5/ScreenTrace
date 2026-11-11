@@ -210,10 +210,18 @@ class PullCoordinator(
     suspend fun channelStatuses(): List<Pair<PullChannel, ProviderStatus>> =
         providers.map { it.channel to it.status() }
 
-    /** 系统只保留约 10 个滚动日（§2.1）：首次拉取窗口必然短于此，属「部分历史」。 */
+    /**
+     * 系统只保留约 10 个滚动日（§2.1）：首次拉取窗口必然短于此，属「部分历史」。
+     *
+     * 「今天」必须取自**注入的 clock**，不能直接 `LocalDate.now()`：
+     * ① 与节流判定用同一个时间源，跨午夜时两处不会突然一个按新日期、一个按旧日期；
+     * ② 否则这个判定在单测里比对的是真实日期，测试会随着日历推移自己变红
+     *    （2026-11-12 就真的红了一次：固定日期 11-03 刚好滑出 9 天窗口）。
+     */
     fun isPartialHistory(coverage: HistoryCoverage): Boolean {
         val first = coverage.firstDate ?: return false
-        return first.isAfter(LocalDate.now(zone).minusDays(PARTIAL_HISTORY_DAYS))
+        val today = java.time.Instant.ofEpochMilli(clock()).atZone(zone).toLocalDate()
+        return first.isAfter(today.minusDays(PARTIAL_HISTORY_DAYS))
     }
 
     private fun describe(status: ProviderStatus, channel: PullChannel): String = when (status) {

@@ -3,13 +3,16 @@ package com.screentrace.app.ui
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
@@ -17,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.screentrace.app.contract.DailyPoint
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.ExtremesInfo
+import com.screentrace.app.contract.PeriodType
 import com.screentrace.app.contract.Summary
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.theme.FreshType
@@ -47,6 +51,8 @@ fun StatsScreen(
     selection: DateSelection,
     onApplySelection: (DateSelection) -> Unit,
     onRetry: () -> Unit,
+    /** §5.11 入口：进入周期总结（周/月/年）二级页。 */
+    onOpenPeriod: (PeriodType) -> Unit = {},
     /** 切主页面时变化，用于收起柱图浮层（Pager 常驻，组合不销毁）。 */
     resetKey: Any? = null
 ) {
@@ -71,6 +77,7 @@ fun StatsScreen(
                     data = data,
                     selection = selection,
                     onApplySelection = onApplySelection,
+                    onOpenPeriod = onOpenPeriod,
                     resetKey = resetKey
                 )
             }
@@ -90,6 +97,7 @@ private fun StatsContent(
     data: StatsData,
     selection: DateSelection,
     onApplySelection: (DateSelection) -> Unit,
+    onOpenPeriod: (PeriodType) -> Unit = {},
     resetKey: Any? = null
 ) {
     val palette = LocalFreshPalette.current
@@ -184,6 +192,58 @@ private fun StatsContent(
                 style = FreshType.body,
                 color = palette.onSurfaceVariant
             )
+        }
+    }
+
+    // §5.11 入口：本周 / 本月 / 本年总结（按当前日期给出周期名，三段都能直接进）
+    PeriodEntryCard(onOpenPeriod = onOpenPeriod)
+}
+
+/**
+ * 周期总结入口卡：一行一个周期，右侧写明当前周期窗口。
+ *
+ * 为什么把三个入口都摆出来而不是只给「本周总结」：用户想看的往往是「本月怎么样」，
+ * 进去再切一次周期就是多余的一步；三行各自写明日期范围，也不会点错。
+ */
+@Composable
+private fun PeriodEntryCard(onOpenPeriod: (PeriodType) -> Unit) {
+    val palette = LocalFreshPalette.current
+    val today = LocalDate.now()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(palette.surface)
+            .padding(vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = "周期总结",
+            style = FreshType.sectionTitle,
+            color = palette.onSurface,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+        )
+        PeriodType.entries.forEach { type ->
+            val range = type.natural(today)
+            val span = "${range.start.monthValue}月${range.start.dayOfMonth}日–" +
+                "${range.end.monthValue}月${range.end.dayOfMonth}日"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenPeriod(type) }
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "${type.label}总结",
+                    style = FreshType.body,
+                    color = palette.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(text = span, style = FreshType.label, color = palette.onSurfaceVariant)
+                Text(text = "›", style = FreshType.sectionTitle, color = palette.onSurfaceVariant)
+            }
         }
     }
 }

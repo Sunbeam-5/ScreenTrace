@@ -58,6 +58,50 @@ object UsageCalculator {
         }
     }
 
+    /**
+     * §5.11：用**已聚合好的逐日点**生成摘要——周期总结页的数据源是仓库的 `dailyTrend`
+     * （`DailyPoint`），不是 `DaySummary` 行；两者口径必须完全一致，所以这里复用同一套
+     * SUM/AVG 规则，避免周期页另写一套导致「同一个日均两个数」。
+     *
+     * 与 [summarize] 的唯一区别：本函数不认识 `longestSessionMin`（逐日点里没有），
+     * 因此 `longestSessionMin` 记 0，周期页不展示该字段。
+     */
+    fun summarizePoints(selection: DateSelection, points: List<DailyPoint>): Summary {
+        val inRange = points.filter {
+            !it.date.isBefore(selection.startDate) && !it.date.isAfter(selection.endDate)
+        }
+        val recorded = inRange.filter { it.recorded }
+        val total = recorded.sumOf { it.minutes }
+        return Summary(
+            selection = selection,
+            totalDays = selection.days,
+            recordedDays = recorded.size,
+            hasAnyRecord = recorded.isNotEmpty(),
+            totalScreenUnlockMin = total,
+            averageScreenUnlockMin = if (recorded.isEmpty()) 0 else total / recorded.size,
+            averageUnlocks = 0,
+            longestSessionMin = 0
+        )
+    }
+
+    /**
+     * §5.11 周期的「最长 / 最短一天」：只看有记录的日，真实 0 分钟参与最短竞争；
+     * 并列取更早日期（与 [extremes] 同规则）。周期页不需要阈值计数，故单独拆出。
+     */
+    fun longestShortest(points: List<DailyPoint>): ExtremesInfo {
+        val recorded = points.filter { it.recorded }.sortedBy { it.date }
+        if (recorded.isEmpty()) return ExtremesInfo(null, 0, null, 0, 0)
+        val longest = recorded.maxBy { it.minutes }
+        val shortest = recorded.minBy { it.minutes }
+        return ExtremesInfo(
+            longestDate = longest.date,
+            longestMinutes = longest.minutes,
+            shortestDate = shortest.date,
+            shortestMinutes = shortest.minutes,
+            underThresholdDays = 0
+        )
+    }
+
     fun hourlyBuckets(hours: List<HourUsage>): List<HourBucket> =
         (0..23).map { hour -> HourBucket(hour, hours.filter { it.hour == hour }.sumOf { it.minutes }) }
 
@@ -202,27 +246,51 @@ object UsageCalculator {
                 else -> CompareInfo("较昨日持平", null)
             }
         } else {
-            val prevAvg = previous.averageScreenUnlockMin
-            val curAvg = current.averageScreenUnlockMin
-            when {
-                prevAvg <= 0 -> {
-                    // 上一区间日均为 0，百分比无意义——退化为分钟差文案
-                    val delta = curAvg - prevAvg
-                    when {
-                        delta > 0 -> CompareInfo("较上一区间增加 ${formatDuration(delta)}", true)
-                        delta < 0 -> CompareInfo("较上一区间减少 ${formatDuration(-delta)}", false)
-                        else -> CompareInfo("较上一区间持平", null)
-                    }
-                }
-                else -> {
-                    val percent = (curAvg - prevAvg) * 100 / prevAvg
-                    when {
-                        percent > 0 -> CompareInfo("较上一区间增加 $percent%", true)
-                        percent < 0 -> CompareInfo("较上一区间减少 ${-percent}%", false)
-                        else -> CompareInfo("较上一区间持平", null)
-                    }
-                }
+            // 区间口径沿用原文案（「较上一区间」不带「日均」二字），逻辑复用同一实现，
+            // 避免周期总结再来一份百分比算法（同一个百分比两个算法迟早会不一样）。
+            averageCompare(current, previous, label = "上一区间", perDayWord = "")
+        }
+    }
+
+    /**
+     * §5.11：**按日均**与上一周期比较。周期长度不同（30 天 vs 31 天、当期未结束只过了 12 天）
+     * 时，比总时长天然失真，所以周期总结一律用日均差/日均百分比。
+     *
+     * @param label 「上周 / 上月 / 去年」这类上一周期的称呼
+     * @param perDayWord 文案里的量纲词，周期总结传「日均」→「较上周日均增加 12%」
+     */
+    fun compareAverage(
+        current: Summary,
+        previous: Summary?,
+        label: String,
+        perDayWord: String = "日均"
+    ): CompareInfo {
+        if (previous == null || !previous.hasAnyRecord) return CompareInfo("暂无上一周期数据", null)
+        return averageCompare(current, previous, label, perDayWord)
+    }
+
+    private fun averageCompare(
+        current: Summary,
+        previous: Summary,
+        label: String,
+        perDayWord: String
+    ): CompareInfo {
+        val prevAvg = previous.averageScreenUnlockMin
+        val curAvg = current.averageScreenUnlockMin
+        if (prevAvg <= 0) {
+            // 上一周期日均为 0，百分比无意义——退化为分钟差文案
+            val delta = curAvg - prevAvg
+            return when {
+                delta > 0 -> CompareInfo("较$label${perDayWord}增加 ${formatDuration(delta)}", true)
+                delta < 0 -> CompareInfo("较$label${perDayWord}减少 ${formatDuration(-delta)}", false)
+                else -> CompareInfo("较$label${perDayWord}持平", null)
             }
+        }
+        val percent = (curAvg - prevAvg) * 100 / prevAvg
+        return when {
+            percent > 0 -> CompareInfo("较$label${perDayWord}增加 $percent%", true)
+            percent < 0 -> CompareInfo("较$label${perDayWord}减少 ${-percent}%", false)
+            else -> CompareInfo("较$label${perDayWord}持平", null)
         }
     }
 

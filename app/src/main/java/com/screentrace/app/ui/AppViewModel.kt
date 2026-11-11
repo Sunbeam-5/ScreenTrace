@@ -13,6 +13,9 @@ import com.screentrace.app.contract.EmptyUsageRepository
 import com.screentrace.app.contract.ExtremesInfo
 import com.screentrace.app.contract.MetricDetail
 import com.screentrace.app.contract.MetricKind
+import com.screentrace.app.contract.PeriodSummary
+import com.screentrace.app.contract.PeriodSummaryCalculator
+import com.screentrace.app.contract.PeriodType
 import com.screentrace.app.contract.StreakInfo
 import com.screentrace.app.contract.Summary
 import com.screentrace.app.contract.UsageCalculator
@@ -43,6 +46,9 @@ sealed interface AppPage {
     data class UnlockDetail(val returnTo: AppPage = Today) : AppPage
     data class NotificationDetail(val returnTo: AppPage = Today) : AppPage
 
+    /** §5.11 周期总结（二级页）：周期类型存在 ViewModel 里，路由只带返回目标。 */
+    data class Period(val returnTo: AppPage = Today) : AppPage
+
     companion object {
         /** 底部导航选中态映射：二级页保持进入前主页面的选中（§5.5）。 */
         fun mainOf(page: AppPage): AppPage = when (page) {
@@ -50,6 +56,7 @@ sealed interface AppPage {
             is Settings -> page.returnTo
             is UnlockDetail -> page.returnTo
             is NotificationDetail -> page.returnTo
+            is Period -> page.returnTo
             else -> page
         }
     }
@@ -165,6 +172,19 @@ class AppViewModel(
 
     private val _rankingState = mutableStateOf(LoadState<RankingData>(loading = true))
     val rankingState: State<LoadState<RankingData>> = _rankingState
+
+    /**
+     * 排行页的口径覆盖（§7-26）：null = 跟随今日页的单日口径；
+     * 非 null = 从周期总结进来，按该周期统计（副标题由 `RankingData.summary.selection` 决定）。
+     */
+    private var rankingScope: DateSelection? = null
+
+    /** §5.11 周期总结：当前选中的周期类型（页内 SegmentedControl 切换）。 */
+    private val _periodType = mutableStateOf(PeriodType.WEEK)
+    val periodType: State<PeriodType> = _periodType
+
+    private val _periodState = mutableStateOf<LoadState<PeriodSummary>>(LoadState(loading = true))
+    val periodState: State<LoadState<PeriodSummary>> = _periodState
 
     /**
      * CR-01 详情页数据（批 6d）：与今日页双卡、图表、数据表**同源于同一 `metricDetail`
@@ -372,7 +392,32 @@ class AppViewModel(
     }
 
     fun openRanking() {
+        rankingScope = null
         _page.value = AppPage.Ranking(returnTo = AppPage.mainOf(_page.value))
+    }
+
+    /**
+     * §7-26：从周期总结进入排行，按**周期**统计（不是单日、也不是无标识的区间累加）。
+     * 排行页副标题由 `RankingData.summary.selection` 渲染，因此这里只需换数据窗口。
+     */
+    fun openRankingFor(period: PeriodSummary) {
+        rankingScope = period.range.selection
+        _page.value = AppPage.Ranking(returnTo = AppPage.mainOf(_page.value))
+        loadAll()
+    }
+
+    /** §5.11 入口：从统计页 / 日历页进入周期总结，默认按传入的周期类型。 */
+    fun openPeriod(type: PeriodType = _periodType.value) {
+        _periodType.value = type
+        _page.value = AppPage.Period(returnTo = AppPage.mainOf(_page.value))
+        loadPeriod()
+    }
+
+    /** 页内周/月/年切换。 */
+    fun setPeriodType(type: PeriodType) {
+        if (type == _periodType.value && _periodState.value.data != null) return
+        _periodType.value = type
+        loadPeriod()
     }
 
     fun openSettings() {
@@ -390,11 +435,18 @@ class AppViewModel(
 
     fun goBack() {
         val current = _page.value
+        // 离开排行页时把口径恢复成默认的「今天」：否则下次从今日页点「查看全部」
+        // 还会带着上一次的周期窗口（副标题写着「11月1日–11月12日」，数字却对不上卡片）。
+        if (current is AppPage.Ranking && rankingScope != null) {
+            rankingScope = null
+            loadAll()
+        }
         _page.value = when (current) {
             is AppPage.Ranking -> current.returnTo
             is AppPage.Settings -> current.returnTo
             is AppPage.UnlockDetail -> current.returnTo
             is AppPage.NotificationDetail -> current.returnTo
+            is AppPage.Period -> current.returnTo
             else -> current
         }
     }
@@ -547,18 +599,31 @@ class AppViewModel(
                 }
 
                 // 排行只依赖 app_usage，与日聚合无关：降级通道下它是唯一还能用的页面
+                // §7-26：从周期总结进来时按该周期统计，否则按今日页的锚点单日
+                val scope = rankingScope
+                val rankingSummary = when {
+                    scope == null -> todaySummary
+                    scope == selection -> summary
+                    else -> repository.summary(scope)
+                }
+                val rankingApps = when {
+                    scope == null -> todayApps
+                    scope == selection -> apps
+                    else -> repository.appRanking(scope, limit = Int.MAX_VALUE)
+                }
                 _rankingState.value =
-                    if (apps.isEmpty()) {
+                    if (rankingApps.isEmpty()) {
                         LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
                     } else {
                         LoadState(
                             data = RankingData(
                                 // §5.7 排行-2：入口在今日页的「应用构成」卡上，卡片是**今天**
                                 // 的构成，点进去却按全局筛选的区间累计，两处数字对不上。
-                                // 排行固定按今天单日，标题会自动显示「当日累计」。
-                                summary = todaySummary,
-                                apps = todayApps,
-                                appsTotalMinutes = todayApps.sumOf { it.minutes }
+                                // 排行默认按今天单日，标题会自动显示「当日累计」；
+                                // 从周期总结进入时按周期窗口，标题写明周期（§7-26）。
+                                summary = rankingSummary,
+                                apps = rankingApps,
+                                appsTotalMinutes = rankingApps.sumOf { it.minutes }
                             )
                         )
                     }
@@ -637,6 +702,10 @@ class AppViewModel(
                     )
                     loadMonthLevels(_calendarMonth.value)
                 }
+
+                // §5.11：周期总结页已经打开过 → 跟随本次刷新重算（首次进入由 openPeriod 触发）。
+                // 不加这个，改完日期/拉完新数据再回周期页看到的还是旧数字。
+                if (_periodState.value.data != null) loadPeriod()
             } catch (e: Exception) {
                 val message = e.message ?: "数据加载失败"
                 // 失败同样保留旧数据（§5.8）：页面分支是 data 优先，旧内容还在就继续展示，
@@ -648,6 +717,51 @@ class AppViewModel(
                 _unlockDetail.value = LoadState(error = message, data = _unlockDetail.value.data)
                 _notificationDetail.value =
                     LoadState(error = message, data = _notificationDetail.value.data)
+                _periodState.value =
+                    LoadState(error = message, data = _periodState.value.data)
+            }
+        }
+    }
+
+    /**
+     * §5.11：加载当前周期类型的总结。
+     *
+     * 只复用仓库已有的四个查询（dailyTrend / summary / appRanking / hourlyDistribution），
+     * 不新增 DAO：换周期只是换一个 DateSelection 窗口，聚合规则全在
+     * [PeriodSummaryCalculator] 里（纯函数，已有 JVM 单测）。
+     * `previous` 取**上一等长窗口**的摘要（未结束时截断到相同天数），与页面上的
+     * 「较上周日均」严格同源。
+     */
+    private fun loadPeriod() {
+        viewModelScope.launch {
+            // 同其它页：重算期间保留上一条结果，切周/月/年不闪骨架
+            _periodState.value = LoadState(loading = true, data = _periodState.value.data)
+            val type = _periodType.value
+            val today = LocalDate.now()
+            val range = type.natural(today)
+            _periodState.value = try {
+                val trend = repository.dailyTrend(range.selection)
+                val previous = repository.summary(range.previousEqualLength().selection)
+                val apps = repository.appRanking(range.selection, limit = Int.MAX_VALUE)
+                val hours = repository.hourlyDistribution(range.selection)
+                val period = PeriodSummaryCalculator.build(
+                    type = type,
+                    today = today,
+                    trend = trend,
+                    previousSummary = previous,
+                    apps = apps,
+                    hours = hours
+                )
+                if (!period.summary.hasAnyRecord) {
+                    LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                } else {
+                    LoadState(data = period)
+                }
+            } catch (e: Exception) {
+                LoadState(
+                    error = e.message ?: "数据加载失败",
+                    data = _periodState.value.data
+                )
             }
         }
     }
@@ -660,6 +774,7 @@ class AppViewModel(
         _rankingState.value = LoadState(data = null, empty = reason)
         _unlockDetail.value = LoadState(data = null, empty = reason)
         _notificationDetail.value = LoadState(data = null, empty = reason)
+        _periodState.value = LoadState(data = null, empty = reason)
         _monthLevelsState.value = LoadState(data = emptyList())
     }
 

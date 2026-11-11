@@ -34,6 +34,7 @@ import com.screentrace.app.contract.CalendarLevel
 import com.screentrace.app.contract.DEFAULT_LOW_THRESHOLD_MIN
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.ExtremesInfo
+import com.screentrace.app.contract.PeriodType
 import com.screentrace.app.contract.StreakInfo
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.theme.FreshType
@@ -68,7 +69,9 @@ fun CalendarScreen(
     onMonthChange: (YearMonth) -> Unit,
     onRetry: () -> Unit,
     /** 「低于 x 小时」的 x（分钟）。由设置页配置，默认 2 小时。 */
-    lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN
+    lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN,
+    /** §5.11：日历页顶部的周期总结入口（与统计页底部同一个二级页）。 */
+    onOpenPeriod: (PeriodType) -> Unit = {}
 ) {
     // 「有数据就画数据」（批 6g，理由见 TodayScreen）：换月份/换区间不闪骨架
     when {
@@ -77,7 +80,8 @@ fun CalendarScreen(
             monthLevelsState = monthLevelsState,
             calendarMonth = calendarMonth,
             onMonthChange = onMonthChange,
-            lowThresholdMin = lowThresholdMin
+            lowThresholdMin = lowThresholdMin,
+            onOpenPeriod = onOpenPeriod
         )
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
@@ -95,7 +99,8 @@ private fun CalendarContent(
     monthLevelsState: LoadState<List<CalendarLevel>>,
     calendarMonth: YearMonth,
     onMonthChange: (YearMonth) -> Unit,
-    lowThresholdMin: Int
+    lowThresholdMin: Int,
+    onOpenPeriod: (PeriodType) -> Unit
 ) {
     val palette = LocalFreshPalette.current
     var selectedEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -132,6 +137,31 @@ private fun CalendarContent(
                 color = palette.onSecondaryContainer
             )
         }
+    }
+
+    // §5.11：日历页顶部同一入口（一行即可，日历页的主线是月/年视图，不抢戏）
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(CircleShape)
+            .background(palette.surface)
+            .clickable { onOpenPeriod(PeriodType.WEEK) }
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "本周总结",
+            style = FreshType.body,
+            color = palette.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "查看周/月/年",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+        Text(text = "›", style = FreshType.sectionTitle, color = palette.onSurfaceVariant)
     }
 
     // ② 月/年 segmented

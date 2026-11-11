@@ -133,6 +133,7 @@ fun AppNav() {
     val statsState by viewModel.statsState
     val calendarState by viewModel.calendarState
     val rankingState by viewModel.rankingState
+    val periodState by viewModel.periodState
     val unlockDetail by viewModel.unlockDetail
     val notificationDetail by viewModel.notificationDetail
     val monthLevelsState by viewModel.monthLevelsState
@@ -343,6 +344,8 @@ fun AppNav() {
                                     selection = selection,
                                     onApplySelection = viewModel::applySelection,
                                     onRetry = viewModel::reload,
+                                    // §5.11 入口：统计页底部「本周/本月/本年总结」
+                                    onOpenPeriod = viewModel::openPeriod,
                                     // 离开统计页时收起前三名浮层
                                     resetKey = mainPage
                                 )
@@ -352,7 +355,9 @@ fun AppNav() {
                                     calendarMonth = calendarMonth,
                                     onMonthChange = viewModel::setCalendarMonth,
                                     onRetry = viewModel::reload,
-                                    lowThresholdMin = lowThresholdMin
+                                    lowThresholdMin = lowThresholdMin,
+                                    // §5.11：日历页顶部同一入口
+                                    onOpenPeriod = viewModel::openPeriod
                                 )
                             }
                         }
@@ -414,6 +419,12 @@ fun AppNav() {
                                     onBack = viewModel::goBack,
                                     onDateClick = { showDateSheet = true }
                                 )
+                                is AppPage.Period -> AppHeader(
+                                    title = "周期总结",
+                                    // 副标题写当前周期窗口与「未结束 · 截至 X」，与页内一致
+                                    subtitle = periodState.data?.subtitle,
+                                    onBack = viewModel::goBack
+                                )
                                 else -> AppHeader(
                                     title = "通知详情",
                                     subtitle = null,
@@ -440,6 +451,13 @@ fun AppNav() {
                                 is AppPage.UnlockDetail -> UnlockDetailScreen(
                                     state = unlockDetail,
                                     onRetry = viewModel::reload
+                                )
+                                is AppPage.Period -> PeriodScreen(
+                                    state = periodState,
+                                    onTypeChange = viewModel::setPeriodType,
+                                    onOpenAllApps = viewModel::openRankingFor,
+                                    onRetry = viewModel::reload,
+                                    resetKey = page
                                 )
                                 else -> NotificationDetailScreen(
                                     state = notificationDetail,
@@ -507,6 +525,7 @@ private fun detailOf(page: AppPage): AppPage? = when (page) {
     is AppPage.Settings -> page
     is AppPage.UnlockDetail -> page
     is AppPage.NotificationDetail -> page
+    is AppPage.Period -> page
     else -> null
 }
 
