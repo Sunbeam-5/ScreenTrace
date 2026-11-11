@@ -1,5 +1,13 @@
 package com.screentrace.app.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -158,10 +166,30 @@ fun DateSheet(
 
             SegmentedControl(items = listOf("指定单日", "自定义区间"), selectedIndex = tab, onSelect = { tab = it })
 
-            if (tab == 0) {
-                SingleDayPicker(current = current, onApply = onApply)
-            } else {
-                RangePicker(onApply = onApply)
+            // 指定单日 ↔ 自定义区间：滑动+淡入淡出切换（真机反馈 #3「过渡不丝滑」）。
+            // 直接 if/else 换内容会瞬间整块替换，高度还突跳；AnimatedContent 会连
+            // 容器高度一起动画，两个面板高度不同也不会跳。
+            AnimatedContent(
+                targetState = tab,
+                transitionSpec = {
+                    val forward = targetState > initialState
+                    (
+                        slideInHorizontally(tween(200, easing = FastOutSlowInEasing)) { w ->
+                            if (forward) w / 4 else -w / 4
+                        } + fadeIn(tween(160))
+                    ).togetherWith(
+                        slideOutHorizontally(tween(160)) { w ->
+                            if (forward) -w / 4 else w / 4
+                        } + fadeOut(tween(120))
+                    )
+                },
+                label = "pickerMode"
+            ) { t ->
+                if (t == 0) {
+                    SingleDayPicker(current = current, onApply = onApply)
+                } else {
+                    RangePicker(onApply = onApply)
+                }
             }
         }
     }

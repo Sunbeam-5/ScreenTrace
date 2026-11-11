@@ -126,8 +126,8 @@ data class RankingData(
 
 /**
  * §6 单向数据流：Repository -> ViewModel -> UiState -> Compose。
- * 四页共享同一 DateSelection（§5.6）：冷启动今天、切页/进排行/旋转保持、
- * 清除筛选恢复今天；「完全无记录」不应用新筛选、保留原视图并提示。
+ * 四页共享同一 DateSelection（§5.6）：冷启动默认**近 7 天**（批 6g 真机反馈 #6）、
+ * 切页/进排行/旋转保持、清除筛选恢复今天；「完全无记录」不应用新筛选、保留原视图并提示。
  * 主题与每日目标先内存承载（旋转保持），DataStore 持久化在批 6a 接入。
  */
 class AppViewModel(
@@ -138,7 +138,9 @@ class AppViewModel(
     private val settings: SettingsStore? = null
 ) : ViewModel() {
 
-    private val _selection = mutableStateOf<DateSelection>(DateSelection.today())
+    // 批 6g（真机反馈 #6）：默认展示**近 7 天**——进 App 就能看到趋势与时段分布，
+    // 而不是只有今天一根柱。清除筛选（clearFilter）仍然回到「今天」。
+    private val _selection = mutableStateOf<DateSelection>(DateSelection.lastDays(7))
     val selection: State<DateSelection> = _selection
 
     private val _page = mutableStateOf<AppPage>(AppPage.Today)
@@ -385,6 +387,7 @@ class AppViewModel(
     }
 
     fun clearFilter() {
+        // 「清除筛选」= 回到今天（与默认的近 7 天不同，保留一个明确的回退动作）
         _selection.value = DateSelection.today()
         _notice.value = null
         resetCalendarAnchor(_selection.value)
@@ -456,11 +459,14 @@ class AppViewModel(
             val single = selection is DateSelection.Day
             // 「低于几小时算少」的来源。变化时由 setLowThresholdMin 触发整页重算。
             val threshold = _lowThresholdMin.value
-            _todayState.value = LoadState(loading = true)
-            _statsState.value = LoadState(loading = true)
-            _calendarState.value = LoadState(loading = true)
-            _rankingState.value = LoadState(loading = true)
-            // §5.7「已有缓存直接渲染」：重算期间保留上一条结果，界面不闪骨架也不重播入场
+            // §5.7「已有缓存直接渲染」：重算期间**四个主页面也保留上一条结果**——
+            // 之前只有详情页这样做，四个主页被直接清成 loading=true（data=null），
+            // 换个日期/点一下「近 7 天」整页就闪一次骨架（真机反馈 #2/#3/#5 的根因）。
+            // data 保留后，页面渲染旧内容直到新数据落地，无骨架、无入场重播。
+            _todayState.value = LoadState(loading = true, data = _todayState.value.data)
+            _statsState.value = LoadState(loading = true, data = _statsState.value.data)
+            _calendarState.value = LoadState(loading = true, data = _calendarState.value.data)
+            _rankingState.value = LoadState(loading = true, data = _rankingState.value.data)
             _unlockDetail.value = LoadState(loading = true, data = _unlockDetail.value.data)
             _notificationDetail.value = LoadState(loading = true, data = _notificationDetail.value.data)
             try {
@@ -553,12 +559,15 @@ class AppViewModel(
                 loadMonthLevels(_calendarMonth.value)
             } catch (e: Exception) {
                 val message = e.message ?: "数据加载失败"
-                _todayState.value = LoadState(error = message)
-                _statsState.value = LoadState(error = message)
-                _calendarState.value = LoadState(error = message)
-                _rankingState.value = LoadState(error = message)
-                _unlockDetail.value = LoadState(error = message)
-                _notificationDetail.value = LoadState(error = message)
+                // 失败同样保留旧数据（§5.8）：页面分支是 data 优先，旧内容还在就继续展示，
+                // error 只在真的什么都没有时才以 ErrorRetry 呈现。
+                _todayState.value = LoadState(error = message, data = _todayState.value.data)
+                _statsState.value = LoadState(error = message, data = _statsState.value.data)
+                _calendarState.value = LoadState(error = message, data = _calendarState.value.data)
+                _rankingState.value = LoadState(error = message, data = _rankingState.value.data)
+                _unlockDetail.value = LoadState(error = message, data = _unlockDetail.value.data)
+                _notificationDetail.value =
+                    LoadState(error = message, data = _notificationDetail.value.data)
             }
         }
     }
@@ -576,11 +585,13 @@ class AppViewModel(
 
     private fun loadMonthLevels(yearMonth: YearMonth) {
         viewModelScope.launch {
-            _monthLevelsState.value = LoadState(loading = true)
+            // 同 loadAll：翻月重算期间保留上个月的热力图，不闪骨架
+            _monthLevelsState.value =
+                LoadState(loading = true, data = _monthLevelsState.value.data)
             _monthLevelsState.value = try {
                 LoadState(data = repository.monthLevels(yearMonth))
             } catch (e: Exception) {
-                LoadState(error = e.message ?: "数据加载失败")
+                LoadState(error = e.message ?: "数据加载失败", data = _monthLevelsState.value.data)
             }
         }
     }

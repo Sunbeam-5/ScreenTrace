@@ -51,14 +51,15 @@ fun RankingScreen(
     state: LoadState<RankingData>,
     onRetry: () -> Unit
 ) {
+    // 「有数据就画数据」（批 6g，理由见 TodayScreen）：换区间重算不闪骨架
     when {
+        state.data != null && state.data.apps.isNotEmpty() -> RankingContent(data = state.data)
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
-        state.data == null || state.data.apps.isEmpty() -> EmptyState(
+        else -> EmptyState(
             title = "暂无应用数据",
             description = "完成首次拉取后，这里会显示应用使用排行"
         )
-        else -> RankingContent(data = state.data)
     }
 }
 

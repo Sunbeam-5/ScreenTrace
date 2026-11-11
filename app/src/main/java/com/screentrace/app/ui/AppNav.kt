@@ -168,6 +168,10 @@ fun AppNav() {
         //    `animateScrollToPage` 的默认动画就是 spring（StiffnessMediumLow），
         //    和 Tomato 用 motionScheme 空间动画的手感一致，比固定 tween 自然。
         LaunchedEffect(mainPage) {
+            // 切主页面时收起打开中的弹层（真机反馈 #7）：弹层属于某一个页面的上下文，
+            // 页面都换了还挂着一张旧弹层只会让人困惑。返回二级页不受影响（mainPage 未变）。
+            showDateSheet = false
+            showStyleSheet = false
             val target = MAIN_PAGES.indexOf(mainPage)
             if (target !in MAIN_PAGES.indices) return@LaunchedEffect
             if (pagerState.currentPage != target) {
@@ -318,19 +322,17 @@ fun AppNav() {
                 targetState = detailPage,
                 modifier = Modifier.fillMaxSize(),
                 transitionSpec = {
+                    // **纯滑动，不做淡入淡出**（真机反馈 #4）：覆盖层半透明时会透出
+                    // 底下的主页面，形成「两页叠影」——这就是退场时看到的视觉残留。
+                    // 整页不透明滑动（标准 push/pop 手势的方向感）没有这个问题。
                     if (targetState != null) {
-                        // 进入：右侧小幅滑入 + 淡入。不整屏横推，避免和底部导航的
-                        // 选中项产生「整页搬家」的错觉（导航条本身不参与转场）。
-                        (slideInHorizontally(tween(260, easing = FastOutSlowInEasing)) { it / 6 } +
-                            fadeIn(tween(200)))
-                            .togetherWith(fadeOut(tween(140)))
+                        // 进入：整页从右滑入
+                        slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { it }
+                            .togetherWith(fadeOut(tween(120)))
                     } else {
-                        // 返回：滑回右侧并淡出，比进入更快一点，回退要「利落」
+                        // 返回：整页向右滑出，比进入更快一点，回退要「利落」
                         fadeIn(tween(120))
-                            .togetherWith(
-                                fadeOut(tween(200, easing = FastOutSlowInEasing)) +
-                                    slideOutHorizontally(tween(200, easing = FastOutSlowInEasing)) { it / 6 }
-                            )
+                            .togetherWith(slideOutHorizontally(tween(240, easing = FastOutSlowInEasing)) { it })
                     }
                 },
                 contentAlignment = Alignment.TopStart,

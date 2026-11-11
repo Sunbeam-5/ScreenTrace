@@ -56,23 +56,26 @@ fun TodayScreen(
     /** 正在拉取（首次 dump 要十几秒）。此时「没数据」是暂时的，不能显示「尚无使用记录」。 */
     pulling: Boolean = false
 ) {
+    // 分支顺序 = 「有数据就画数据」（批 6g）：切换日期时 ViewModel 会带着旧 data
+    // 进入 loading，这里必须先渲染旧内容，等新数据落地直接换值——
+    // 若把 loading 放在最前，每次切日期都会整页闪一次骨架（真机反馈 #2/#3）。
     when {
-        state.loading -> LoadingSkeleton()
-        state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
-        state.data == null && pulling -> PullingState()
-        state.data == null -> DataEmptyState(
-            reason = state.empty,
-            noDataTitle = "尚无使用记录",
-            noDataDescription = "连接 Shizuku 并完成首次拉取后，这里会显示今日的使用数据",
-            actionText = "查看应用排行",
-            onAction = onOpenRanking
-        )
-        else -> TodayContent(
+        state.data != null -> TodayContent(
             data = state.data,
             dailyGoalMin = dailyGoalMin,
             onOpenRanking = onOpenRanking,
             onOpenUnlock = onOpenUnlock,
             onOpenNotification = onOpenNotification
+        )
+        state.loading -> LoadingSkeleton()
+        state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
+        state.data == null && pulling -> PullingState()
+        else -> DataEmptyState(
+            reason = state.empty,
+            noDataTitle = "尚无使用记录",
+            noDataDescription = "连接 Shizuku 并完成首次拉取后，这里会显示今日的使用数据",
+            actionText = "查看应用排行",
+            onAction = onOpenRanking
         )
     }
 }

@@ -70,20 +70,21 @@ fun CalendarScreen(
     /** 「低于 x 小时」的 x（分钟）。由设置页配置，默认 2 小时。 */
     lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN
 ) {
+    // 「有数据就画数据」（批 6g，理由见 TodayScreen）：换月份/换区间不闪骨架
     when {
-        state.loading -> LoadingSkeleton()
-        state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
-        state.data == null -> DataEmptyState(
-            reason = state.empty,
-            noDataTitle = "暂无日历数据",
-            noDataDescription = "完成首次拉取后，这里会按月/年展示每日使用记录"
-        )
-        else -> CalendarContent(
+        state.data != null -> CalendarContent(
             data = state.data,
             monthLevelsState = monthLevelsState,
             calendarMonth = calendarMonth,
             onMonthChange = onMonthChange,
             lowThresholdMin = lowThresholdMin
+        )
+        state.loading -> LoadingSkeleton()
+        state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
+        else -> DataEmptyState(
+            reason = state.empty,
+            noDataTitle = "暂无日历数据",
+            noDataDescription = "完成首次拉取后，这里会按月/年展示每日使用记录"
         )
     }
 }

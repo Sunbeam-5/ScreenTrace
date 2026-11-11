@@ -46,15 +46,16 @@ fun StatsScreen(
     onApplySelection: (DateSelection) -> Unit,
     onRetry: () -> Unit
 ) {
+    // 「有数据就画数据」（批 6g，理由见 TodayScreen）：切「近 7/30 天」不闪骨架
     when {
+        state.data != null -> StatsContent(data = state.data, selection = selection, onApplySelection = onApplySelection)
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
-        state.data == null -> DataEmptyState(
+        else -> DataEmptyState(
             reason = state.empty,
             noDataTitle = "暂无统计数据",
             noDataDescription = "完成首次拉取后，这里会显示使用趋势与时段分布"
         )
-        else -> StatsContent(data = state.data, selection = selection, onApplySelection = onApplySelection)
     }
 }
 
