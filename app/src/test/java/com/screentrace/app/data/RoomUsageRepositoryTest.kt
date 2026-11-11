@@ -23,7 +23,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -232,4 +234,41 @@ class RoomUsageRepositoryTest {
 
     private fun msOf(date: LocalDate, hour: Int): Long =
         date.atTime(hour, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    /**
+     * 批 6g（真机反馈）：设备开了不灭屏 → 整日只有一条连续亮屏会话、0 解锁。
+     * 此前仅凭「事件表里没有解锁事件」一律画「—」，把真实 0 当成了拿不到。
+     */
+    @Test
+    fun `不灭屏日的 0 解锁是真实值而非拿不到`() = runBlocking {
+        db.daySummaryDao().insert(
+            com.screentrace.app.data.db.DaySummaryEntity(
+                date = d1.toString(),
+                screenMin = 765, screenUnlockMin = 765,
+                unlocks = 0, launches = 0,
+                longestSessionMin = 765, // 一条连续会话覆盖全天 = 屏幕从未熄过
+                pulledAt = msOf(d1, 21)
+            )
+        )
+        val detail = repo.metricDetail(MetricKind.UNLOCK, DateSelection.Day(d1))
+        assertTrue("设备从未锁屏 → 0 解锁可信", detail.hasEventSource)
+        assertEquals(0, detail.total)
+    }
+
+    @Test
+    fun `屏幕多次开关却零解锁事件仍视为拿不到`() = runBlocking {
+        // 屏幕当天亮了 540 分钟、最长连续只有 30 分钟（开关了很多次）却没有解锁事件
+        // → 更像 ROM 不上报锁屏事件，画「—」而不是假 0（评审 P1-1 红线不变）
+        db.daySummaryDao().insert(
+            com.screentrace.app.data.db.DaySummaryEntity(
+                date = d1.toString(),
+                screenMin = 600, screenUnlockMin = 540,
+                unlocks = 0, launches = 0,
+                longestSessionMin = 30,
+                pulledAt = msOf(d1, 21)
+            )
+        )
+        val detail = repo.metricDetail(MetricKind.UNLOCK, DateSelection.Day(d1))
+        assertFalse("多次亮灭屏但无解锁事件 → 数据源可疑", detail.hasEventSource)
+    }
 }

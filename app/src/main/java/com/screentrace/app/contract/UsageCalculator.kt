@@ -241,10 +241,12 @@ object UsageCalculator {
         notificationEvents: List<NotificationEvent> = emptyList(),
         windowStart: LocalDate? = null,
         gapDays: Set<LocalDate> = emptySet(),
-        appLabels: Map<String, String> = emptyMap()
+        appLabels: Map<String, String> = emptyMap(),
+        /** 区间内每个有亮屏的日子都是「单条连续会话且 0 解锁」（设备从未锁屏）时为 true。 */
+        neverSleepsWindow: Boolean = false
     ): MetricDetail = when (metric) {
         MetricKind.UNLOCK -> buildUnlockDetail(
-            selection, unlockEvents, windowStart, gapDays
+            selection, unlockEvents, windowStart, gapDays, neverSleepsWindow
         )
         MetricKind.NOTIFICATION -> buildNotificationDetail(
             selection, notificationEvents, windowStart, gapDays, appLabels
@@ -277,7 +279,9 @@ object UsageCalculator {
         selection: DateSelection,
         events: List<UnlockEvent>,
         windowStart: LocalDate?,
-        gapDays: Set<LocalDate>
+        gapDays: Set<LocalDate>,
+        /** 区间内全是「不灭屏日」（见 RoomUsageRepository 注释），0 解锁是真实值。 */
+        neverSleepsWindow: Boolean = false
     ): MetricDetail {
         val inRange = events.filter { inSelection(it.occurredAtMs, selection) }
         val hourlyOf: (LocalDate) -> IntArray = { date ->
@@ -307,8 +311,11 @@ object UsageCalculator {
         return MetricDetail(
             metric = MetricKind.UNLOCK,
             selection = selection,
-            // 评审 P1-1：windowStart 就是「本指标事件源是否存在」的唯一判据
-            hasEventSource = windowStart != null,
+            // 评审 P1-1：windowStart 是「本指标事件源是否存在」的第一判据；
+            // 批 6g 补第二判据 neverSleepsWindow：设备开了不灭屏时整日只有一条
+            // 连续亮屏会话、本来就不会有 KEYGUARD 事件，此时 0 解锁是真实值，
+            // 不能再画「—」（真机：不灭屏日 longestSessionMin == screenUnlockMin）。
+            hasEventSource = windowStart != null || neverSleepsWindow,
             total = base.total,
             dailyAverage = base.dailyAverage,
             notification = null,

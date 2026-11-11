@@ -155,6 +155,21 @@ class RoomUsageRepository(
             java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate()
         }
         val gapDays = computeGapDays(zone)
+        // 「不灭屏日」判定（真机反馈：开了不灭屏的设备本来就不会有 KEYGUARD 事件，
+        // 0 解锁是真实值，不能因为「从没见过解锁事件」就一直画「—」）：
+        // 不灭屏日 = 整日亮屏只有**一条连续会话**（longestSessionMin >= screenUnlockMin）
+        // 且 0 解锁。区间内所有有亮屏的日子都满足 → 窗口内的 0 解锁可信。
+        // 反例：屏幕每 UnlockEvent 天开关几十次却 0 解锁事件（ROM 不上报），此时仍画「—」。
+        val neverSleepsWindow = if (metric == MetricKind.UNLOCK) {
+            val days = db.daySummaryDao()
+                .getBetween(selection.startDate.toString(), selection.endDate.toString())
+                .filter { it.screenUnlockMin > 0 }
+            days.isNotEmpty() && days.all {
+                it.unlocks == 0 && it.longestSessionMin >= it.screenUnlockMin
+            }
+        } else {
+            false
+        }
         // 名字表要覆盖「**只在通知事件里出现**的包」：`allNames()` 只查 `app_usage`，
         // 而系统服务（如 com.xiaomi.mi_connect_service）往往只在通知事件里有记录、
         // 从不进入应用使用排行。不补这一层，通知详情就会显示成一串 com.xxx 包名
@@ -179,6 +194,7 @@ class RoomUsageRepository(
             },
             windowStart = windowStart,
             gapDays = gapDays,
+            neverSleepsWindow = neverSleepsWindow,
             appLabels = appLabels
         )
     }

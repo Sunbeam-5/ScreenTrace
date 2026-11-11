@@ -318,6 +318,28 @@ class UsageCalculatorTest {
         assertFalse(notifNoSource.hasEventSource)
     }
 
+    /**
+     * 批 6g（真机反馈）：设备开了不灭屏 → 整日一条连续亮屏会话、本来就不会有
+     * KEYGUARD 事件，此时 0 解锁是真实值，不能再画「—」。
+     * 判据由仓库层从 day_summary 推导（neverSleepsWindow），这里只测计算器契约。
+     */
+    @Test
+    fun metricDetailTreatsNeverSleepWindowAsRealZero() {
+        val detail = UsageCalculator.metricDetail(
+            MetricKind.UNLOCK, DateSelection.Day(day1),
+            unlockEvents = emptyList(), windowStart = null,
+            neverSleepsWindow = true
+        )
+        assertTrue("不灭屏窗口的 0 解锁是真实值", detail.hasEventSource)
+        assertEquals(0, detail.total)
+        // 通知指标不受该判据影响（通知事件表与锁屏无关）
+        val notif = UsageCalculator.metricDetail(
+            MetricKind.NOTIFICATION, DateSelection.Day(day1),
+            windowStart = null, neverSleepsWindow = true
+        )
+        assertFalse("通知事件缺失仍是拿不到", notif.hasEventSource)
+    }
+
     @Test
     fun metricDetailNotificationDualMetricsAndRanking() {        val events = listOf(
             NotificationEvent(ms(day1, 8, 0), NotificationType.INTERRUPTION, "pkg.a", null),
