@@ -131,10 +131,15 @@ private fun TodayContent(
         leftValue = MetricValue.Number(unlockValue),
         rightLabel = notificationLabel,
         rightValue = MetricValue.Number(notificationValue),
-        // 没有事件源时「已查看 0 次」同样是假 0，一并收掉
-        rightNote = notification?.notification
-            ?.takeIf { notificationAvailable }
-            ?.let { "已查看 ${it.seen} 次" },
+        // 没有事件源时「已查看 0 次」同样是假 0，一并收掉——但要在卡片上说明
+        // 「为什么是 —」（真机反馈：用户看到「日均解锁 —」会问为什么不是 0）：
+        // 简短标注是数据源缺失，不是"解锁了 0 次"，详情页里有完整解释。
+        leftNote = if (unlockAvailable) null else "未采集到解锁事件",
+        rightNote = if (notificationAvailable) {
+            notification?.notification?.let { "已查看 ${it.seen} 次" }
+        } else {
+            "未采集到通知事件"
+        },
         leftOnClick = onOpenUnlock,
         rightOnClick = onOpenNotification,
         leftClickDescription = if (unlockAvailable) {
