@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
@@ -73,7 +74,13 @@ fun MonthCalendar(
         }
     }
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(gap)) {
+    // §7-24：网格必须在卡片内**水平居中**。之前 Column 是 wrap-content 靠左，
+    // 7×34dp 的网格在宽屏卡片里会整体贴左边（真机反馈「月视图偏左」）。
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(gap),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         (0 until totalCells step 7).forEach { weekStart ->
             Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                 var i = 0
@@ -188,7 +195,11 @@ fun MonthCalendarHeader(
     gap: Dp = 4.dp
 ) {
     val palette = LocalFreshPalette.current
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(gap)) {
+    // 星期表头与日期列同宽同间距，且用同一个居中 Arrangement 保证列对齐
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally)
+    ) {
         labels.forEach { label ->
             Box(
                 modifier = Modifier.size(width = cellSize, height = cellSize),

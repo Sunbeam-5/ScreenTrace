@@ -263,6 +263,37 @@ class AppViewModel(
         }
     }
 
+    /**
+     * §7-19 下拉手势触发的强制拉取：绕过 [PullCoordinator.pullIfStale] 的 10 分钟节流。
+     *
+     * 60 秒轻冷却：用户连着拉两次时不再跑一遍 2–4MB 的 dump（对 Shizuku 和解析都是
+     * 纯浪费），只重读本地库（后台 Worker 可能刚写完）并给一句「刚刚已更新」。
+     * 冷却以**上次成功拉取**为准，失败不计时（失败后应该允许立刻重试）。
+     *
+     * 声明为 suspend：调用方（下拉指示器）等它结束再收起转圈，指示器不会一闪就没。
+     * 批 8 的云同步「每次成功拉取后」分支后续在此函数成功路径上接线。
+     */
+    suspend fun refreshFromPull() {
+        val coordinator = pulls ?: return
+        if (_pulling.value) return
+        val now = System.currentTimeMillis()
+        val last = _lastPulledAt.value ?: 0L
+        if (last > 0 && now - last in 0 until PULL_REFRESH_COOLDOWN_MS) {
+            loadAll()
+            _notice.value = "刚刚已更新"
+            return
+        }
+        val outcome = runCatching { coordinator.pull() }
+            .getOrElse {
+                PullOutcome.Failure(
+                    com.screentrace.app.data.pull.ProviderStatus.TEMPORARILY_UNAVAILABLE,
+                    it.message ?: "拉取失败",
+                    false
+                )
+            }
+        applyPullOutcome(outcome, coordinator)
+    }
+
     fun dismissPullError() {
         _pullError.value = null
     }
@@ -522,9 +553,12 @@ class AppViewModel(
                     } else {
                         LoadState(
                             data = RankingData(
-                                summary = summary,
-                                apps = apps,
-                                appsTotalMinutes = apps.sumOf { it.minutes }
+                                // §5.7 排行-2：入口在今日页的「应用构成」卡上，卡片是**今天**
+                                // 的构成，点进去却按全局筛选的区间累计，两处数字对不上。
+                                // 排行固定按今天单日，标题会自动显示「当日累计」。
+                                summary = todaySummary,
+                                apps = todayApps,
+                                appsTotalMinutes = todayApps.sumOf { it.minutes }
                             )
                         )
                     }
@@ -646,5 +680,8 @@ class AppViewModel(
         /** 设置默认值：每日目标 240 分钟（批 7 设置页可改、批 6a 持久化）。
          *  P2-5：单一出处 = SettingsStore，避免 UI 与持久化层各写一份 240。 */
         const val DEFAULT_GOAL_MIN = com.screentrace.app.data.prefs.SettingsStore.DEFAULT_GOAL_MIN
+
+        /** §7-19 下拉刷新的轻冷却（毫秒）。 */
+        const val PULL_REFRESH_COOLDOWN_MS = 60L * 1000
     }
 }

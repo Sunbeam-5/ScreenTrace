@@ -36,6 +36,7 @@ import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -43,6 +44,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +52,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
@@ -188,10 +192,16 @@ fun DateSheet(
                 },
                 label = "pickerMode"
             ) { t ->
-                if (t == 0) {
-                    SingleDayPicker(current = current, onApply = onApply)
-                } else {
-                    RangePicker(onApply = onApply)
+                // **单插槽容器必须包 Column**：AnimatedContent 内部是一个 Box，而两个
+                // Picker 各有 2~4 个并列根节点（输入框 / 日历 / 错误文案 / 应用按钮），
+                // 直接放进去会全部叠在 top-start —— 真机上表现为「应用按钮压在日历上、
+                // 输入框只剩两条边」。TodayContent / StatsContent 已各踩过一次，这是第三次。
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (t == 0) {
+                        SingleDayPicker(current = current, onApply = onApply)
+                    } else {
+                        RangePicker(onApply = onApply)
+                    }
                 }
             }
         }
@@ -248,34 +258,95 @@ private fun SingleDayPicker(current: DateSelection, onApply: (DateSelection) -> 
 private fun RangePicker(onApply: (DateSelection) -> Unit) {
     val palette = LocalFreshPalette.current
     val state = rememberDateRangePickerState()
+
+    // §7-25 手输与日历点选**双向同步**。lastSynced* 用来区分「文本是日历回填的」
+    // 还是「用户自己敲的」：只有前者允许日历变化覆盖正在编辑的内容，否则用户敲到
+    // 一半（例如 "2026-11-"）时日历一动就会被冲掉。
+    var startText by remember { mutableStateOf("") }
+    var endText by remember { mutableStateOf("") }
+    var lastSyncedStart by remember { mutableStateOf<String?>(null) }
+    var lastSyncedEnd by remember { mutableStateOf<String?>(null) }
+
+    val start = state.selectedStartDateMillis?.let { localDate(it) }
+    val end = state.selectedEndDateMillis?.let { localDate(it) }
+    LaunchedEffect(start) {
+        val text = start?.let { DateInput.format(it) }
+        if (text != null && (startText.isBlank() || startText == lastSyncedStart)) {
+            startText = text
+            lastSyncedStart = text
+        }
+    }
+    LaunchedEffect(end) {
+        val text = end?.let { DateInput.format(it) }
+        if (text != null && (endText.isBlank() || endText == lastSyncedEnd)) {
+            endText = text
+            lastSyncedEnd = text
+        }
+    }
+
+    // 两端都合法才回写日历高亮；半截输入不打断日历现状
+    fun syncCalendar() {
+        val s = DateInput.parse(startText)
+        val e = DateInput.parse(endText)
+        if (s != null && e != null && !e.isBefore(s)) {
+            state.setSelection(utcMillis(s), utcMillis(e))
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        DateInputField(
+            label = "开始日期",
+            value = startText,
+            error = DateInput.error(startText),
+            modifier = Modifier.weight(1f),
+            onValueChange = { startText = it; syncCalendar() }
+        )
+        DateInputField(
+            label = "结束日期",
+            value = endText,
+            error = DateInput.error(endText),
+            modifier = Modifier.weight(1f),
+            onValueChange = { endText = it; syncCalendar() }
+        )
+    }
+
     DateRangePicker(
         state = state,
         modifier = Modifier
             .fillMaxWidth()
             // **必须**给一个有界高度。DateRangePicker 内部是 LazyColumn，被外层
-            // verticalScroll 按无限高测量时直接抛：
-            //   IllegalStateException: Vertically scrollable component was measured
-            //   with an infinity maximum height constraints
-            // 真机上点「自定义区间」100% 闪退（bug 11）。给固定高度后内部自己滚，
-            // 400dp 约等于 6 周日历 + 星期表头，再高也没必要。
+            // verticalScroll 按无限高测量时直接抛异常（真机 bug 11：点自定义区间必闪退）。
             .height(RANGE_PICKER_HEIGHT),
-        // 其余两项（title / headline）也置空：省下来的高度留给日历，
-        // 同时避免和外层标题重复。
         title = null,
         headline = null,
         showModeToggle = false
     )
-    val start = state.selectedStartDateMillis?.let { localDate(it) }
-    val end = state.selectedEndDateMillis?.let { localDate(it) }
-    val complete = start != null && end != null
-    val days = if (start != null && end != null) {
-        ChronoUnit.DAYS.between(start, end) + 1
+
+    // 手输两端都合法时优先用手输值（日历可能还没同步到位）；否则退回日历选择
+    val manualStart = DateInput.parse(startText)
+    val manualEnd = DateInput.parse(endText)
+    val useManual = manualStart != null && manualEnd != null
+    val effectiveStart = if (useManual) manualStart else start
+    val effectiveEnd = if (useManual) manualEnd else end
+    val reversed = effectiveStart != null && effectiveEnd != null &&
+        effectiveEnd.isBefore(effectiveStart)
+    val complete = effectiveStart != null && effectiveEnd != null && !reversed
+    val days = if (complete) {
+        ChronoUnit.DAYS.between(effectiveStart, effectiveEnd) + 1
     } else {
         0L
     }
     val overLimit = complete && days > DateSelection.MAX_DAYS
-    if (overLimit) {
-        Text(
+    when {
+        reversed -> Text(
+            text = "结束日期不能早于开始日期",
+            style = FreshType.label,
+            color = palette.error
+        )
+        overLimit -> Text(
             text = "区间最多 ${DateSelection.MAX_DAYS} 个自然日，当前 $days 天",
             style = FreshType.label,
             color = palette.error
@@ -284,13 +355,45 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
     PrimaryButton(
         text = "应用",
         onClick = {
-            if (start != null && end != null && !overLimit) {
-                onApply(DateSelection.Range.normalized(start, end))
+            if (effectiveStart != null && effectiveEnd != null && complete && !overLimit) {
+                onApply(DateSelection.Range.normalized(effectiveStart, effectiveEnd))
             }
         },
         enabled = complete && !overLimit,
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+/** 单个日期输入框：即时校验文案、数字键盘、单行。 */
+@Composable
+private fun DateInputField(
+    label: String,
+    value: String,
+    error: String,
+    modifier: Modifier = Modifier,
+    onValueChange: (String) -> Unit
+) {
+    val palette = LocalFreshPalette.current
+    Column(modifier = modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label, style = FreshType.label) },
+            placeholder = { Text("2026-11-11", style = FreshType.label) },
+            singleLine = true,
+            isError = error.isNotEmpty(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (error.isNotEmpty()) {
+            Text(
+                text = error,
+                style = FreshType.label,
+                color = palette.error,
+                modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+            )
+        }
+    }
 }
 
 /** 区间日历容器高度：约 5 周可见 + 星期表头。内部自己滚动，不再依赖外层高度。 */

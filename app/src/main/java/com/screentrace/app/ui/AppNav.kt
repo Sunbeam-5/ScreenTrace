@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -42,6 +44,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -101,7 +104,10 @@ private val MAIN_PAGES = listOf(AppPage.Today, AppPage.Stats, AppPage.Calendar)
  * 4. 二级页是覆盖在主页面之上的独立图层，右侧小幅滑入 + 交叉淡出；底部导航画在
  *    最外层，所以二级页里导航条依然在（§5.2/§5.5）。
  */
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(
+    androidx.compose.foundation.ExperimentalFoundationApi::class,
+    androidx.compose.material3.ExperimentalMaterial3Api::class
+)
 @Composable
 fun AppNav() {
     val container = (LocalContext.current.applicationContext as? ScreenTraceApp)?.container
@@ -168,6 +174,9 @@ fun AppNav() {
     ScreenTimeTheme(variant = variant, darkTheme = darkTheme, dynamicColor = dynamicColor) {
         val palette = LocalFreshPalette.current
         val reduceMotion = rememberReduceMotion()
+        // §7-19：三个主页面共享一份下拉状态（手势挂在主内容层，Pager 横滑不走这条链）。
+        // 覆盖层自带 pointerInput 命中层，打开二级页时下拉不会穿透过来。
+        val pullState = rememberPullToRefreshState()
         val mainPage = AppPage.mainOf(page)
         val detailPage = detailOf(page)
 
@@ -253,7 +262,12 @@ fun AppNav() {
                     )
                 }
             ) {
-                Column(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize()) {
+                    Column(
+                        Modifier
+                            .fillMaxSize()
+                            .nestedScroll(pullState.nestedScrollConnection)
+                    ) {
                     // 提示条 / 拉取错误 / 拉取中共用一份，不跟着页面横滑（它们是全局状态，
                     // 三页各放一份既重复又会各自播一遍展开动画）。
                     // 底部固定留 12dp：没有提示条时就是标题与首卡之间的呼吸位，
@@ -344,6 +358,18 @@ fun AppNav() {
                         }
                     }
                 }
+                        PullToRefreshContainer(
+                            state = pullState,
+                            modifier = Modifier.align(Alignment.TopCenter)
+                        )
+                        if (pullState.isRefreshing) {
+                            LaunchedEffect(Unit) {
+                                // 等真正拉完再收起转圈，指示器不会一闪就没
+                                viewModel.refreshFromPull()
+                                pullState.endRefresh()
+                            }
+                        }
+                    }
                 }
             }
 
@@ -371,7 +397,9 @@ fun AppNav() {
                             when (detail) {
                                 is AppPage.Ranking -> AppHeader(
                                     title = "全部应用",
-                                    subtitle = null,
+                                    // 必须写明当前窗口，避免与今日页的区间数字混淆（§5.7 排行-2）
+                                    subtitle = rankingState.data?.summary?.selection
+                                        ?.let { selectionSubtitle(it) },
                                     onBack = viewModel::goBack,
                                     onDateClick = { showDateSheet = true }
                                 )

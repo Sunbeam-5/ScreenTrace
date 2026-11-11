@@ -5,7 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -23,6 +25,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.screentrace.app.contract.CalendarLevel
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
@@ -49,32 +52,51 @@ fun HeatmapCalendar(
 ) {
     val palette = LocalFreshPalette.current
     val heatRamp = listOf(palette.heat0, palette.heat1, palette.heat2, palette.heat3, palette.heat4)
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(gap)
+    // §7-24：年视图必须**完整落在卡片可视区内且水平居中**。
+    // 原来固定 9dp 格 + 网格区 horizontalScroll：宽屏上整个 Row 是 wrap-content 靠左，
+    // 窄屏上右半被滚动裁掉——真机反馈「年视图截断且偏左」就是这两件事叠在一起。
+    // 现在按可用宽度反推格子尺寸（上限仍是传入的 cellSize），20 周一屏放下。
+    BoxWithConstraints(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
     ) {
-        // 星期列固定（一/三/五/日 行标，与原型一致），总宽凑约 252dp
-        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-            weekdayLabels.forEach { label ->
-                Box(
-                    modifier = Modifier.size(width = 12.dp, height = cellSize),
+        val labelWidth = 12.dp
+        // 总宽 = 星期列 + weeks*格 + weeks*间距（星期列与网格之间 1 个 + 列间 weeks-1 个）
+        val derived = (maxWidth - labelWidth - gap * weeks) / weeks
+        val effectiveCell = minOf(cellSize, derived).coerceAtLeast(MIN_CELL_SIZE)
+        val gridWidth = labelWidth + gap * weeks + effectiveCell * weeks
+        val scrollState = rememberScrollState()
+        val needsScroll = gridWidth > maxWidth
+        Row(
+            modifier = if (needsScroll) {
+                Modifier.horizontalScroll(scrollState)
+            } else {
+                Modifier
+            },
+            horizontalArrangement = Arrangement.spacedBy(gap)
+        ) {
+            // 星期列固定（一/三/五/日 行标）
+            Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+                weekdayLabels.forEach { label ->
+                    Box(
+                        modifier = Modifier.size(width = labelWidth, height = effectiveCell),
                     contentAlignment = Alignment.Center
                 ) {
                     if (label.isNotEmpty()) {
                         Text(
                             text = label,
-                            style = FreshType.label,
+                            // 格子高只有 9dp（窄屏还会更小），12sp 的正文标签会逐行重叠；
+                            // 按格子量级缩到 8sp，保持「一/三/五/日」能分辨即可。
+                            style = FreshType.label.copy(fontSize = 8.sp),
+                            maxLines = 1,
                             color = palette.onSurfaceVariant
                         )
                     }
                 }
             }
         }
-        // 网格区：超窄屏横向滚动
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(gap)
-        ) {
+        // 网格区：已经按可用宽度缩过格子，正常屏不需要滚动
+        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
             repeat(weeks) { week ->
                 Column(verticalArrangement = Arrangement.spacedBy(gap)) {
                     repeat(7) { day ->
@@ -82,7 +104,7 @@ fun HeatmapCalendar(
                         if (cell != null) {
                             Box(
                                 modifier = Modifier
-                                    .size(cellSize)
+                                    .size(effectiveCell)
                                     .clip(RoundedCornerShape(3.dp))
                                     .background(heatRamp[cell.level.coerceIn(0, 4)])
                                     .semantics {
@@ -91,14 +113,18 @@ fun HeatmapCalendar(
                                     .clickable { onDayClick(cell) }
                             )
                         } else {
-                            Spacer(Modifier.size(cellSize))
+                            Spacer(Modifier.size(effectiveCell))
                         }
                     }
                 }
             }
         }
+        }
     }
 }
+
+/** 极窄屏的格子下限：再小就看不清了，此时退化为网格区横向滚动。 */
+private val MIN_CELL_SIZE = 4.dp
 
 private val weekdayLabels = listOf("一", "", "三", "", "五", "", "日")
 

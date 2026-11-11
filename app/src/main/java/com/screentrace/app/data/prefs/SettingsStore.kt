@@ -50,11 +50,13 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
      * 不再写死 2 小时——作息不同的人对这个线的感受完全不同。
      */
     val lowUsageThresholdMin: Flow<Int> = dataStore.data.map {
-        it[LOW_USAGE_THRESHOLD_MIN] ?: DEFAULT_LOW_THRESHOLD_MIN
+        LowUsageThreshold.clampMinutes(
+            it[LOW_USAGE_THRESHOLD_MIN] ?: DEFAULT_LOW_THRESHOLD_MIN
+        )
     }
 
     suspend fun setLowUsageThresholdMin(value: Int) =
-        dataStore.edit { it[LOW_USAGE_THRESHOLD_MIN] = value }
+        dataStore.edit { it[LOW_USAGE_THRESHOLD_MIN] = LowUsageThreshold.clampMinutes(value) }
 
     /** 分类覆盖（§4：用户可改并纳入备份）：`pkg=CATEGORY` 编码。 */
     val categoryOverrides: Flow<Map<String, AppCategory>> = dataStore.data.map { prefs ->
@@ -84,4 +86,26 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         private val LOW_USAGE_THRESHOLD_MIN = intPreferencesKey("low_usage_threshold_min")
         private val CATEGORY_OVERRIDES = stringSetPreferencesKey("category_overrides")
     }
+}
+
+/**
+ * §5.8 / §7-23：低使用阈值的**唯一口径**（1–24 小时，分钟存储）。
+ *
+ * 之前设置页只给 1/2/3/4 四档，但阈值还会从备份 / 旧配置 / DataStore 直接读出来，
+ * 这些入口都可能带进越界值。夹取放在存取两端，UI 与外部导入都不必各自记一遍范围。
+ */
+internal object LowUsageThreshold {
+    const val MIN_HOURS = 1
+    const val MAX_HOURS = 24
+
+    /** 分钟 → 分钟（夹到 60..1440）。 */
+    fun clampMinutes(value: Int): Int = value.coerceIn(MIN_HOURS * 60, MAX_HOURS * 60)
+
+    /** 分钟 → 小时档位（UI 滑杆用）。 */
+    fun hoursOf(minutes: Int): Int =
+        (clampMinutes(minutes) / 60).coerceIn(MIN_HOURS, MAX_HOURS)
+
+    /** 小时 → 分钟（写入用）。 */
+    fun minutesOf(hours: Int): Int =
+        hours.coerceIn(MIN_HOURS, MAX_HOURS) * 60
 }
