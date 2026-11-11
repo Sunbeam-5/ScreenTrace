@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -59,7 +61,14 @@ fun ScreenScaffold(
             .fillMaxSize()
             .background(palette.background)
     ) {
-        Column(Modifier.fillMaxSize()) {
+        // statusBarsPadding 只加在**内容**上，不加在最外层 Box：
+        // 背景色要继续铺到状态栏下方（否则状态栏那一条会露出系统底色，
+        // 就是「上面有一条黑边」的观感）。内容则必须避开状态栏与挖孔。
+        Column(
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
             header()
             ContentColumn(scrollState = scrollState, content = content)
         }
@@ -67,6 +76,9 @@ fun ScreenScaffold(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    // 全面屏手势条会压住悬浮导航：垫起 navigationBars 高度，
+                    // 再留 20dp 视觉间距（§5.2）
+                    .navigationBarsPadding()
                     .padding(bottom = 20.dp)
             ) {
                 floatingNav()
@@ -88,7 +100,10 @@ fun ContentColumn(
             .fillMaxWidth()
             .verticalScroll(scrollState)
             .padding(horizontal = 20.dp)
-            .padding(bottom = 112.dp),
+            // 底部预留 = 悬浮导航高度 + 系统手势条。只留 112dp 时，全面屏机型上
+            // 手势条会把「查看全部应用」这类最后一屏内容压住（真机可见）。
+            .padding(bottom = 112.dp)
+            .navigationBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Column(

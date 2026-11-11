@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.screentrace.app.contract.AppCategory
+import com.screentrace.app.contract.DEFAULT_LOW_THRESHOLD_MIN
 import com.screentrace.app.theme.ThemeVariant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -44,6 +45,17 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     val dynamicColor: Flow<Boolean> = dataStore.data.map { it[DYNAMIC_COLOR] ?: false }
     suspend fun setDynamicColor(value: Boolean) = dataStore.edit { it[DYNAMIC_COLOR] = value }
 
+    /**
+     * 「低于 x 小时算少」的阈值（分钟）。日历页那张卡片的标题与计数都取自这里，
+     * 不再写死 2 小时——作息不同的人对这个线的感受完全不同。
+     */
+    val lowUsageThresholdMin: Flow<Int> = dataStore.data.map {
+        it[LOW_USAGE_THRESHOLD_MIN] ?: DEFAULT_LOW_THRESHOLD_MIN
+    }
+
+    suspend fun setLowUsageThresholdMin(value: Int) =
+        dataStore.edit { it[LOW_USAGE_THRESHOLD_MIN] = value }
+
     /** 分类覆盖（§4：用户可改并纳入备份）：`pkg=CATEGORY` 编码。 */
     val categoryOverrides: Flow<Map<String, AppCategory>> = dataStore.data.map { prefs ->
         (prefs[CATEGORY_OVERRIDES] ?: emptySet()).mapNotNull { encoded ->
@@ -69,6 +81,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         private val THEME_VARIANT = stringPreferencesKey("theme_variant")
         private val DARK_THEME = booleanPreferencesKey("dark_theme")
         private val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        private val LOW_USAGE_THRESHOLD_MIN = intPreferencesKey("low_usage_threshold_min")
         private val CATEGORY_OVERRIDES = stringSetPreferencesKey("category_overrides")
     }
 }

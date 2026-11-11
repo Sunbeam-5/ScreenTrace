@@ -396,6 +396,76 @@ class UsageDumpParserTest {
         assertEquals("缺字段按 0 计，不当成拿不到", 0, row.launches)
     }
 
+    // ---- bug 13：应用时长与屏幕时长必须同源 ----
+
+    /**
+     * 没有 In-memory 包行、也没有 checkin `packages:` 段时，应用时长也必须算得出来。
+     *
+     * 真机现象（小米 Android 16 / HyperOS 3）：圆环 9:42，应用构成只有 28 分钟。
+     * 原因是应用时长只依赖 In-memory 的 `totalTimeUsed`（该 ROM 上窗口只剩 37 分钟），
+     * 而屏幕时长走事件流覆盖全天——两个窗口不同，数字天生对不上。
+     *
+     * 这条钉住修法：只用 ACTIVITY_RESUMED/PAUSED 配对也要能算出时长，
+     * 且量级与屏幕时长一致。
+     */
+    @Test
+    fun appDurationComesFromEventStreamWhenNoPackageRows() {
+        val human = listOf(
+            humanEv(ms(day1, 9), "SCREEN_INTERACTIVE"),
+            humanEv(ms(day1, 9), "ACTIVITY_RESUMED", "com.foo"),
+            humanEv(ms(day1, 10), "ACTIVITY_RESUMED", "com.bar"),
+            humanEv(ms(day1, 11), "SCREEN_NON_INTERACTIVE"),
+            humanEv(ms(day1, 11), "ACTIVITY_PAUSED", "com.bar")
+        ).joinToString("\n")
+
+        val result = parseOf("", human)
+        val foo = result.appUsage.first { it.pkg == "com.foo" }
+        val bar = result.appUsage.first { it.pkg == "com.bar" }
+        assertEquals("09:00–10:00 前台 1 小时", 60 * 60_000L, foo.totalMs)
+        assertEquals("10:00–11:00 前台 1 小时", 60 * 60_000L, bar.totalMs)
+        assertEquals("屏幕 09:00–11:00 共 2 小时", 120, result.days.getValue(day1).screenMin)
+        // 应用合计不应超过屏幕时长（同源后自洽，入库校验不会被误杀）
+        assertEquals(120, result.appUsage.filter { it.date == day1 }.sumOf { it.totalMs } / 60_000)
+    }
+
+    /**
+     * 事件推导的时长必须按自然日切开：22:00 用到次日 02:00 要算成两天各 2 小时。
+     * 不切的话单日会出现「4 小时」，与当天屏幕时长（2 小时）冲突并被入库校验丢弃。
+     */
+    @Test
+    fun eventDerivedAppDurationSplitsAcrossMidnight() {
+        val day2 = day1.plusDays(1)
+        val human = listOf(
+            humanEv(ms(day1, 22), "ACTIVITY_RESUMED", "com.foo"),
+            humanEv(ms(day2, 2), "ACTIVITY_PAUSED", "com.foo")
+        ).joinToString("\n")
+
+        val result = parseOf("", human)
+        val firstDay = result.appUsage.first { it.date == day1 && it.pkg == "com.foo" }
+        val secondDay = result.appUsage.first { it.date == day2 && it.pkg == "com.foo" }
+        assertEquals(2 * 60 * 60_000L, firstDay.totalMs)
+        assertEquals(2 * 60 * 60_000L, secondDay.totalMs)
+    }
+
+    /** 多账户（手机分身）各自配对：主空间与分身同时段各用各的，不能相互打断。 */
+    @Test
+    fun eventDerivedAppDurationKeepsUsersSeparate() {
+        val human = listOf(
+            "    user=0 ",
+            humanEv(ms(day1, 9), "ACTIVITY_RESUMED", "com.main"),
+            humanEv(ms(day1, 10), "ACTIVITY_PAUSED", "com.main"),
+            "    user=999 ",
+            humanEv(ms(day1, 9), "ACTIVITY_RESUMED", "com.clone"),
+            humanEv(ms(day1, 10), "ACTIVITY_PAUSED", "com.clone")
+        ).joinToString("\n")
+
+        val result = parseOf("", human)
+        val main = result.appUsage.first { it.pkg == "com.main" }
+        val clone = result.appUsage.first { it.pkg == "com.clone" }
+        assertEquals(60 * 60_000L, main.totalMs)
+        assertEquals("分身那一路不能被主空间的 RESUMED 打断", 60 * 60_000L, clone.totalMs)
+    }
+
     // ---- 真实 dump 不变式对账（批 5 返修验收物）----
 
     private fun findSourceFile(name: String): File? = listOf(

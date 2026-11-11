@@ -137,12 +137,35 @@ class UsageCalculatorTest {
         assertEquals(250, info.longestMinutes)
         assertEquals(day1.plusDays(1), info.shortestDate)
         assertEquals(0, info.shortestMinutes)
-        assertEquals(2, info.under2hDays)
+        assertEquals(2, info.underThresholdDays)
 
         val empty = UsageCalculator.extremes(selection, emptyList())
         assertNull(empty.longestDate)
         assertNull(empty.shortestDate)
-        assertEquals(0, empty.under2hDays)
+        assertEquals(0, empty.underThresholdDays)
+    }
+
+    /**
+     * 阈值必须真的生效：同一份数据，2 小时算 2 天，4 小时算 3 天。
+     *
+     * 这条测试的价值在于钉住「阈值不是装饰参数」——如果哪天实现里又把 120 写死，
+     * 上面的用例照样绿（默认值就是 120），只有这条会红。
+     */
+    @Test
+    fun extremesHonoursCustomLowThreshold() {
+        val selection = DateSelection.Range(day1, day7)
+        val records = listOf(
+            record(day1, 100),                    // 1h40m
+            record(day1.plusDays(1), 0),          // 真实 0
+            record(day1.plusDays(3), 200),        // 3h20m
+            record(day1.plusDays(4), 250)         // 4h10m
+        )
+        // 阈值 2 小时：100 与 0 低于它
+        assertEquals(2, UsageCalculator.extremes(selection, records, 120).underThresholdDays)
+        // 阈值 4 小时：200 也进来了，250 仍在线上（不小于 240）
+        assertEquals(3, UsageCalculator.extremes(selection, records, 240).underThresholdDays)
+        // 阈值 1 小时：只剩真实的 0 分钟那条
+        assertEquals(1, UsageCalculator.extremes(selection, records, 60).underThresholdDays)
     }
 
     @Test

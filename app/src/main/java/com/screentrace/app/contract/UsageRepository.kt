@@ -3,6 +3,15 @@ package com.screentrace.app.contract
 import java.time.LocalDate
 import java.time.YearMonth
 
+/**
+ * 「低于 x 小时」的默认阈值（分钟）。
+ *
+ * 与 [SettingsStore] 的默认值保持一致：设置页可选 1/2/3/4 小时，默认 2 小时。
+ * 放在契约层（而不是设置层）是因为仓库接口的默认参数与 UI 文案都要引用它，
+ * 让「默认 2 小时」只有一处出处。
+ */
+const val DEFAULT_LOW_THRESHOLD_MIN = 120
+
 data class Summary(
     val selection: DateSelection,
     val totalDays: Int,
@@ -46,15 +55,19 @@ data class StreakInfo(
 )
 
 /**
- * §5.6/§5.7：「最久的一天 / 最少的一天 / 低于 2 小时」只统计筛选区间内的有记录日；
- * 真实 0 分钟计入 under2hDays 并参与最短竞争，无记录日不计。并列时取更早日期。
+ * §5.6/§5.7：「最久的一天 / 最少的一天 / 低于阈值的一天」只统计筛选区间内的有记录日；
+ * 真实 0 分钟计入 [underThresholdDays] 并参与最短竞争，无记录日不计。并列时取更早日期。
+ *
+ * 阈值原本写死 2 小时（字段名 `under2hDays`），现在由设置页配置（默认仍是 120 分钟）：
+ * 「低于几小时算少」跟个人作息强相关，写死之后卡片标题只能跟着写死，用户改不了。
  */
 data class ExtremesInfo(
     val longestDate: LocalDate?,
     val longestMinutes: Int,
     val shortestDate: LocalDate?,
     val shortestMinutes: Int,
-    val under2hDays: Int
+    /** 屏幕时长低于当前阈值（默认 120 分钟）的有记录天数。 */
+    val underThresholdDays: Int
 )
 
 /** CR-01（C04）：指标详情页的指标类型。 */
@@ -163,8 +176,17 @@ interface UsageRepository {
     /** 连续记录卡：截至锚点的全量历史 streak（§5.6，筛选区间之外的历史也计入）。 */
     suspend fun streak(anchor: LocalDate): StreakInfo
 
-    /** 统计/日历双卡：筛选区间内有记录日的极值（§5.6/§5.7）。 */
-    suspend fun extremes(selection: DateSelection): ExtremesInfo
+    /**
+     * 统计/日历双卡：筛选区间内有记录日的极值（§5.6/§5.7）。
+     *
+     * [lowThresholdMin] 是「低于多少分钟算少」的阈值，来自设置页（默认 120）。
+     * 放在参数里而不是让实现去读 DataStore：仓库层保持纯查询，配置由 ViewModel 注入，
+     * 单测才能直接钉不同阈值的边界行为。
+     */
+    suspend fun extremes(
+        selection: DateSelection,
+        lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN
+    ): ExtremesInfo
 
     /**
      * CR-01（C04）：解锁/通知详情统一查询。两详情页、卡片数字、图表与数据表

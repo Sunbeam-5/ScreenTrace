@@ -320,6 +320,23 @@ object UsageDumpParser {
             if (e.type == "ACTIVITY_RESUMED") launchCount[date] = (launchCount[date] ?: 0) + 1
         }
 
+        // ---------- 应用时长：事件流推导（bug 13）----------
+        // 真机现象：圆环写 9:42，应用构成只有 28 分钟——差了一个数量级。
+        // 根因不是「分身没算」，而是**两个口径的时间窗口根本不同**：
+        //   应用时长原来只有两个来源 → ① checkin 的 `packages:` 段（本 ROM 的
+        //   `--checkin` 只给元信息，没有这段）；② 明文 In-memory 段（系统会重置，
+        //   真机上只剩 09:13–09:50 共 37 分钟）。
+        //   屏幕时长来自 SCREEN_INTERACTIVE/NON_INTERACTIVE 事件流，覆盖整个 24 小时。
+        //
+        // 这里把它们同源化：用 ACTIVITY_RESUMED/PAUSED/STOPPED 配对出前台区间，
+        // 与屏幕时长吃同一批事件、同一个窗口。分身（user=999）的事件天然带 user，
+        // 按 user 分别配对后自动计入，不需要额外分支。
+        val eventEndMs = maxOf(
+            merged.maxOfOrNull { it.ms } ?: 0L,
+            humanRanges.values.maxOfOrNull { it.second } ?: 0L
+        )
+        val (eventForegroundMs, eventLaunches) = foregroundFromEvents(counting, zone, eventEndMs)
+
         // ---------- 应用聚合（返修 P1-5/P1-6）----------
         // 1) 区间碎片按 (user, 归属日, pkg) 求和（全账户保留，不再 >50 包过滤——CR-02）
         val perUserInterval = mutableMapOf<Triple<Int, LocalDate, String>, PkgAgg>()
@@ -356,16 +373,33 @@ object UsageDumpParser {
                 }
             }
         }
-        // 3) 同 user 同 (date,pkg)：In-memory 与区间**取大**（补采不叠加）
+        // 3) 同 user 同 (date,pkg)：三个来源**取大**，不是相加——
+        //    区间片段、In-memory 累计、事件流推导观测的是同一件事（这个包那天在前台多久），
+        //    相加必然双计。
+        //
+        //    为什么是取大而不是「事件流优先」：真机对账样本（reference/sample-checkin.txt）
+        //    里 In-memory 给 356.7 分钟、事件流只配出 104 分钟——事件流在窗口边界、
+        //    进程被杀、前台服务等场景下会**系统性低估**。反过来，In-memory 在窗口被
+        //    重置时又会只剩几十分钟。两者谁高谁更接近真实，没法事先判断，取大最稳：
+        //    · 窗口完整时 In-memory 高 → 用它（样本情形）
+        //    · 窗口被重置时事件流高 → 用它（真机「应用构成只有 28 分钟」情形）
+        //    真正的荒谬值（单应用 > 24h、合计 > 参照 3 倍）由 [IngestSanity] 兜底。
         val perUser = mutableMapOf<Triple<Int, LocalDate, String>, PkgAgg>()
-        for (key in perUserInterval.keys + perUserHuman.keys) {
+        for (key in perUserInterval.keys + perUserHuman.keys + eventForegroundMs.keys) {
             val iv = perUserInterval[key]
             val hm = perUserHuman[key]
+            val fromEvents = eventForegroundMs[key] ?: 0L
+            val launchesFromEvents = eventLaunches[key] ?: 0
+            val bestParsed = listOfNotNull(iv, hm).maxByOrNull { it.totalMs }
             perUser[key] = when {
-                iv == null -> hm!!
-                hm == null -> iv
-                hm.totalMs >= iv.totalMs -> hm
-                else -> iv
+                bestParsed == null -> PkgAgg(key.third, fromEvents, launchesFromEvents)
+                fromEvents > bestParsed.totalMs -> PkgAgg(
+                    key.third,
+                    fromEvents,
+                    // 启动数取较大：事件流的 RESUMED 计数比跨天分摊过的 appLaunchCount 更贴近实际
+                    maxOf(launchesFromEvents, bestParsed.launches)
+                )
+                else -> bestParsed
             }
         }
         // 4) 跨账户求和 → 一行一日一包；滤 0 时长
@@ -490,6 +524,88 @@ object UsageDumpParser {
         }
         val total = raw.values.sum()
         return if (total > 0) raw.mapValues { it.value / total } else mapOf(fallbackDate to 1.0)
+    }
+
+    /**
+     * 从事件流推导「(user, 自然日, 包) → 前台毫秒数」与启动次数。
+     *
+     * 配对规则（与降级通道 [com.screentrace.app.data.pull.ForegroundBucketer] 同一套思路，
+     * 但这里是解析器内部的毫秒级事件，不复用它的 Pull 模型）：
+     * - 每个 user **各自**维护一个「当前前台应用」：分身与主空间是两套独立前台栈；
+     * - `ACTIVITY_RESUMED` 换应用时，用**新应用进入前台的时刻**收尾上一段——
+     *   不能等 PAUSED，真机上进程被杀时根本没有 PAUSED，等它会一路延伸到窗口末尾；
+     * - `ACTIVITY_PAUSED` / `ACTIVITY_STOPPED` 只在该包正是当前前台时收尾；
+     * - 最后仍未收尾的区间收束到 [endMs]（= dump 里最后一条事件的时刻）。
+     *
+     * 跨零点按自然日切开：23:50 用到 00:10 必须拆成两天的 10 分钟与 10 分钟，
+     * 否则单日应用合计会凭空多出一截（与自洽性校验冲突）。
+     */
+    private fun foregroundFromEvents(
+        events: List<RawEvent>,
+        zone: ZoneId,
+        endMs: Long
+    ): Pair<Map<Triple<Int, LocalDate, String>, Long>, Map<Triple<Int, LocalDate, String>, Int>> {
+        val ms = mutableMapOf<Triple<Int, LocalDate, String>, Long>()
+        val launches = mutableMapOf<Triple<Int, LocalDate, String>, Int>()
+        val sorted = events.asSequence()
+            .filter {
+                it.type == "ACTIVITY_RESUMED" ||
+                    it.type == "ACTIVITY_PAUSED" ||
+                    it.type == "ACTIVITY_STOPPED"
+            }
+            .sortedBy { it.ms }
+            .toList()
+        val open = mutableMapOf<Int, RawEvent>() // user → 当前前台的 RESUMED 事件
+
+        for (e in sorted) {
+            when (e.type) {
+                "ACTIVITY_RESUMED" -> {
+                    val prev = open[e.user]
+                    if (prev != null && prev.pkg != e.pkg) {
+                        addSpanToDay(ms, prev.user, prev.pkg, prev.ms, e.ms, zone)
+                    }
+                    // 同一应用重复 RESUMED（没有中间的 PAUSED）不重开区间，
+                    // 否则会把「一直前台」切成若干段并各丢失一段
+                    if (prev == null || prev.pkg != e.pkg) {
+                        open[e.user] = e
+                        val key = Triple(e.user, Instant.ofEpochMilli(e.ms).atZone(zone).toLocalDate(), e.pkg)
+                        launches[key] = (launches[key] ?: 0) + 1
+                    }
+                }
+                else -> {
+                    val prev = open[e.user]
+                    if (prev != null && prev.pkg == e.pkg) {
+                        addSpanToDay(ms, prev.user, prev.pkg, prev.ms, e.ms, zone)
+                        open.remove(e.user)
+                    }
+                }
+            }
+        }
+        for (prev in open.values) {
+            if (endMs > prev.ms) addSpanToDay(ms, prev.user, prev.pkg, prev.ms, endMs, zone)
+        }
+        return ms to launches
+    }
+
+    /** 把 [startMs, endMs) 按自然日切碎后累加到 [out]（毫秒）。 */
+    private fun addSpanToDay(
+        out: MutableMap<Triple<Int, LocalDate, String>, Long>,
+        user: Int,
+        pkg: String,
+        startMs: Long,
+        endMs: Long,
+        zone: ZoneId
+    ) {
+        if (endMs <= startMs) return
+        var cur = startMs
+        while (cur < endMs) {
+            val date = Instant.ofEpochMilli(cur).atZone(zone).toLocalDate()
+            val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            val segEnd = minOf(endMs, dayEnd)
+            val key = Triple(user, date, pkg)
+            out[key] = (out[key] ?: 0L) + (segEnd - cur)
+            cur = segEnd
+        }
     }
 
     /** §2.2 坑 1：两段式 "MM:SS" 是分:秒，三段式才是时:分:秒。 */

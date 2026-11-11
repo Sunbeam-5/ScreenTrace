@@ -27,6 +27,17 @@
         </intent>
     </queries>
 
+    <!--
+      但真机上这条策略不够：屏幕使用时间里有大量**时长很长却没有桌面入口**的包——
+      系统服务、互联组件、桌面小部件（实测 `com.xiaomi.mi_connect_service` 占 8 次通知，
+      界面只能显示成包名和一个系统默认图标）。只有 QUERY_ALL_PACKAGES 才能拿到它们的
+      名称与图标。对本 App 来说这不是「过宽」：要回答「哪个应用用了多久」，
+      本来就必须能看到全部应用；没有这权限时排行页会退化成一串 com.xxx 字符串。
+    -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
     <application
         android:name=".ScreenTraceApp"
         android:allowBackup="true"

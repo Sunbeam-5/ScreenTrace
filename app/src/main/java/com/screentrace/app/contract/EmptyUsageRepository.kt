@@ -38,8 +38,8 @@ class EmptyUsageRepository : UsageRepository {
     override suspend fun streak(anchor: LocalDate): StreakInfo =
         UsageCalculator.streak(emptyList(), anchor)
 
-    override suspend fun extremes(selection: DateSelection): ExtremesInfo =
-        UsageCalculator.extremes(selection, emptyList())
+    override suspend fun extremes(selection: DateSelection, lowThresholdMin: Int): ExtremesInfo =
+        UsageCalculator.extremes(selection, emptyList(), lowThresholdMin)
 
     override suspend fun metricDetail(metric: MetricKind, selection: DateSelection): MetricDetail =
         UsageCalculator.metricDetail(metric, selection) // 全空事件 → 覆盖三态全 NO_RECORD

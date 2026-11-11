@@ -4,11 +4,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
@@ -20,15 +30,20 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -91,6 +106,7 @@ fun AppNav() {
     val notice by viewModel.notice
     val pullError by viewModel.pullError
     val pulling by viewModel.pulling
+    val lowThresholdMin by viewModel.lowThresholdMin
 
     // §5.7：进详情页前记住今日页滚动位置，返回时滚回去（页面变短会把 value 夹小，
     // 所以必须**离开前**存快照，回来再 scrollTo，而不是指望 ScrollState 自己记住）
@@ -115,6 +131,25 @@ fun AppNav() {
     }
 
     ScreenTimeTheme(variant = variant, darkTheme = darkTheme, dynamicColor = dynamicColor) {
+        // 系统栏图标明暗必须跟**用户选的**深浅色走，而不是跟系统：
+        // enableEdgeToEdge 只在启动时按系统深浅设一次，用户在 App 内切深色后
+        // 状态栏图标会变成「深色图标压深色背景」，几乎看不见。
+        val view = LocalView.current
+        val activity = LocalContext.current as? android.app.Activity
+        SideEffect {
+            if (activity != null) {
+                val controller = androidx.core.view.WindowCompat.getInsetsController(activity.window, view)
+                controller.isAppearanceLightStatusBars = !darkTheme
+                controller.isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
+
+        // 系统返回键 / 全面屏返回手势：二级页必须回到上一层，而不是直接退到桌面。
+        // 之前只有顶部栏那个「返回」按钮接了 goBack，系统返回没人拦 → Activity 直接
+        // finish()，用户看到的就是「在设置里一滑返回就退出 App」。
+        // 主页面（今日/统计/日历）不拦截，保持系统默认的「退出应用」。
+        BackHandler(enabled = !isRootPage(page)) { viewModel.goBack() }
+
         androidx.compose.runtime.LaunchedEffect(page) {
             if (page == AppPage.Today) contentScroll.scrollTo(savedTodayOffset)
         }
@@ -188,69 +223,124 @@ fun AppNav() {
                 recordedDays = todayState.data?.summary?.recordedDays,
                 onClear = viewModel::clearFilter
             )
-            notice?.let { text ->
-                NoticeBar(text = text, onDismiss = viewModel::consumeNotice)
+            // 提示条必须走 AnimatedVisibility：直接 `notice?.let {}` 会让这一行
+            // 瞬间消失，下面整页内容「啪」地往上跳一格——用户点 x 看到的就是
+            // 「页面刷新闪了一下」。展开/收起都是 140ms 的高度动画，视觉上连续。
+            AnimatedVisibility(
+                visible = notice != null,
+                enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+            ) {
+                notice?.let { text ->
+                    NoticeBar(text = text, onDismiss = viewModel::consumeNotice)
+                }
             }
             // §5.8：已有历史时拉取失败 → 顶部内联错误 + 可重试，页面继续显示旧数据
-            pullError?.let { text ->
-                NoticeBar(
-                    text = text,
-                    onDismiss = viewModel::dismissPullError,
-                    actionText = "重试",
-                    onAction = viewModel::retryPull
-                )
+            AnimatedVisibility(
+                visible = pullError != null,
+                enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+            ) {
+                pullError?.let { text ->
+                    NoticeBar(
+                        text = text,
+                        onDismiss = viewModel::dismissPullError,
+                        actionText = "重试",
+                        onAction = viewModel::retryPull
+                    )
+                }
             }
-            if (pulling) {
+            AnimatedVisibility(
+                visible = pulling,
+                enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+            ) {
                 PullingBar()
             }
-            when (page) {
-                AppPage.Today -> TodayScreen(
-                    state = todayState,
-                    dailyGoalMin = dailyGoalMin,
-                    // 首次 dump 要十几秒：这期间显示「正在读取」，而不是「尚无使用记录」
-                    pulling = viewModel.pulling.value,
-                    onOpenRanking = viewModel::openRanking,
-                    onRetry = viewModel::reload,
-                    onOpenUnlock = {
-                        savedTodayOffset = contentScroll.value
-                        viewModel.openUnlockDetail()
-                    },
-                    onOpenNotification = {
-                        savedTodayOffset = contentScroll.value
-                        viewModel.openNotificationDetail()
-                    }
-                )
-                AppPage.Stats -> StatsScreen(
-                    state = statsState,
-                    selection = selection,
-                    onApplySelection = viewModel::applySelection,
-                    onRetry = viewModel::reload
-                )
-                AppPage.Calendar -> CalendarScreen(
-                    state = calendarState,
-                    monthLevelsState = monthLevelsState,
-                    calendarMonth = calendarMonth,
-                    onMonthChange = viewModel::setCalendarMonth,
-                    onRetry = viewModel::reload
-                )
-                is AppPage.Ranking -> RankingScreen(
-                    state = rankingState,
-                    onRetry = viewModel::reload
-                )
-                is AppPage.Settings -> SettingsScreen(
-                    darkTheme = darkTheme,
-                    dynamicColor = dynamicColor,
-                    onDarkThemeChange = viewModel::setDarkTheme,
-                    onDynamicColorChange = viewModel::setDynamicColor
-                )
-                is AppPage.UnlockDetail -> UnlockDetailScreen(
-                    state = unlockDetail,
-                    onRetry = viewModel::reload
-                )
-                is AppPage.NotificationDetail -> NotificationDetailScreen(
-                    state = notificationDetail,
-                    onRetry = viewModel::reload
-                )
+            /**
+             * 页面切换过渡：整块内容淡入 + 上浮 12dp。
+             *
+             * 两个必须遵守的约束，都是踩坑换来的：
+             *
+             * 1. **必须用 `Column` 包，不能用 `Box`**。各页面的 Composable 往往有多个根节点
+             *    （`TodayContent` 就是「圆环卡 / 双卡 / 应用构成卡」三个并列），
+             *    `ContentColumn` 是 `ColumnScope`，所以它们原本是纵向排列的。
+             *    一旦包进 `Box`，三个根节点就变成 Box 的兄弟 → **全部叠在左上角**，
+             *    真机表现是「只看得见最后绘制的应用构成卡，圆环和双卡被盖住」
+             *    （UI 树里三者 bounds 互相覆盖，就是这原因）。`AnimatedContent` 同理。
+             * 2. 外层 `ContentColumn` 的 `spacedBy(12.dp)` 现在只作用于这一个 Column，
+             *    所以卡间距要在这里补上同样的 12dp，否则卡片会贴在一起。
+             */
+            val contentAlpha = remember { Animatable(1f) }
+            val reduceMotion = com.screentrace.app.uikit.rememberReduceMotion()
+            LaunchedEffect(page) {
+                if (reduceMotion) {
+                    contentAlpha.snapTo(1f)
+                    return@LaunchedEffect
+                }
+                contentAlpha.snapTo(0f)
+                contentAlpha.animateTo(1f, tween(220, easing = FastOutSlowInEasing))
+            }
+            Column(
+                modifier = Modifier.graphicsLayer {
+                    // graphicsLayer 只改绘制、不改布局，纵向排列完全不受影响
+                    alpha = contentAlpha.value
+                    translationY = (1f - contentAlpha.value) * 12.dp.toPx()
+                },
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                when (page) {
+                    AppPage.Today -> TodayScreen(
+                        state = todayState,
+                        dailyGoalMin = dailyGoalMin,
+                        // 首次 dump 要十几秒：这期间显示「正在读取」，而不是「尚无使用记录」
+                        pulling = viewModel.pulling.value,
+                        onOpenRanking = viewModel::openRanking,
+                        onRetry = viewModel::reload,
+                        onOpenUnlock = {
+                            savedTodayOffset = contentScroll.value
+                            viewModel.openUnlockDetail()
+                        },
+                        onOpenNotification = {
+                            savedTodayOffset = contentScroll.value
+                            viewModel.openNotificationDetail()
+                        }
+                    )
+                    AppPage.Stats -> StatsScreen(
+                        state = statsState,
+                        selection = selection,
+                        onApplySelection = viewModel::applySelection,
+                        onRetry = viewModel::reload
+                    )
+                    AppPage.Calendar -> CalendarScreen(
+                        state = calendarState,
+                        monthLevelsState = monthLevelsState,
+                        calendarMonth = calendarMonth,
+                        onMonthChange = viewModel::setCalendarMonth,
+                        onRetry = viewModel::reload,
+                        lowThresholdMin = lowThresholdMin
+                    )
+                    is AppPage.Ranking -> RankingScreen(
+                        state = rankingState,
+                        onRetry = viewModel::reload
+                    )
+                    is AppPage.Settings -> SettingsScreen(
+                        darkTheme = darkTheme,
+                        dynamicColor = dynamicColor,
+                        onDarkThemeChange = viewModel::setDarkTheme,
+                        onDynamicColorChange = viewModel::setDynamicColor,
+                        lowThresholdMin = lowThresholdMin,
+                        onLowThresholdChange = viewModel::setLowThresholdMin
+                    )
+                    is AppPage.UnlockDetail -> UnlockDetailScreen(
+                        state = unlockDetail,
+                        onRetry = viewModel::reload
+                    )
+                    is AppPage.NotificationDetail -> NotificationDetailScreen(
+                        state = notificationDetail,
+                        onRetry = viewModel::reload
+                    )
+                }
             }
         }
 
@@ -282,6 +372,10 @@ private fun selectionSubtitle(selection: DateSelection): String = when (selectio
     is DateSelection.Range ->
         "${selection.start.format(DAY_FORMAT)} – ${selection.end.format(DAY_FORMAT)}"
 }
+
+/** 三个主页面（底部导航所在层）。其余都是二级页，需要拦截系统返回。 */
+private fun isRootPage(page: AppPage): Boolean =
+    page === AppPage.Today || page === AppPage.Stats || page === AppPage.Calendar
 
 /** §5.6「完全无记录」提示条 / §5.8 拉取内联错误：内联展示、可关闭，不用 Toast（§5.5）。 */
 @Composable

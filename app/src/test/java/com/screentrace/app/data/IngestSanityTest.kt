@@ -46,13 +46,28 @@ class IngestSanityTest {
         AppUsageRow(date = date, pkg = pkg, totalMs = minutes * 60_000L, launches = launches)
 
     @Test
-    fun `应用时长超过当天屏幕时长时整日丢弃应用与时段数据`() {
+    fun `主空间与分身并行时应用合计可超屏幕时长`() {
+        // 真机事实：user=0 与 user=999 可以同时在前台，应用时长按账户分别统计后求和，
+        // 合计自然会到屏幕时长的两倍。这是真实使用情况，不是脏数据——不能丢。
+        val verdict = IngestSanity.check(
+            days = mapOf(day11 to day(600)),
+            appUsage = listOf(
+                app(day11, "com.main.space", 700),
+                app(day11, "com.clone.space", 480)
+            ),
+            hourMinutes = mapOf(day11 to hours(600))
+        )
+
+        assertTrue("两路并行在 3 倍以内，保留", verdict.droppedDates.isEmpty())
+        assertEquals(2, verdict.appUsage.size)
+    }
+
+    @Test
+    fun `应用合计超过参照三倍时整日丢弃`() {
+        // 上限 = 510 × 3 = 1530；1600 分钟超出，属于 In-memory 窗口失准的典型症状
         val verdict = IngestSanity.check(
             days = mapOf(day11 to day(510)),
-            appUsage = listOf(
-                app(day11, "com.xiaomi.smarthome", 1386),
-                app(day11, "com.miui.securitycenter", 2, launches = 1)
-            ),
+            appUsage = listOf(app(day11, "com.xiaomi.smarthome", 1600)),
             hourMinutes = mapOf(day11 to hours(510))
         )
 
@@ -62,12 +77,26 @@ class IngestSanityTest {
     }
 
     @Test
+    fun `单个应用超过一天是硬错且不受参照物影响`() {
+        // 必须有屏幕时长参照，否则走的是「24 小时兜底」那条路，硬判据被覆盖测不到
+        // （第一版就是这么写的，变异测试发现去掉硬判据仍然全绿）。
+        // 这里屏幕 600 分钟 → 参照上限 600×3=1800，1500 分钟在合计判据下合法，
+        // 只有「单应用 ≤ 1440」这条硬判据能拦住它。
+        val verdict = IngestSanity.check(
+            days = mapOf(day11 to day(600)),
+            appUsage = listOf(app(day11, "com.a", 1500)),
+            hourMinutes = mapOf(day11 to hours(600))
+        )
+        assertEquals("单个应用超过 24 小时物理上不可能", listOf(day11), verdict.droppedDates)
+    }
+
+    @Test
     fun `只有一天矛盾时另一天照常保留`() {
         val verdict = IngestSanity.check(
             days = mapOf(day10 to day(765), day11 to day(510)),
             appUsage = listOf(
                 app(day10, "com.tencent.mm", 300),
-                app(day11, "com.xiaomi.smarthome", 1386)
+                app(day11, "com.xiaomi.smarthome", 1600)
             ),
             hourMinutes = mapOf(day10 to hours(765), day11 to hours(510))
         )

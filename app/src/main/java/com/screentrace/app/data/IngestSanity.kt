@@ -29,16 +29,19 @@ internal object IngestSanity {
     /**
      * 允许的超出幅度（相对当天屏幕时长）。
      *
-     * **不是 2% 的原因（真机实测打的补丁）**：手机上「应用前台时长」并不严格小于
-     * 「屏幕亮着时长」——`totalTimeUsed` 还包含前台服务、画中画、灭屏但可见的
-     * Activity 等。小米 Android 16 的真实数据里，米家 573 分钟 / 屏幕 538 分钟
-     * （+6.5%）、当天应用合计 584 / 538（+8.5%）都是**正常值**；按 2% 判会把这天
-     * 的应用与时段数据整日丢光，界面表现为「屏幕时长有数、应用排行空白」。
+     * 两层口径差叠加，决定了这个值：
      *
-     * 取 50%：既容得下这类口径差（真机最大约 +9%），又仍能挡住「1386 vs 510」
-     * 那种 2.7 倍的量级错误（上限 = 510 × 1.5 = 765 < 1386）。
+     * 1. `totalTimeUsed` 含前台服务、画中画、灭屏但可见的 Activity，正常会比「亮屏时长」
+     *    多一截（真机实测米家 +6.5%、当天合计 +8.5%）；
+     * 2. **手机分身 / 隐私空间与主空间可以并行使用**（真机 user=0 与 user=999 的事件
+     *    时间重叠）。应用时长按账户分别统计后跨账户求和，合计自然会到屏幕时长的
+     *    两倍——这是真实情况，不是脏数据。
+     *
+     * 所以上限放到 3 倍（`reference × 3`）：容得下「主空间 + 分身」这种最常见的两路并行，
+     * 又仍能挡住真正的荒谬值（比如 In-memory 窗口重置后某个应用凭空多出十几小时）。
+     * 单应用超过 24 小时另有硬判据，见 [check]。
      */
-    private const val SLACK_RATIO = 0.5
+    private const val SLACK_RATIO = 2.0
 
     /** 一天的分钟数：参照物缺失或量级太小时用它兜底做上限。 */
     private const val MINUTES_PER_DAY = 24 * 60
@@ -72,9 +75,13 @@ internal object IngestSanity {
         val minutesByDate = appUsage.groupBy { it.date }.mapValues { (_, rows) ->
             rows.sumOf { it.totalMs }.toDouble() / 60_000.0
         }
-        val bad = minutesByDate.keys.filter { date ->
-            val used = minutesByDate.getValue(date)
-            used.roundToLong() > limitOf(date, days, hourMinutes)
+        val bad = mutableSetOf<LocalDate>()
+        // ① 单个应用超过一天：物理上不可能，哪怕主空间与分身同时用同一个 App。
+        //    这条最硬，且不受屏幕时长参照物的影响——是 In-memory 窗口失准的典型症状。
+        appUsage.filter { it.totalMs > MINUTES_PER_DAY * 60_000L }.forEach { bad.add(it.date) }
+        // ② 当天应用合计超参照上限（见 [SLACK_RATIO]）
+        minutesByDate.forEach { (date, used) ->
+            if (used.roundToLong() > limitOf(date, days, hourMinutes)) bad.add(date)
         }
         if (bad.isEmpty()) return Verdict(appUsage, hourMinutes, emptyList())
         val drop = bad.toSet()

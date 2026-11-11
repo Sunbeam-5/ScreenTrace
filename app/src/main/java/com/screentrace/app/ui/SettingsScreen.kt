@@ -15,21 +15,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.screentrace.app.contract.DEFAULT_LOW_THRESHOLD_MIN
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.uikit.EmptyState
+import com.screentrace.app.uikit.SegmentedControl
+
+/** 「低于 x 小时」的可选阈值：1 / 2 / 3 / 4 小时。 */
+private val THRESHOLD_OPTIONS = listOf(60, 120, 180, 240)
 
 /**
- * 设置页占位（批次 3）。§5.8 四组卡片 + 关于在批次 7 全量接线；
- * 「外观」组的深浅色与动态取色是真实可用功能（批 7 迁入正式分组），
- * 其余组诚实待办——不画假按钮（§6）。
+ * 设置页（批次 3 起持续接线）。§5.8 四组卡片 + 关于仍待批次 7 全量落地；
+ * 「外观」与「统计口径」两组是真实可用功能，其余组诚实待办——不画假按钮（§6）。
  */
 @Composable
 fun SettingsScreen(
     darkTheme: Boolean,
     dynamicColor: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
-    onDynamicColorChange: (Boolean) -> Unit
+    onDynamicColorChange: (Boolean) -> Unit,
+    /** 日历页「低于 x 小时」的阈值（分钟）。 */
+    lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN,
+    onLowThresholdChange: (Int) -> Unit = {}
 ) {
     SettingsGroup("外观") {
         SettingSwitchRow(
@@ -43,6 +50,28 @@ fun SettingsScreen(
             onCheckedChange = onDynamicColorChange
         )
     }
+
+    SettingsGroup("统计口径") {
+        val palette = LocalFreshPalette.current
+        Text(
+            text = "日历里「低于 x 小时」的判断标准",
+            style = FreshType.body,
+            color = palette.onSurface
+        )
+        SegmentedControl(
+            items = THRESHOLD_OPTIONS.map { "${it / 60} 小时" },
+            // 存进来的值不在预设里（旧版本数据 / 手改配置）时高亮默认档，
+            // 而不是硬夹到第 0 项「1 小时」——那会让人以为设置被改过。
+            selectedIndex = THRESHOLD_OPTIONS.indexOf(lowThresholdMin).takeIf { it >= 0 } ?: 1,
+            onSelect = { onLowThresholdChange(THRESHOLD_OPTIONS[it]) }
+        )
+        Text(
+            text = "低于这个时长的天数会在日历页单独计数。作息不同，这条线因人而异。",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+    }
+
     EmptyState(
         title = "更多设置建设中",
         description = "目标与同步、权限与数据、备份与同步、关于将在批次 7 接线"

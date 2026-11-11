@@ -38,7 +38,16 @@ class RoomUsageRepository(
     private val db: ScreenTraceDatabase,
     private val settings: com.screentrace.app.data.prefs.SettingsStore? = null,
     /** 手动拉取入口（设置页「立即拉取」）：由 AppContainer 接到 PullCoordinator。 */
-    private val pull: (suspend () -> PullResult)? = null
+    private val pull: (suspend () -> PullResult)? = null,
+    /**
+     * §3-8 实时展示名。库里存到的名字优先，没有时（包可见性受限、历史脏数据、
+     * 刚装的包）现查一次。
+     *
+     * 为什么读取层也要查：入库时写的是当时的名字，而 `app_usage` 里可能压根没有
+     * 这个包（只出现在通知事件里的系统服务，如 `com.xiaomi.mi_connect_service`），
+     * 不在这里兜一层，通知详情就会显示成一串包名。
+     */
+    private val labelResolver: ((String) -> String?)? = null
 ) : UsageRepository {
 
     private suspend fun recordsBetween(start: LocalDate, end: LocalDate): List<DaySummary> =
@@ -109,8 +118,12 @@ class RoomUsageRepository(
     override suspend fun streak(anchor: LocalDate): StreakInfo =
         UsageCalculator.streak(db.daySummaryDao().getAll().map { it.toDomain() }, anchor)
 
-    override suspend fun extremes(selection: DateSelection): ExtremesInfo =
-        UsageCalculator.extremes(selection, recordsBetween(selection.startDate, selection.endDate))
+    override suspend fun extremes(selection: DateSelection, lowThresholdMin: Int): ExtremesInfo =
+        UsageCalculator.extremes(
+            selection,
+            recordsBetween(selection.startDate, selection.endDate),
+            lowThresholdMin
+        )
 
     /**
      * CR-01（C04）：解锁/通知详情统一查询——图表/表格/卡片同源于此（§7-16）。
@@ -142,8 +155,15 @@ class RoomUsageRepository(
             java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate()
         }
         val gapDays = computeGapDays(zone)
-        val appLabels = db.appUsageDao().allNames().associate {
-            it.pkg to displayName(it.pkg, it.name)
+        // 名字表要覆盖「**只在通知事件里出现**的包」：`allNames()` 只查 `app_usage`，
+        // 而系统服务（如 com.xiaomi.mi_connect_service）往往只在通知事件里有记录、
+        // 从不进入应用使用排行。不补这一层，通知详情就会显示成一串 com.xxx 包名
+        // ——真机上正是这么看到的（bug 8）。
+        val appLabels = buildMap {
+            db.appUsageDao().allNames().forEach { put(it.pkg, displayName(it.pkg, it.name)) }
+            notifs.map { it.pkg }.distinct().forEach { pkg ->
+                if (pkg !in this) put(pkg, displayName(pkg, pkg))
+            }
         }
         return UsageCalculator.metricDetail(
             metric = metric,
@@ -173,7 +193,14 @@ class RoomUsageRepository(
 
     /** §3-8 展示名：库内 name（6b 回填）优先 → 内置映射表 → 包名。 */
     private fun displayName(pkg: String, storedName: String): String =
-        if (storedName.isNotBlank() && storedName != pkg) storedName else AppNames.nameOf(pkg)
+        if (storedName.isNotBlank() && storedName != pkg) {
+            storedName
+        } else {
+            // 库里没存到 → 现查（AppLabelResolver 自带缓存）→ 内置映射 → 包名兜底
+            runCatching { labelResolver?.invoke(pkg) }.getOrNull()
+                ?.takeIf { it.isNotBlank() }
+                ?: AppNames.nameOf(pkg)
+        }
 
     override suspend fun pullLatest(): PullResult =
         pull?.invoke() ?: PullResult(ok = false, message = "当前环境未接入拉取通道")

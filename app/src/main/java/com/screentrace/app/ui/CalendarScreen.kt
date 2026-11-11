@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.screentrace.app.contract.CalendarLevel
+import com.screentrace.app.contract.DEFAULT_LOW_THRESHOLD_MIN
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.ExtremesInfo
 import com.screentrace.app.contract.StreakInfo
@@ -65,7 +66,9 @@ fun CalendarScreen(
     monthLevelsState: LoadState<List<CalendarLevel>>,
     calendarMonth: YearMonth,
     onMonthChange: (YearMonth) -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    /** 「低于 x 小时」的 x（分钟）。由设置页配置，默认 2 小时。 */
+    lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN
 ) {
     when {
         state.loading -> LoadingSkeleton()
@@ -79,7 +82,8 @@ fun CalendarScreen(
             data = state.data,
             monthLevelsState = monthLevelsState,
             calendarMonth = calendarMonth,
-            onMonthChange = onMonthChange
+            onMonthChange = onMonthChange,
+            lowThresholdMin = lowThresholdMin
         )
     }
 }
@@ -89,7 +93,8 @@ private fun CalendarContent(
     data: CalendarData,
     monthLevelsState: LoadState<List<CalendarLevel>>,
     calendarMonth: YearMonth,
-    onMonthChange: (YearMonth) -> Unit
+    onMonthChange: (YearMonth) -> Unit,
+    lowThresholdMin: Int
 ) {
     val palette = LocalFreshPalette.current
     var selectedEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -207,16 +212,22 @@ private fun CalendarContent(
         }
     }
 
-    // ④ tonal 双卡（最久的一天 / 低于 2 小时）
+    // ④ tonal 双卡（最久的一天 / 低于 x 小时）
     MetricCardPair(
         leftLabel = "最久的一天",
         leftValue = MetricValue.Duration(data.extremes.longestMinutes),
         leftNote = data.extremes.longestDate?.let { "${it.monthValue}月${it.dayOfMonth}日" },
-        rightLabel = "低于 2 小时",
-        rightValue = MetricValue.Number("${data.extremes.under2hDays}"),
+        // 标题跟着阈值走：以前写死「低于 2 小时」，用户改不了，标题也就永远是 2。
+        // 整小时显示「低于 3 小时」，非整小时（如 90 分钟）退回「低于 90 分钟」。
+        rightLabel = thresholdLabel(lowThresholdMin),
+        rightValue = MetricValue.Number("${data.extremes.underThresholdDays}"),
         rightNote = "天（有记录日）"
     )
 }
+
+/** 「低于 x 小时」标题：整小时用小时，否则用分钟，避免出现「低于 1.5 小时」。 */
+private fun thresholdLabel(minutes: Int): String =
+    if (minutes % 60 == 0) "低于 ${minutes / 60} 小时" else "低于 $minutes 分钟"
 
 @Composable
 private fun MonthArrow(isNext: Boolean, onClick: () -> Unit) {

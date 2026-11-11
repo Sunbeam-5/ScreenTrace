@@ -141,14 +141,27 @@ fun CapsuleBarChart(
                                 )
                             }
                         }
-                        if (index % labelEvery == 0) {
-                            Text(
-                                text = point.date.format(DATE_LABEL),
-                                style = FreshType.label,
-                                color = palette.onSurfaceVariant
-                            )
-                        } else {
-                            Spacer(Modifier.height(labelRowHeight))
+                        /**
+                         * 标签行必须**固定高度**，不能「有标签就放 Text、没标签就放 Spacer」。
+                         *
+                         * 之前就是这么写的，后果是真机上的「柱子滑到 0 轴下面」：
+                         * Text 的实际高度（约 15dp）比 Spacer 的 22dp 矮，而外层 Row
+                         * 用 `verticalAlignment = Bottom` 对齐——有标签的列整列矮 7dp，
+                         * Bottom 对齐后**柱底比无标签的列低 7dp**，正好穿出 0 刻度线。
+                         * 固定 22dp 的槽位后，所有列的柱底都在同一条基线上。
+                         */
+                        Box(
+                            modifier = Modifier.height(labelRowHeight),
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                            if (index % labelEvery == 0) {
+                                Text(
+                                    text = point.date.format(DATE_LABEL),
+                                    style = FreshType.label,
+                                    color = palette.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }

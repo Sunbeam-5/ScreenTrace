@@ -31,8 +31,14 @@ class AppContainer(context: Context) {
 
     val settings = SettingsStore(appContext)
 
-    /** §3-8 展示名：PackageManager 标签优先，入库时写库（之后列表/搜索/详情都用真实名字）。 */
-    val pipeline = IngestPipeline(db, AppLabelResolver(appContext.packageManager))
+    /**
+     * §3-8 展示名：PackageManager 标签优先。同一个实例同时给入库管道与仓库读取层用，
+     * 缓存共享——入库时算过的包，读取时不用再查一次 PackageManager。
+     */
+    private val labels = AppLabelResolver(appContext.packageManager)
+
+    /** 入库时写库（之后列表/搜索/详情都用真实名字）。 */
+    val pipeline = IngestPipeline(db, labels)
 
     /**
      * 通道优先级＝降级顺序（§2.1）：Shizuku 能拿事件流；拿不到（未装/未授权/临时故障）
@@ -51,6 +57,8 @@ class AppContainer(context: Context) {
         db = db,
         settings = settings,
         // 设置页「立即拉取」（批 7 接 UI）：走同一条协调器，不另建通道
-        pull = { pullCoordinator.pull().asPullResult() }
+        pull = { pullCoordinator.pull().asPullResult() },
+        // 读取层兜底：只在库里没存到名字时才真正去查
+        labelResolver = labels
     )
 }

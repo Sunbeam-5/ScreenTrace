@@ -156,10 +156,16 @@ object UsageCalculator {
     }
 
     /**
-     * §5.6：「最久的一天 / 最少的一天 / 低于 2 小时」只统计筛选区间内的有记录日；
-     * 真实 0 分钟计入 under2hDays 并参与最短竞争，无记录日不计。并列取更早日期。
+     * §5.6：「最久的一天 / 最少的一天 / 低于阈值的一天」只统计筛选区间内的有记录日；
+     * 真实 0 分钟计入 [underThresholdDays] 并参与最短竞争，无记录日不计。并列取更早日期。
+     *
+     * [lowThresholdMin] 由设置页配置（默认 [DEFAULT_LOW_THRESHOLD_MIN] = 2 小时）。
      */
-    fun extremes(selection: DateSelection, records: List<DaySummary>): ExtremesInfo {
+    fun extremes(
+        selection: DateSelection,
+        records: List<DaySummary>,
+        lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN
+    ): ExtremesInfo {
         val inRange = records.associateBy { it.date }.values
             .filter { !it.date.isBefore(selection.startDate) && !it.date.isAfter(selection.endDate) }
             .sortedBy { it.date }
@@ -174,7 +180,7 @@ object UsageCalculator {
             longestMinutes = longest.screenUnlockMin,
             shortestDate = shortest.date,
             shortestMinutes = shortest.screenUnlockMin,
-            under2hDays = inRange.count { it.screenUnlockMin < 120 }
+            underThresholdDays = inRange.count { it.screenUnlockMin < lowThresholdMin }
         )
     }
 

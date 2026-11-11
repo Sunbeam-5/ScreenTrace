@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -89,10 +90,22 @@ fun MetricBarChart(
      * 首尾两个标签才不会贴着滚动区边缘被裁掉。
      */
     val labelWidth = 48.dp
-    val edgePad = ((labelWidth - slotWidth) / 2).coerceAtLeast(0.dp)
+    /**
+     * 滚动内容左右留白 = **半个标签宽**，而不是「标签与槽宽的差的一半」。
+     *
+     * 后者在细柱时算出来是 (48-11)/2 ≈ 18.5dp，但最右那个标签的中心在
+     * `edgePad + slotWidth × n - barWidth/2` 处，加上半个标签宽后仍会顶到内容框边界，
+     * horizontalScroll 一裁就变成「2:」这种半截数字（真机实测）。
+     * 留满半个标签宽后，首尾标签都完整落在内容框内。
+     */
+    val edgePad = labelWidth / 2
     // 打点间隔按**标签宽度**算而不是按 28dp 常数：否则细柱每 2 槽打一个点，
     // 相邻两个 26dp 宽的标签会叠在一起。
     val labelEvery = ((labelWidth.value / slotWidth.value).toInt()).coerceAtLeast(1)
+    // 最后一个标签必须落在「对齐点」上。以前无条件强制显示 lastIndex，
+    // 24 个点时最后两个标签是 20 和 23——相距仅 33dp 而标签宽 48dp，必然互相压住
+    // （真机上表现为「20」和「2:」挤在一起）。宁可少画最后一个，也不要重叠。
+    val lastLabelIndex = points.lastIndex - points.lastIndex % labelEvery
 
     val reduceMotion = rememberReduceMotion()
     val totalBars = points.size
@@ -167,7 +180,7 @@ fun MetricBarChart(
                                 slotWidth = slotWidth,
                                 labelWidth = labelWidth,
                                 labelRowHeight = labelRowHeight,
-                                showLabel = index % labelEvery == 0 || index == points.lastIndex,
+                                showLabel = index % labelEvery == 0 && index <= lastLabelIndex,
                                 xLabel = xLabel(point),
                                 factor = if (reduceMotion) 1f else local
                             )
@@ -205,6 +218,15 @@ fun MetricBarChart(
     }
 }
 
+/**
+ * 单个槽位：柱区（固定 plotHeight）+ 标签行（固定 labelRowHeight）上下堆叠。
+ *
+ * **为什么不用 offset 把标签「贴」到底部外面**：之前是给标签
+ * `align(BottomCenter).offset(y = labelRowHeight - 12.dp)`，但 offset 只改绘制位置、
+ * 不改测量尺寸——外层 Box 高度仍是 plotHeight，标签被画到柱区里面，
+ * 于是「柱子压到文字上、还整体偏了一截」（bug 8）。
+ * 换成两个等高槽位后，柱底与标签各自待在属于自己的那一段，互不重叠。
+ */
 @Composable
 private fun BarSlot(
     point: MetricPoint,
@@ -219,7 +241,10 @@ private fun BarSlot(
     factor: Float
 ) {
     val palette = LocalFreshPalette.current
-    Box(Modifier.width(slotWidth)) {
+    Column(
+        modifier = Modifier.width(slotWidth),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Box(
             modifier = Modifier
                 .width(barWidth)
@@ -259,24 +284,28 @@ private fun BarSlot(
                 }
             }
         }
-        if (showLabel) {
-            Text(
-                text = xLabel,
-                style = FreshType.label,
-                color = palette.onSurfaceVariant,
-                maxLines = 1,
-                softWrap = false,
-                // 溢出可见：requiredWidth 已经把标签从槽宽约束里解放出来，
-                // 万一标签比 48dp 还长（如「12/31」加大字号）也宁可画出去，不要切一半
-                overflow = androidx.compose.ui.text.style.TextOverflow.Visible,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
+        // 标签行：固定高度 + 顶部对齐，标签宽度可以溢出槽位（requiredWidth 解除
+        // 槽宽约束），但**高度**不外溢，所以不会压到柱子上
+        Box(
+            modifier = Modifier.height(labelRowHeight),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            if (showLabel) {
+                Text(
+                    text = xLabel,
+                    style = FreshType.label,
+                    color = palette.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false,
+                    // 溢出可见：requiredWidth 已经把标签从槽宽约束里解放出来，
+                    // 万一标签比 48dp 还长（如「12/31」加大字号）也宁可画出去，不要切一半
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Visible,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     // requiredWidth 而不是 width：普通 width 会被父 Box 的 maxWidth(=槽宽)
                     // 反过来夹住，标签又变回「被裁」（这就是评审 P1-2 的成因）
-                    .requiredWidth(labelWidth)
-                    .offset(y = labelRowHeight - 12.dp)
-            )
+                    modifier = Modifier.requiredWidth(labelWidth)
+                )
+            }
         }
     }
 }

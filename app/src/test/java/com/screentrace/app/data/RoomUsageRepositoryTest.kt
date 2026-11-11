@@ -144,6 +144,45 @@ class RoomUsageRepositoryTest {
         assertEquals("微信", detail.appRanking.first().name)
     }
 
+    @Test
+    fun `只在通知事件里出现的包也要能查到真实名字`() = runBlocking {
+        // 真机场景：`com.xiaomi.mi_connect_service` 这类没有桌面入口的系统服务，
+        // **只出现在通知事件里**、从不进入 app_usage。名字表如果只从 app_usage 构建，
+        // 通知详情就会显示成一串 com.xxx。（这是变异测试抓出来的：第一版把该包
+        // 同时插进了 app_usage，于是「补全通知包」那段代码根本不参与，测了个寂寞。）
+        val resolver = { pkg: String -> if (pkg == "com.xiaomi.mi_connect_service") "小米互联通信服务" else null }
+        val withResolver = RoomUsageRepository(db, labelResolver = resolver)
+        db.notificationEventDao().insertIgnore(
+            listOf(
+                com.screentrace.app.data.db.NotificationEventEntity(
+                    msOf(d1, 10), NotificationType.INTERRUPTION.name, "com.xiaomi.mi_connect_service", null
+                )
+            )
+        )
+
+        val detail = withResolver.metricDetail(MetricKind.NOTIFICATION, DateSelection.Day(d1))
+        assertEquals("小米互联通信服务", detail.appRanking.first().name)
+    }
+
+    @Test
+    fun `PackageManager 也查不到时回退内置映射`() = runBlocking {
+        val resolver = { _: String -> null }
+        val withResolver = RoomUsageRepository(db, labelResolver = resolver)
+        db.appUsageDao().insert(
+            AppUsageEntity(d1.toString(), "com.tencent.mm", "com.tencent.mm", 12, 30, "SOCIAL")
+        )
+        db.notificationEventDao().insertIgnore(
+            listOf(
+                com.screentrace.app.data.db.NotificationEventEntity(
+                    msOf(d1, 10), NotificationType.SEEN.name, "com.tencent.mm", null
+                )
+            )
+        )
+
+        val detail = withResolver.metricDetail(MetricKind.NOTIFICATION, DateSelection.Day(d1))
+        assertEquals("微信", detail.appRanking.first().name)
+    }
+
     // ---------- P1-1：用户分类覆盖 ----------
 
     @Test

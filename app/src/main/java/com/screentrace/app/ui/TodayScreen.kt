@@ -102,8 +102,7 @@ private fun TodayContent(
     ) {
         RingProgress(
             progress = if (dailyGoalMin <= 0) 0f else usageMin.toFloat() / dailyGoalMin,
-            timeText = UsageCalculator.formatClock(usageMin),
-            caption = "小时 : 分钟"
+            timeText = UsageCalculator.formatClock(usageMin)
         )
         CompareLine(text = data.compare.text, up = data.compare.increase)
         Text(

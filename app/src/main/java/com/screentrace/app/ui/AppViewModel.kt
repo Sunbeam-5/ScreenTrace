@@ -8,6 +8,7 @@ import com.screentrace.app.contract.AppUsage
 import com.screentrace.app.contract.CalendarLevel
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.DailyPoint
+import com.screentrace.app.contract.DEFAULT_LOW_THRESHOLD_MIN
 import com.screentrace.app.contract.EmptyUsageRepository
 import com.screentrace.app.contract.ExtremesInfo
 import com.screentrace.app.contract.MetricDetail
@@ -189,6 +190,10 @@ class AppViewModel(
     private val _dailyGoalMin = mutableStateOf(DEFAULT_GOAL_MIN)
     val dailyGoalMin: State<Int> = _dailyGoalMin
 
+    /** 日历页「低于 x 小时」阈值（分钟），默认 2 小时，可在设置页改。 */
+    private val _lowThresholdMin = mutableStateOf(DEFAULT_LOW_THRESHOLD_MIN)
+    val lowThresholdMin: State<Int> = _lowThresholdMin
+
     private var loadJob: Job? = null
 
     // ---- 批 6b：拉取状态（§5.8 未启动/未授权/拉取中/失败/空 dump） ----
@@ -297,6 +302,9 @@ class AppViewModel(
             _dailyGoalMin.value = runCatching { store.dailyGoalMin.first() }.getOrDefault(DEFAULT_GOAL_MIN)
         }
         viewModelScope.launch {
+            runCatching { store.lowUsageThresholdMin.collect { _lowThresholdMin.value = it } }
+        }
+        viewModelScope.launch {
             runCatching {
                 store.themeVariant.collect { _themeVariant.value = it }
             }
@@ -307,6 +315,16 @@ class AppViewModel(
         viewModelScope.launch {
             runCatching { store.dynamicColor.collect { _dynamicColor.value = it } }
         }
+    }
+
+    /** 日历「低于 x 小时」阈值。改完必须重算：卡片标题与计数都来自 extremes。 */
+    fun setLowThresholdMin(value: Int) {
+        if (value == _lowThresholdMin.value) return
+        _lowThresholdMin.value = value
+        settings?.let { store ->
+            viewModelScope.launch { runCatching { store.setLowUsageThresholdMin(value) } }
+        }
+        loadAll()
     }
 
     // ---- 导航 ----
@@ -436,6 +454,8 @@ class AppViewModel(
         loadJob = viewModelScope.launch {
             val selection = _selection.value
             val single = selection is DateSelection.Day
+            // 「低于几小时算少」的来源。变化时由 setLowThresholdMin 触发整页重算。
+            val threshold = _lowThresholdMin.value
             _todayState.value = LoadState(loading = true)
             _statsState.value = LoadState(loading = true)
             _calendarState.value = LoadState(loading = true)
@@ -517,7 +537,7 @@ class AppViewModel(
                         compare = compare,
                         trend = repository.dailyTrend(selection),
                         periods = UsageCalculator.periodBuckets(hours),
-                        extremes = repository.extremes(selection)
+                        extremes = repository.extremes(selection, threshold)
                     )
                 )
 
@@ -525,7 +545,7 @@ class AppViewModel(
                 _calendarState.value = LoadState(
                     data = CalendarData(
                         streak = repository.streak(selection.endDate),
-                        extremes = repository.extremes(selection),
+                        extremes = repository.extremes(selection, threshold),
                         yearLevels = repository.yearLevels(selection.endDate)
                     )
                 )
