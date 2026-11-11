@@ -16,6 +16,7 @@ import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -235,6 +236,25 @@ class IngestPipelineTest {
         val stored = db.appUsageDao().get(d1.toString(), "com.tencent.mm")?.name
         assertEquals(AppNames.nameOf("com.tencent.mm"), stored)
         assertTrue("映射表命中就不该把包名写进库（UI 会直接显示 com.tencent.mm）", stored != "com.tencent.mm")
+    }
+
+    @Test
+    fun `不足半分钟的应用不上榜但 59 秒仍记 1 分钟`() = runBlocking {
+        // 真机现象：排行页出现「Tomato · 0分钟」——20 秒使用被四舍五入成 0 分钟。
+        // 这种行对用户毫无意义，还会把「共 N 个应用」的计数虚增。
+        val p = IngestPipeline(db) { null }
+        val result = emptyResult().copy(
+            appUsage = listOf(
+                AppUsageRow(d1, "com.too.short", 20_000L, 1),   // 20 秒 → 舍成 0，不入库
+                AppUsageRow(d1, "com.half.min", 35_000L, 1),    // 35 秒 → 舍成 1
+                AppUsageRow(d1, "com.tencent.mm", 59_000L, 2)   // 59 秒 → 1（真实使用不得变 0）
+            )
+        )
+
+        assertTrue(p.ingest(result, "dump", t0).ok)
+        assertNull("20 秒的应用不该入库", db.appUsageDao().get(d1.toString(), "com.too.short"))
+        assertEquals(1, db.appUsageDao().get(d1.toString(), "com.half.min")?.minutes)
+        assertEquals("59 秒是真实使用，必须记 1 分钟而不是 0", 1, db.appUsageDao().get(d1.toString(), "com.tencent.mm")?.minutes)
     }
 
     // ---------- helpers ----------

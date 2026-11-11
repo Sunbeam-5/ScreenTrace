@@ -52,11 +52,14 @@ fun TodayScreen(
     onOpenRanking: () -> Unit,
     onRetry: () -> Unit,
     onOpenUnlock: () -> Unit = {},
-    onOpenNotification: () -> Unit = {}
+    onOpenNotification: () -> Unit = {},
+    /** 正在拉取（首次 dump 要十几秒）。此时「没数据」是暂时的，不能显示「尚无使用记录」。 */
+    pulling: Boolean = false
 ) {
     when {
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
+        state.data == null && pulling -> PullingState()
         state.data == null -> DataEmptyState(
             reason = state.empty,
             noDataTitle = "尚无使用记录",
@@ -154,6 +157,17 @@ private fun TodayContent(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(text = "应用构成", style = FreshType.sectionTitle, color = palette.onSurface)
+        // 口径说明（真机踩到的）：系统给的 `totalTimeUsed` 含前台服务、画中画、
+        // 灭屏但可见的 Activity，会比「亮屏时长」多出一截——实测米家 583 分钟 vs
+        // 全天 557 分钟。不解释的话，用户只会觉得「单个应用比全天还久，算错了」。
+        val topMinutes = data.topApps.firstOrNull()?.minutes ?: 0
+        if (topMinutes > data.summary.totalScreenUnlockMin && data.summary.totalScreenUnlockMin > 0) {
+            Text(
+                text = "应用时长含前台服务与画中画，可能略高于亮屏时长",
+                style = FreshType.label,
+                color = palette.onSurfaceMuted
+            )
+        }
         val segments = buildList {
             data.topApps.forEachIndexed { index, app ->
                 add(

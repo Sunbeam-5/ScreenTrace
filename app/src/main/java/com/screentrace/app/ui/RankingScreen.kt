@@ -85,7 +85,11 @@ private fun RankingContent(data: RankingData) {
     ) {
         Text(
             text = when {
-                !dayAggregatesAvailable -> "应用使用累计（降级通道，不含锁屏统计）"
+                // 降级通道的三条边界都要写在标题里，否则用户会把「少」当成「算错」：
+                // ① 没有锁屏/通知事件；② 只有应用级数据没有日聚合；
+                // ③ **只含当前空间**——系统 `UsageStatsManager` 查不到分身/隐私空间，
+                //    真机实测 11-10 本空间 2 分钟 vs 分身整天 765 分钟。
+                !dayAggregatesAvailable -> "应用使用累计（降级通道，不含锁屏统计，仅当前空间）"
                 data.summary.selection is DateSelection.Day -> "当日累计"
                 else -> "区间累计"
             },

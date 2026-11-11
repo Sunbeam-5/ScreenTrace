@@ -1,7 +1,6 @@
 package com.screentrace.app.uikit
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -15,12 +14,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasurePolicy
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -83,20 +90,90 @@ private fun MetricText(
     modifier: Modifier = Modifier
 ) {
     val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
-    BoxWithConstraints(modifier = modifier) {
-        val regular = 26 to 13
-        val compact = 24 to 12
-        val (numSp, unitSp) = if (fits(parts, regular.first, regular.second, fontScale, maxWidth.value)) {
-            regular
-        } else {
-            compact
-        }
-        Text(
-            text = buildMetricAnnotated(parts, numSp, unitSp, numberColor, unitColor),
-            style = FreshType.metricNumber,
-            maxLines = 1
+    // 常规档 26/13、紧凑档 24/12（§5.3）。两档都先组好，测量时只用得上一个。
+    //
+    // **这里不能用 `BoxWithConstraints`**（真机首装崩溃的根因）：
+    // `BoxWithConstraints` 是 `SubcomposeLayout`，而 Compose 禁止对 SubcomposeLayout
+    // 求 intrinsic 尺寸。卡片又在 `Row(height(IntrinsicSize.Min))` 里做等高，
+    // 于是「有数据渲染双卡」时必然抛
+    // `IllegalStateException: Asking for intrinsic measurements of SubcomposeLayout...`。
+    // 换成自带 intrinsic 实现的 [MetricTextPolicy]：既能拿到宽度决定字号，
+    // 又能让外层照常做 intrinsic 等高。
+    Layout(
+        modifier = modifier,
+        content = {
+            Text(
+                text = buildMetricAnnotated(parts, REGULAR_NUM, REGULAR_UNIT, numberColor, unitColor),
+                style = FreshType.metricNumber,
+                maxLines = 1
+            )
+            Text(
+                text = buildMetricAnnotated(parts, COMPACT_NUM, COMPACT_UNIT, numberColor, unitColor),
+                style = FreshType.metricNumber,
+                maxLines = 1
+            )
+        },
+        measurePolicy = MetricTextPolicy(parts, fontScale)
+    )
+}
+
+private const val REGULAR_NUM = 26
+private const val REGULAR_UNIT = 13
+private const val COMPACT_NUM = 24
+private const val COMPACT_UNIT = 12
+
+/**
+ * 「按可用宽度选字号」的测量策略。
+ *
+ * 只测**选中的那一档**：Compose 规定同一个 Measurable 在一次布局里只能测一次，
+ * 所以不能用「先量一遍看看多宽、再按新约束量一遍」的两趟写法（那会抛
+ * `measure() may not be called multiple times on the same Measurable`）。
+ * 宽度判定走 [fits] 的纯算术估算，不依赖任何测量结果。
+ *
+ * intrinsic 四个方法都委托给常规档：略偏保守——卡片可能高一点点，但绝不会把数字裁掉。
+ */
+private class MetricTextPolicy(
+    private val parts: List<MetricPart>,
+    private val fontScale: Float
+) : MeasurePolicy {
+
+    override fun MeasureScope.measure(
+        measurables: List<Measurable>,
+        constraints: Constraints
+    ): MeasureResult {
+        val useRegular = fits(
+            parts = parts,
+            numSp = REGULAR_NUM,
+            unitSp = REGULAR_UNIT,
+            fontScale = fontScale,
+            maxWidthDp = constraints.maxWidth.toDp().value
         )
+        val placeable = measurables[if (useRegular) 0 else 1]
+            .measure(constraints.copy(minWidth = 0, minHeight = 0))
+        return layout(placeable.width, placeable.height) {
+            placeable.place(0, 0)
+        }
     }
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(
+        measurables: List<IntrinsicMeasurable>,
+        height: Int
+    ): Int = measurables[0].maxIntrinsicWidth(height)
+
+    override fun IntrinsicMeasureScope.maxIntrinsicWidth(
+        measurables: List<IntrinsicMeasurable>,
+        height: Int
+    ): Int = measurables[0].maxIntrinsicWidth(height)
+
+    override fun IntrinsicMeasureScope.minIntrinsicHeight(
+        measurables: List<IntrinsicMeasurable>,
+        width: Int
+    ): Int = measurables[0].maxIntrinsicHeight(width)
+
+    override fun IntrinsicMeasureScope.maxIntrinsicHeight(
+        measurables: List<IntrinsicMeasurable>,
+        width: Int
+    ): Int = measurables[0].maxIntrinsicHeight(width)
 }
 
 /** 粗略宽度估算：ASCII 数字 ≈0.55em、中文 ≈1em，加 4dp / 12dp 节奏间距。 */

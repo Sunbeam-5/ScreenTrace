@@ -1,7 +1,19 @@
 package com.screentrace.app.ui
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.screentrace.app.theme.FreshType
+import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.uikit.EmptyState
 
 /**
@@ -39,6 +51,43 @@ internal fun DataEmptyState(
             title = noDataTitle,
             description = noDataDescription,
             modifier = modifier
+        )
+    }
+}
+
+/**
+ * 「还没数据，但正在拉取」——必须和「真的没数据」分开画。
+ *
+ * 真机首装实测：`dumpsys usagestats` 的 dump 有 4MB，经 Shizuku 流式读回再解析要
+ * 十几秒。这段时间库里是空的，如果直接落到 [DataEmptyState]，用户第一眼看到的是
+ * 「尚无使用记录 / 连接 Shizuku 并完成首次拉取」，而此时他刚授权完、App 正在干活——
+ * 看上去就是「授权了也没用」。
+ */
+@Composable
+internal fun PullingState(modifier: Modifier = Modifier) {
+    val palette = LocalFreshPalette.current
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(28.dp),
+            color = palette.primary,
+            strokeWidth = 3.dp
+        )
+        Text(
+            text = "正在读取使用记录",
+            style = FreshType.sectionTitle,
+            color = palette.onSurface
+        )
+        Text(
+            text = "首次读取需要十几秒，请稍候",
+            style = FreshType.body,
+            color = palette.onSurfaceVariant,
+            textAlign = TextAlign.Center
         )
     }
 }

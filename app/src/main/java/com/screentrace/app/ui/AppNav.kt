@@ -207,6 +207,8 @@ fun AppNav() {
                 AppPage.Today -> TodayScreen(
                     state = todayState,
                     dailyGoalMin = dailyGoalMin,
+                    // 首次 dump 要十几秒：这期间显示「正在读取」，而不是「尚无使用记录」
+                    pulling = viewModel.pulling.value,
                     onOpenRanking = viewModel::openRanking,
                     onRetry = viewModel::reload,
                     onOpenUnlock = {

@@ -236,4 +236,47 @@ class AppViewModelDegradedTest {
     }
 
     private fun nowMs(): Long = day.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
+
+    // ---------- 5. 后台已入库、前台被节流 ----------
+
+    @Test
+    fun `后台已入库但前台被节流时界面必须补读一次`() = runTest(dispatcher) {
+        // 真机首装必现：冷启动时 WorkManager 的 Worker 先把 4MB dump 拉完入库，
+        // 界面随后的 pullOnOpen 被 30 分钟节流挡成 Throttled。旧实现这条分支只刷
+        // coverage、不重读——于是「数据明明在库里，界面显示尚无使用记录」，且一直不变。
+        val now = System.currentTimeMillis()
+        val coordinator = com.screentrace.app.data.pull.PullCoordinator(
+            db = db,
+            pipeline = IngestPipeline(db),
+            providers = emptyList(),
+            clock = { now }
+        )
+        val vm = AppViewModel(repository = repository, pulls = coordinator)
+        advanceUntilIdle()
+        assertNull("前提：启动那一刻库里确实没数据", vm.todayState.value.data)
+
+        // 模拟后台 Worker 完成拉取：入库，并写一条「刚才拉过」的日志
+        val ingested = IngestPipeline(db).ingest(
+            ParseResult(
+                days = mapOf(day to DayMetrics(420, 400, 22, 61, 35)),
+                hourMinutes = mapOf(day to List(24) { 17 }),
+                appUsage = listOf(AppUsageRow(day, "com.tencent.mm", 120 * 60_000L, 30)),
+                unlockEvents = emptyList(),
+                notificationEvents = emptyList()
+            ),
+            "shizuku",
+            now
+        )
+        assertTrue("前提：这次入库成功", ingested.ok)
+
+        vm.pullOnOpen()
+        advanceUntilIdle()
+
+        assertNull("节流下不该报错", vm.pullError.value)
+        assertNotNull(
+            "节流只代表「这次没拉」，不代表库里没新数据——必须补读一次",
+            vm.todayState.value.data
+        )
+        assertNotNull("排行页同样要有数据", vm.rankingState.value.data)
+    }
 }

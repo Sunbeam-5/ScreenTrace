@@ -22,6 +22,7 @@ import com.screentrace.app.data.pull.PullCoordinator
 import com.screentrace.app.data.pull.PullOutcome
 import com.screentrace.app.theme.ThemeVariant
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -212,6 +213,13 @@ class AppViewModel(
         // 拉取**不放在 init**：由 AppNav 挂在 ON_RESUME 上（§2.1「App 打开时拉取」），
         // 否则「退到后台再回来」与「去 Shizuku 授权完切回来」都不会触发拉取。
         // init 里再拉一次会和 ON_RESUME 首帧撞成两次调用（虽被节流/互斥兜住，但没必要）。
+
+        // 但要订阅「后台已经拉完」这件事：WorkManager 的 Worker 与界面是两条独立路径，
+        // 冷启动时它常常先把 dump 拉完入库，界面随后的 pullOnOpen 会被 30 分钟节流挡成
+        // Throttled——不重读就停在首帧空态（真机必现「数据在库里，界面说尚无记录」）。
+        viewModelScope.launch {
+            pulls?.changes?.collect { loadAll() }
+        }
     }
 
     // ---- 拉取 ----
@@ -257,8 +265,12 @@ class AppViewModel(
             }
 
             PullOutcome.Throttled, PullOutcome.AlreadyRunning -> {
-                // 节流/并发：不动界面，只刷新一次覆盖范围与最近拉取时间
+                // 节流/并发：只刷新覆盖范围与最近拉取时间
                 _coverage.value = coordinator.historyCoverage()
+                // 但「这次没拉」不等于「库里没有新数据」：后台 Worker 可能刚写完，
+                // 而界面还停在启动时那次空查询的结果上。只在当前没有数据时补读一次，
+                // 免得每次回前台都把已有画面重算一遍（§5.7 不闪骨架）。
+                if (_todayState.value.data == null) loadAll()
             }
 
             PullOutcome.EmptyDump -> {

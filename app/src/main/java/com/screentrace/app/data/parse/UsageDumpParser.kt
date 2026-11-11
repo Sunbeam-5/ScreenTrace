@@ -5,10 +5,12 @@ import com.screentrace.app.contract.NotificationType
 import com.screentrace.app.contract.UnlockEvent
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 /** 逐日指标（§3-5）。 */
 data class DayMetrics(
@@ -69,8 +71,9 @@ data class ParseResult(
  * - `screen_unlock` = 亮屏扣除锁屏重叠（sub_kg）；最长连续 = **逐日切片**的
  *   sub_kg 分钟最大值（返修 P0-2：整段值不跨零点复制）；
  * - 小时矩阵 sub_kg 口径（§6 红线）；
- * - 应用时长按区间归属日（end-60s 同对账参照）；In-memory 归属
- *   `today` 参数（默认取明文事件最新日期，批 6b 可显式传当天）；
+ * - 应用时长按区间归属日（end-60s 同对账参照）；In-memory **按其 `timeRange` 分摊到多日**
+ *   （真机实测窗口常跨 2 天、约 23.7 小时，全归一天会让单日应用合计超过当日屏幕时长，
+ *   进而被入库自洽性校验整日丢弃——详见 [dayWeights]）；
  * - 事件流（CR-01）：收敛后 KEYGUARD_HIDDEN → UnlockEvent；通知 → NotificationEvent。
  */
 object UsageDumpParser {
@@ -79,12 +82,31 @@ object UsageDumpParser {
     private val EV_HUMAN = Regex("""time="(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})" type=(\w+) package=(\S+)""")
     private val RANGE = Regex("""beginTime=(\d+) endTime=(\d+)""")
     private val PKG_CHECKIN = Regex("""package=(\S+) totalTimeUsed=(\d+) lastTimeUsed=(\d+).*?appLaunchCount=(\d+)""")
-    private val PKG_HUMAN = Regex("""package=(\S+) totalTimeUsed="([\d:]+)" .*?appLaunchCount=(\d+)""")
+    /**
+     * 明文 In-memory 的包行：`package=com.foo totalTimeUsed="23:06:08" lastTimeUsed="…"`
+     *
+     * **不把 `appLaunchCount` 写进这个正则**：真机上主空间那一段 223 个包行里只有 132 行
+     * 带该字段（为 0 时系统省略），要求它会把 91 个包连同其真实时长一起丢掉——表现为
+     * 「排行页只剩 4 个应用，米家以外全不见」。
+     */
+    private val PKG_HUMAN = Regex("""package=(\S+) totalTimeUsed="([\d:]+)"""")
+    private val LAUNCH_COUNT = Regex("""appLaunchCount=(\d+)""")
     private val SCREEN_CHECKIN = Regex("""screen-interactive: (\d+)x for (\d+)""")
     private val SCREEN_HUMAN = Regex("""screen-interactive: (\d+)x for "([\d:]+)"""")
     private val CHANNEL = Regex("""channelId=(\S+)""")
     private val USER_HEADER = Regex("""^\s*user=(\d+)""")
     private val HUMAN_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+
+    /**
+     * 明文 `In-memory daily stats` 段的时间窗：`timeRange="2026/11/10 09:15 – 2026/11/11 08:55"`。
+     *
+     * 分隔符在不同 ROM / Android 版本上见过 en dash（U+2013）、连字符、波浪号三种，
+     * 一律按「任意非数字非空格符号」接受，别把解析挂在排版字符上。
+     */
+    private val HUMAN_RANGE = Regex(
+        """timeRange="(\d{4}/\d{1,2}/\d{1,2} \d{1,2}:\d{2})\s*[^\d\s]\s*(\d{4}/\d{1,2}/\d{1,2} \d{1,2}:\d{2})""""
+    )
+    private val HUMAN_RANGE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy/M/d H:mm")
 
     /** 系统级镜像事件类型：各 profile 同源广播，需跨账户收敛（返修 P0-1）。 */
     private val MIRROR_TYPES = setOf(
@@ -162,6 +184,7 @@ object UsageDumpParser {
 
         // ---------- 明文：In-memory 段按 user 归属（返修 P1-5）+ 事件全文件扫 ----------
         val humanTodayPkgs = mutableMapOf<Int, MutableList<PkgAgg>>() // user → In-memory 包
+        val humanRanges = mutableMapOf<Int, Pair<Long, Long>>() // user → In-memory 窗口
         val humanEvents = mutableListOf<RawEvent>()
         var inDaily = false
         var humanUser = 0
@@ -176,12 +199,29 @@ object UsageDumpParser {
                 humanTodayPkgs.getOrPut(humanUser) { mutableListOf() }
                 continue
             }
+            // 窗口边界只认 In-memory 段内的那一行：`Last 24 hour events` 也带 timeRange，
+            // 且写在前面，不过它的窗口对分摊同样有效——只是 daily 段会覆盖它，取更准的那个。
+            if (inDaily) {
+                HUMAN_RANGE.find(line)?.let {
+                    val s = LocalDateTime.parse(it.groupValues[1], HUMAN_RANGE_TIME)
+                        .atZone(zone).toInstant().toEpochMilli()
+                    val e = LocalDateTime.parse(it.groupValues[2], HUMAN_RANGE_TIME)
+                        .atZone(zone).toInstant().toEpochMilli()
+                    if (e > s) humanRanges[humanUser] = s to e
+                }
+            }
             if (inDaily && trimmed.startsWith("In-memory weekly")) inDaily = false
             if (inDaily) {
                 val pkgMatch = PKG_HUMAN.find(line)
                 if (pkgMatch != null) {
                     humanTodayPkgs.getOrPut(humanUser) { mutableListOf() }.add(
-                        PkgAgg(pkgMatch.groupValues[1], durMs(pkgMatch.groupValues[2]), pkgMatch.groupValues[3].toInt())
+                        PkgAgg(
+                            pkgMatch.groupValues[1],
+                            durMs(pkgMatch.groupValues[2]),
+                            // 缺字段 = 系统记为 0（不是「拿不到」）：日级启动数另由
+                            // ACTIVITY_RESUMED 计数给出，这里只用于应用级展示
+                            LAUNCH_COUNT.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                        )
                     )
                 }
             }
@@ -291,16 +331,29 @@ object UsageDumpParser {
                 perUserInterval[key] = PkgAgg(p.pkg, (prev?.totalMs ?: 0) + p.totalMs, (prev?.launches ?: 0) + p.launches)
             }
         }
-        // 2) In-memory 按 (user, today, pkg)；归属日 = today 参数 / 明文事件最新日期
+        // 2) In-memory 按 (user, 归属日, pkg)：窗口跨天时**按天分摊**（见 [dayWeights]）；
+        //    调用方显式传 today 时按旧口径全归当天（批 6b 的「今日」语义）。
         val inferredToday = today
             ?: humanEvents.maxOfOrNull { Instant.ofEpochMilli(it.ms).atZone(zone).toLocalDate() }
             ?: LocalDate.now(zone)
         val perUserHuman = mutableMapOf<Triple<Int, LocalDate, String>, PkgAgg>()
         for ((user, pkgs) in humanTodayPkgs) {
+            val weights: Map<LocalDate, Double> = when {
+                today != null -> mapOf(today to 1.0)
+                humanRanges[user] != null ->
+                    dayWeights(humanRanges.getValue(user), screenDay, zone, inferredToday)
+                else -> mapOf(inferredToday to 1.0)
+            }
             for (p in pkgs) {
-                val key = Triple(user, inferredToday, p.pkg)
-                val prev = perUserHuman[key]
-                perUserHuman[key] = PkgAgg(p.pkg, (prev?.totalMs ?: 0) + p.totalMs, (prev?.launches ?: 0) + p.launches)
+                for ((date, w) in weights) {
+                    val key = Triple(user, date, p.pkg)
+                    val prev = perUserHuman[key]
+                    perUserHuman[key] = PkgAgg(
+                        p.pkg,
+                        (prev?.totalMs ?: 0) + (p.totalMs * w).roundToLong(),
+                        (prev?.launches ?: 0) + (p.launches * w).roundToInt()
+                    )
+                }
             }
         }
         // 3) 同 user 同 (date,pkg)：In-memory 与区间**取大**（补采不叠加）
@@ -397,6 +450,46 @@ object UsageDumpParser {
                 result
             }
         return (kept + app).sortedBy { it.ms }
+    }
+
+    /**
+     * In-memory 窗口跨天时，把包时长按天分摊的权重（和为 1）。
+     *
+     * 真机（小米 2407FRK8EC / Android 16）的 `In-memory daily stats` 窗口是
+     * `2026/11/10 09:15 – 2026/11/11 08:55`，约 23.7 小时、横跨两天；而
+     * `totalTimeUsed` 是**整段累计**，系统不告诉你怎么分到两天。
+     *
+     * 不分摊的后果（实测）：23 小时的累计全压到后一天 → 单日应用合计 1420 分钟，
+     * 而当天屏幕时长只有 538 分钟 → 入库自洽性校验判定脏数据、整日丢弃 →
+     * 「屏幕时长有数、应用排行空白」，同时前一天的应用明细凭空消失。
+     *
+     * 权重取**当天屏幕时长**：应用在前台的时间与屏幕亮着的时间强相关，比按窗口
+     * 时长均摊更接近真实。某日没有屏幕数据时退回「窗口与该日的重叠时长」。
+     */
+    private fun dayWeights(
+        range: Pair<Long, Long>,
+        screenDay: Map<LocalDate, Double>,
+        zone: ZoneId,
+        fallbackDate: LocalDate
+    ): Map<LocalDate, Double> {
+        val (startMs, endMs) = range
+        val last = Instant.ofEpochMilli(endMs).atZone(zone).toLocalDate()
+        var d = Instant.ofEpochMilli(startMs).atZone(zone).toLocalDate()
+        val days = mutableListOf<LocalDate>()
+        while (!d.isAfter(last)) {
+            days.add(d)
+            d = d.plusDays(1)
+        }
+        val raw = days.associateWith { date ->
+            val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
+            val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            val overlapMin =
+                (minOf(endMs, dayEnd) - maxOf(startMs, dayStart)).coerceAtLeast(0L) / 60_000.0
+            val screen = screenDay[date] ?: 0.0
+            if (screen > 0) minOf(screen, overlapMin) else overlapMin
+        }
+        val total = raw.values.sum()
+        return if (total > 0) raw.mapValues { it.value / total } else mapOf(fallbackDate to 1.0)
     }
 
     /** §2.2 坑 1：两段式 "MM:SS" 是分:秒，三段式才是时:分:秒。 */

@@ -42,7 +42,15 @@ class ShizukuEndToEndTest {
     private lateinit var pipeline: IngestPipeline
 
     private val zone: ZoneId = ZoneId.systemDefault()
-    private var now: Long = 1_793_400_000_000 // 落在样本时间窗之后，作为「拉取时刻」
+    /**
+     * 「拉取时刻」必须落在样本时间窗**末尾之后一点点**（= 真机 dump 的那一刻）。
+     *
+     * 以前这里写的是 1_793_400_000_000（2026-10-31 06:40），比样本最后一条事件早了 9 天：
+     * 解析器用它收尾「还开着的前台区间」，于是最后那个不满一天的区间被放大成
+     * 「屏幕 1 分钟、应用 319 分钟」，连入库自洽性校验都判它是脏数据。
+     * 这不是校验过严，是**测试的时钟与样本对不上**。
+     */
+    private var now: Long = 1_794_203_723_476 + 60_000
 
     @Before
     fun setUp() {

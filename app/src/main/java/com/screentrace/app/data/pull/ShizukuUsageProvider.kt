@@ -56,32 +56,67 @@ class ShizukuUsageProvider(
         // 也是 ForegroundBucketer 收尾开放区间的 endMs。解析要花约 1 秒，真机上看不出差别，
         // 但语义上「这次拉取代表的是哪一刻的数据」必须是起点而不是终点。
         val capturedAtMs = clock()
-        val checkin = try {
-            shell.exec(ShizukuShell.CHECKIN_CMD)
-        } catch (e: ShizukuExecException) {
-            return LoadedUsage.Failed(ProviderStatus.TEMPORARILY_UNAVAILABLE, e.message ?: "checkin 执行失败")
-        }
-        if (checkin.isBlank()) {
-            return LoadedUsage.Failed(ProviderStatus.TEMPORARILY_UNAVAILABLE, "checkin 输出为空")
-        }
 
-        // 明文 dump 只用来补「今天」的 In-memory 段（§2.2）：失败不该毁掉整次拉取，
-        // 但必须把原因带出去写进 pull_log.note，让「今天少一截」这件事可追溯。
-        val human = try {
-            shell.exec(ShizukuShell.PLAIN_CMD)
-        } catch (e: ShizukuExecException) {
-            ""
-        }
-        val warning = if (human.isBlank()) "明文 dump 为空：今日 In-memory 数据可能缺失" else null
+        // 两路 dump 都**不致命**：任何一路拿到能用的数据就够。单路失败先记下来，
+        // 只有两路都没有可用数据时才按通道不可用处理（交给协调器降级）。
+        val checkinAttempt = runCatching { shell.exec(ShizukuShell.CHECKIN_CMD) }
+        val checkin = checkinAttempt.getOrDefault("")
+        val human = runCatching { shell.exec(ShizukuShell.PLAIN_CMD) }.getOrDefault("")
 
-        return try {
-            val result = withContext(Dispatchers.Default) { parse(checkin, human) }
-            LoadedUsage.Parsed(result = result, capturedAtMs = capturedAtMs, warning = warning)
-        } catch (e: Exception) {
-            LoadedUsage.Failed(
-                ProviderStatus.TEMPORARILY_UNAVAILABLE,
-                "解析失败：${e.message ?: e.javaClass.simpleName}"
-            )
+        // 形态判定 + 解析都在 Default 上：4MB 文本的 `contains` 扫描与逐行解析都不该占用调用线程
+        return withContext(Dispatchers.Default) {
+            val checkinShape = DumpShape.of(checkin)
+            val humanShape = DumpShape.of(human)
+
+            // 真机实测（小米 2407FRK8EC / Android 16 / HyperOS 3）：
+            //   `dumpsys usagestats`            → 4.17MB 完整明文（含事件流 + In-memory）
+            //   `dumpsys usagestats --checkin`  → 561KB **只有元信息**，0 条 totalTimeUsed
+            // 即这台 ROM 的 --checkin 不是「被忽略」，而是走了个只吐元信息的分支；
+            // 真正可用的数据在**不带参数的明文**里。所以这里不是「验形态后失败」，
+            // 而是「谁有数据谁当主输入」——明文主导时 checkinText 传空串，
+            // 让解析器的 EV_HUMAN / PKG_HUMAN / In-memory 分支独立驱动。
+            val useCheckin = checkinShape.looksLikeCheckin
+            val usePlain = humanShape.usableAsPlain
+
+            if (!useCheckin && !usePlain) {
+                val reason = buildString {
+                    append("两路 dump 都没有可用数据（checkin ")
+                    if (checkinAttempt.isFailure) {
+                        append("执行失败：")
+                        append(checkinAttempt.exceptionOrNull()?.message ?: "未知错误")
+                    } else {
+                        append(checkinShape.summary)
+                    }
+                    append("；明文 ")
+                    append(humanShape.summary)
+                    append("）")
+                }
+                return@withContext LoadedUsage.Failed(ProviderStatus.TEMPORARILY_UNAVAILABLE, reason)
+            }
+
+            val warning = buildString {
+                if (useCheckin) {
+                    append("checkin ").append(checkinShape.summary)
+                } else {
+                    append("checkin 无数据（").append(checkinShape.summary).append("），本次明文主导")
+                }
+                append("；明文 ").append(if (humanShape.kind == DumpShape.Kind.EMPTY) "为空" else humanShape.summary)
+            }
+
+            try {
+                LoadedUsage.Parsed(
+                    // 不可用时传空串：绝不能把「不像 checkin 的文本」喂给 CSV 正则，
+                    // 否则要么静默产出似真数据，要么把明文里的数字重复计一遍。
+                    result = parse(if (useCheckin) checkin else "", human),
+                    capturedAtMs = capturedAtMs,
+                    warning = warning
+                )
+            } catch (e: Exception) {
+                LoadedUsage.Failed(
+                    ProviderStatus.TEMPORARILY_UNAVAILABLE,
+                    "解析失败：${e.message ?: e.javaClass.simpleName}"
+                )
+            }
         }
     }
 

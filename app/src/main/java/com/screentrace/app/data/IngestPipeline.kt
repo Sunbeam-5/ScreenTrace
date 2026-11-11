@@ -43,6 +43,14 @@ class IngestPipeline(
         }
 
         return try {
+            // 先过自洽性校验：应用时长超过当天屏幕时长的日期整日丢弃（见 IngestSanity 类注释）
+            val verdict = IngestSanity.check(result.days, result.appUsage, result.hourMinutes)
+            val finalNote = if (verdict.hasDrops) {
+                val dropped = verdict.droppedDates.joinToString(",") { it.toString() }
+                listOfNotNull(note, "应用/时段数据与全天时长矛盾，已丢弃：$dropped").joinToString("；")
+            } else {
+                note
+            }
             db.withTransaction {
                 val dayDao = db.daySummaryDao()
                 for ((date, metrics) in result.days) {
@@ -63,14 +71,19 @@ class IngestPipeline(
                 }
 
                 val appDao = db.appUsageDao()
-                for (row in result.appUsage) {
+                for (row in verdict.appUsage) {
                     val key = row.date.toString()
+                    // 四舍五入而非截断：59 秒真实使用不得存成 0 分钟（§5.5，复审意见）
+                    val minutes = Math.round(row.totalMs / 60_000.0).toInt()
+                    // 但不足半分钟会舍成 0：这种行在排行里显示「Tomato · 0分钟」，
+                    // 用户只会认为统计坏了，还会把「共 N 个应用」的计数虚增。
+                    // 分钟粒度下不入库（原始 ms 已在解析结果里，不丢信息，只是不上榜）。
+                    if (minutes <= 0) continue
                     val incoming = AppUsageEntity(
                         date = key,
                         pkg = row.pkg,
                         name = labelOf(row.pkg) ?: AppNames.nameOf(row.pkg),
-                        // 四舍五入而非截断：59 秒真实使用不得存成 0 分钟（§5.5，复审意见）
-                        minutes = Math.round(row.totalMs / 60_000.0).toInt(),
+                        minutes = minutes,
                         launches = row.launches,
                         // P1-1：内置分类映射写库，用户覆盖在仓库读取层叠加
                         category = AppNames.categoryOf(row.pkg).name
@@ -81,7 +94,7 @@ class IngestPipeline(
                 }
 
                 val hourDao = db.hourUsageDao()
-                for ((date, buckets) in result.hourMinutes) {
+                for ((date, buckets) in verdict.hourMinutes) {
                     val key = date.toString()
                     val existingByHour = hourDao.getForDate(key).associateBy { it.hour } // 一次查询（复审意见）
                     buckets.forEachIndexed { hour, minutes ->
@@ -113,7 +126,7 @@ class IngestPipeline(
                 }
 
                 db.pullLogDao().insert(
-                    PullLogEntity(pulledAt = pulledAtMs, source = source, ok = true, note = note)
+                    PullLogEntity(pulledAt = pulledAtMs, source = source, ok = true, note = finalNote)
                 )
             }
             PullResult(ok = true, message = "入库完成：${result.days.size} 天")

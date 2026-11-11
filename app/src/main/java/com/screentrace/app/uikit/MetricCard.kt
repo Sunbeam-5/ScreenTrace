@@ -6,11 +6,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -146,10 +146,17 @@ fun MetricCard(
 
 /**
  * §5.7 tonal 双卡：等宽等高并排（Secondary 左 + Primary 右），间距 12dp（§5.2）。
- * 高度取两卡 intrinsic 最大值，避免长说明把两卡拉得一高一低。
+ * 高度取两卡最大值，避免长说明把两卡拉得一高一低。
  *
  * CR-01：两卡可独立下钻（[leftOnClick] / [rightOnClick]），样式必须一致——
  * 「同类能力必须有相同表现」（§5.5）；任一为 null 时该卡保持纯摘要样式。
+ *
+ * **等高不能用 `Modifier.height(IntrinsicSize.Min)`**（真机首装崩溃的根因）：
+ * 卡片内的 [MetricValueText] 走 `BoxWithConstraints` 做字号自适应，而
+ * `BoxWithConstraints` 本身是 `SubcomposeLayout`，Compose **禁止**对它求 intrinsic
+ * 尺寸，一量就抛 `IllegalStateException: Asking for intrinsic measurements of
+ * SubcomposeLayout layouts is not supported`。这个组合只在「有数据渲染双卡」时触发，
+ * 空态不渲染双卡，所以单测与空库冒烟都发现不了；修法在 [MetricText] 一侧（让它支持 intrinsic 查询）。
  */
 @Composable
 fun MetricCardPair(

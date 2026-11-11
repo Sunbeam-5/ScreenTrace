@@ -321,6 +321,81 @@ class UsageDumpParserTest {
         assertEquals(600_000L, foo.totalMs) // 10min（取大），不是 15min
     }
 
+    // ---- In-memory 跨天分摊（真机 23.7 小时窗口，批次 6e）----
+
+    /**
+     * 真机（小米 Android 16）的 `In-memory daily stats` 窗口常跨两天且约 23.7 小时。
+     * 不分摊的后果：累计全压到后一天 → 单日应用合计超过当日屏幕时长 →
+     * 入库自洽性校验整日丢弃 → 「屏幕时长有数、应用排行空白」。
+     */
+    private fun crossDayPlain(): String {
+        val d10 = LocalDate.of(2026, 11, 10)
+        val d11 = LocalDate.of(2026, 11, 11)
+        return listOf(
+            "user=0 ",
+            "  Last 24 hour events (timeRange=\"2026/11/10 12:00 – 2026/11/11 02:00\" )",
+            // 明屏 12:00–18:00（360 分钟）
+            humanEv(ms(d10, 12), "SCREEN_INTERACTIVE"),
+            humanEv(ms(d10, 18), "SCREEN_NON_INTERACTIVE"),
+            // 明屏 20:00–次日 02:00（跨零点：11-10 得 240、11-11 得 120）
+            humanEv(ms(d10, 20), "SCREEN_INTERACTIVE"),
+            humanEv(ms(d11, 2), "SCREEN_NON_INTERACTIVE"),
+            "  In-memory daily stats",
+            "  timeRange=\"2026/11/10 12:00 – 2026/11/11 02:00\" ",
+            "    packages",
+            // 三段式才是 时:分:秒；两段式 "12:00" 是 分:秒（= 12 分钟），§2.2 坑 1
+            "      package=com.foo totalTimeUsed=\"12:00:00\" lastTimeUsed=\"2026-11-11 02:00:00\" appLaunchCount=4",
+            "    event aggregations",
+            "      screen-interactive: 1x for \"00:00\" (now running, started at )"
+        ).joinToString("\n")
+    }
+
+    @Test
+    fun inMemorySplitsAcrossDaysByScreenTime() {
+        val result = parseOf("", crossDayPlain())
+        val byDate = result.appUsage.associate { it.date to it.totalMs / 60_000 }
+
+        // 屏幕权重：11-10 = 360 + 240 = 600，11-11 = 120；包累计 720 分钟
+        assertEquals("11-10 应分到 600 分钟", 600L, byDate[LocalDate.of(2026, 11, 10)])
+        assertEquals("11-11 应分到 120 分钟", 120L, byDate[LocalDate.of(2026, 11, 11)])
+        // 分摊是守恒的：两日之和必须等于原始累计，不能凭空多出或少掉
+        assertEquals(
+            "分摊前后总量必须一致",
+            720L,
+            result.appUsage.sumOf { it.totalMs } / 60_000
+        )
+    }
+
+    @Test
+    fun inMemoryStaysOnTodayWhenExplicitlyRequested() {
+        // 显式传 today 表示「只关心这一天」，保留旧口径（批 6b 的今日语义）
+        val d11 = LocalDate.of(2026, 11, 11)
+        val result = parseOf("", crossDayPlain(), today = d11)
+        val rows = result.appUsage.filter { it.pkg == "com.foo" }
+        assertEquals("全归当天，不应再分摊出 11-10 的行", 1, rows.size)
+        assertEquals(d11, rows.single().date)
+        assertEquals(720L, rows.single().totalMs / 60_000)
+    }
+
+    @Test
+    fun inMemoryPackageWithoutLaunchCountIsStillCounted() {
+        // 真机主空间的 In-memory 段：223 个包行里只有 132 行带 appLaunchCount
+        // （系统在值为 0 时省略该字段）。把 appLaunchCount 写进主正则会把 91 个包
+        // 连同真实时长一起丢掉——表现为排行页只剩几个应用。
+        val human = """
+            user=0 
+            In-memory daily stats
+            timeRange="2026-11-11 00:00 – 2026-11-11 08:00" 
+                packages
+                  package=com.no.launch totalTimeUsed="01:00:00" lastTimeUsed="2026-11-11 08:00:00" totalTimeVisible="01:00:00"
+            In-memory weekly stats
+        """.trimIndent()
+        val result = parseOf("", human)
+        val row = result.appUsage.single { it.pkg == "com.no.launch" }
+        assertEquals("缺 appLaunchCount 也必须保留时长", 60L, row.totalMs / 60_000)
+        assertEquals("缺字段按 0 计，不当成拿不到", 0, row.launches)
+    }
+
     // ---- 真实 dump 不变式对账（批 5 返修验收物）----
 
     private fun findSourceFile(name: String): File? = listOf(

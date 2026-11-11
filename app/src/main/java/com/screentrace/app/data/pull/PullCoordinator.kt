@@ -6,6 +6,8 @@ import com.screentrace.app.data.db.PullLogEntity
 import com.screentrace.app.data.db.ScreenTraceDatabase
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.sync.Mutex
 
 /**
@@ -32,6 +34,21 @@ class PullCoordinator(
 ) {
 
     private val mutex = Mutex()
+
+    /**
+     * 「数据已变化」事件：每次**成功入库**后发一次，供界面重新读库。
+     *
+     * 为什么必须有这条通路：后台 WorkManager 拉取与前台 UI 是两条独立路径。
+     * 冷启动时 Worker 常常先把 4MB dump 拉完入库，随后 UI 的 [pullIfStale] 因
+     * 30 分钟节流返回 [PullOutcome.Throttled]——如果界面只在「自己拉成功」时
+     * 重读，就会停在首帧的空态上：**数据明明在库里，用户看到的是「尚无使用记录」**。
+     * 真机实测复现率 100%。
+     *
+     * 用 tryEmit + 容量 1：emit 不能阻塞拉取主流程；没有订阅者时丢事件也无所谓，
+     * 界面自己拉取成功那条路径本来也会重读。
+     */
+    private val _changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val changes: SharedFlow<Unit> = _changes
 
     /**
      * App 打开 / 页面回前台时调用：节流窗口内不重复拉取。
@@ -125,6 +142,8 @@ class PullCoordinator(
                         notificationEvents = loaded.result.notificationEvents.size,
                         pulledAtMs = loaded.capturedAtMs
                     )
+                    // 先通知界面重读，再跑同步钩子：后者可能很慢，不该挡住刷新
+                    _changes.tryEmit(Unit)
                     // 同步钩子失败不得把「拉取成功」降级成失败（§5.10：同步失败只在设置页展示）
                     runCatching { onSuccess(outcome) }
                     return outcome
