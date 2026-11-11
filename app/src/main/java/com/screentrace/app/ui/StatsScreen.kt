@@ -46,7 +46,9 @@ fun StatsScreen(
     state: LoadState<StatsData>,
     selection: DateSelection,
     onApplySelection: (DateSelection) -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    /** 切主页面时变化，用于收起柱图浮层（Pager 常驻，组合不销毁）。 */
+    resetKey: Any? = null
 ) {
     // 「有数据就画数据」（批 6g，理由见 TodayScreen）：切「近 7/30 天」不闪骨架。
     // 换区间时整卡内容（柱图几何/大数字/时段分布）一帧内替换会被看成「闪」，
@@ -65,7 +67,12 @@ fun StatsScreen(
             // 与 6f 时 TodayContent 包 AnimatedContent 是同一个坑）。
             // 这里包一层 Column 复刻 ScrollablePage 的 12dp 卡片间距。
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatsContent(data = data, selection = selection, onApplySelection = onApplySelection)
+                StatsContent(
+                    data = data,
+                    selection = selection,
+                    onApplySelection = onApplySelection,
+                    resetKey = resetKey
+                )
             }
         }
         state.loading -> LoadingSkeleton()
@@ -82,7 +89,8 @@ fun StatsScreen(
 private fun StatsContent(
     data: StatsData,
     selection: DateSelection,
-    onApplySelection: (DateSelection) -> Unit
+    onApplySelection: (DateSelection) -> Unit,
+    resetKey: Any? = null
 ) {
     val palette = LocalFreshPalette.current
 
@@ -114,7 +122,11 @@ private fun StatsContent(
             selectedIndex = selectedIndex,
             onSelect = { onApplySelection(DateSelection.lastDays(if (it == 0) 7 else 30)) }
         )
-        CapsuleBarChart(points = data.trend, topAppsPerDay = data.topAppsPerDay)
+        CapsuleBarChart(
+            points = data.trend,
+            topAppsPerDay = data.topAppsPerDay,
+            resetKey = resetKey
+        )
     }
 
     // ② 时段分布卡

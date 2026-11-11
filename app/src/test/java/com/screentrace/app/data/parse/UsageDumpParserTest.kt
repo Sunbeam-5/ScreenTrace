@@ -432,6 +432,104 @@ class UsageDumpParserTest {
      * 事件推导的时长必须按自然日切开：22:00 用到次日 02:00 要算成两天各 2 小时。
      * 不切的话单日会出现「4 小时」，与当天屏幕时长（2 小时）冲突并被入库校验丢弃。
      */
+    /**
+     * 真机反馈：米家 8h27 + 屏迹 4h36 + 桌面 28min = 13h31 > 屏幕 11h09。
+     *
+     * MIUI 的 `totalTimeUsed` 会把后台常驻、画中画、跨天累计都算进来（同一天块里出现过
+     * 148h、914h 的荒谬值）。同一时刻只可能有一个应用在前台，所以「当天应用合计」必须
+     * ≤ 屏幕时长；一旦撑破，说明该天 In-memory 整体不可信，整天退回事件流推导值。
+     */
+    @Test
+    fun appTotalOverScreenFallsBackToEventStream() {
+        val human = listOf(
+            humanEv(ms(day1, 9), "SCREEN_INTERACTIVE"),
+            humanEv(ms(day1, 9), "ACTIVITY_RESUMED", "com.foo"),
+            humanEv(ms(day1, 9, 30), "ACTIVITY_PAUSED", "com.foo"),
+            humanEv(ms(day1, 9, 30), "ACTIVITY_RESUMED", "com.bar"),
+            humanEv(ms(day1, 9, 50), "ACTIVITY_PAUSED", "com.bar"),
+            humanEv(ms(day1, 10), "SCREEN_NON_INTERACTIVE"),
+            "  In-memory daily stats",
+            "  timeRange=\"${day1.year}/${day1.monthValue}/${day1.dayOfMonth} 09:00 – " +
+                "${day1.year}/${day1.monthValue}/${day1.dayOfMonth} 10:00\"",
+            "    packages",
+            // 各报 8 小时：合计 16h > 屏幕 1h×1.15，明显是后台/跨天累计
+            "    package=com.foo totalTimeUsed=\"8:00:00\" lastTimeUsed=\"1970-01-01 08:00:00\" appLaunchCount=1",
+            "    package=com.bar totalTimeUsed=\"8:00:00\" lastTimeUsed=\"1970-01-01 08:00:00\" appLaunchCount=1",
+            "  In-memory weekly stats"
+        ).joinToString("\n")
+
+        val result = parseOf("", human)
+        assertEquals("屏幕只有 1 小时", 60, result.days.getValue(day1).screenMin)
+        val foo = result.appUsage.first { it.pkg == "com.foo" && it.date == day1 }
+        val bar = result.appUsage.first { it.pkg == "com.bar" && it.date == day1 }
+        // 关键：不是 In-memory 的 480 分钟，而是事件流配出来的前台时长
+        assertEquals("退回事件流：09:00–09:30", 30 * 60_000L, foo.totalMs)
+        assertEquals("退回事件流：09:30–09:50", 20 * 60_000L, bar.totalMs)
+        assertTrue(
+            "应用合计必须 ≤ 屏幕时长",
+            result.appUsage.filter { it.date == day1 }.sumOf { it.totalMs } <= 60 * 60_000L
+        )
+    }
+
+    @Test
+    fun appTotalWithinScreenKeepsLargerSource() {
+        val human = listOf(
+            humanEv(ms(day1, 9), "SCREEN_INTERACTIVE"),
+            humanEv(ms(day1, 9), "ACTIVITY_RESUMED", "com.foo"),
+            humanEv(ms(day1, 10), "ACTIVITY_PAUSED", "com.foo"),
+            humanEv(ms(day1, 19), "SCREEN_NON_INTERACTIVE"),
+            "  In-memory daily stats",
+            "  timeRange=\"${day1.year}/${day1.monthValue}/${day1.dayOfMonth} 09:00 – " +
+                "${day1.year}/${day1.monthValue}/${day1.dayOfMonth} 19:00\"",
+            "    packages",
+            "    package=com.foo totalTimeUsed=\"2:00:00\" lastTimeUsed=\"1970-01-01 08:00:00\" appLaunchCount=1",
+            "  In-memory weekly stats"
+        ).joinToString("\n")
+
+        val result = parseOf("", human)
+        assertEquals(600, result.days.getValue(day1).screenMin)
+        // 屏幕 10 小时、应用合计 2 小时：没有撑破，保持「三源取大」（2h > 事件流 1h）
+        val foo = result.appUsage.first { it.pkg == "com.foo" && it.date == day1 }
+        assertEquals(120 * 60_000L, foo.totalMs)
+    }
+
+    /**
+     * 显式 today 模式（批 6b「今日」语义）把整个窗口的 In-memory 都归到当天，
+     * 与「当天屏幕时长」不是同一量纲——总量约束必须让路，否则今天会一片空白。
+     */
+    @Test
+    fun explicitTodaySkipsAppTotalConstraint() {
+        val d11 = LocalDate.of(2026, 11, 11)
+        val result = parseOf("", crossDayPlain(), today = d11)
+        assertTrue(
+            "显式 today 不应被总量约束清空",
+            result.appUsage.any { it.pkg == "com.foo" && it.date == d11 }
+        )
+    }
+
+    /**
+     * 真机反馈「米家 8h27 + 屏迹 4h36 + 桌面 28min = 13h31 却写 11h09」的另一半原因：
+     * 屏幕时长只从 SCREEN 事件切分，而 MIUI 的事件缓冲是滚动窗口，早间时段已经过期。
+     * 应用在前台时屏幕必然亮着，所以**应用前台区间是屏幕时长的下界**，必须并入。
+     */
+    @Test
+    fun screenDurationIncludesAppForegroundSpans() {
+        val human = listOf(
+            humanEv(ms(day1, 9), "SCREEN_INTERACTIVE"),
+            humanEv(ms(day1, 9), "ACTIVITY_RESUMED", "com.foo"),
+            humanEv(ms(day1, 9, 30), "ACTIVITY_RESUMED", "com.bar"),
+            humanEv(ms(day1, 10), "SCREEN_NON_INTERACTIVE"),
+            humanEv(ms(day1, 12), "ACTIVITY_PAUSED", "com.bar")
+        ).joinToString("\n")
+
+        val result = parseOf("", human)
+        // SCREEN 只覆盖 09:00–10:00，但 bar 一直前台到 12:00 → 屏幕应补到 3 小时
+        assertEquals("屏幕时长以应用前台为下界", 180, result.days.getValue(day1).screenMin)
+        val appSum = result.appUsage.sumOf { it.totalMs } / 60_000
+        assertEquals(180, appSum)
+        assertTrue("应用合计不得超屏幕时长", appSum <= result.days.getValue(day1).screenMin)
+    }
+
     @Test
     fun eventDerivedAppDurationSplitsAcrossMidnight() {
         val day2 = day1.plusDays(1)

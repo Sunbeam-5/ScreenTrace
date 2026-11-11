@@ -486,6 +486,34 @@ class AppViewModel(
 
                 val summary = repository.summary(selection)
                 val apps = repository.appRanking(selection, limit = Int.MAX_VALUE)
+                val hours = repository.hourlyDistribution(selection)
+                val previous = repository.summary(UsageCalculator.previousPeriod(selection))
+                val compare = UsageCalculator.compare(summary, previous, single)
+
+                // ---- 「今日」页与两个下钻详情页**锚定今天**（§5.6 修订，真机反馈）----
+                // 它叫「今日」，却跟随全局筛选显示近 7 天：圆环是**日均**、应用构成是**累计**，
+                // 两套量纲叠在一张卡上永远对不上（用户对照 MIUI：8h27+4h36+28m ≠ 11h09）。
+                // 现在今日页只呈现今天（量纲单一，可与系统对账），统计/日历仍跟随筛选。
+                val todaySelection = DateSelection.today()
+                val todayIsSelection = todaySelection == selection
+                val todaySummary =
+                    if (todayIsSelection) summary else repository.summary(todaySelection)
+                val todayApps = if (todayIsSelection) {
+                    apps
+                } else {
+                    repository.appRanking(todaySelection, limit = Int.MAX_VALUE)
+                }
+                val todayHours =
+                    if (todayIsSelection) hours else repository.hourlyDistribution(todaySelection)
+                val todayCompare = if (todayIsSelection) {
+                    compare
+                } else {
+                    UsageCalculator.compare(
+                        todaySummary,
+                        repository.summary(UsageCalculator.previousPeriod(todaySelection)),
+                        true
+                    )
+                }
 
                 // 排行只依赖 app_usage，与日聚合无关：降级通道下它是唯一还能用的页面
                 _rankingState.value =
@@ -501,9 +529,10 @@ class AppViewModel(
                         )
                     }
 
-                if (!summary.hasAnyRecord) {
-                    // 有应用数据但没有日聚合 → 屏幕时长/解锁/通知都没有事件源。
-                    // 这些页保持空态（不能拿 summary 的 0 去渲染 0:00），但换一套文案。
+                // 两个窗口都没有日聚合 → 屏幕时长/解锁/通知都没有事件源，这些页空态。
+                // 但排行**不能一起清**：它只依赖 app_usage，降级通道下是唯一还能用的页面
+                // （评审 P0-1）。所以这里不用 setAllEmpty（那会把 ranking 也清掉）。
+                if (!todaySummary.hasAnyRecord && !summary.hasAnyRecord) {
                     _todayState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
                     _statsState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
                     _calendarState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
@@ -514,55 +543,66 @@ class AppViewModel(
                     return@launch
                 }
 
-                val previous = repository.summary(UsageCalculator.previousPeriod(selection))
-                val compare = UsageCalculator.compare(summary, previous, single)
-                val notification = repository.metricDetail(MetricKind.NOTIFICATION, selection)
-                val unlock = repository.metricDetail(MetricKind.UNLOCK, selection)
-                _notificationDetail.value = LoadState(data = notification)
-                _unlockDetail.value = LoadState(data = unlock)
+                // ---- 今日 ----
+                if (!todaySummary.hasAnyRecord) {
+                    // 昨天/历史有聚合但今天没有（例如今天还没拉取）→ 只空今日与两个明细页
+                    _todayState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                    _unlockDetail.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                    _notificationDetail.value =
+                        LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                } else {
+                    // 明细页的入口都在今日页的卡上，所以它们的窗口也是今天（不是全局筛选）
+                    val notification =
+                        repository.metricDetail(MetricKind.NOTIFICATION, todaySelection)
+                    val unlock = repository.metricDetail(MetricKind.UNLOCK, todaySelection)
+                    _notificationDetail.value = LoadState(data = notification)
+                    _unlockDetail.value = LoadState(data = unlock)
 
-                // 今日
-                val top = apps.take(4)
-                val otherMinutes = apps.drop(4).sumOf { it.minutes }
-                val hours = repository.hourlyDistribution(selection)
-                val totalMinutes = hours.sumOf { it.minutes }
-                val night = UsageCalculator.nightMinutes(hours)
-                val dayPercent =
-                    if (totalMinutes <= 0) 0 else ((totalMinutes - night) * 100 / totalMinutes)
-                _todayState.value = LoadState(
-                    data = TodayData(
-                        summary = summary,
-                        compare = compare,
-                        notification = notification,
-                        unlock = unlock,
-                        topApps = top,
-                        otherMinutes = otherMinutes,
-                        dayPercent = dayPercent
+                    val top = todayApps.take(4)
+                    val otherMinutes = todayApps.drop(4).sumOf { it.minutes }
+                    val todayTotalMinutes = todayHours.sumOf { it.minutes }
+                    val todayNight = UsageCalculator.nightMinutes(todayHours)
+                    val dayPercent =
+                        if (todayTotalMinutes <= 0) 0
+                        else ((todayTotalMinutes - todayNight) * 100 / todayTotalMinutes)
+                    _todayState.value = LoadState(
+                        data = TodayData(
+                            summary = todaySummary,
+                            compare = todayCompare,
+                            notification = notification,
+                            unlock = unlock,
+                            topApps = top,
+                            otherMinutes = otherMinutes,
+                            dayPercent = dayPercent
+                        )
                     )
-                )
+                }
 
-                // 统计
-                _statsState.value = LoadState(
-                    data = StatsData(
-                        summary = summary,
-                        compare = compare,
-                        trend = repository.dailyTrend(selection),
-                        periods = UsageCalculator.periodBuckets(hours),
-                        extremes = repository.extremes(selection, threshold),
-                        topAppsPerDay = repository.topAppsPerDay(selection, limit = 3)
+                // ---- 统计 / 日历（跟随全局筛选）----
+                if (!summary.hasAnyRecord) {
+                    _statsState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                    _calendarState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                    _monthLevelsState.value = LoadState(data = emptyList())
+                } else {
+                    _statsState.value = LoadState(
+                        data = StatsData(
+                            summary = summary,
+                            compare = compare,
+                            trend = repository.dailyTrend(selection),
+                            periods = UsageCalculator.periodBuckets(hours),
+                            extremes = repository.extremes(selection, threshold),
+                            topAppsPerDay = repository.topAppsPerDay(selection, limit = 3)
+                        )
                     )
-                )
-
-                // 日历
-                _calendarState.value = LoadState(
-                    data = CalendarData(
-                        streak = repository.streak(selection.endDate),
-                        extremes = repository.extremes(selection, threshold),
-                        yearLevels = repository.yearLevels(selection.endDate)
+                    _calendarState.value = LoadState(
+                        data = CalendarData(
+                            streak = repository.streak(selection.endDate),
+                            extremes = repository.extremes(selection, threshold),
+                            yearLevels = repository.yearLevels(selection.endDate)
+                        )
                     )
-                )
-
-                loadMonthLevels(_calendarMonth.value)
+                    loadMonthLevels(_calendarMonth.value)
+                }
             } catch (e: Exception) {
                 val message = e.message ?: "数据加载失败"
                 // 失败同样保留旧数据（§5.8）：页面分支是 data 优先，旧内容还在就继续展示，

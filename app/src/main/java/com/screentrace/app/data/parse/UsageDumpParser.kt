@@ -1,5 +1,7 @@
 package com.screentrace.app.data.parse
 
+import com.screentrace.app.data.SessionUnion
+
 import com.screentrace.app.contract.NotificationEvent
 import com.screentrace.app.contract.NotificationType
 import com.screentrace.app.contract.UnlockEvent
@@ -127,6 +129,15 @@ object UsageDumpParser {
 
     /** 跨账户收敛容差（毫秒）。DeepSeek 实测 ±1000ms 后稳定（±2s/3s 无变化）。 */
     private const val MIRROR_TOLERANCE_MS = 1000L
+
+    /**
+     * 「当天应用合计」允许超出屏幕时长的比例。
+     *
+     * 取 15%，与真机样本对账用的不变式（应用合计 ≤ 亮屏 × 1.15）保持一致：滚动日界
+     * 归属、分屏重复计时会让正常日子到 1.11×，余量太紧会把它们也误判成坏数据。
+     * 真机超标实例（834min / 669min = 1.25×）仍能稳定触发。
+     */
+    private const val APP_TOTAL_OVER_SCREEN_SLACK = 0.15
 
     private data class RawEvent(
         val ms: Long,
@@ -264,6 +275,18 @@ object UsageDumpParser {
             .distinctBy { Triple(it.ms, it.type, it.pkg) }
             .sortedBy { it.ms }
 
+        // ---------- 应用前台区间（提到屏幕会话之前）----------
+        // 应用在前台时屏幕必然是亮的（不灭屏挂机只会让屏幕更长，不会更短），所以
+        // **应用前台区间是屏幕时长的可靠下界**。MIUI 的 SCREEN 事件是滚动窗口，早间
+        // 时段早就过期掉了：真机单次 dump 只切出 194 分钟亮屏，而应用前台有 13 小时。
+        // 不并进来，就会出现「应用合计 > 屏幕时长」和「时段分布合计 ≠ 屏幕时长」——
+        // 用户看到的就是「这几个应用加起来都 13 小时了，怎么才写 11 小时」。
+        val eventEndMs = maxOf(
+            merged.maxOfOrNull { it.ms } ?: 0L,
+            humanRanges.values.maxOfOrNull { it.second } ?: 0L
+        )
+        val foreground = foregroundFromEvents(counting, zone, eventEndMs)
+
         val kg = mutableListOf<Pair<Long, Long>>()
         var kgOn: Long? = null
         for (e in intervalEvents) {
@@ -287,6 +310,15 @@ object UsageDumpParser {
             }
         }
         on?.let { screens.add(it to intervalEvents.last().ms) }
+        // 并入应用前台区间：屏幕、时段分布、最长连续三者从此与应用时长同源。
+        // 必须做**区间并集**：主空间与分身的应用可以同时在前台（真机 user=0 与
+        // user=999 时间重叠），直接累加会得到「一天 19 小时」这种不可能的屏幕时长。
+        // 并集同时也是 SCREEN 事件自身的去重（多账户镜像事件收敛后仍可能残差）。
+        val normalizedScreens = SessionUnion.union(
+            (screens + foreground.spans).map {
+                SessionUnion.Span(it.first * 1000, it.second * 1000)
+            }
+        ).map { it.startMs / 1000 to it.endMs / 1000 }
 
         fun subKg(a: Long, b: Long): Double {
             var res = (b - a).toDouble()
@@ -302,7 +334,7 @@ object UsageDumpParser {
         val unlockDay = mutableMapOf<LocalDate, Double>()
         val hourMatrix = mutableMapOf<LocalDate, MutableList<Double>>()
         val longestDay = mutableMapOf<LocalDate, Double>()
-        for ((a, b) in screens) {
+        for ((a, b) in normalizedScreens) {
             var cur = a
             while (cur < b) {
                 val date = Instant.ofEpochMilli(cur * 1000).atZone(zone).toLocalDate()
@@ -343,11 +375,8 @@ object UsageDumpParser {
         // 这里把它们同源化：用 ACTIVITY_RESUMED/PAUSED/STOPPED 配对出前台区间，
         // 与屏幕时长吃同一批事件、同一个窗口。分身（user=999）的事件天然带 user，
         // 按 user 分别配对后自动计入，不需要额外分支。
-        val eventEndMs = maxOf(
-            merged.maxOfOrNull { it.ms } ?: 0L,
-            humanRanges.values.maxOfOrNull { it.second } ?: 0L
-        )
-        val (eventForegroundMs, eventLaunches) = foregroundFromEvents(counting, zone, eventEndMs)
+        val eventForegroundMs = foreground.ms
+        val eventLaunches = foreground.launches
 
         // ---------- 应用聚合（返修 P1-5/P1-6）----------
         // 1) 区间碎片按 (user, 归属日, pkg) 求和（全账户保留，不再 >50 包过滤——CR-02）
@@ -414,8 +443,40 @@ object UsageDumpParser {
                 else -> bestParsed
             }
         }
-        // 4) 跨账户求和 → 一行一日一包；滤 0 时长
-        val appRows = perUser.entries
+        // 4) 总量约束（真机反馈：米家 8h27 + 屏迹 4h36 + 桌面 28min = 13h31 > 屏幕 11h09）
+        //
+        //    同一时刻只可能有一个应用在前台（画中画/分屏的量级远小于此），所以
+        //    「某天全部应用时长之和」在物理上必须 ≤ 该天屏幕时长。
+        //
+        //    MIUI 的 `totalTimeUsed` 把后台常驻、画中画、前台服务都算进来，而且跨天
+        //    不重置——真机实测同一个包在日块里出现过 148h、914h 这种荒谬值。一旦合计
+        //    撑破屏幕时长，说明**该天的 In-memory 整体不可信**，整天退回事件流推导值
+        //    （事件流是 ACTIVITY_RESUMED→PAUSED 的配对，天然串行，不可能超额）。
+        //
+        //    宁可少报：事件流覆盖不到的时段就是没有数据，页面会如实显示；但不能给用户
+        //    看一组「加起来比屏幕还长」的数字，那等于告诉用户整个统计都不可信。
+        val dayAppTotalMs = perUser.entries
+            .groupBy({ it.key.second }) { it.value.totalMs }
+            .mapValues { (_, v) -> v.sum() }
+        // 显式 today 模式（批 6b 的「今日」语义）把整个窗口的 In-memory 都归到当天，
+        // 与「当天屏幕时长」本来就不是同一量纲，套总量约束只会把数据全丢了。
+        val constrained = if (today != null) perUser else mutableMapOf<Triple<Int, LocalDate, String>, PkgAgg>()
+        if (today == null) for ((key, agg) in perUser) {
+            val day = key.second
+            val screenMs = ((screenDay[day] ?: 0.0) * 60_000).toLong()
+            val total = dayAppTotalMs[day] ?: 0L
+            val overScreen = screenMs > 0 && total > screenMs * (1 + APP_TOTAL_OVER_SCREEN_SLACK)
+            if (!overScreen) {
+                constrained[key] = agg
+                continue
+            }
+            val fromEvents = eventForegroundMs[key] ?: 0L
+            if (fromEvents > 0L) {
+                constrained[key] = PkgAgg(key.third, fromEvents, eventLaunches[key] ?: 0)
+            }
+        }
+        // 5) 跨账户求和 → 一行一日一包；滤 0 时长
+        val appRows = constrained.entries
             .groupBy({ it.key.second to it.key.third }) { it.value }
             .map { (datePkg, rows) ->
                 AppUsageRow(
@@ -445,7 +506,10 @@ object UsageDumpParser {
             hourMinutes = hourMinutes,
             appUsage = appRows,
             // 区间层是秒粒度（intervalEvents 已 /1000），入会话表前回乘毫秒
-            screenSessions = screens.map { SessionSpan(it.first * 1000, it.second * 1000) },
+            // 入库的会话必须与日矩阵同源（含应用前台区间 + 已并集），否则
+            // IngestPipeline 用会话表重算的日聚合 / 小时矩阵又会退回「只有 SCREEN 事件」，
+            // 屏幕时长补全了、时段分布却还停在旧口径上（真机：7 天时段合计 30h vs 屏幕 103h）
+            screenSessions = normalizedScreens.map { SessionSpan(it.first * 1000, it.second * 1000) },
             keyguardSessions = kg.map { SessionSpan(it.first * 1000, it.second * 1000) },
             unlockEvents = counting.filter { it.type == "KEYGUARD_HIDDEN" }.map { UnlockEvent(it.ms) },
             notificationEvents = counting
@@ -555,13 +619,21 @@ object UsageDumpParser {
      * 跨零点按自然日切开：23:50 用到 00:10 必须拆成两天的 10 分钟与 10 分钟，
      * 否则单日应用合计会凭空多出一截（与自洽性校验冲突）。
      */
+    private data class ForegroundResult(
+        val ms: Map<Triple<Int, LocalDate, String>, Long>,
+        val launches: Map<Triple<Int, LocalDate, String>, Int>,
+        /** 原始前台区间（秒），用于并入屏幕会话 */
+        val spans: List<Pair<Long, Long>>
+    )
+
     private fun foregroundFromEvents(
         events: List<RawEvent>,
         zone: ZoneId,
         endMs: Long
-    ): Pair<Map<Triple<Int, LocalDate, String>, Long>, Map<Triple<Int, LocalDate, String>, Int>> {
+    ): ForegroundResult {
         val ms = mutableMapOf<Triple<Int, LocalDate, String>, Long>()
         val launches = mutableMapOf<Triple<Int, LocalDate, String>, Int>()
+        val spans = mutableListOf<Pair<Long, Long>>()
         val sorted = events.asSequence()
             .filter {
                 it.type == "ACTIVITY_RESUMED" ||
@@ -577,6 +649,7 @@ object UsageDumpParser {
                 "ACTIVITY_RESUMED" -> {
                     val prev = open[e.user]
                     if (prev != null && prev.pkg != e.pkg) {
+                        spans.add(prev.ms / 1000 to e.ms / 1000)
                         addSpanToDay(ms, prev.user, prev.pkg, prev.ms, e.ms, zone)
                     }
                     // 同一应用重复 RESUMED（没有中间的 PAUSED）不重开区间，
@@ -590,6 +663,7 @@ object UsageDumpParser {
                 else -> {
                     val prev = open[e.user]
                     if (prev != null && prev.pkg == e.pkg) {
+                        spans.add(prev.ms / 1000 to e.ms / 1000)
                         addSpanToDay(ms, prev.user, prev.pkg, prev.ms, e.ms, zone)
                         open.remove(e.user)
                     }
@@ -597,9 +671,12 @@ object UsageDumpParser {
             }
         }
         for (prev in open.values) {
-            if (endMs > prev.ms) addSpanToDay(ms, prev.user, prev.pkg, prev.ms, endMs, zone)
+            if (endMs > prev.ms) {
+                spans.add(prev.ms / 1000 to endMs / 1000)
+                addSpanToDay(ms, prev.user, prev.pkg, prev.ms, endMs, zone)
+            }
         }
-        return ms to launches
+        return ForegroundResult(ms, launches, spans)
     }
 
     /** 把 [startMs, endMs) 按自然日切碎后累加到 [out]（毫秒）。 */

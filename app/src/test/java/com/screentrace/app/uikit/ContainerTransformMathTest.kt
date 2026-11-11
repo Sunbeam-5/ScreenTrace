@@ -62,6 +62,35 @@ class ContainerTransformMathTest {
     }
 
     @Test
+    fun `前半段不画内容——只看到底板在放大`() {
+        // 用户要的系统启动动画：先把图标放大到接近一半，再显示真实界面
+        assertEquals(0f, ContainerTransformMath.contentAlpha(0f), eps)
+        assertEquals(0f, ContainerTransformMath.contentAlpha(0.2f), eps)
+        assertEquals(0f, ContainerTransformMath.contentAlpha(CONTENT_FADE_START), eps)
+    }
+
+    @Test
+    fun `后半段内容淡入并铺满到终点`() {
+        val mid = ContainerTransformMath.contentAlpha(
+            (CONTENT_FADE_START + CONTENT_FADE_END) / 2f
+        )
+        assertTrue("中点应该半透明：$mid", mid > 0.3f && mid < 0.7f)
+        assertEquals(1f, ContainerTransformMath.contentAlpha(CONTENT_FADE_END), eps)
+        assertEquals(1f, ContainerTransformMath.contentAlpha(1f), eps)
+    }
+
+    @Test
+    fun `内容透明度单调不减`() {
+        var prev = -1f
+        for (i in 0..100) {
+            val a = ContainerTransformMath.contentAlpha(i / 100f)
+            assertTrue("i=$i 处出现回退：$prev -> $a", a >= prev - eps)
+            prev = a
+        }
+        assertEquals(1f, prev, eps)
+    }
+
+    @Test
     fun `超出范围的进度被夹住`() {
         assertEquals(0.43f, ContainerTransformMath.scale(0.43f, -0.5f), eps)
         assertEquals(1f, ContainerTransformMath.scale(0.43f, 1.7f), eps)

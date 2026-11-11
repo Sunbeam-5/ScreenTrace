@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -27,6 +28,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.screentrace.app.theme.LocalFreshPalette
 import androidx.compose.ui.util.lerp
 
 /**
@@ -196,6 +198,7 @@ fun ContainerTransformOverlay(
     // 完全收起后不再绘制，节点随之移除（下次进入重建二级页，符合预期）
     if (!visible && progress <= 0.001f) return
 
+    val palette = LocalFreshPalette.current
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val width = constraints.maxWidth.toFloat()
         val height = constraints.maxHeight.toFloat()
@@ -230,10 +233,17 @@ fun ContainerTransformOverlay(
         val scaleY = if (reduceMotion) 1f else ContainerTransformMath.scale(startScaleY, progress)
         val dx = if (reduceMotion) 0f else ContainerTransformMath.offset(startX, progress)
         val dy = if (reduceMotion) 0f else ContainerTransformMath.offset(startY, progress)
-        val alpha = if (reduceMotion) progress else 1f
         val cornerDp = if (reduceMotion) 0f else {
             val px = ContainerTransformMath.offset(startCornerPx, progress)
             with(density) { px.toDp().value }
+        }
+        // 前半段只画不透明底板（一块放大的圆角色块，观感等同"图标正在变大"），
+        // 内容到后半段才淡入——这正是系统启动动画的节奏：先把图标放大到接近全屏，
+        // 再让真实界面浮现。全程不做整页半透明，因此不会透出下层形成叠影。
+        val contentAlpha = if (reduceMotion) {
+            progress
+        } else {
+            ContainerTransformMath.contentAlpha(progress)
         }
 
         Box(
@@ -246,18 +256,33 @@ fun ContainerTransformOverlay(
                     this.scaleY = scaleY
                     translationX = dx
                     translationY = dy
-                    this.alpha = alpha
                     shape = RoundedCornerShape(cornerDp.dp)
                     clip = cornerDp > 0.5f
                 }
         ) {
-            content()
+            // 底板必须不透明且跟随缩放：它就是"放大中的那一块"
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(palette.background)
+            )
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = contentAlpha }
+            ) {
+                content()
+            }
         }
     }
 }
 
 /** 起点缩放下限：点击点靠近屏幕边缘时避免缩略图小到看不清内容。 */
 private const val MIN_START_SCALE = 0.05f
+
+/** 内容开始淡入 / 完成淡入的进度点（前半段只画底板）。 */
+internal const val CONTENT_FADE_START = 0.42f
+internal const val CONTENT_FADE_END = 0.86f
 
 /** 没有入口信息时的兜底起点。 */
 private const val FALLBACK_START_SCALE = 0.92f
@@ -275,4 +300,18 @@ internal object ContainerTransformMath {
     /** 位移：入口位置 → 0。终点必须是 0，否则页面边缘会露出下层的缝。 */
     fun offset(startOffset: Float, progress: Float): Float =
         lerp(startOffset, 0f, progress.coerceIn(0f, 1f))
+
+    /**
+     * 内容不透明度：前 [CONTENT_FADE_START] 段恒为 0（只看到底板在放大），
+     * 之后淡入到 1。
+     *
+     * 这就是用户要的「图标放大到差不多一半再显示 App 内容」：前半段是形状变化，
+     * 后半段才是内容浮现。若全程都画内容，观感是「整页缩成一个小方块」，与系统
+     * 启动动画完全是两回事。
+     */
+    fun contentAlpha(progress: Float): Float {
+        val p = progress.coerceIn(0f, 1f)
+        return ((p - CONTENT_FADE_START) / (CONTENT_FADE_END - CONTENT_FADE_START))
+            .coerceIn(0f, 1f)
+    }
 }

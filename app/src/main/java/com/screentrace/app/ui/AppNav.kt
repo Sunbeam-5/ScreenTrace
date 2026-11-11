@@ -155,6 +155,13 @@ fun AppNav() {
             if (event == Lifecycle.Event.ON_RESUME) viewModel.pullOnOpen()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
+        // LifecycleEventObserver 只接收**之后**发生的事件。首次组合如果发生在 onResume
+        // 之后（Compose 的首帧可能晚于 Activity 生命周期回调），这一次 ON_RESUME 就永远
+        // 收不到，表现为「打开 App 压根不拉取」——真机就踩到了：装完新包反复冷启动，
+        // pull_log 一条新记录都没有，应用构成一直是空的。所以这里补一次当前状态检查。
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            viewModel.pullOnOpen()
+        }
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
@@ -235,7 +242,11 @@ fun AppNav() {
                 header = {
                     AppHeader(
                         title = titleOf(mainPage),
-                        subtitle = selectionSubtitle(selection),
+                        // 今日页锚定今天（§5.6 修订）：它不跟随全局筛选，
+                        // 副标题也必须写「今天」，否则用户会以为看到的是区间数据。
+                        subtitle = selectionSubtitle(
+                            if (mainPage == AppPage.Today) DateSelection.today() else selection
+                        ),
                         onDateClick = { showDateSheet = true },
                         onStyleClick = { showStyleSheet = true },
                         onSettingsClick = viewModel::openSettings
@@ -317,7 +328,9 @@ fun AppNav() {
                                     state = statsState,
                                     selection = selection,
                                     onApplySelection = viewModel::applySelection,
-                                    onRetry = viewModel::reload
+                                    onRetry = viewModel::reload,
+                                    // 离开统计页时收起前三名浮层
+                                    resetKey = mainPage
                                 )
                                 else -> CalendarScreen(
                                     state = calendarState,

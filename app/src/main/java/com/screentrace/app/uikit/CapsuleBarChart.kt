@@ -69,7 +69,9 @@ fun CapsuleBarChart(
     points: List<DailyPoint>,
     modifier: Modifier = Modifier,
     /** 每日 top3（§5.7-5 浮层数据源）；缺数据的日期浮层只显示时长。 */
-    topAppsPerDay: Map<LocalDate, List<AppUsage>> = emptyMap()
+    topAppsPerDay: Map<LocalDate, List<AppUsage>> = emptyMap(),
+    /** 置位键变化时收起浮层（页面切走 / 换区间）。 */
+    resetKey: Any? = null
 ) {
     val palette = LocalFreshPalette.current
     if (points.isEmpty()) {
@@ -87,7 +89,9 @@ fun CapsuleBarChart(
     val axisWidth = 32.dp
     val labelIndices = TrendChartMath.labelIndices(count)
 
-    var selectedIndex by remember(points) { mutableStateOf<Int?>(null) }
+    // 切主页面时浮层必须收起（真机反馈：从统计页切走再回来，前三名浮层还挂着）。
+    // Pager 让三页常驻，组合不会销毁，所以只能靠外部传入的置位键把它清掉。
+    var selectedIndex by remember(points, resetKey) { mutableStateOf<Int?>(null) }
 
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val plotAreaDp = (maxWidth - axisWidth).coerceAtLeast(1.dp)
