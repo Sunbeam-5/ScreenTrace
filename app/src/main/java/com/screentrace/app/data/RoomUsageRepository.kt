@@ -76,6 +76,33 @@ class RoomUsageRepository(
     override suspend fun dailyTrend(selection: DateSelection): List<DailyPoint> =
         UsageCalculator.dailyPoints(selection, recordsBetween(selection.startDate, selection.endDate))
 
+    override suspend fun topAppsPerDay(
+        selection: DateSelection,
+        limit: Int
+    ): Map<LocalDate, List<AppUsage>> {
+        val overrides = settings?.categoryOverrides?.first() ?: emptyMap()
+        return db.appUsageDao()
+            .rowsBetween(selection.startDate.toString(), selection.endDate.toString())
+            .groupBy { it.date }
+            .mapNotNull { (dateKey, rows) ->
+                val date = runCatching { LocalDate.parse(dateKey) }.getOrNull() ?: return@mapNotNull null
+                val top = rows.take(limit).map {
+                    AppUsage(
+                        date = date,
+                        pkg = it.pkg,
+                        name = displayName(it.pkg, it.name),
+                        minutes = it.minutes,
+                        launches = it.launches,
+                        category = overrides[it.pkg] ?: runCatching {
+                            com.screentrace.app.contract.AppCategory.valueOf(it.category)
+                        }.getOrDefault(com.screentrace.app.contract.AppCategory.OTHER)
+                    )
+                }
+                date to top
+            }
+            .toMap()
+    }
+
     override suspend fun appRanking(selection: DateSelection, limit: Int): List<AppUsage> {
         // 分类覆盖（用户修改）读取层叠加，优先于库内默认（§4，6a 评审 P1-1）
         val overrides = settings?.categoryOverrides?.first() ?: emptyMap()

@@ -102,7 +102,12 @@ data class StatsData(
     val trend: List<DailyPoint>,
     /** 06–12 / 12–18 / 18–22 / 22–06 四段分钟数（§5.7）。 */
     val periods: List<Int>,
-    val extremes: ExtremesInfo
+    val extremes: ExtremesInfo,
+    /**
+     * 趋势图点柱浮层的数据源（§5.7-5）：每个自然日的 top3。
+     * 默认空 Map —— 降级通道没有逐日应用数据时浮层只显示当日总时长，不画空行。
+     */
+    val topAppsPerDay: Map<java.time.LocalDate, List<AppUsage>> = emptyMap()
 )
 
 /** 日历页数据（连续记录 / 年视图 / 双卡）。点击详情直接用 CalendarLevel.minutes（返修 P1-4）。 */
@@ -543,7 +548,8 @@ class AppViewModel(
                         compare = compare,
                         trend = repository.dailyTrend(selection),
                         periods = UsageCalculator.periodBuckets(hours),
-                        extremes = repository.extremes(selection, threshold)
+                        extremes = repository.extremes(selection, threshold),
+                        topAppsPerDay = repository.topAppsPerDay(selection, limit = 3)
                     )
                 )
 

@@ -25,7 +25,7 @@ import com.screentrace.app.uikit.SegmentedControl
 private val THRESHOLD_OPTIONS = listOf(60, 120, 180, 240)
 
 /**
- * 设置页（批次 3 起持续接线）。§5.8 四组卡片 + 关于仍待批次 7 全量落地；
+ * 设置页：目前落地「外观」「统计口径」两组实体，其余组随版本补齐（§5.8）；
  * 「外观」与「统计口径」两组是真实可用功能，其余组诚实待办——不画假按钮（§6）。
  */
 @Composable
@@ -74,7 +74,7 @@ fun SettingsScreen(
 
     EmptyState(
         title = "更多设置建设中",
-        description = "目标与同步、权限与数据、备份与同步、关于将在批次 7 接线"
+        description = "数据备份与云同步、应用分类管理等功能还在开发中，会随版本更新陆续开放"
     )
 }
 

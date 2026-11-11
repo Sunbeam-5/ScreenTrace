@@ -167,6 +167,17 @@ interface UsageRepository {
     suspend fun appRanking(selection: DateSelection, limit: Int = 20): List<AppUsage>
     suspend fun hourlyDistribution(selection: DateSelection): List<HourBucket>
 
+    /**
+     * 趋势图「点柱看详情」（§5.7-5）：区间内**每个自然日**的 top N 应用（按 minutes 降序）。
+     *
+     * 为什么要按日而不是区间聚合：浮层回答的是「这一天时间花在哪了」，与区间排行是两个问题。
+     * 默认实现返回空 Map（降级通道没有逐日应用数据时，浮层退化为只显示当日总时长）。
+     */
+    suspend fun topAppsPerDay(
+        selection: DateSelection,
+        limit: Int = 3
+    ): Map<LocalDate, List<AppUsage>> = emptyMap()
+
     /** 月视图：任意月份整月的色档（§5.6 锚点决定初始月份，允许前后翻月）。 */
     suspend fun monthLevels(yearMonth: YearMonth): List<CalendarLevel>
 

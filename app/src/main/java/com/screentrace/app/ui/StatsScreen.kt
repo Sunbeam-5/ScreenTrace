@@ -114,7 +114,7 @@ private fun StatsContent(
             selectedIndex = selectedIndex,
             onSelect = { onApplySelection(DateSelection.lastDays(if (it == 0) 7 else 30)) }
         )
-        CapsuleBarChart(points = data.trend)
+        CapsuleBarChart(points = data.trend, topAppsPerDay = data.topAppsPerDay)
     }
 
     // ② 时段分布卡

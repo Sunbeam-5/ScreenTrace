@@ -51,6 +51,13 @@ interface AppUsageDao {
     )
     suspend fun sumBetween(start: String, end: String): List<AppUsageAggregated>
 
+    /**
+     * 趋势图点柱浮层（§5.7-5）：区间内逐日原始行，按「日期升序 + 时长降序」排序，
+     * 调用方在内存里按日截取前 N —— 不用窗口函数（minSdk 26 的 SQLite 没有 ROW_NUMBER）。
+     */
+    @Query("SELECT * FROM app_usage WHERE date BETWEEN :start AND :end ORDER BY date, minutes DESC")
+    suspend fun rowsBetween(start: String, end: String): List<AppUsageEntity>
+
     @Query("SELECT DISTINCT pkg, name FROM app_usage")
     suspend fun allNames(): List<PkgName>
 
