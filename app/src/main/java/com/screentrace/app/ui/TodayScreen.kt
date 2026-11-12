@@ -3,6 +3,7 @@ package com.screentrace.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,13 +40,12 @@ import com.screentrace.app.uikit.LoadingSkeleton
 import com.screentrace.app.uikit.MetricCardPair
 import com.screentrace.app.uikit.transformSource
 import com.screentrace.app.uikit.MetricValue
-import com.screentrace.app.uikit.RatioBar
 import com.screentrace.app.uikit.RingMath
 import com.screentrace.app.uikit.StatusChip
 import com.screentrace.app.uikit.RingProgress
-import com.screentrace.app.uikit.SecondaryButton
-import com.screentrace.app.uikit.Segment
-import com.screentrace.app.uikit.SegmentedBar
+import com.screentrace.app.uikit.AppBreakdownMath
+import com.screentrace.app.uikit.AppBreakdownSection
+import com.screentrace.app.uikit.ViewAllButton
 
 /**
  * 今日页（§5.7 CR-01 版）：① hero 圆环卡（H:MM / 目标进度 / 对比，副信息含最长连续）
@@ -178,9 +178,21 @@ private fun TodayContent(
         }
     )
 
-    // ③ 应用构成卡
+    // ③ 应用构成卡（CR-07 §4.4：色带 + 行式图例 + 日间/夜间条 + 查看全部）
     FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(text = "应用构成", style = FreshType.sectionTitle, color = palette.onSurface)
+        val totalAppMinutes = data.topApps.sumOf { it.minutes } + data.otherMinutes
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "应用构成", style = FreshType.sectionTitle, color = palette.onSurface)
+            Text(
+                text = "共 ${UsageCalculator.formatDuration(totalAppMinutes)}",
+                style = FreshType.bodySmall,
+                color = palette.onSurfaceVariant
+            )
+        }
         // 口径说明（真机踩到的）：系统给的 `totalTimeUsed` 含前台服务、画中画、
         // 灭屏但可见的 Activity，会比「亮屏时长」多出一截——实测米家 583 分钟 vs
         // 全天 557 分钟。不解释的话，用户只会觉得「单个应用比全天还久，算错了」。
@@ -192,46 +204,24 @@ private fun TodayContent(
                 color = palette.onSurfaceMuted
             )
         }
-        val segments = buildList {
-            data.topApps.forEachIndexed { index, app ->
-                add(
-                    Segment(
-                        weight = app.minutes.toFloat(),
-                        color = palette.chartList()[index % 5],
-                        label = "${app.name} · ${UsageCalculator.formatDuration(app.minutes)}"
-                    )
-                )
-            }
-            if (data.otherMinutes > 0) {
-                add(
-                    Segment(
-                        weight = data.otherMinutes.toFloat(),
-                        color = palette.chartList()[4],
-                        label = "其他 · ${UsageCalculator.formatDuration(data.otherMinutes)}"
-                    )
-                )
-            }
-        }
-        if (segments.isEmpty()) {
+        // 色带与列表共用同一份行模型：每段颜色与行首圆点严格对应（§4.4）。
+        val rows = AppBreakdownMath.rows(data.topApps, data.otherMinutes)
+        if (rows.isEmpty()) {
             EmptyState(title = "暂无应用数据")
         } else {
-            SegmentedBar(segments = segments)
+            AppBreakdownSection(rows = rows, dayPercent = data.dayPercent)
         }
-        Spacer(Modifier.height(4.dp)) // 与比值条的 16dp 分隔（含列间距 12dp）
-        RatioBar(leftLabel = "日间", leftPercent = data.dayPercent, rightLabel = "夜间")
-        SecondaryButton(
+        ViewAllButton(
             text = "查看全部应用",
             onClick = onOpenRanking,
-            // 容器变换起点 = 这个按钮本身（§5.5）；排行页也从这个位置展开
+            // 容器变换起点 = 这个按钮本身（§5.5）；排行页也从这个位置展开。
+            // 圆角与按钮本体（18dp）保持一致，展开时才不会从错误的形状起跳。
             modifier = Modifier
                 .fillMaxWidth()
-                .transformSource(cornerRadius = 20.dp)
+                .transformSource(cornerRadius = 18.dp)
         )
     }
 }
-
-private fun com.screentrace.app.theme.FreshPalette.chartList() =
-    listOf(chart1, chart2, chart3, chart4, chart5)
 
 /**
  * 双卡数字的统一取值（评审 P1-1）：**没有事件源就只能给「—」**。

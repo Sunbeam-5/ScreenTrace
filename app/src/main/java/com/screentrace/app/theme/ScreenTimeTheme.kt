@@ -73,6 +73,17 @@ object FreshType {
     val body = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Medium, fontSize = 14.sp)
     val label = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp)
     val button = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+
+    // CR-07 §4.4 应用构成卡专用 token（规格明确 13sp / 14sp SemiBold 等宽数字 / 14sp Bold）
+    val numberBody = TextStyle(
+        fontFamily = numberFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        fontFeatureSettings = "'tnum'"
+    )
+    val bodySmall = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+    val bodySmallBold = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+    val buttonBold = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Bold, fontSize = 14.sp)
 }
 
 /** §5.2：卡片统一 24dp，无描边、无阴影；间距只用 4dp 基数。 */
