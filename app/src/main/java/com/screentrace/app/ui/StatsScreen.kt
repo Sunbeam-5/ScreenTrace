@@ -25,6 +25,7 @@ import com.screentrace.app.contract.Summary
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
+import com.screentrace.app.uikit.FreshCard
 import com.screentrace.app.theme.ScreenTimeTheme
 import com.screentrace.app.uikit.CapsuleBarChart
 import com.screentrace.app.uikit.CompareLine
@@ -103,14 +104,7 @@ private fun StatsContent(
     val palette = LocalFreshPalette.current
 
     // ① 趋势卡（日均大数字 + 对比 + 柱图，§5.7 不拆两个头卡）
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.surface)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         MetricValueText(
             value = MetricValue.Duration(data.summary.averageScreenUnlockMin),
             numberColor = palette.onSurface,
@@ -138,14 +132,7 @@ private fun StatsContent(
     }
 
     // ② 时段分布卡
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.surface)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(text = "时段分布", style = FreshType.sectionTitle, color = palette.onSurface)
         val labels = listOf("06–12", "12–18", "18–22", "22–06")
         val colors = listOf(palette.chart1, palette.chart2, palette.chart3, palette.chart4)
@@ -175,14 +162,7 @@ private fun StatsContent(
 
     // 洞察：数据足够才显示（§5.7）
     if (data.summary.recordedDays >= 3 && data.extremes.longestDate != null) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(palette.surface)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        FreshCard(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = "洞察", style = FreshType.sectionTitle, color = palette.onSurface)
             Text(
                 text = "共 ${data.summary.recordedDays} 天有记录，日均 " +

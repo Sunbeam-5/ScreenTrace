@@ -30,6 +30,7 @@ import com.screentrace.app.contract.Summary
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
+import com.screentrace.app.uikit.FreshCard
 import com.screentrace.app.theme.ScreenTimeTheme
 import com.screentrace.app.uikit.EmptyState
 import com.screentrace.app.uikit.ErrorRetry
@@ -76,14 +77,7 @@ private fun RankingContent(data: RankingData) {
     // 照读它就是在屏幕上画一个「当天 0 分钟」的假 0（§5.5 红线），
     // 所以这时换成真实可算的「应用使用合计」并换标题说明口径。
     val dayAggregatesAvailable = data.summary.hasAnyRecord
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.surface)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             text = when {
                 // 降级通道的三条边界都要写在标题里，否则用户会把「少」当成「算错」：

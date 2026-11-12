@@ -39,6 +39,7 @@ import com.screentrace.app.contract.StreakInfo
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
+import com.screentrace.app.uikit.FreshCard
 import com.screentrace.app.theme.ScreenTimeTheme
 import com.screentrace.app.uikit.EmptyState
 import com.screentrace.app.uikit.ErrorRetry
@@ -172,14 +173,7 @@ private fun CalendarContent(
     )
 
     // ③ 日历卡
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.surface)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (viewMode == 0) {
             // 翻月头
             Row(

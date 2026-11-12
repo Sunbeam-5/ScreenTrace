@@ -39,6 +39,10 @@ data class FreshPalette(
     val scrim: Color,
     val error: Color,
     val outline: Color,
+    /** CR-06/VI-1-2：页面顶部渐变起点（主色淡化），向下渐隐到 background。 */
+    val gradientTop: Color = Color(0xFFEAF2F6),
+    /** CR-06/VI-1-2：卡片阴影色（0–2dp 极淡；深色模式不用，靠色阶分层）。 */
+    val shadow: Color = Color(0x14000000),
     /** §5.4：「数字 + 小单位」排版的单位色（白卡取值）；tonal 卡用 [mutedOn] 同规则派生。 */
     val onSurfaceMuted: Color,
     /** 派生用：是否深色调色板（决定单位色混合上限 30% / 46%，§5.4）。 */
@@ -172,6 +176,8 @@ internal fun derivePalette(
             scrim = Color(0x66000000),
             error = Color(0xFFB3261E),
             outline = seed.mix(White, 0.78f),
+            gradientTop = seed.mix(White, 0.90f),
+            shadow = Color(0x14000000),
             onSurfaceMuted = muteForeground(onSurface, White, dark = false),
             darkTheme = false
         )
@@ -217,6 +223,8 @@ internal fun derivePalette(
         scrim = Color(0x99000000),
         error = Color(0xFFFFB4AB),
         outline = background.mix(White, 0.24f),
+        gradientTop = seed.mix(DarkNeutral, 0.86f),
+        shadow = Color(0x33000000),
         onSurfaceMuted = muteForeground(onSurface, surface, dark = true),
         darkTheme = true
     )

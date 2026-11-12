@@ -23,6 +23,7 @@ import com.screentrace.app.contract.Summary
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
+import com.screentrace.app.uikit.FreshCard
 import com.screentrace.app.theme.ScreenTimeTheme
 import com.screentrace.app.uikit.CompareLine
 import com.screentrace.app.uikit.EmptyState
@@ -95,15 +96,7 @@ private fun TodayContent(
         if (single) data.summary.totalScreenUnlockMin else data.summary.averageScreenUnlockMin
 
     // ① hero 圆环卡
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.surface)
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         RingProgress(
             progress = if (dailyGoalMin <= 0) 0f else usageMin.toFloat() / dailyGoalMin,
             timeText = UsageCalculator.formatClock(usageMin)
@@ -156,14 +149,7 @@ private fun TodayContent(
     )
 
     // ③ 应用构成卡
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.surface)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(text = "应用构成", style = FreshType.sectionTitle, color = palette.onSurface)
         // 口径说明（真机踩到的）：系统给的 `totalTimeUsed` 含前台服务、画中画、
         // 灭屏但可见的 Activity，会比「亮屏时长」多出一截——实测米家 583 分钟 vs

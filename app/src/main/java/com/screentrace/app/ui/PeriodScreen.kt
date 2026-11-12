@@ -40,6 +40,7 @@ import com.screentrace.app.contract.PeriodType
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
+import com.screentrace.app.uikit.FreshCard
 import com.screentrace.app.theme.ScreenTimeTheme
 import com.screentrace.app.uikit.AppIcon
 import com.screentrace.app.uikit.CapsuleBarChart
@@ -123,14 +124,7 @@ private fun PeriodContent(
     )
 
     // ② hero：总时长 + 日均 + 对比 + 未结束标识
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.surface)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
+    FreshCard(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -173,14 +167,7 @@ private fun PeriodContent(
     }
 
     // ③ 趋势：年视图是 12 根「月日均」柱，周/月复用统一量程的日柱图
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.surface)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             text = if (period.type == PeriodType.YEAR) "每月日均" else "每日使用",
             style = FreshType.sectionTitle,
@@ -257,14 +244,7 @@ private fun PeriodContent(
     }
 
     // ⑥ 时段占比
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.surface)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(text = "时段分布", style = FreshType.sectionTitle, color = palette.onSurface)
         val labels = listOf("06–12", "12–18", "18–22", "22–06")
         val colors = listOf(palette.chart1, palette.chart2, palette.chart3, palette.chart4)
@@ -283,14 +263,7 @@ private fun PeriodContent(
     }
 
     // ⑦ 结论：规则生成的事实陈述；数据不足时明确说「不出结论」，不给假洞察
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.surface)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    FreshCard(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(text = "结论", style = FreshType.sectionTitle, color = palette.onSurface)
         if (period.insufficient) {
             Text(

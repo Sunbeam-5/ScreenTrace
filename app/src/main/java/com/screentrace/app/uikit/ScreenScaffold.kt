@@ -65,7 +65,13 @@ fun PageScaffold(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(palette.background)
+            // CR-06/VI-1-2：顶部一层极淡主色渐隐到中性底（0.42f 后纯 background）
+            .background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    0f to palette.gradientTop,
+                    0.42f to palette.background
+                )
+            )
     ) {
         Column(
             Modifier
