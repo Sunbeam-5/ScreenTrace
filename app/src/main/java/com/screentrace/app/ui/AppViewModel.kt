@@ -55,6 +55,9 @@ sealed interface AppPage {
     /** §5.8「权限与数据」组：应用分类管理（二级页）。 */
     data class AppCategories(val returnTo: AppPage = Today) : AppPage
 
+    /** §5.10 云端同步配置（二级页，真机反馈 #3：配置不平铺在设置页）。 */
+    data class CloudSync(val returnTo: AppPage = Today) : AppPage
+
     companion object {
         /** 底部导航选中态映射：二级页保持进入前主页面的选中（§5.5）。 */
         fun mainOf(page: AppPage): AppPage = when (page) {
@@ -64,6 +67,8 @@ sealed interface AppPage {
             is NotificationDetail -> page.returnTo
             is Period -> page.returnTo
             is AppCategories -> page.returnTo
+            // CloudSync 从设置页进入：返回目标可能是二级页（Settings），递归归位
+            is CloudSync -> mainOf(page.returnTo)
             else -> page
         }
     }
@@ -563,6 +568,11 @@ class AppViewModel(
         if (type == _periodType.value && _periodState.value.data != null) return
         _periodType.value = type
         loadPeriod()
+    }
+
+    /** 打开云端同步二级页（§5.10，真机反馈 #3）。 */
+    fun openCloudSync() {
+        _page.value = AppPage.CloudSync(returnTo = _page.value)
     }
 
     fun openSettings() {

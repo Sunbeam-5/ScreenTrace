@@ -171,10 +171,7 @@ fun AppNav() {
     val syncLastOk by viewModel.syncLastOk
     val syncLastMessage by viewModel.syncLastMessage
 
-    /** 云端下载的备份候选 → 转给 BackupGroup 的统一恢复流程（同一套策略 UI）。 */
-    var cloudCandidate by remember {
-        mutableStateOf<Pair<com.screentrace.app.data.backup.BackupFile, com.screentrace.app.data.backup.BackupSummary>?>(null)
-    }
+    // 云端恢复流在 CloudSyncScreen 二级页内（复用同一个 RestoreSheet）
 
     /** §5.8 设置页「关于」与 HTML 报告用的版本号（BuildConfig 未开启，直接问 PackageManager）。 */
     val appVersion = remember(context) {
@@ -381,30 +378,6 @@ fun AppNav() {
                         // 显示当前区间，跨页常驻的「有记录 x 天」条被真机反馈点名；
                         // 恢复「今天」用日期弹层里的「今天」快捷项。
                         AnimatedVisibility(
-                            visible = notice != null,
-                            enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                            exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
-                        ) {
-                            notice?.let { text ->
-                                NoticeBar(text = text, onDismiss = viewModel::consumeNotice)
-                            }
-                        }
-                        // §5.8：已有历史时拉取失败 → 顶部内联错误 + 可重试，页面继续显示旧数据
-                        AnimatedVisibility(
-                            visible = pullError != null,
-                            enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                            exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
-                        ) {
-                            pullError?.let { text ->
-                                NoticeBar(
-                                    text = text,
-                                    onDismiss = viewModel::dismissPullError,
-                                    actionText = "重试",
-                                    onAction = viewModel::retryPull
-                                )
-                            }
-                        }
-                        AnimatedVisibility(
                             visible = pulling,
                             enter = expandVertically(tween(140)) + fadeIn(tween(140)),
                             exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
@@ -518,6 +491,11 @@ fun AppNav() {
                                     subtitle = null,
                                     onBack = viewModel::goBack
                                 )
+                                is AppPage.CloudSync -> AppHeader(
+                                    title = "云端同步",
+                                    subtitle = null,
+                                    onBack = viewModel::goBack
+                                )
                                 is AppPage.AppCategories -> AppHeader(
                                     title = "应用分类",
                                     subtitle = null,
@@ -582,28 +560,34 @@ fun AppNav() {
                                     onRestoreBackup = { file, overwrite, importSettings ->
                                         viewModel.restoreBackup(file, overwrite, importSettings)
                                     },
-                                    externalCloudCandidate = cloudCandidate,
-                                    cloudSection = {
-                                        CloudSyncGroup(
-                                            webdavUrl = webdavUrl,
-                                            webdavUsername = webdavUsername,
-                                            webdavRemoteDir = webdavRemoteDir,
-                                            passwordSaved = webdavPasswordSaved,
-                                            syncFrequency = syncFrequency,
-                                            syncWifiOnly = syncWifiOnly,
-                                            lastAt = syncLastAt,
-                                            lastOk = syncLastOk,
-                                            lastMessage = syncLastMessage,
-                                            onConfigChange = viewModel::setWebdavConfig,
-                                            onPasswordSet = viewModel::setWebdavPassword,
-                                            onFrequencyChange = viewModel::setSyncFrequency,
-                                            onWifiOnlyChange = viewModel::setSyncWifiOnly,
-                                            onTestConnection = { viewModel.testCloudConnection() },
-                                            onUpload = { viewModel.uploadToCloud() },
-                                            onDownload = { viewModel.downloadFromCloud() },
-                                            onDownloadedReady = { file, summary -> cloudCandidate = file to summary },
-                                            onNotice = viewModel::showNotice
-                                        )
+                                    cloudSummary = if (syncLastAt != null) {
+                                        "上次同步：" + syncLastMessage.ifEmpty { if (syncLastOk == true) "成功" else "失败" }
+                                    } else {
+                                        "未配置"
+                                    },
+                                    onOpenCloudSync = viewModel::openCloudSync,
+                                    onNotice = viewModel::showNotice
+                                )
+                                is AppPage.CloudSync -> CloudSyncScreen(
+                                    webdavUrl = webdavUrl,
+                                    webdavUsername = webdavUsername,
+                                    webdavRemoteDir = webdavRemoteDir,
+                                    passwordSaved = webdavPasswordSaved,
+                                    syncFrequency = syncFrequency,
+                                    syncWifiOnly = syncWifiOnly,
+                                    lastAt = syncLastAt,
+                                    lastOk = syncLastOk,
+                                    lastMessage = syncLastMessage,
+                                    appVersion = appVersion,
+                                    onConfigChange = viewModel::setWebdavConfig,
+                                    onPasswordSet = viewModel::setWebdavPassword,
+                                    onFrequencyChange = viewModel::setSyncFrequency,
+                                    onWifiOnlyChange = viewModel::setSyncWifiOnly,
+                                    onTestConnection = { viewModel.testCloudConnection() },
+                                    onUpload = { viewModel.uploadToCloud() },
+                                    onDownload = { viewModel.downloadFromCloud() },
+                                    onRestore = { file, overwrite, importSettings ->
+                                        viewModel.restoreBackup(file, overwrite, importSettings)
                                     },
                                     onNotice = viewModel::showNotice
                                 )
@@ -628,6 +612,44 @@ fun AppNav() {
                                     onRetry = viewModel::reload
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            // ---- 全局提示条：与底部导航同层（最上层）——真机反馈 #1：原来画在主内容
+            // 列里，被二级页覆盖层整块遮住，用户看不到任何成功/失败反馈。 ----
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 108.dp)
+            ) {
+                androidx.compose.foundation.layout.Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AnimatedVisibility(
+                        visible = notice != null,
+                        enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                        exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                    ) {
+                        notice?.let { text ->
+                            NoticeBar(text = text, onDismiss = viewModel::consumeNotice)
+                        }
+                    }
+                    // §5.8：已有历史时拉取失败 → 顶部内联错误 + 可重试，页面继续显示旧数据
+                    AnimatedVisibility(
+                        visible = pullError != null,
+                        enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                        exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                    ) {
+                        pullError?.let { text ->
+                            NoticeBar(
+                                text = text,
+                                onDismiss = viewModel::dismissPullError,
+                                actionText = "重试",
+                                onAction = viewModel::retryPull
+                            )
                         }
                     }
                 }

@@ -210,8 +210,8 @@ internal object LowUsageThreshold {
  */
 enum class SyncFrequency(val label: String, val days: Long) {
     OFF("关闭", 0),
-    EVERY_PULL("每次成功拉取后", 0),
-    EVERY_1_DAY("每 1 天", 1),
+    EVERY_PULL("每次拉取", 0),
+    EVERY_1_DAY("每日", 1),
     EVERY_3_DAYS("每 3 天", 3),
     EVERY_7_DAYS("每 7 天", 7);
 

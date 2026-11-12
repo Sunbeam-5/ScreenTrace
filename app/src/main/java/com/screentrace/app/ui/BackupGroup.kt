@@ -59,8 +59,9 @@ fun BackupGroup(
     onBuildCsv: suspend () -> List<Pair<String, String>>,
     onDecode: suspend (String) -> BackupCodec.DecodeResult,
     onRestore: suspend (BackupFile, Boolean, Boolean) -> BackupRepository.RestoreResult?,
-    /** 8b：云端下载的候选复用本地恢复的策略二选一流程（同一套 UI、同一入口）。 */
-    externalCandidate: Pair<BackupFile, BackupSummary>? = null,
+    /** 真机反馈 #3：云同步配置挪二级页，本组只放一行入口。 */
+    cloudSummary: String = "",
+    onOpenCloudSync: () -> Unit = {},
     onNotice: (String) -> Unit
 ) {
     val palette = LocalFreshPalette.current
@@ -71,10 +72,6 @@ fun BackupGroup(
     var pendingCsv by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var restoreCandidate by remember { mutableStateOf<Pair<BackupFile, BackupSummary>?>(null) }
 
-    // 云端下载的备份候选：进入同一套「摘要 → 策略二选一」流程（8b 硬原则：同一入口）
-    androidx.compose.runtime.LaunchedEffect(externalCandidate) {
-        if (externalCandidate != null) restoreCandidate = externalCandidate
-    }
     var busy by remember { mutableStateOf(false) }
 
     // ① JSON：单文件走 CreateDocument
@@ -216,8 +213,14 @@ fun BackupGroup(
         )
 
         Box(Modifier.fillMaxWidth().height(1.dp).background(palette.track))
+        // 真机反馈 #3：配置项多，挪二级页；这里只留一行状态入口
+        ActionRow(
+            label = "云端同步（WebDAV）",
+            value = cloudSummary,
+            onClick = onOpenCloudSync
+        )
         Text(
-            text = "云同步（WebDAV / Google Drive）尚未开放，随下一版提供。",
+            text = "Google Drive 随下一版提供。",
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )
@@ -250,7 +253,7 @@ fun BackupGroup(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RestoreSheet(
+internal fun RestoreSheet(
     summary: BackupSummary,
     appVersion: String,
     onDismiss: () -> Unit,

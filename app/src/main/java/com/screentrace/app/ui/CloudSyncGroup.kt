@@ -73,6 +73,8 @@ fun CloudSyncGroup(
     val palette = LocalFreshPalette.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
+    // 真机反馈 #1：全局提示条被二级页覆盖层遮挡、看不见——操作结果必须**就地**显示
+    var lastResult by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
 
     // 配置草稿：改动后需点「保存配置」落盘（避免每敲一个字符写 DataStore）
     var url by remember(webdavUrl) { mutableStateOf(webdavUrl) }
@@ -139,10 +141,9 @@ fun CloudSyncGroup(
                         if (password.isNotEmpty()) onPasswordSet(password)
                         val result = onTestConnection()
                         busy = false
-                        onNotice(
-                            if (result is SyncResult.Ok) "连接成功"
-                            else "测试失败：${(result as SyncResult.Err).kind.userMessage()}"
-                        )
+                        val ok = result is SyncResult.Ok
+                        lastResult = (if (ok) "连接成功" else "测试失败：${(result as SyncResult.Err).kind.userMessage()}") to ok
+                        if (!ok) onNotice(lastResult!!.first)
                     }
                 },
                 modifier = Modifier.weight(1f)
@@ -167,10 +168,9 @@ fun CloudSyncGroup(
                         busy = true
                         val result = onUpload()
                         busy = false
-                        onNotice(
-                            if (result is SyncResult.Ok) "已上传 screen-time-backup.json"
-                            else "上传失败：${(result as SyncResult.Err).kind.userMessage()}"
-                        )
+                        val ok = result is SyncResult.Ok
+                        lastResult = (if (ok) "已上传 screen-time-backup.json" else "上传失败：${(result as SyncResult.Err).kind.userMessage()}") to ok
+                        onNotice(lastResult!!.first)
                     }
                 },
                 modifier = Modifier.weight(1f)
@@ -185,17 +185,25 @@ fun CloudSyncGroup(
                         busy = false
                         val file = downloaded.file
                         if (file != null && downloaded.summary != null) {
+                            lastResult = "已下载远端备份，请选择恢复策略" to true
                             onDownloadedReady(file, downloaded.summary!!)
                         } else {
                             val err = downloaded.error
-                            onNotice(
-                                if (err is SyncResult.Err) "下载失败：${err.kind.userMessage()}"
-                                else "远端备份不可用"
-                            )
+                            val msg = if (err is SyncResult.Err) "下载失败：${err.kind.userMessage()}" else "远端备份不可用"
+                            lastResult = msg to false
+                            onNotice(msg)
                         }
                     }
                 },
                 modifier = Modifier.weight(1f)
+            )
+        }
+
+        lastResult?.let { (message, ok) ->
+            Text(
+                text = message,
+                style = FreshType.label,
+                color = if (ok) palette.onSurfaceVariant else palette.error
             )
         }
 
@@ -206,15 +214,24 @@ fun CloudSyncGroup(
                 .background(palette.track)
         )
 
-        // 自动同步（§5.10：默认关闭；仅 Wi-Fi 默认开；手动下拉在「每次拉取后」档联动）
+        // 自动同步（§5.10：默认关闭；仅 Wi-Fi 默认开）。真机反馈 #2：五个 chip
+        // 强挤一行会把「每次成功拉取后」折成两行、卡片高矮不齐——改两行自适应宽度
         Text(text = "自动同步", style = FreshType.body, color = palette.onSurface)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SyncFrequency.entries.forEach { frequency ->
+            SyncFrequency.entries.take(3).forEach { frequency ->
                 ChoiceChip(
                     label = frequency.label,
                     selected = frequency == syncFrequency,
-                    onClick = { onFrequencyChange(frequency) },
-                    modifier = Modifier.weight(1f)
+                    onClick = { onFrequencyChange(frequency) }
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SyncFrequency.entries.drop(3).forEach { frequency ->
+                ChoiceChip(
+                    label = frequency.label,
+                    selected = frequency == syncFrequency,
+                    onClick = { onFrequencyChange(frequency) }
                 )
             }
         }

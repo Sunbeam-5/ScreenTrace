@@ -113,10 +113,9 @@ fun SettingsScreen(
         Boolean,
         Boolean
     ) -> com.screentrace.app.data.backup.BackupRepository.RestoreResult? = { _, _, _ -> null },
-    /** 批 8b：云端下载的备份候选，转给 BackupGroup 的统一恢复流程。 */
-    externalCloudCandidate: Pair<com.screentrace.app.data.backup.BackupFile, com.screentrace.app.data.backup.BackupSummary>? = null,
-    /** 批 8b：云端同步卡片（AppNav 装配 CloudSyncGroup，本页不感知云细节）。 */
-    cloudSection: @Composable () -> Unit = {},
+    /** 批 8b：云端同步入口（真机反馈 #3：配置挪二级页，本页一行入口）。 */
+    cloudSummary: String = "",
+    onOpenCloudSync: () -> Unit = {},
     onNotice: (String) -> Unit = {}
 ) {
     GoalGroup(
@@ -157,11 +156,10 @@ fun SettingsScreen(
         onBuildCsv = onBuildCsv,
         onDecode = onDecodeBackup,
         onRestore = onRestoreBackup,
-        externalCandidate = externalCloudCandidate,
+        cloudSummary = cloudSummary,
+        onOpenCloudSync = onOpenCloudSync,
         onNotice = onNotice
     )
-
-    cloudSection()
 
     SettingsGroup("AI 分析") {
         val palette = LocalFreshPalette.current
