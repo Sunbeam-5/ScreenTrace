@@ -102,6 +102,23 @@ object FreshType {
     )
     /** 横轴选中日标签：12sp Bold。 */
     val labelBold = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+
+    // CR-07 §4.8 / §5.3 日历页专用 token
+    /** 热力月历日号：Manrope 14sp SemiBold 等宽数字。 */
+    val numberDay = TextStyle(
+        fontFamily = numberFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        fontFeatureSettings = "'tnum'"
+    )
+    /** 连续记录卡大数字：34sp ExtraBold 等宽数字。 */
+    val numberStreak = TextStyle(
+        fontFamily = numberFamily,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 34.sp,
+        letterSpacing = (-1.0).sp,
+        fontFeatureSettings = "'tnum'"
+    )
 }
 
 /** §5.2：卡片统一 24dp，无描边、无阴影；间距只用 4dp 基数。 */

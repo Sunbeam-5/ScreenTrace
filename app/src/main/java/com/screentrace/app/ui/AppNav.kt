@@ -349,9 +349,14 @@ fun AppNav() {
                         title = titleOf(mainPage),
                         // 今日页锚定今天（§5.6 修订）：它不跟随全局筛选，
                         // 副标题也必须写「今天」，否则用户会以为看到的是区间数据。
-                        subtitle = selectionSubtitle(
-                            if (mainPage == AppPage.Today) DateSelection.today() else selection
-                        ),
+                        // CR-07 §5.3-1：日历页副标题改「已记录 N 天」（数据就绪时），
+                        // 未就绪回退区间副标题。
+                        subtitle = calendarState.data
+                            ?.takeIf { mainPage == AppPage.Calendar }
+                            ?.let { data -> "已记录 ${data.yearLevels.count { lv -> lv.recorded }} 天" }
+                            ?: selectionSubtitle(
+                                if (mainPage == AppPage.Today) DateSelection.today() else selection
+                            ),
                         onDateClick = { showDateSheet = true },
                         onSettingsClick = viewModel::openSettings
                     )
@@ -425,6 +430,8 @@ fun AppNav() {
                                     calendarMonth = calendarMonth,
                                     onMonthChange = viewModel::setCalendarMonth,
                                     onRetry = viewModel::reload,
+                                    // CR-07 §4.8：月历四档按「使用/目标」比值，读用户实际每日目标
+                                    goalMinutes = dailyGoalMin,
                                     lowThresholdMin = lowThresholdMin,
                                     // §5.11：日历页顶部同一入口
                                     onOpenPeriod = viewModel::openPeriod
