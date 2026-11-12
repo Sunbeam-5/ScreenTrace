@@ -11,3 +11,4 @@ captures/
 # 真机冒烟产物（截图 / dump 样本），不入库
 .smoke/
 .smoke2/
+ui_dump*.xml
