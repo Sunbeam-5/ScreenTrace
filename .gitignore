@@ -12,3 +12,4 @@ captures/
 .smoke/
 .smoke2/
 ui_dump*.xml
+d[0-9].xml
