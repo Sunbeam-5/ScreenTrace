@@ -16,26 +16,46 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.screentrace.app.R
 import androidx.compose.ui.unit.sp
 
-/** §5.3 字体 token：组件内不得另设字号或字重。 */
+/** §5.3 字体 token：组件内不得另设字号或字重（family 分层见 CR-06）。 */
 object FreshType {
-    private val family = FontFamily.Default
-    val pageTitle = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 24.sp)
-    val sectionTitle = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+    /**
+     * CR-06 / VI-1-1：数字与拉丁用 Manrope（几何无衬线、tnum 等宽），中文走系统字体
+     * （MIUI/HyperOS 即 MiSans，观感接近设计稿）。**不打包完整中文字体**——单字重
+     * 8–10MB 会翻倍 APK 而肉眼差别极小，这是有意识的取舍（见开发与构建说明「字体」节）。
+     */
+    private val numberFamily = FontFamily(
+        Font(R.font.manrope_regular, FontWeight.Normal),
+        Font(R.font.manrope_medium, FontWeight.Medium),
+        Font(R.font.manrope_semibold, FontWeight.SemiBold),
+        Font(R.font.manrope_extrabold, FontWeight.Bold) // ExtraBold 注册在 700 位：数字 token 请求 700 时直接命中
+    )
+    private val textFamily = FontFamily.Default
+
+    val pageTitle = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+    val sectionTitle = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp)
     val heroNumber = TextStyle(
-        fontFamily = family,
+        fontFamily = numberFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 40.sp,
-        letterSpacing = (-1.6).sp // 约 -0.04em
+        letterSpacing = (-1.6).sp, // 约 -0.04em
+        fontFeatureSettings = "'tnum'" // 等宽数字：刷新时宽度不跳
     )
-    val metricNumber = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 26.sp)
-    val body = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 14.sp)
-    val label = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 12.sp)
-    val button = TextStyle(fontFamily = family, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+    val metricNumber = TextStyle(
+        fontFamily = numberFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 26.sp,
+        fontFeatureSettings = "'tnum'"
+    )
+    val body = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Normal, fontSize = 14.sp)
+    val label = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+    val button = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
 }
 
 /** §5.2：卡片统一 24dp，无描边、无阴影；间距只用 4dp 基数。 */
