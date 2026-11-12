@@ -65,11 +65,13 @@ fun PageScaffold(
     Box(
         modifier = modifier
             .fillMaxSize()
-            // CR-06/VI-1-2：顶部一层极淡主色渐隐到中性底（0.42f 后纯 background）
+            // CR-07：三段渐变（0% 顶部 / 18% 中段 / 40% 起落回 background），
+            // 背景固定在屏幕后，不随内容滚动
             .background(
                 androidx.compose.ui.graphics.Brush.verticalGradient(
                     0f to palette.gradientTop,
-                    0.42f to palette.background
+                    0.18f to palette.gradientMid,
+                    0.40f to palette.background
                 )
             )
     ) {

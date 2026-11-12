@@ -39,10 +39,11 @@ data class FreshPalette(
     val scrim: Color,
     val error: Color,
     val outline: Color,
-    /** CR-06/VI-1-2：页面顶部渐变起点（主色淡化），向下渐隐到 background。 */
-    val gradientTop: Color = Color(0xFFEAF2F6),
-    /** CR-06/VI-1-2：卡片阴影色（0–2dp 极淡；深色模式不用，靠色阶分层）。 */
-    val shadow: Color = Color(0x14000000),
+    /** CR-07：页面背景渐变三段——0% 顶部、18% 中段、40% 起落回 background。 */
+    val gradientTop: Color = Color(0xFFD6E7EF),
+    val gradientMid: Color = Color(0xFFE9F1F5),
+    /** CR-07：卡片阴影色（主色低透明度近似两层阴影；深色不用，靠色阶分层）。 */
+    val shadow: Color = Color(0x142C576D),
     /** CR-06/VI-1-3：超目标信号色（珊瑚暖色，固定色相不随主题——信号不是警报，不整圈变红）。 */
     val overTarget: Color = Color(0xFFB04A28),
     /** CR-06/VI-1-3：超目标 chip 底色（配 overTarget 文字，浅色 ≥4.5:1）。 */
@@ -180,8 +181,10 @@ internal fun derivePalette(
             scrim = Color(0x66000000),
             error = Color(0xFFB3261E),
             outline = seed.mix(White, 0.78f),
-            gradientTop = seed.mix(White, 0.90f),
-            shadow = Color(0x14000000),
+            // CR-07：渐变 0% 段 = seed 混白 85%（雾蓝设计值 #D6E7EF 的派生规则）
+            gradientTop = seed.mix(White, 0.85f),
+            gradientMid = seed.mix(White, 0.93f),
+            shadow = seed.copy(alpha = 0.08f),
             overTarget = Color(0xFFB04A28),
             overTargetSurface = Color(0xFFFBE9E1),
             onSurfaceMuted = muteForeground(onSurface, White, dark = false),
@@ -230,7 +233,8 @@ internal fun derivePalette(
         error = Color(0xFFFFB4AB),
         outline = background.mix(White, 0.24f),
         gradientTop = seed.mix(DarkNeutral, 0.86f),
-        shadow = Color(0x33000000),
+        gradientMid = seed.mix(DarkNeutral, 0.93f),
+        shadow = seed.copy(alpha = 0.20f),
         overTarget = Color(0xFFE8926F),
         overTargetSurface = Color(0xFF3A2A22),
         onSurfaceMuted = muteForeground(onSurface, surface, dark = true),

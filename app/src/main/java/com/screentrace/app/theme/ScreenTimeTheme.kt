@@ -34,26 +34,43 @@ object FreshType {
         Font(R.font.manrope_regular, FontWeight.Normal),
         Font(R.font.manrope_medium, FontWeight.Medium),
         Font(R.font.manrope_semibold, FontWeight.SemiBold),
-        Font(R.font.manrope_extrabold, FontWeight.Bold) // ExtraBold 注册在 700 位：数字 token 请求 700 时直接命中
+        Font(R.font.manrope_extrabold, FontWeight.ExtraBold) // CR-07：数字 token 用 800
     )
     private val textFamily = FontFamily.Default
 
-    val pageTitle = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+    // CR-07（新规格 3.2）：标题 32、圆环数字 46/800、统计大数字 40/800、指标数字 30/800
+    val pageTitle = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Bold, fontSize = 32.sp)
     val sectionTitle = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp)
     val heroNumber = TextStyle(
         fontFamily = numberFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 44.sp, // CR-06/VI-1-3：圆环中心数字加大（§5.3 token 同步）
-        letterSpacing = (-1.6).sp, // 约 -0.04em
-        fontFeatureSettings = "'tnum'" // 等宽数字：刷新时宽度不跳
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 46.sp,
+        letterSpacing = (-1.8).sp,
+        fontFeatureSettings = "'tnum'"
+    )
+    val statsNumber = TextStyle(
+        fontFamily = numberFamily,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 40.sp,
+        letterSpacing = (-1.2).sp,
+        fontFeatureSettings = "'tnum'"
     )
     val metricNumber = TextStyle(
         fontFamily = numberFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 26.sp,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 30.sp,
+        letterSpacing = (-0.5).sp,
         fontFeatureSettings = "'tnum'"
     )
-    val body = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Normal, fontSize = 14.sp)
+    /** 统计型 tonal 卡（最久/最少/低于阈值）的数字：28sp（新规格 4.1）。 */
+    val metricNumberSmall = TextStyle(
+        fontFamily = numberFamily,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 28.sp,
+        letterSpacing = (-0.5).sp,
+        fontFeatureSettings = "'tnum'"
+    )
+    val body = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Medium, fontSize = 14.sp)
     val label = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp)
     val button = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
 }
@@ -63,8 +80,8 @@ private val FreshShapes = Shapes(
     extraSmall = RoundedCornerShape(4.dp),
     small = RoundedCornerShape(8.dp),
     medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(24.dp)
+    large = RoundedCornerShape(28.dp),
+    extraLarge = RoundedCornerShape(28.dp)
 )
 
 private val FreshTypography = Typography(

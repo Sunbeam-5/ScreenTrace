@@ -37,7 +37,9 @@ fun FreshCard(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = if (palette.darkTheme) 0.dp else 2.dp,
+                // CR-07：两层阴影（0 1 2 + 0 10 28）只能近似——elevation 6dp +
+                // 主色低透明度 ambient/spot；深色归零靠色阶分层
+                elevation = if (palette.darkTheme) 0.dp else 6.dp,
                 shape = RoundedCornerShape(24.dp),
                 ambientColor = palette.shadow,
                 spotColor = palette.shadow
