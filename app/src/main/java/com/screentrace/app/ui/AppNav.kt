@@ -44,6 +44,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -352,7 +353,6 @@ fun AppNav() {
                             if (mainPage == AppPage.Today) DateSelection.today() else selection
                         ),
                         onDateClick = { showDateSheet = true },
-                        onStyleClick = { showStyleSheet = true },
                         onSettingsClick = viewModel::openSettings
                     )
                 }
@@ -435,7 +435,29 @@ fun AppNav() {
                 }
                         PullToRefreshContainer(
                             state = pullState,
-                            modifier = Modifier.align(Alignment.TopCenter)
+                            // M3 1.2 默认指示器空闲态不归零：真机上标题旁常驻一个无图标
+                            // 的淡圆（ProgressBar 语义节点）。自定义 indicator 只在真正
+                            // 刷新时画转圈，空闲/跟手阶段不画。
+                            indicator = {
+                                if (pullState.isRefreshing) {
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .align(Alignment.Center)
+                                            .size(28.dp),
+                                        color = androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.contentColor,
+                                        strokeWidth = 3.dp
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                // 空圆根因（二分法定位）：container 本体空闲时在标题旁
+                                // 留一个淡色圆底（M3 1.2 观感问题，uiautomator 之外的纯绘制层）。
+                                // 整体 alpha 门控：刷新中显示，其余（空闲/下拉跟手）隐藏；
+                                // 手势仍由 nestedScroll 接管，不影响下拉触发。
+                                .graphicsLayer {
+                                    alpha = if (pullState.isRefreshing) 1f else 0f
+                                }
                         )
                         if (pullState.isRefreshing) {
                             LaunchedEffect(Unit) {
@@ -692,6 +714,7 @@ fun AppNav() {
         if (showStyleSheet) {
             StyleSheet(
                 current = variant,
+                customSeedActive = customThemeSeed != null,
                 onSelect = { variant ->
                     // 评审 P1-5：点哪套就是哪套——选预设即退出自定义主题。
                     // 否则种子还留着时 variant 变了色板不变，用户会以为主题切换坏了

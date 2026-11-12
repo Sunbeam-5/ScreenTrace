@@ -125,7 +125,9 @@ fun ScrollablePage(
 }
 
 /**
- * §5.2：左标题 + 日期副标题；右侧动作按钮「日期 / 界面风格 / 设置」视觉 40dp、点击区 ≥48dp。
+ * §5.2（CR-06 修订）：左标题 + 日期副标题；右侧动作按钮「日期 / 设置」两枚，
+ * 视觉 40dp、点击区 ≥48dp。风格切换曾占第三枚按钮但一个月点不了两次，
+ * VI-1-4 收敛掉——入口保留在设置页「外观 → 界面风格」（色块网格）。
  * 主页面无返回键；二级页传 onBack 显示「返回 + 标题」（§5.2）。
  * 未传入的按钮不渲染——调用方只接线真实可用的动作，避免假按钮（§6）。
  *
@@ -139,7 +141,6 @@ fun AppHeader(
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
     onDateClick: (() -> Unit)? = null,
-    onStyleClick: (() -> Unit)? = null,
     onSettingsClick: (() -> Unit)? = null
 ) {
     val palette = LocalFreshPalette.current
@@ -192,11 +193,6 @@ fun AppHeader(
                 )
             }
         }
-        if (onStyleClick != null) {
-            HeaderActionButton(contentDescription = "界面风格", onClick = onStyleClick) {
-                StyleDotsIcon()
-            }
-        }
         if (onSettingsClick != null) {
             HeaderActionButton(contentDescription = "设置", onClick = onSettingsClick) {
                 Icon(
@@ -244,20 +240,6 @@ private fun HeaderActionButton(
     }
 }
 
-/**
- * 「界面风格」图标：三色点（呼应 §5.5 风格面板的 3×3 色点），
- * material-icons-core 无 Palette 图标，且 §6 依赖白名单不允许加图标库，故自绘。
- */
-@Composable
-private fun StyleDotsIcon() {
-    val palette = LocalFreshPalette.current
-    Canvas(Modifier.size(22.dp)) {
-        val r = size.minDimension * 0.19f
-        drawCircle(palette.chart1, r, Offset(size.width * 0.30f, size.height * 0.32f))
-        drawCircle(palette.chart3, r, Offset(size.width * 0.70f, size.height * 0.32f))
-        drawCircle(palette.chart5, r, Offset(size.width * 0.30f, size.height * 0.70f))
-    }
-}
 
 @Preview(widthDp = 360, showBackground = true)
 @Composable
@@ -268,7 +250,6 @@ private fun AppHeaderPreview() {
                 title = "屏迹",
                 subtitle = "今天 · 11 月 10 日",
                 onDateClick = {},
-                onStyleClick = {},
                 onSettingsClick = {}
             )
             AppHeader(title = "全部应用", subtitle = null, onBack = {}, onDateClick = {})
