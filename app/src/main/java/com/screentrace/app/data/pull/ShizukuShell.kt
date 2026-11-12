@@ -77,17 +77,26 @@ object ShizukuShell : ShellRunner {
              *
              * 所以超时必须变成**可见的失败**：协调器会改走降级通道或保留旧数据，
              * 总比悄悄少半天的数据好。
+             *
+             * 另外，**看门狗必须先关流再 destroy**（下拉刷新转圈不消失的根因之一）：
+             * `destroy()` 只在 Shizuku 服务端还活着、能收到 binder 调用时才真的杀掉进程；
+             * 服务端被杀 / binder 断 / 进程已退出时它会静默失败，而 `readAll` 正阻塞在
+             * `ins.read()` 上——那个 read 不会被协程取消打断，于是 `coroutineScope` 永不
+             * 返回、`pull()` 永挂起、下拉指示器永久转圈（用户只能杀进程）。关掉 fd 是
+             * **本进程自己能保证**的那一半：read 立刻抛/返回 EOF，走正常失败路径。
              */
             val truncated = AtomicBoolean(false)
+            val closer = StreamCloser()
             val text = coroutineScope {
-                // 读取是阻塞 IO，取消不掉；用看门狗 destroy 进程让 read 返回 EOF
+                // 读取是阻塞 IO，取消不掉；用看门狗关流 + destroy 让 read 返回 EOF
                 val watchdog = launch {
                     delay(timeoutMs)
-                    // 先置位再杀进程：read 之后一定能看到这个 true
+                    // 先置位再关流：read 之后一定能看到这个 true
                     truncated.set(true)
+                    closer.close()
                     runCatching { remote.destroy() }
                 }
-                val read = readAll(remote)
+                val read = readAll(remote, closer)
                 watchdog.cancel()
                 read
             }
@@ -108,7 +117,7 @@ object ShizukuShell : ShellRunner {
     }
 
     /** 13MB 级输出，按块读，别用 readText（会二次拷贝）。 */
-    private fun readAll(remote: IRemoteProcess): String {
+    private fun readAll(remote: IRemoteProcess, closer: StreamCloser): String {
         val pfd = try {
             remote.getInputStream()
         } catch (t: Throwable) {
@@ -118,6 +127,9 @@ object ShizukuShell : ShellRunner {
         val buffer = ByteArrayOutputStream(1 shl 20)
         val chunk = ByteArray(64 * 1024)
         ParcelFileDescriptor.AutoCloseInputStream(pfd).use { ins ->
+            // 看门狗从这里拿到「关流」的手柄：destroy 不可靠时（binder 断/服务端已死），
+            // 关 fd 是本进程唯一能硬打断阻塞 read 的手段
+            closer.bind { runCatching { ins.close() } }
             while (true) {
                 val read = try {
                     ins.read(chunk)
@@ -136,6 +148,31 @@ object ShizukuShell : ShellRunner {
 
     /** 本进程 uid（shell 子进程提权前的对照，仅日志用）。 */
     fun appUid(): Int = Process.myUid()
+}
+
+/**
+ * 把「关掉正在读的流」这件事从读线程交给看门狗协程。
+ *
+ * 多线程可见性用 `@Volatile` 保证（看门狗在另一个线程里读）；`bind` 在读线程、
+ * `close` 在协程里，只有一次交接，因此不需要锁。
+ */
+internal class StreamCloser {
+    @Volatile
+    private var action: (() -> Unit)? = null
+
+    @Volatile
+    private var closed = false
+
+    fun bind(close: () -> Unit) {
+        action = close
+        // 看门狗可能已经先开枪（极端情况下读线程启动就慢），补一次
+        if (closed) close()
+    }
+
+    fun close() {
+        closed = true
+        action?.invoke()
+    }
 }
 
 /**

@@ -450,9 +450,17 @@ fun AppNav() {
                         )
                         if (pullState.isRefreshing) {
                             LaunchedEffect(Unit) {
-                                // 等真正拉完再收起转圈，指示器不会一闪就没
-                                viewModel.refreshFromPull()
-                                pullState.endRefresh()
+                                // 等真正拉完再收起转圈，指示器不会一闪就没。
+                                // **必须 finally**：拉取里任何一条异常/协程取消路径
+                                // （DB 查询失败、通道崩、页面被销毁）如果跳过 endRefresh，
+                                // isRefreshing 就永远停在 true，指示器永久转圈——
+                                // 这是「状态机未复位」（stuck refreshing state）的典型形态，
+                                // 比一次可见的失败更难查，因为界面看着还在「努力」。
+                                try {
+                                    viewModel.refreshFromPull()
+                                } finally {
+                                    pullState.endRefresh()
+                                }
                             }
                         }
                     }

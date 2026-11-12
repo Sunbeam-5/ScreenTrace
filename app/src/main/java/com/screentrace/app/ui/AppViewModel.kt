@@ -311,10 +311,16 @@ class AppViewModel(
         val coordinator = pulls ?: return
         viewModelScope.launch {
             _pulling.value = true
-            val outcome = runCatching { coordinator.pullIfStale() }
-                .getOrElse { PullOutcome.Failure(com.screentrace.app.data.pull.ProviderStatus.TEMPORARILY_UNAVAILABLE, it.message ?: "拉取失败", false) }
-            applyPullOutcome(outcome, coordinator)
-            _pulling.value = false
+            // `finally` 不是洁癖：applyPullOutcome 里的 historyCoverage()/loadAll() 都在
+            // runCatching 之外，一旦抛异常（或协程被取消）`_pulling` 会永久停在 true，
+            // 顶部「正在拉取使用记录」条与今日页的读取中状态就再也不消失。
+            try {
+                val outcome = runCatching { coordinator.pullIfStale() }
+                    .getOrElse { PullOutcome.Failure(com.screentrace.app.data.pull.ProviderStatus.TEMPORARILY_UNAVAILABLE, it.message ?: "拉取失败", false) }
+                applyPullOutcome(outcome, coordinator)
+            } finally {
+                _pulling.value = false
+            }
         }
     }
 
@@ -323,10 +329,13 @@ class AppViewModel(
         val coordinator = pulls ?: return
         viewModelScope.launch {
             _pulling.value = true
-            val outcome = runCatching { coordinator.pull() }
-                .getOrElse { PullOutcome.Failure(com.screentrace.app.data.pull.ProviderStatus.TEMPORARILY_UNAVAILABLE, it.message ?: "拉取失败", false) }
-            applyPullOutcome(outcome, coordinator)
-            _pulling.value = false
+            try {
+                val outcome = runCatching { coordinator.pull() }
+                    .getOrElse { PullOutcome.Failure(com.screentrace.app.data.pull.ProviderStatus.TEMPORARILY_UNAVAILABLE, it.message ?: "拉取失败", false) }
+                applyPullOutcome(outcome, coordinator)
+            } finally {
+                _pulling.value = false
+            }
         }
     }
 

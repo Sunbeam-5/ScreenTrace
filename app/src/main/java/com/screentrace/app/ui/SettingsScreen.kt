@@ -53,6 +53,7 @@ import com.screentrace.app.data.pull.ShizukuAuth
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.ThemeVariant
+import com.screentrace.app.uikit.NumberWheelSheet
 import com.screentrace.app.uikit.PrimaryButton
 import com.screentrace.app.uikit.SecondaryButton
 import java.time.Instant
@@ -62,9 +63,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
-
-/** 阈值滑杆的小时范围（§7-23：1–24 小时连续可调，不再是 1/2/3/4 四档）。 */
-private val THRESHOLD_HOURS = 1f..24f
 
 /** 每日目标滑杆的小时范围（1–16 小时，1 小时一档）。 */
 private val GOAL_HOURS = 1f..16f
@@ -545,67 +543,34 @@ private fun ThresholdGroup(
     onLowThresholdChange: (Int) -> Unit
 ) {
     val palette = LocalFreshPalette.current
+    var showWheel by remember { mutableStateOf(false) }
+    val hours = LowUsageThreshold.hoursOf(lowThresholdMin)
     SettingsGroup("统计口径") {
-        Text(
-            text = "日历里「低于 x 小时」的判断标准",
-            style = FreshType.body,
-            color = palette.onSurface
-        )
-        // 拖动时只改本地草稿，松手才写 DataStore：setLowThresholdMin 会触发整页
-        // 重算（日历色档、低于 x 小时计数都跟着变），拖动中每次落地都会卡。
-        var draftHours by remember(lowThresholdMin) {
-            mutableFloatStateOf(LowUsageThreshold.hoursOf(lowThresholdMin).toFloat())
-        }
-        // §5.8「滑杆 + 数字双向输入」：拖滑杆回填数字，改数字移动滑杆。
-        var numberText by remember(lowThresholdMin) {
-            mutableStateOf(LowUsageThreshold.hoursOf(lowThresholdMin).toString())
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = numberText,
-                onValueChange = { text ->
-                    numberText = text
-                    val hours = text.trim().toIntOrNull()
-                    if (hours != null && hours in LowUsageThreshold.MIN_HOURS..LowUsageThreshold.MAX_HOURS) {
-                        draftHours = hours.toFloat()
-                        onLowThresholdChange(LowUsageThreshold.minutesOf(hours))
-                    }
-                },
-                label = { Text("小时", style = FreshType.label) },
-                singleLine = true,
-                isError = numberText.isNotBlank() &&
-                    (numberText.trim().toIntOrNull() ?: 0) !in LowUsageThreshold.MIN_HOURS..LowUsageThreshold.MAX_HOURS,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Done
-                ),
-                modifier = Modifier.width(112.dp)
-            )
-            Text(
-                text = "当前 ${draftHours.roundToInt()} 小时",
-                style = FreshType.label,
-                color = palette.onSurfaceVariant,
-                modifier = Modifier.padding(start = 12.dp)
-            )
-        }
-        Slider(
-            value = draftHours.coerceIn(THRESHOLD_HOURS.start, THRESHOLD_HOURS.endInclusive),
-            onValueChange = {
-                draftHours = it
-                numberText = it.roundToInt().toString()
-            },
-            onValueChangeFinished = {
-                onLowThresholdChange(LowUsageThreshold.minutesOf(draftHours.roundToInt()))
-            },
-            valueRange = THRESHOLD_HOURS,
-            // 24 档（1..24）之间有 22 个刻度，滑杆只会停在整小时上
-            steps = LowUsageThreshold.MAX_HOURS - LowUsageThreshold.MIN_HOURS - 1
+        // §5.8（CR-05 修订）：入口是一行状态，点开底部弹层的**滚轮选择器**。
+        // 以前是「滑杆 + 数字输入框」并列：24 档均摊到屏宽后每档约 12dp，
+        // 拖到 6 小时要靠看数字确认，指下没有刻度感；改成滚轮后中间一格即当前值，
+        // 吸附（snap）保证停下必然对齐整小时，也不需要再维护「滑杆↔输入框」两份草稿。
+        ActionRow(
+            label = "日历里「低于 x 小时」的判断标准",
+            value = "$hours 小时",
+            onClick = { showWheel = true }
         )
         Text(
             text = "低于这个时长的天数会在日历页单独计数。可在 1–24 小时之间调整，作息不同，这条线因人而异。",
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )
+        if (showWheel) {
+            NumberWheelSheet(
+                title = "低于多少小时算少",
+                range = LowUsageThreshold.MIN_HOURS..LowUsageThreshold.MAX_HOURS,
+                value = hours,
+                unit = "小时",
+                hint = "低于这个时长的天数会在日历页单独计数",
+                onConfirm = { onLowThresholdChange(LowUsageThreshold.minutesOf(it)) },
+                onDismiss = { showWheel = false }
+            )
+        }
     }
 }
 
