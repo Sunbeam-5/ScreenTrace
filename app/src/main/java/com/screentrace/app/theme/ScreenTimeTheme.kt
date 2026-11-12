@@ -84,6 +84,24 @@ object FreshType {
     val bodySmall = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Medium, fontSize = 13.sp)
     val bodySmallBold = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp)
     val buttonBold = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+
+    // CR-07 §4.5 / §5.2 统计页专用 token
+    /** 选中日详情面板右侧总时长：18sp ExtraBold 等宽数字。 */
+    val numberSection = TextStyle(
+        fontFamily = numberFamily,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 18.sp,
+        fontFeatureSettings = "'tnum'"
+    )
+    /** 时段分布图例时长：15sp Bold 等宽数字。 */
+    val numberBodyLarge = TextStyle(
+        fontFamily = numberFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 15.sp,
+        fontFeatureSettings = "'tnum'"
+    )
+    /** 横轴选中日标签：12sp Bold。 */
+    val labelBold = TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
 }
 
 /** §5.2：卡片统一 24dp，无描边、无阴影；间距只用 4dp 基数。 */

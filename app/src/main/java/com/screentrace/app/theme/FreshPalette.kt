@@ -61,6 +61,8 @@ data class FreshPalette(
     val viewAllSurface: Color = Color(0xFFE6EFF4),
     /** CR-07/§4.4：夜间月亮图标的固定装饰紫（#5B5A8C；深色下提亮）。 */
     val nightIcon: Color = Color(0xFF5B5A8C),
+    /** CR-07/§4.5：未选中柱体色（设计稿 #C5DCE7）。 */
+    val barSurface: Color = Color(0xFFC5DCE7),
     /** §5.4：「数字 + 小单位」排版的单位色（白卡取值）；tonal 卡用 [mutedOn] 同规则派生。 */
     val onSurfaceMuted: Color,
     /** 派生用：是否深色调色板（决定单位色混合上限 30% / 46%，§5.4）。 */
@@ -209,6 +211,7 @@ internal fun derivePalette(
             downOn = Color(0xFF1F6B4F),
             viewAllSurface = seed.mix(White, 0.88f),
             nightIcon = Color(0xFF5B5A8C),
+            barSurface = seed.mix(White, 0.62f),
             onSurfaceMuted = muteForeground(onSurface, White, dark = false),
             darkTheme = false
         )
@@ -267,6 +270,7 @@ internal fun derivePalette(
         downOn = Color(0xFF9DD4B8),
         viewAllSurface = background.mix(White, 0.18f),
         nightIcon = Color(0xFFB9AEE8),
+        barSurface = seed.mix(White, 0.35f),
         onSurfaceMuted = muteForeground(onSurface, surface, dark = true),
         darkTheme = true
     )

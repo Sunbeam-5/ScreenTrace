@@ -218,7 +218,9 @@ fun MetricCardPair(
     leftClickDescription: String? = null,
     rightClickDescription: String? = null,
     leftIcon: ImageVector? = null,
-    rightIcon: ImageVector? = null
+    rightIcon: ImageVector? = null,
+    /** CR-07 §5.2：统计页「最久/最少」双卡用 28sp 数字（tonal 卡常规 30sp）。 */
+    compact: Boolean = false
 ) {
     Row(
         modifier = modifier
@@ -236,6 +238,7 @@ fun MetricCardPair(
             onClick = leftOnClick,
             clickDescription = leftClickDescription,
             icon = leftIcon,
+            compact = compact,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
@@ -250,6 +253,7 @@ fun MetricCardPair(
             onClick = rightOnClick,
             clickDescription = rightClickDescription,
             icon = rightIcon,
+            compact = compact,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()

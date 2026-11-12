@@ -2,9 +2,8 @@ package com.screentrace.app.uikit
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -57,18 +56,15 @@ fun SegmentedControl(
     val reduceMotion = rememberReduceMotion()
     // 显式标注 AnimationSpec<Dp>：`tween(0)` 单独出现在 if 分支里推不出 T，
     // 编译器会报 "Not enough information to infer type variable T"
-    val spec: AnimationSpec<Dp> = if (reduceMotion) {
-        tween(0)
-    } else {
-        spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
-    }
+    // CR-07 §4.7：滑块 250ms FastOutSlowIn（原 spring 与规格不符）
+    val spec: AnimationSpec<Dp> = if (reduceMotion) tween(0) else tween(250, easing = FastOutSlowInEasing)
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(40.dp)
+            .height(44.dp)
             .clip(CircleShape)
-            .background(palette.surfaceVariant)
+            .background(palette.chipSurface)
     ) {
         val itemWidth = maxWidth / items.size
         val safeIndex = selectedIndex.coerceIn(0, items.lastIndex)
@@ -87,8 +83,8 @@ fun SegmentedControl(
                     .offset(x = indicatorX)
                     .width(itemWidth)
                     .fillMaxHeight()
-                    // 2dp 内缩：指示器比轨道略小一圈，视觉上「浮」在轨道里而不是贴边
-                    .padding(2.dp)
+                    // CR-07 §4.7：轨道内边距 4dp，指示器比轨道小一圈
+                    .padding(4.dp)
                     .clip(CircleShape)
                     .background(palette.primary)
             )
@@ -97,7 +93,7 @@ fun SegmentedControl(
             items.forEachIndexed { index, label ->
                 val selected = index == selectedIndex
                 val textColor by animateColorAsState(
-                    targetValue = if (selected) palette.onPrimary else palette.onSurfaceVariant,
+                    targetValue = if (selected) palette.onPrimary else palette.chipOn,
                     animationSpec = if (reduceMotion) tween(0) else tween(180),
                     label = "segTextColor"
                 )
@@ -109,7 +105,7 @@ fun SegmentedControl(
                         .selectable(selected = selected, role = Role.Tab) { onSelect(index) },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = label, style = FreshType.button, color = textColor)
+                    Text(text = label, style = FreshType.buttonBold, color = textColor)
                 }
             }
         }

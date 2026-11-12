@@ -2,19 +2,24 @@ package com.screentrace.app.ui
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.screentrace.app.contract.DailyPoint
@@ -35,8 +40,9 @@ import com.screentrace.app.uikit.LoadingSkeleton
 import com.screentrace.app.uikit.MetricCardPair
 import com.screentrace.app.uikit.MetricValue
 import com.screentrace.app.uikit.MetricValueText
-import com.screentrace.app.uikit.Segment
-import com.screentrace.app.uikit.SegmentedBar
+import com.screentrace.app.uikit.PeriodDistribution
+import com.screentrace.app.uikit.TrendChartMath
+import com.screentrace.app.uikit.shouldShowCompare
 import com.screentrace.app.uikit.SegmentedControl
 import java.time.LocalDate
 
@@ -103,14 +109,8 @@ private fun StatsContent(
 ) {
     val palette = LocalFreshPalette.current
 
-    // ① 趋势卡（日均大数字 + 对比 + 柱图，§5.7 不拆两个头卡）
-    FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        MetricValueText(
-            value = MetricValue.Duration(data.summary.averageScreenUnlockMin),
-            numberColor = palette.onSurface,
-            unitColor = palette.onSurfaceMuted
-        )
-        CompareLine(text = data.compare.text, up = data.compare.increase)
+    // ① 趋势卡（CR-07 §5.2：分段控件 → 日均大数字 + 对比 chip → 固定详情面板/柱图 → 图例）
+    FreshCard(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         val selectedIndex = when (selection) {
             is DateSelection.Range -> when (selection.days) {
                 7 -> 0
@@ -124,40 +124,54 @@ private fun StatsContent(
             selectedIndex = selectedIndex,
             onSelect = { onApplySelection(DateSelection.lastDays(if (it == 0) 7 else 30)) }
         )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Column {
+                Text(
+                    text = "日均亮屏",
+                    style = FreshType.label,
+                    color = palette.onSurfaceVariant
+                )
+                MetricValueText(
+                    value = MetricValue.Duration(data.summary.averageScreenUnlockMin),
+                    numberColor = palette.onSurface,
+                    unitColor = palette.onSurfaceMuted,
+                    numberFontSize = 40
+                )
+            }
+            // 没有上一周期数据时整枚 chip 不显示，不占行、不写「暂无上一周期数据」
+            if (shouldShowCompare(data.compare)) {
+                CompareLine(text = data.compare.text, up = data.compare.increase)
+            }
+        }
         CapsuleBarChart(
             points = data.trend,
             topAppsPerDay = data.topAppsPerDay,
             resetKey = resetKey
         )
+        // 平均线图例移到图表下方：原先把「平均」二字压在绘图区里会遮柱
+        TrendChartMath.averageMinutes(data.trend)?.let { avg ->
+            AverageLegend(averageMinutes = avg)
+        }
     }
 
-    // ② 时段分布卡
-    FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(text = "时段分布", style = FreshType.sectionTitle, color = palette.onSurface)
-        val labels = listOf("06–12", "12–18", "18–22", "22–06")
-        val colors = listOf(palette.chart1, palette.chart2, palette.chart3, palette.chart4)
-        val segments = data.periods.mapIndexed { index, minutes ->
-            Segment(
-                weight = minutes.toFloat(),
-                color = colors[index],
-                label = "${labels[index]} · ${UsageCalculator.formatDuration(minutes)}"
-            )
-        }
-        if (segments.all { it.weight <= 0f }) {
-            EmptyState(title = "暂无时段数据")
-        } else {
-            SegmentedBar(segments = segments)
-        }
+    // ② 时段分布卡（CR-07 §5.2：36dp 四段条 + 2×2 图例）
+    FreshCard {
+        PeriodDistribution(periods = data.periods)
     }
 
     // ③ 最久 / 最少的有记录日（§5.7）
     MetricCardPair(
         leftLabel = "最久的一天",
         leftValue = MetricValue.Duration(data.extremes.longestMinutes),
-        leftNote = data.extremes.longestDate?.let { "${it.monthValue}月${it.dayOfMonth}日" },
+        leftNote = data.extremes.longestDate?.let { dateWithWeekday(it) },
         rightLabel = "最少的一天",
         rightValue = MetricValue.Duration(data.extremes.shortestMinutes),
-        rightNote = data.extremes.shortestDate?.let { "${it.monthValue}月${it.dayOfMonth}日" }
+        rightNote = data.extremes.shortestDate?.let { dateWithWeekday(it) },
+        compact = true
     )
 
     // 洞察：数据足够才显示（§5.7）
@@ -178,6 +192,35 @@ private fun StatsContent(
     // §5.11 入口：本周 / 本月 / 本年总结（按当前日期给出周期名，三段都能直接进）
     PeriodEntryCard(onOpenPeriod = onOpenPeriod)
 }
+
+/** CR-07 §5.2：平均线图例（虚线示例 + 「日均 X小时Y分」），放在图表下方。 */
+@Composable
+private fun AverageLegend(averageMinutes: Int) {
+    val palette = LocalFreshPalette.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Canvas(modifier = Modifier.width(18.dp).height(2.dp)) {
+            drawLine(
+                color = palette.primary.copy(alpha = 0.55f),
+                start = Offset(0f, size.height / 2f),
+                end = Offset(size.width, size.height / 2f),
+                strokeWidth = 1.5.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
+            )
+        }
+        Text(
+            text = "日均 ${UsageCalculator.formatDuration(averageMinutes)}",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+    }
+}
+
+private val STATS_WEEKDAYS = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+private fun dateWithWeekday(date: java.time.LocalDate): String =
+    "${date.monthValue}月${date.dayOfMonth}日 · ${STATS_WEEKDAYS[date.dayOfWeek.value - 1]}"
 
 /**
  * 周期总结入口卡：一行一个周期，右侧写明当前周期窗口。

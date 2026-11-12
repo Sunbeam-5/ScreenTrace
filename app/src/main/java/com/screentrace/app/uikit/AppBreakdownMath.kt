@@ -1,7 +1,6 @@
 package com.screentrace.app.uikit
 
 import com.screentrace.app.contract.AppUsage
-import kotlin.math.floor
 
 /**
  * CR-07 §4.4：应用构成卡的**纯数据部分**（色带与行式图例共用的同一份行模型）。
@@ -36,19 +35,8 @@ object AppBreakdownMath {
         val total = visible.sumOf { it.third }
         if (total <= 0) return emptyList()
 
-        val exact = visible.map { it.third * 100.0 / total }
-        val percents = exact.map { floor(it).toInt() }.toMutableList()
-        // 最大余数法：余数大的段优先补 1，直到合计 100；并列时保持原始顺序。
-        val byRemainder = exact.indices.sortedWith(
-            compareByDescending<Int> { exact[it] - floor(exact[it]) }.thenBy { it }
-        )
-        var rest = 100 - percents.sum()
-        var cursor = 0
-        while (rest > 0) {
-            percents[byRemainder[cursor % byRemainder.size]] += 1
-            rest--
-            cursor++
-        }
+        // 与时段分布共用同一套最大余数法（PercentMath），避免两处各写一份、口径慢慢漂移。
+        val percents = PercentMath.distribute(visible.map { it.third })
 
         return visible.mapIndexed { index, (name, pkg, minutes) ->
             BreakdownRow(
