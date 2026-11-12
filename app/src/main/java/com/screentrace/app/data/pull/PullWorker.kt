@@ -44,16 +44,26 @@ class DailyPullWorker(
     }
 }
 
-/** 排程入口：幂等（KEEP），每次冷启动都调一遍也不会堆任务。 */
+/**
+ * 排程入口（§5.8「目标与同步」的拉取频率）。
+ *
+ * 用 [ExistingPeriodicWorkPolicy.UPDATE] 而不是 KEEP：用户改成「每 6 小时」后必须
+ * **立刻生效**，KEEP 会让旧任务一直跑到进程被杀为止，改设置像没改一样。
+ * UPDATE 对同 interval 的重复调用是无操作（不会重置计时），冷启动调一遍也不会踩掉
+ * 已有进度。
+ */
 object PullScheduler {
 
-    fun ensureScheduled(context: Context) {
-        val request = PeriodicWorkRequestBuilder<DailyPullWorker>(1, TimeUnit.DAYS)
+    fun ensureScheduled(
+        context: Context,
+        frequency: com.screentrace.app.data.prefs.PullFrequency = com.screentrace.app.data.prefs.PullFrequency.DAILY
+    ) {
+        val request = PeriodicWorkRequestBuilder<DailyPullWorker>(frequency.hours, TimeUnit.HOURS)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.MINUTES)
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             DailyPullWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.UPDATE,
             request
         )
     }

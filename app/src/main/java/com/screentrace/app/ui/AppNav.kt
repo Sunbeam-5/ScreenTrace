@@ -62,6 +62,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.screentrace.app.ScreenTraceApp
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.EmptyUsageRepository
+import com.screentrace.app.data.pull.PullScheduler
+import com.screentrace.app.ui.onboarding.OnboardingScreen
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.ScreenTimeTheme
@@ -110,14 +112,20 @@ private val MAIN_PAGES = listOf(AppPage.Today, AppPage.Stats, AppPage.Calendar)
 )
 @Composable
 fun AppNav() {
-    val container = (LocalContext.current.applicationContext as? ScreenTraceApp)?.container
+    val context = LocalContext.current
+    val container = (context.applicationContext as? ScreenTraceApp)?.container
     val viewModel: AppViewModel = viewModel(factory = viewModelFactory {
         initializer {
             if (container != null) {
                 AppViewModel(
                     repository = container.repository,
                     pulls = container.pullCoordinator,
-                    settings = container.settings
+                    settings = container.settings,
+                    // 改拉取频率后立即重排后台任务（§5.8）：等下次冷启动才生效
+                    // 在用户看来就是「改了没用」。
+                    onPullFrequencyChanged = { frequency ->
+                        PullScheduler.ensureScheduled(context.applicationContext, frequency)
+                    }
                 )
             } else {
                 AppViewModel(EmptyUsageRepository())
@@ -143,6 +151,35 @@ fun AppNav() {
     val pullError by viewModel.pullError
     val pulling by viewModel.pulling
     val lowThresholdMin by viewModel.lowThresholdMin
+    val coverage by viewModel.coverage
+    val lastPulledAt by viewModel.lastPulledAt
+    val pullFrequency by viewModel.pullFrequency
+    val channelStatuses by viewModel.channelStatuses
+    val appCategories by viewModel.appCategories
+    val onboardingDone by viewModel.onboardingDone
+
+    /** §5.8 设置页「关于」与 HTML 报告用的版本号（BuildConfig 未开启，直接问 PackageManager）。 */
+    val appVersion = remember(context) {
+        runCatching {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        }.getOrNull() ?: "—"
+    }
+
+    // §5.8：进设置页时重探一次两条通道的授权状态——用户常是「去 Shizuku 里点完授权再切回来」，
+    // 只在冷启动时探一次会一直显示「未授权」。分类页每次进入重读，改完立刻能看到新分类。
+    LaunchedEffect(page, pulling) {
+        when (page) {
+            is AppPage.Settings -> viewModel.refreshChannelStatuses()
+            is AppPage.AppCategories -> viewModel.loadAppCategories()
+            else -> Unit
+        }
+    }
+
+    // 向导第 2 步要显示真实授权状态，进向导时就探一次
+    LaunchedEffect(onboardingDone) {
+        if (onboardingDone == false) viewModel.refreshChannelStatuses()
+    }
 
     var showDateSheet by rememberSaveable { mutableStateOf(false) }
     var showStyleSheet by rememberSaveable { mutableStateOf(false) }
@@ -159,7 +196,11 @@ fun AppNav() {
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.pullOnOpen()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.pullOnOpen()
+                // 从 Shizuku / 系统授权页返回时状态可能已经变了，顺手重探一次
+                viewModel.refreshChannelStatuses()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         // LifecycleEventObserver 只接收**之后**发生的事件。首次组合如果发生在 onResume
@@ -168,12 +209,42 @@ fun AppNav() {
         // pull_log 一条新记录都没有，应用构成一直是空的。所以这里补一次当前状态检查。
         if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
             viewModel.pullOnOpen()
+            viewModel.refreshChannelStatuses()
         }
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     ScreenTimeTheme(variant = variant, darkTheme = darkTheme, dynamicColor = dynamicColor) {
         val palette = LocalFreshPalette.current
+
+        // §5.8 首启向导：没看过就先盖向导。
+        // `null` 是「DataStore 还没读出来」，这一帧只铺底色——否则会先完整画一遍主界面
+        // （连带触发一次拉取与四页加载），再被向导盖住，视觉上就是一次白闪。
+        if (onboardingDone != true) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(palette.background)
+            ) {
+                if (onboardingDone == false) {
+                    OnboardingScreen(
+                        themeVariant = variant,
+                        onThemeVariantChange = viewModel::setThemeVariant,
+                        darkTheme = darkTheme,
+                        onDarkThemeChange = viewModel::setDarkTheme,
+                        dailyGoalMin = dailyGoalMin,
+                        onDailyGoalChange = viewModel::setDailyGoalMin,
+                        pullFrequency = pullFrequency,
+                        onPullFrequencyChange = viewModel::setPullFrequency,
+                        channelStatuses = channelStatuses,
+                        onRefreshStatuses = viewModel::refreshChannelStatuses,
+                        onFinish = viewModel::completeOnboarding
+                    )
+                }
+            }
+            return@ScreenTimeTheme
+        }
+
         val reduceMotion = rememberReduceMotion()
         // §7-19：三个主页面共享一份下拉状态（手势挂在主内容层，Pager 横滑不走这条链）。
         // 覆盖层自带 pointerInput 命中层，打开二级页时下拉不会穿透过来。
@@ -413,6 +484,11 @@ fun AppNav() {
                                     subtitle = null,
                                     onBack = viewModel::goBack
                                 )
+                                is AppPage.AppCategories -> AppHeader(
+                                    title = "应用分类",
+                                    subtitle = null,
+                                    onBack = viewModel::goBack
+                                )
                                 is AppPage.UnlockDetail -> AppHeader(
                                     title = "解锁详情",
                                     subtitle = null,
@@ -441,12 +517,35 @@ fun AppNav() {
                                     onRetry = viewModel::reload
                                 )
                                 is AppPage.Settings -> SettingsScreen(
+                                    dailyGoalMin = dailyGoalMin,
+                                    onDailyGoalChange = viewModel::setDailyGoalMin,
+                                    pullFrequency = pullFrequency,
+                                    onPullFrequencyChange = viewModel::setPullFrequency,
+                                    lastPulledAt = lastPulledAt,
+                                    pulling = pulling,
+                                    onPullNow = viewModel::retryPull,
+                                    channelStatuses = channelStatuses,
+                                    onRefreshStatuses = viewModel::refreshChannelStatuses,
+                                    coverage = coverage,
+                                    onOpenAppCategories = viewModel::openAppCategories,
+                                    themeVariant = variant,
+                                    onOpenStyleSheet = { showStyleSheet = true },
                                     darkTheme = darkTheme,
-                                    dynamicColor = dynamicColor,
                                     onDarkThemeChange = viewModel::setDarkTheme,
+                                    dynamicColor = dynamicColor,
                                     onDynamicColorChange = viewModel::setDynamicColor,
                                     lowThresholdMin = lowThresholdMin,
-                                    onLowThresholdChange = viewModel::setLowThresholdMin
+                                    onLowThresholdChange = viewModel::setLowThresholdMin,
+                                    appVersion = appVersion,
+                                    buildReport = { hideNames ->
+                                        viewModel.buildHtmlReport(hideNames, appVersion)
+                                    },
+                                    onNotice = viewModel::showNotice
+                                )
+                                is AppPage.AppCategories -> AppCategoryScreen(
+                                    state = appCategories,
+                                    onSetCategory = viewModel::setAppCategory,
+                                    onRetry = viewModel::loadAppCategories
                                 )
                                 is AppPage.UnlockDetail -> UnlockDetailScreen(
                                     state = unlockDetail,
@@ -526,6 +625,7 @@ private fun detailOf(page: AppPage): AppPage? = when (page) {
     is AppPage.UnlockDetail -> page
     is AppPage.NotificationDetail -> page
     is AppPage.Period -> page
+    is AppPage.AppCategories -> page
     else -> null
 }
 

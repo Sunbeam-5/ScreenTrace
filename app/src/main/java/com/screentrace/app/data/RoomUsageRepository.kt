@@ -1,6 +1,7 @@
 package com.screentrace.app.data
 
 import com.screentrace.app.contract.AppUsage
+import com.screentrace.app.contract.AppCategoryRow
 import com.screentrace.app.contract.CalendarLevel
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.DailyPoint
@@ -151,6 +152,25 @@ class RoomUsageRepository(
             recordsBetween(selection.startDate, selection.endDate),
             lowThresholdMin
         )
+
+    /**
+     * §5.8 应用分类管理：全库出现过的包（不限区间——分类是长期属性，
+     * 按当前筛选区间列出来会让「上个月用过的应用」突然消失，用户改不了它的分类）。
+     *
+     * 分类取「用户覆盖 > 内置映射」，与排行页读取层完全同一套优先级（§4）。
+     */
+    override suspend fun appCategories(): List<AppCategoryRow> {
+        val overrides = settings?.categoryOverrides?.first() ?: emptyMap()
+        return db.appUsageDao().allNames()
+            .map { row ->
+                AppCategoryRow(
+                    pkg = row.pkg,
+                    name = displayName(row.pkg, row.name),
+                    category = overrides[row.pkg] ?: AppNames.categoryOf(row.pkg)
+                )
+            }
+            .sortedWith(compareBy({ it.category.ordinal }, { it.name }))
+    }
 
     /**
      * CR-01（C04）：解锁/通知详情统一查询——图表/表格/卡片同源于此（§7-16）。

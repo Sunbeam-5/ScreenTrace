@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.screentrace.app.contract.AppUsage
+import com.screentrace.app.contract.AppCategoryRow
 import com.screentrace.app.contract.CalendarLevel
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.DailyPoint
@@ -22,8 +23,10 @@ import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.contract.UsageRepository
 import com.screentrace.app.data.prefs.SettingsStore
 import com.screentrace.app.data.pull.HistoryCoverage
+import com.screentrace.app.data.pull.PullChannel
 import com.screentrace.app.data.pull.PullCoordinator
 import com.screentrace.app.data.pull.PullOutcome
+import com.screentrace.app.data.pull.ProviderStatus
 import com.screentrace.app.theme.ThemeVariant
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
@@ -49,6 +52,9 @@ sealed interface AppPage {
     /** §5.11 周期总结（二级页）：周期类型存在 ViewModel 里，路由只带返回目标。 */
     data class Period(val returnTo: AppPage = Today) : AppPage
 
+    /** §5.8「权限与数据」组：应用分类管理（二级页）。 */
+    data class AppCategories(val returnTo: AppPage = Today) : AppPage
+
     companion object {
         /** 底部导航选中态映射：二级页保持进入前主页面的选中（§5.5）。 */
         fun mainOf(page: AppPage): AppPage = when (page) {
@@ -57,6 +63,7 @@ sealed interface AppPage {
             is UnlockDetail -> page.returnTo
             is NotificationDetail -> page.returnTo
             is Period -> page.returnTo
+            is AppCategories -> page.returnTo
             else -> page
         }
     }
@@ -147,7 +154,12 @@ class AppViewModel(
     /** 批 6b：真实拉取通道；为空时（预览/单测）不做任何拉取。 */
     private val pulls: PullCoordinator? = null,
     /** 批 6b：主题/目标持久化；为空时退回内存态。 */
-    private val settings: SettingsStore? = null
+    private val settings: SettingsStore? = null,
+    /**
+     * 批 7：拉取频率改动后立即重排 WorkManager（ViewModel 拿不到 Context，
+     * 由 AppNav 用 LocalContext 注入；预览/单测不传，只改内存态）。
+     */
+    private val onPullFrequencyChanged: ((com.screentrace.app.data.prefs.PullFrequency) -> Unit)? = null
 ) : ViewModel() {
 
     // 批 6g（真机反馈 #6）：默认展示**近 7 天**——进 App 就能看到趋势与时段分布，
@@ -220,6 +232,35 @@ class AppViewModel(
     /** 日历页「低于 x 小时」阈值（分钟），默认 2 小时，可在设置页改。 */
     private val _lowThresholdMin = mutableStateOf(DEFAULT_LOW_THRESHOLD_MIN)
     val lowThresholdMin: State<Int> = _lowThresholdMin
+
+    // ---- 批 7：设置页（§5.8） ----
+
+    /** 后台拉取频率（§5.8「目标与同步」）。 */
+    private val _pullFrequency =
+        mutableStateOf(com.screentrace.app.data.prefs.PullFrequency.DAILY)
+    val pullFrequency: State<com.screentrace.app.data.prefs.PullFrequency> = _pullFrequency
+
+    /**
+     * 两条通道的授权状态（Shizuku / 使用情况访问）。
+     *
+     * 每次进设置页重探一次而不是缓存：用户常是「去 Shizuku 里点完授权再切回来」，
+     * 缓存会让设置页一直显示「未授权」——这类假状态比没有状态更糟（§6）。
+     */
+    private val _channelStatuses =
+        mutableStateOf<List<Pair<PullChannel, ProviderStatus>>>(emptyList())
+    val channelStatuses: State<List<Pair<PullChannel, ProviderStatus>>> = _channelStatuses
+
+    /** 应用分类管理列表（§5.8「权限与数据」组）。 */
+    private val _appCategories =
+        mutableStateOf(LoadState<List<AppCategoryRow>>(loading = true))
+    val appCategories: State<LoadState<List<AppCategoryRow>>> = _appCategories
+
+    /**
+     * §5.8 首启向导是否已完成。`null` = 还没从 DataStore 读出来——
+     * 这一帧既不画向导也不画主界面（铺一层底色），否则冷启动会先闪一下主界面再被向导盖住。
+     */
+    private val _onboardingDone = mutableStateOf<Boolean?>(null)
+    val onboardingDone: State<Boolean?> = _onboardingDone
 
     private var loadJob: Job? = null
 
@@ -318,6 +359,18 @@ class AppViewModel(
         _pullError.value = null
     }
 
+    /** 设置页/导出结果等一次性提示（复用顶部提示条，不用 Toast）。 */
+    fun showNotice(message: String) {
+        _notice.value = message
+    }
+
+    /** §5.8 首启向导完成（含跳过）。 */
+    fun completeOnboarding() {
+        if (_onboardingDone.value == true) return
+        _onboardingDone.value = true
+        persist { it.setOnboardingDone(true) }
+    }
+
     private suspend fun applyPullOutcome(outcome: PullOutcome, coordinator: PullCoordinator) {
         when (outcome) {
             is PullOutcome.Success -> {
@@ -355,7 +408,11 @@ class AppViewModel(
 
     /** 主题/目标从 DataStore 同步到界面（批 6a 已持久化，6b 接上）。 */
     private fun observeSettings() {
-        val store = settings ?: return
+        // 没有持久化层（预览/单测）时不盖向导：看不到真实授权状态，向导只会是假界面
+        val store = settings ?: run {
+            _onboardingDone.value = true
+            return
+        }
         viewModelScope.launch {
             _dailyGoalMin.value = runCatching { store.dailyGoalMin.first() }.getOrDefault(DEFAULT_GOAL_MIN)
         }
@@ -372,6 +429,12 @@ class AppViewModel(
         }
         viewModelScope.launch {
             runCatching { store.dynamicColor.collect { _dynamicColor.value = it } }
+        }
+        viewModelScope.launch {
+            runCatching { store.pullFrequency.collect { _pullFrequency.value = it } }
+        }
+        viewModelScope.launch {
+            runCatching { store.onboardingDone.collect { _onboardingDone.value = it } }
         }
     }
 
@@ -447,6 +510,7 @@ class AppViewModel(
             is AppPage.UnlockDetail -> current.returnTo
             is AppPage.NotificationDetail -> current.returnTo
             is AppPage.Period -> current.returnTo
+            is AppPage.AppCategories -> current.returnTo
             else -> current
         }
     }
@@ -519,6 +583,87 @@ class AppViewModel(
     fun setDailyGoalMin(minutes: Int) {
         _dailyGoalMin.value = minutes
         persist { it.setDailyGoalMin(minutes) }
+    }
+
+    /**
+     * §5.8 拉取频率：写盘 + 立即重排后台任务。
+     *
+     * 只写 DataStore 是不够的——WorkManager 里排着的还是旧周期的任务，
+     * 用户改成「每 6 小时」后要等到下次冷启动才生效，看起来就是「改了没用」。
+     */
+    fun setPullFrequency(frequency: com.screentrace.app.data.prefs.PullFrequency) {
+        if (frequency == _pullFrequency.value) return
+        _pullFrequency.value = frequency
+        persist { it.setPullFrequency(frequency) }
+        onPullFrequencyChanged?.invoke(frequency)
+    }
+
+    /** 设置页可见/回到前台时重探两条通道（§5.8 授权状态必须真实）。 */
+    fun refreshChannelStatuses() {
+        val coordinator = pulls ?: return
+        viewModelScope.launch {
+            _channelStatuses.value = runCatching { coordinator.channelStatuses() }
+                .getOrDefault(emptyList())
+        }
+    }
+
+    /** 打开应用分类管理（§5.8「权限与数据」组）。 */
+    fun openAppCategories() {
+        _page.value = AppPage.AppCategories(returnTo = AppPage.mainOf(_page.value))
+    }
+
+    fun loadAppCategories() {
+        viewModelScope.launch {
+            val rows = runCatching { repository.appCategories() }.getOrDefault(emptyList())
+            _appCategories.value = LoadState(data = rows)
+        }
+    }
+
+    /**
+     * 改分类：写覆盖 + 重读列表 + 重算四页。
+     *
+     * 为什么要 loadAll：排行页与详情页的分类标签直接来自读库时的覆盖叠加（§4），
+     * 不重算就会出现「分类页已经改了、排行页还是旧标签」。
+     */
+    fun setAppCategory(pkg: String, category: com.screentrace.app.contract.AppCategory) {
+        persist { it.setCategoryOverride(pkg, category) }
+        loadAppCategories()
+        loadAll()
+    }
+
+    /**
+     * §7-12：生成自包含 HTML 报告（纯文本返回值，写盘交给 UI 层的 SAF）。
+     *
+     * 数据全部**现查一次仓库**（与页面同一套查询），而不是从 `statsState` 里捡——
+     * 页面状态可能还挂着上一次筛选的旧数据，导出时切过日期就会导错区间。
+     */
+    suspend fun buildHtmlReport(hideAppNames: Boolean, appVersion: String): Pair<String, String>? {
+        val selection = _selection.value
+        return runCatching {
+            val summary = repository.summary(selection)
+            val input = com.screentrace.app.data.export.HtmlReportInput(
+                rangeLabel = reportRangeLabel(selection),
+                exportedAt = java.time.LocalDateTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
+                summary = summary,
+                daily = repository.dailyTrend(selection),
+                apps = repository.appRanking(selection, limit = REPORT_APP_LIMIT),
+                hours = repository.hourlyDistribution(selection),
+                appVersion = appVersion,
+                hideAppNames = hideAppNames,
+                dailyGoalMin = _dailyGoalMin.value
+            )
+            com.screentrace.app.data.export.HtmlReportExporter.fileName(java.time.LocalDateTime.now()) to
+                com.screentrace.app.data.export.HtmlReportExporter.build(input)
+        }.getOrNull()
+    }
+
+    /** 报告标题里的区间文案（与页面副标题同一口径，单日不带「天」）。 */
+    private fun reportRangeLabel(selection: DateSelection): String = when (selection) {
+        is DateSelection.Day -> "${selection.date.monthValue}月${selection.date.dayOfMonth}日 · 1天"
+        is DateSelection.Range ->
+            "${selection.start.monthValue}月${selection.start.dayOfMonth}日 – " +
+                "${selection.end.monthValue}月${selection.end.dayOfMonth}日 · ${selection.days}天"
     }
 
     /**
@@ -798,5 +943,8 @@ class AppViewModel(
 
         /** §7-19 下拉刷新的轻冷却（毫秒）。 */
         const val PULL_REFRESH_COOLDOWN_MS = 60L * 1000
+
+        /** HTML 报告里的应用排行条数：报告是概览，不铺几百行（页面里另有「全部应用」）。 */
+        const val REPORT_APP_LIMIT = 20
     }
 }

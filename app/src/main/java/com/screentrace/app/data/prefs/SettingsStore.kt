@@ -29,9 +29,15 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     val dailyGoalMin: Flow<Int> = dataStore.data.map { it[DAILY_GOAL_MIN] ?: DEFAULT_GOAL_MIN }
     suspend fun setDailyGoalMin(value: Int) = dataStore.edit { it[DAILY_GOAL_MIN] = value }
 
-    /** 拉取频率（§5.8「目标与同步」）：如 "daily"；批 7 设置页细化枚举。 */
-    val pullFrequency: Flow<String> = dataStore.data.map { it[PULL_FREQUENCY] ?: "daily" }
-    suspend fun setPullFrequency(value: String) = dataStore.edit { it[PULL_FREQUENCY] = value }
+    /**
+     * 拉取频率（§5.8「目标与同步」）。字符串存储保持向后兼容（旧版默认写的是 `daily`），
+     * 读取时大小写不敏感匹配枚举名，认不出的一律按默认「每天」。
+     */
+    val pullFrequency: Flow<PullFrequency> = dataStore.data.map {
+        PullFrequency.of(it[PULL_FREQUENCY])
+    }
+    suspend fun setPullFrequency(value: PullFrequency) =
+        dataStore.edit { it[PULL_FREQUENCY] = value.name }
 
     val themeVariant: Flow<ThemeVariant> = dataStore.data.map {
         runCatching { ThemeVariant.valueOf(it[THEME_VARIANT] ?: "") }
@@ -57,6 +63,17 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
 
     suspend fun setLowUsageThresholdMin(value: Int) =
         dataStore.edit { it[LOW_USAGE_THRESHOLD_MIN] = LowUsageThreshold.clampMinutes(value) }
+
+    /**
+     * §5.8 首启向导是否已完成（含「跳过」）。
+     *
+     * 只用于决定要不要盖向导，**不参与备份导出**：换机恢复备份后仍然应该看一次
+     * 本机的授权状态，而不是被备份里的 true 直接跳过。
+     */
+    val onboardingDone: Flow<Boolean> = dataStore.data.map { it[ONBOARDING_DONE] ?: false }
+
+    suspend fun setOnboardingDone(value: Boolean) =
+        dataStore.edit { it[ONBOARDING_DONE] = value }
 
     /** 分类覆盖（§4：用户可改并纳入备份）：`pkg=CATEGORY` 编码。 */
     val categoryOverrides: Flow<Map<String, AppCategory>> = dataStore.data.map { prefs ->
@@ -85,6 +102,25 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         private val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         private val LOW_USAGE_THRESHOLD_MIN = intPreferencesKey("low_usage_threshold_min")
         private val CATEGORY_OVERRIDES = stringSetPreferencesKey("category_overrides")
+        private val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+    }
+}
+
+/**
+ * §2.1/§5.8：后台拉取频率。
+ *
+ * 系统只保留约 10 个滚动日（§2.1），所以**最慢**也必须每天拉一次——这三档不是
+ * 「随便给几个选项」，而是「至少一天一次」到「更保险」的区间：
+ * 9 天窗口 + 一天一次的余量已经很紧，12/6 小时只是给爱关机的人留的双保险。
+ */
+enum class PullFrequency(val label: String, val hours: Long) {
+    DAILY("每天", 24),
+    TWELVE_HOURS("每 12 小时", 12),
+    SIX_HOURS("每 6 小时", 6);
+
+    companion object {
+        fun of(raw: String?): PullFrequency =
+            entries.firstOrNull { it.name.equals(raw, ignoreCase = true) } ?: DAILY
     }
 }
 

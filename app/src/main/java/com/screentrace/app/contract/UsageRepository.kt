@@ -139,6 +139,14 @@ data class MetricDetail(
 data class NotificationCounts(val interruptions: Int, val seen: Int)
 
 /**
+ * §5.8「权限与数据」组·应用分类管理的一行：库内出现过的包 + **当前生效**分类。
+ *
+ * category 已叠加用户覆盖（与排行页读到的同源），所以设置页改完再进来看到的就是新分类，
+ * 不会出现「分类页显示社交、排行页显示其他」的双口径。
+ */
+data class AppCategoryRow(val pkg: String, val name: String, val category: AppCategory)
+
+/**
  * 数据层契约（§6「定契约」第一步）。UI / ViewModel 只依赖这个接口，
  * 不直接执行 Room 查询、日期聚合或业务计算。
  *
@@ -204,6 +212,14 @@ interface UsageRepository {
      * 必须同源于此（§7-16），禁止各写聚合逻辑。
      */
     suspend fun metricDetail(metric: MetricKind, selection: DateSelection): MetricDetail
+
+    /**
+     * §5.8「权限与数据」组：分类管理列表（全库出现过的包）。
+     *
+     * 默认实现返回空列表——降级/预览环境没有库时设置页显示「暂无应用记录」，
+     * 而不是画一个空壳列表（§6 不画假界面）。
+     */
+    suspend fun appCategories(): List<AppCategoryRow> = emptyList()
 
     suspend fun pullLatest(): PullResult
 }
