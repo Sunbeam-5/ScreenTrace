@@ -1,11 +1,13 @@
 package com.screentrace.app.ui
 
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import com.screentrace.app.data.backup.BackupFile
 import com.screentrace.app.data.backup.BackupRepository
 import com.screentrace.app.data.backup.BackupSummary
@@ -44,6 +46,7 @@ fun CloudSyncScreen(
     onNotice: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var candidate by remember { mutableStateOf<Pair<BackupFile, BackupSummary>?>(null) }
 
     CloudSyncGroup(
@@ -77,10 +80,16 @@ fun CloudSyncScreen(
                 scope.launch {
                     val result = onRestore(file, overwrite, importSettings)
                     candidate = null
-                    onNotice(
-                        if (result == null) "恢复失败，本地数据未改动"
-                        else "已恢复：新增 ${result.added} 条、更新 ${result.updated} 条、跳过 ${result.skipped} 条"
-                    )
+                    if (result == null) {
+                        onNotice("恢复失败，本地数据未改动")
+                    } else {
+                        // 成功反馈走 Toast（负责人）：恢复结果摘要一行带过，不弹带 X 的横幅
+                        Toast.makeText(
+                            context,
+                            "已恢复：新增 ${result.added} 条、更新 ${result.updated} 条、跳过 ${result.skipped} 条",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
         )

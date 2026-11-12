@@ -19,7 +19,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import android.widget.Toast
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -71,6 +73,7 @@ fun CloudSyncGroup(
     onNotice: (String) -> Unit
 ) {
     val palette = LocalFreshPalette.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     // 真机反馈 #1：全局提示条被二级页覆盖层遮挡、看不见——操作结果必须**就地**显示
@@ -127,7 +130,8 @@ fun CloudSyncGroup(
                         onPasswordSet(password)
                         password = ""
                     }
-                    onNotice("云端配置已保存")
+                    // 成功类反馈走 Toast（负责人：不必弹带 X 的提示条）
+                    Toast.makeText(context, "云端配置已保存", Toast.LENGTH_SHORT).show()
                 },
                 modifier = Modifier.weight(1f)
             )
@@ -141,9 +145,14 @@ fun CloudSyncGroup(
                         if (password.isNotEmpty()) onPasswordSet(password)
                         val result = onTestConnection()
                         busy = false
-                        val ok = result is SyncResult.Ok
-                        lastResult = (if (ok) "连接成功" else "测试失败：${(result as SyncResult.Err).kind.userMessage()}") to ok
-                        if (!ok) onNotice(lastResult!!.first)
+                        if (result is SyncResult.Ok) {
+                            lastResult = null
+                            Toast.makeText(context, "连接成功", Toast.LENGTH_SHORT).show()
+                        } else {
+                            val msg = "测试失败：${(result as SyncResult.Err).kind.userMessage()}"
+                            lastResult = msg to false
+                            onNotice(msg)
+                        }
                     }
                 },
                 modifier = Modifier.weight(1f)
@@ -168,9 +177,14 @@ fun CloudSyncGroup(
                         busy = true
                         val result = onUpload()
                         busy = false
-                        val ok = result is SyncResult.Ok
-                        lastResult = (if (ok) "已上传 screen-time-backup.json" else "上传失败：${(result as SyncResult.Err).kind.userMessage()}") to ok
-                        onNotice(lastResult!!.first)
+                        if (result is SyncResult.Ok) {
+                            lastResult = null
+                            Toast.makeText(context, "已上传 screen-time-backup.json", Toast.LENGTH_SHORT).show()
+                        } else {
+                            val msg = "上传失败：${(result as SyncResult.Err).kind.userMessage()}"
+                            lastResult = msg to false
+                            onNotice(msg)
+                        }
                     }
                 },
                 modifier = Modifier.weight(1f)
@@ -185,7 +199,7 @@ fun CloudSyncGroup(
                         busy = false
                         val file = downloaded.file
                         if (file != null && downloaded.summary != null) {
-                            lastResult = "已下载远端备份，请选择恢复策略" to true
+                            lastResult = null // 恢复策略弹层本身就是反馈，不重复提示
                             onDownloadedReady(file, downloaded.summary!!)
                         } else {
                             val err = downloaded.error
@@ -199,11 +213,12 @@ fun CloudSyncGroup(
             )
         }
 
-        lastResult?.let { (message, ok) ->
+        // 失败详情就地保留（成功反馈已由 Toast 轻提示，不再留横幅）
+        lastResult?.let { (message, _) ->
             Text(
                 text = message,
                 style = FreshType.label,
-                color = if (ok) palette.onSurfaceVariant else palette.error
+                color = palette.error
             )
         }
 
