@@ -101,3 +101,24 @@
 **验证**：294 例 / 0 失败（新增 `StatsStep5MathTest` 6 例）；两次变异均变红并还原（跳过最大余数法、默认选中改第 0 天）。真机截图 + `uiautomator dump`：详情面板、三档刻度、平均线图例、时段 2×2（23+22+20+35=100）、双卡日期周几、洞察与周期入口完整；滚动后无导航遮挡。
 
 **仍未做**：深色逐项巡检（Step 9）、首屏底部导航胶囊遮挡（Step 7 contentPadding）。
+
+---
+
+## 8. Step 6 日历页（CR-07 §4.8 / §5.3 / 需求 §5.7）
+
+**文档先行**：实施前先改需求文档两处过时条款——§5.7 第 3 条与验收 9 的「连续日期合并胶囊」按 CR-07 §4.8 定稿改为**独立 38dp 方块**（设计稿即独立方块，规格全文未提胶囊）。
+
+**改动**：
+- `uikit/MonthCalendar.kt` 重写：去掉胶囊合并逻辑，独立 38dp 方块（圆角 13、间距 4，360dp 屏按可用宽度等比收缩、下限 30dp，与年视图同一策略防溢出）；档位由 `MonthLevelMath` 按「使用/目标」比值在 UI 层重算（contract 旧三档口径未动），heat1~4 色阶、第 4 档白字由对比函数自然得出；「今天」白底 + 主色 2dp 外环；补位日不着色灰色数字、不可点；读屏文案改播真实时长（旧档位文案「低于 2 小时」在比值口径下不成立）；新增 `MonthCalendarLegend`（少 [heat1~4 四块 16dp 圆角 6] 多 + ○ 今天）。
+- `uikit/MonthLevelMath.kt`（Step 6 已建文件）：`levelOf(minutes, recorded, goalMinutes)` 四档纯函数，目标 ≤0 退化为最低有记录档。
+- `ui/CalendarScreen.kt`：连续记录卡按 §5.3-2 重排（圆角 28、56dp 白 55% 图标块 + 火苗线性图标、34sp 大数字 + 「天」、副行「最长 N 天 · 始于 M月D日」——顺带修掉旧文案错字「委于」）；翻月按钮 44dp 圆形 chipSurface 底 + 主色 20dp 箭头（点击区 48dp）；翻月动画 200ms 淡入 + 8dp 水平位移（reduceMotion 直出终态）；双统计卡 compact（28sp）+ 左注日期周几、右注「共 N 个有记录日」（N 从 20 周年视图 levels 统计，contract 未提供该计数，UI 层推导）；新增 `goalMinutes` 参数。
+- 火苗图标：material-icons-core 无 Whatshot，不为此引入 icons-extended 全量包——material whatshot 外轮廓 24 视口路径用 `PathParser` 解析 + DrawScope.scale 描边自绘（与 Step 4 日/月图标同一策略）。
+- `ui/AppNav.kt`：CalendarScreen 调用点传 `dailyGoalMin`；日历页顶栏副标题在数据就绪时改「已记录 N 天」（§5.3-1），未就绪回退区间副标题。
+- `theme/`（上次会话已建）：`numberDay`（14sp SemiBold tnum）/ `numberStreak`（34sp ExtraBold tnum）。
+
+**验证**：
+- 298 例 / 0 失败；新增 `MonthLevelMathTest` 4 例（无记录/0 分钟/目标未设置退化、100%/140%/175% 逐点边界、改目标档位重算）。
+- 变异验证变红并还原：把 1.4 改 1.5 → 边界用例失败。
+- 真机（`GAQOHMNFQWFUPBQO`）截图 + `uiautomator dump`：副标题「已记录 4 天」、连续记录卡、月视图独立方块（11/10–12 深档白字）、今天 13 白底主色环、图例「少[四块]多 + ○ 今天」、双卡「23小时22分 · 11月11日 周三 / 低于 2 小时 1 天 · 共 4 个有记录日」全部正确；翻 12 月空月渲染正常（补位灰、不着色）；年视图无回归（20 周完整居中）。
+
+**登记待办（不属本步）**：需求 §5.7 第 4 条说年视图色阶按**可配阈值 x**，但 `UsageCalculator.yearLevel` 仍写死 120/240/360（CR-05 遗留）；跟随 x 需改 contract 仓储接口链，超出 VI 边界，已登记文档地图冲突区待裁决。深色模式巡检仍归 Step 9。
