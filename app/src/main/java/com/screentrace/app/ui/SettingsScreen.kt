@@ -730,13 +730,17 @@ internal fun ChoiceChip(
             .clip(CircleShape)
             .background(if (selected) palette.primary else palette.track)
             .semantics { role = Role.Button }
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            // 真机反馈：无内边距时文字顶满胶囊、「每日」被裁——weight 布局时代
+            // 宽度被撑开看不出来，自适应宽度后必须 padding 撑开背景
+            .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             style = FreshType.label,
-            color = if (selected) palette.onPrimary else palette.onSurfaceVariant
+            color = if (selected) palette.onPrimary else palette.onSurfaceVariant,
+            maxLines = 1
         )
     }
 }

@@ -634,7 +634,8 @@ fun AppNav() {
                         exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
                     ) {
                         notice?.let { text ->
-                            NoticeBar(text = text, onDismiss = viewModel::consumeNotice)
+                            // 操作反馈（成功/提示）用中性样式；错误红色留给 pullError
+                            NoticeBar(text = text, onDismiss = viewModel::consumeNotice, isError = false)
                         }
                     }
                     // §5.8：已有历史时拉取失败 → 顶部内联错误 + 可重试，页面继续显示旧数据
@@ -753,6 +754,8 @@ private fun isRootPage(page: AppPage): Boolean =
 @Composable
 private fun NoticeBar(
     text: String,
+    /** 操作反馈为中性样式，只有错误用红色（真机反馈：成功提示红得像报错）。 */
+    isError: Boolean = true,
     onDismiss: () -> Unit,
     actionText: String? = null,
     onAction: (() -> Unit)? = null
@@ -769,7 +772,8 @@ private fun NoticeBar(
         Text(
             text = text,
             style = FreshType.label,
-            color = palette.error,
+            // 真机反馈：操作反馈（成功/提示）不应用错误红——红色只留给真错误
+            color = if (isError) palette.error else palette.onSurface,
             modifier = Modifier.weight(1f)
         )
         if (actionText != null && onAction != null) {
