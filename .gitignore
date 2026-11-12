@@ -13,4 +13,5 @@ captures/
 .smoke2/
 ui_dump*.xml
 d[0-9].xml
+dt*.xml
 shot*.png
