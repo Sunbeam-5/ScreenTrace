@@ -732,6 +732,7 @@ private fun detailOf(page: AppPage): AppPage? = when (page) {
     is AppPage.NotificationDetail -> page
     is AppPage.Period -> page
     is AppPage.AppCategories -> page
+    is AppPage.CloudSync -> page
     else -> null
 }
 
