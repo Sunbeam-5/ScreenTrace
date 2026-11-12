@@ -157,6 +157,7 @@ fun AppNav() {
     val channelStatuses by viewModel.channelStatuses
     val appCategories by viewModel.appCategories
     val onboardingDone by viewModel.onboardingDone
+    val customThemeSeed by viewModel.customThemeSeed
 
     /** §5.8 设置页「关于」与 HTML 报告用的版本号（BuildConfig 未开启，直接问 PackageManager）。 */
     val appVersion = remember(context) {
@@ -183,6 +184,8 @@ fun AppNav() {
 
     var showDateSheet by rememberSaveable { mutableStateOf(false) }
     var showStyleSheet by rememberSaveable { mutableStateOf(false) }
+    // 自定义主题取色器不存实例状态：进程重建后滑杆位置无所谓，种子本身已落 DataStore
+    var showCustomThemeSheet by remember { mutableStateOf(false) }
 
     // §5.5 / §7-22：二级页容器变换的起点（最近一次在主页面层按下的位置）。
     // 进入与退出共用同一起点，所以「返回手势」和「返回按钮」缩回的是同一个地方。
@@ -214,7 +217,13 @@ fun AppNav() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    ScreenTimeTheme(variant = variant, darkTheme = darkTheme, dynamicColor = dynamicColor) {
+    ScreenTimeTheme(
+        variant = variant,
+        darkTheme = darkTheme,
+        dynamicColor = dynamicColor,
+        // §5.4 CR-04：自定义种子优先于预设；派生结果已含对比度校正
+        customSeed = customThemeSeed?.let { androidx.compose.ui.graphics.Color(it) }
+    ) {
         val palette = LocalFreshPalette.current
 
         // §5.8 首启向导：没看过就先盖向导。
@@ -530,6 +539,8 @@ fun AppNav() {
                                     onOpenAppCategories = viewModel::openAppCategories,
                                     themeVariant = variant,
                                     onOpenStyleSheet = { showStyleSheet = true },
+                                    customThemeEnabled = customThemeSeed != null,
+                                    onOpenCustomTheme = { showCustomThemeSheet = true },
                                     darkTheme = darkTheme,
                                     onDarkThemeChange = viewModel::setDarkTheme,
                                     dynamicColor = dynamicColor,
@@ -606,6 +617,20 @@ fun AppNav() {
                 current = variant,
                 onSelect = viewModel::setThemeVariant,
                 onDismiss = { showStyleSheet = false }
+            )
+        }
+        if (showCustomThemeSheet) {
+            ThemeSeedSheet(
+                currentSeed = customThemeSeed,
+                onApply = { argb ->
+                    viewModel.setCustomThemeSeed(argb)
+                    showCustomThemeSheet = false
+                },
+                onReset = {
+                    viewModel.setCustomThemeSeed(null)
+                    showCustomThemeSheet = false
+                },
+                onDismiss = { showCustomThemeSheet = false }
             )
         }
     }

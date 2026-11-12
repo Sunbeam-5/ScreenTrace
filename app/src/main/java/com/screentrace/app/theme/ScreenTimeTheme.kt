@@ -97,16 +97,23 @@ private fun FreshPalette.toColorScheme(dark: Boolean): ColorScheme = if (dark) {
  * 切换 variant / 深浅色只替换调色板，不重新拉数据、不改筛选、不重置滚动或导航（§5.4）。
  * dynamicColor 开启时 MaterialTheme.colorScheme 走 Android 12+ 壁纸取色，
  * LocalFreshPalette 仍由所选 variant 提供，保证自绘图表颜色不消失。
+ *
+ * [customSeed]（CR-04）：非空表示用户启用了自定义主题，调色板由 [PaletteEngine] 派生，
+ * 预设 variant 只作为「关掉自定义后回到哪套」的记忆；派生结果已过对比度校正，
+ * 因此这里不需要再兜一层。
  */
 @Composable
 fun ScreenTimeTheme(
     variant: ThemeVariant = ThemeVariant.MINT,
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
+    customSeed: androidx.compose.ui.graphics.Color? = null,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val palette = variant.palette(darkTheme)
+    val palette = customSeed
+        ?.let { PaletteEngine.paletteFromSeed(it, darkTheme) }
+        ?: variant.palette(darkTheme)
     val useDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme = when {
         useDynamic && darkTheme -> dynamicDarkColorScheme(context)

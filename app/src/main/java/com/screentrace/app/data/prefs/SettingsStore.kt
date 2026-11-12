@@ -52,6 +52,18 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     suspend fun setDynamicColor(value: Boolean) = dataStore.edit { it[DYNAMIC_COLOR] = value }
 
     /**
+     * §5.4 CR-04 自定义主题种子色（ARGB 长整型）。null = 未启用，走九套预设。
+     *
+     * 存 Long 而不是 `Color`：DataStore 只认基本类型，且这个值要原样进备份 settings，
+     * 存成 Int 会在备份 JSON 里变成负数（ARGB 高位为 1），排查时反而看不懂。
+     */
+    val customThemeSeed: Flow<Long?> = dataStore.data.map { it[CUSTOM_THEME_SEED] }
+
+    suspend fun setCustomThemeSeed(argb: Long?) = dataStore.edit { prefs ->
+        if (argb == null) prefs.remove(CUSTOM_THEME_SEED) else prefs[CUSTOM_THEME_SEED] = argb
+    }
+
+    /**
      * 「低于 x 小时算少」的阈值（分钟）。日历页那张卡片的标题与计数都取自这里，
      * 不再写死 2 小时——作息不同的人对这个线的感受完全不同。
      */
@@ -103,6 +115,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         private val LOW_USAGE_THRESHOLD_MIN = intPreferencesKey("low_usage_threshold_min")
         private val CATEGORY_OVERRIDES = stringSetPreferencesKey("category_overrides")
         private val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+        private val CUSTOM_THEME_SEED = androidx.datastore.preferences.core.longPreferencesKey("custom_theme_seed")
     }
 }
 

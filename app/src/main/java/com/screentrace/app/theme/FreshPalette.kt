@@ -72,12 +72,12 @@ enum class ThemeVariant(
     SLATE("石墨蓝", Color(0xFF424C57), Color(0xFFBEC9D5), Color(0xFFD7D5DD), Color(0xFFD0D6DC), Color(0xFFF7F7F8))
 }
 
-private val White = Color(0xFFFFFFFF)
-private val DarkNeutral = Color(0xFF101613)
-private val DeepInk = Color(0xFF10201A)
+internal val White = Color(0xFFFFFFFF)
+internal val DarkNeutral = Color(0xFF101613)
+internal val DeepInk = Color(0xFF10201A)
 
 /** sRGB 通道线性插值，用于从主色派生整套色阶，避免手写 9 × 2 × 25 个色值。 */
-private fun Color.mix(other: Color, fraction: Float): Color {
+internal fun Color.mix(other: Color, fraction: Float): Color {
     val f = fraction.coerceIn(0f, 1f)
     return Color(
         red = red + (other.red - red) * f,
@@ -104,7 +104,7 @@ fun contrastRatio(a: Color, b: Color): Double {
 }
 
 /** §5.3/§5.4 单位色：向背景混合（浅 ≤30% / 深 ≤46%），对比度 ≥4.5:1 优先于比例上限。 */
-private fun muteForeground(fg: Color, bg: Color, dark: Boolean): Color {
+internal fun muteForeground(fg: Color, bg: Color, dark: Boolean): Color {
     val cap = if (dark) 0.46f else 0.30f
     var fraction = cap
     while (fraction > 0f) {
@@ -119,8 +119,21 @@ private fun muteForeground(fg: Color, bg: Color, dark: Boolean): Color {
  * 每套主题同时提供浅色 / 深色调色板（§5.4、§7-10）。
  * 注意：这是骨架期的派生实现，深色不是简单反色（背景中性深、卡片略亮、主色提亮、
  * tonal 容器压暗并换亮字）；交付前仍需逐套校验正文 ≥4.5:1、大号文字 ≥3:1 并微调。
+ *
+ * 批 10：派生逻辑抽成 [derivePalette]，预设主题与自定义主题（[PaletteEngine]）共用同一套
+ * 混合比例——两边各写一份的话，「自定义主题」迟早会和九套预设的观感不一致。
  */
-fun ThemeVariant.palette(darkTheme: Boolean): FreshPalette {
+fun ThemeVariant.palette(darkTheme: Boolean): FreshPalette =
+    derivePalette(seed, tonalA, tonalB, navLight, backgroundLight, darkTheme)
+
+internal fun derivePalette(
+    seed: Color,
+    tonalA: Color,
+    tonalB: Color,
+    navLight: Color,
+    backgroundLight: Color,
+    darkTheme: Boolean
+): FreshPalette {
     if (!darkTheme) {
         val onSurface = Color(0xFF1D322B)
         // 批次 1 评审 P1-2：#5F7268 在九套 surfaceVariant 上对比度 4.28–4.45 不达 4.5，

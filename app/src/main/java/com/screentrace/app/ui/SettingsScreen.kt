@@ -93,6 +93,9 @@ fun SettingsScreen(
     onOpenAppCategories: () -> Unit,
     themeVariant: ThemeVariant,
     onOpenStyleSheet: () -> Unit,
+    /** §5.4 CR-04：自定义主题入口（种子色取色器）。 */
+    customThemeEnabled: Boolean,
+    onOpenCustomTheme: () -> Unit,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
     dynamicColor: Boolean,
@@ -166,6 +169,8 @@ fun SettingsScreen(
     AppearanceGroup(
         themeVariant = themeVariant,
         onOpenStyleSheet = onOpenStyleSheet,
+        customThemeEnabled = customThemeEnabled,
+        onOpenCustomTheme = onOpenCustomTheme,
         darkTheme = darkTheme,
         onDarkThemeChange = onDarkThemeChange,
         dynamicColor = dynamicColor,
@@ -602,6 +607,8 @@ private fun ThresholdGroup(
 private fun AppearanceGroup(
     themeVariant: ThemeVariant,
     onOpenStyleSheet: () -> Unit,
+    customThemeEnabled: Boolean,
+    onOpenCustomTheme: () -> Unit,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
     dynamicColor: Boolean,
@@ -610,8 +617,13 @@ private fun AppearanceGroup(
     SettingsGroup("外观") {
         ActionRow(
             label = "界面风格",
-            value = themeVariant.label,
+            value = if (customThemeEnabled) "预设（已自定义）" else themeVariant.label,
             onClick = onOpenStyleSheet
+        )
+        ActionRow(
+            label = "自定义主题",
+            value = if (customThemeEnabled) "已启用" else "未启用",
+            onClick = onOpenCustomTheme
         )
         SettingSwitchRow(
             label = "深色模式",

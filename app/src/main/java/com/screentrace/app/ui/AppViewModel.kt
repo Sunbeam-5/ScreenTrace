@@ -225,6 +225,10 @@ class AppViewModel(
     private val _dynamicColor = mutableStateOf(false)
     val dynamicColor: State<Boolean> = _dynamicColor
 
+    /** §5.4 CR-04：自定义主题种子色（ARGB）。null = 走九套预设。 */
+    private val _customThemeSeed = mutableStateOf<Long?>(null)
+    val customThemeSeed: State<Long?> = _customThemeSeed
+
     /** 每日目标（分钟）。批 7 设置页可改、批 6a DataStore 持久化；此处为设置默认值。 */
     private val _dailyGoalMin = mutableStateOf(DEFAULT_GOAL_MIN)
     val dailyGoalMin: State<Int> = _dailyGoalMin
@@ -436,6 +440,9 @@ class AppViewModel(
         viewModelScope.launch {
             runCatching { store.onboardingDone.collect { _onboardingDone.value = it } }
         }
+        viewModelScope.launch {
+            runCatching { store.customThemeSeed.collect { _customThemeSeed.value = it } }
+        }
     }
 
     /** 日历「低于 x 小时」阈值。改完必须重算：卡片标题与计数都来自 extremes。 */
@@ -577,6 +584,15 @@ class AppViewModel(
     fun setDynamicColor(enabled: Boolean) {
         _dynamicColor.value = enabled
         persist { it.setDynamicColor(enabled) }
+    }
+
+    /**
+     * §5.4 自定义主题：null = 恢复九套预设。
+     * 只替换调色板，不重拉数据、不改筛选、不重置滚动位置（与切预设主题同一待遇）。
+     */
+    fun setCustomThemeSeed(argb: Long?) {
+        _customThemeSeed.value = argb
+        persist { it.setCustomThemeSeed(argb) }
     }
 
     /** §5.8 每日目标：批 7 设置页滑块调用，落 DataStore。 */
