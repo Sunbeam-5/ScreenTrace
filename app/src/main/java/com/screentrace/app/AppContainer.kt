@@ -12,6 +12,7 @@ import com.screentrace.app.data.pull.PullCoordinator
 import com.screentrace.app.data.pull.ShizukuUsageProvider
 import com.screentrace.app.data.pull.UsageStatsUsageProvider
 import com.screentrace.app.data.pull.asPullResult
+import kotlinx.coroutines.flow.first
 
 /**
  * 手工依赖容器（§6 依赖白名单不含 Hilt/Dagger，一个 Application 级单例足够）。
@@ -64,6 +65,23 @@ class AppContainer(context: Context) {
 
     /** 批 8：本地备份导出 / 恢复（JSON、CSV）。 */
     val backup = com.screentrace.app.data.backup.BackupRepository(db = db, settings = settings)
+
+    /** 批 8b：云同步机密凭据（EncryptedSharedPreferences，§5.10 禁明文）。
+     *  lazy：不碰云同步的测试路径不触发 AndroidKeyStore（Robolectric 无此 provider）。 */
+    val syncCredentials by lazy { com.screentrace.app.data.sync.SyncCredentials(appContext) }
+
+    /** 批 8b：云同步编排（WebDAV 首个 provider；Google Drive 8b-2）。 */
+    val syncManager by lazy {
+        val provider = com.screentrace.app.data.sync.WebDavProvider(config = {
+            com.screentrace.app.data.sync.WebDavConfig(
+                baseUrl = settings.webdavUrl.first(),
+                username = settings.webdavUsername.first(),
+                password = syncCredentials.webdavPassword ?: "",
+                remoteDir = settings.webdavRemoteDir.first()
+            )
+        })
+        com.screentrace.app.data.sync.SyncManager(provider, backup, settings)
+    }
 
     val repository: UsageRepository = RoomUsageRepository(
         db = db,

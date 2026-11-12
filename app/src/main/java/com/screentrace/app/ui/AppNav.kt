@@ -122,6 +122,8 @@ fun AppNav() {
                     pulls = container.pullCoordinator,
                     settings = container.settings,
                     backups = container.backup,
+                    sync = container.syncManager,
+                    syncCredentials = container.syncCredentials,
                     // 改拉取频率后立即重排后台任务（§5.8）：等下次冷启动才生效
                     // 在用户看来就是「改了没用」。
                     onPullFrequencyChanged = { frequency ->
@@ -159,6 +161,20 @@ fun AppNav() {
     val appCategories by viewModel.appCategories
     val onboardingDone by viewModel.onboardingDone
     val customThemeSeed by viewModel.customThemeSeed
+    val webdavUrl by viewModel.webdavUrl
+    val webdavUsername by viewModel.webdavUsername
+    val webdavRemoteDir by viewModel.webdavRemoteDir
+    val webdavPasswordSaved by viewModel.webdavPasswordSaved
+    val syncFrequency by viewModel.syncFrequency
+    val syncWifiOnly by viewModel.syncWifiOnly
+    val syncLastAt by viewModel.syncLastAt
+    val syncLastOk by viewModel.syncLastOk
+    val syncLastMessage by viewModel.syncLastMessage
+
+    /** 云端下载的备份候选 → 转给 BackupGroup 的统一恢复流程（同一套策略 UI）。 */
+    var cloudCandidate by remember {
+        mutableStateOf<Pair<com.screentrace.app.data.backup.BackupFile, com.screentrace.app.data.backup.BackupSummary>?>(null)
+    }
 
     /** §5.8 设置页「关于」与 HTML 报告用的版本号（BuildConfig 未开启，直接问 PackageManager）。 */
     val appVersion = remember(context) {
@@ -565,6 +581,29 @@ fun AppNav() {
                                     onDecodeBackup = { text -> viewModel.decodeBackup(text) },
                                     onRestoreBackup = { file, overwrite, importSettings ->
                                         viewModel.restoreBackup(file, overwrite, importSettings)
+                                    },
+                                    externalCloudCandidate = cloudCandidate,
+                                    cloudSection = {
+                                        CloudSyncGroup(
+                                            webdavUrl = webdavUrl,
+                                            webdavUsername = webdavUsername,
+                                            webdavRemoteDir = webdavRemoteDir,
+                                            passwordSaved = webdavPasswordSaved,
+                                            syncFrequency = syncFrequency,
+                                            syncWifiOnly = syncWifiOnly,
+                                            lastAt = syncLastAt,
+                                            lastOk = syncLastOk,
+                                            lastMessage = syncLastMessage,
+                                            onConfigChange = viewModel::setWebdavConfig,
+                                            onPasswordSet = viewModel::setWebdavPassword,
+                                            onFrequencyChange = viewModel::setSyncFrequency,
+                                            onWifiOnlyChange = viewModel::setSyncWifiOnly,
+                                            onTestConnection = { viewModel.testCloudConnection() },
+                                            onUpload = { viewModel.uploadToCloud() },
+                                            onDownload = { viewModel.downloadFromCloud() },
+                                            onDownloadedReady = { file, summary -> cloudCandidate = file to summary },
+                                            onNotice = viewModel::showNotice
+                                        )
                                     },
                                     onNotice = viewModel::showNotice
                                 )

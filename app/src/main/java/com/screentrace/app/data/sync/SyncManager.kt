@@ -83,7 +83,7 @@ class SyncManager(
                     error = SyncResult.Err(SyncFailure.FORMAT, "远端文件为空")
                 )
                 when (val decoded = BackupCodec.decode(bytes.decodeToString())) {
-                    is BackupCodec.DecodeResult.Ok -> DownloadedBackup(file = decoded.file)
+                    is BackupCodec.DecodeResult.Ok -> DownloadedBackup(file = decoded.file, summary = decoded.summary)
                     is BackupCodec.DecodeResult.Invalid -> DownloadedBackup(
                         error = SyncResult.Err(SyncFailure.FORMAT, decoded.reason)
                     )
@@ -122,6 +122,7 @@ class SyncManager(
 
     data class DownloadedBackup(
         val file: com.screentrace.app.data.backup.BackupFile? = null,
+        val summary: com.screentrace.app.data.backup.BackupSummary? = null,
         val error: SyncResult? = null
     )
 

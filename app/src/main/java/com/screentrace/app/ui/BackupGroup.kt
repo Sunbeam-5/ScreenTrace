@@ -59,6 +59,8 @@ fun BackupGroup(
     onBuildCsv: suspend () -> List<Pair<String, String>>,
     onDecode: suspend (String) -> BackupCodec.DecodeResult,
     onRestore: suspend (BackupFile, Boolean, Boolean) -> BackupRepository.RestoreResult?,
+    /** 8b：云端下载的候选复用本地恢复的策略二选一流程（同一套 UI、同一入口）。 */
+    externalCandidate: Pair<BackupFile, BackupSummary>? = null,
     onNotice: (String) -> Unit
 ) {
     val palette = LocalFreshPalette.current
@@ -68,6 +70,11 @@ fun BackupGroup(
     var pendingJson by remember { mutableStateOf<Pair<String, String>?>(null) }
     var pendingCsv by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var restoreCandidate by remember { mutableStateOf<Pair<BackupFile, BackupSummary>?>(null) }
+
+    // 云端下载的备份候选：进入同一套「摘要 → 策略二选一」流程（8b 硬原则：同一入口）
+    androidx.compose.runtime.LaunchedEffect(externalCandidate) {
+        if (externalCandidate != null) restoreCandidate = externalCandidate
+    }
     var busy by remember { mutableStateOf(false) }
 
     // ① JSON：单文件走 CreateDocument

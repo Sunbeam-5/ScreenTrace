@@ -161,7 +161,11 @@ class AppViewModel(
      */
     private val onPullFrequencyChanged: ((com.screentrace.app.data.prefs.PullFrequency) -> Unit)? = null,
     /** 批 8：本地备份导出 / 恢复。 */
-    private val backups: com.screentrace.app.data.backup.BackupRepository? = null
+    private val backups: com.screentrace.app.data.backup.BackupRepository? = null,
+    /** 批 8b：云同步编排（WebDAV）。 */
+    private val sync: com.screentrace.app.data.sync.SyncManager? = null,
+    /** 批 8b：机密凭据（WebDAV 授权密码等，EncryptedSharedPreferences）。 */
+    private val syncCredentials: com.screentrace.app.data.sync.SyncCredentials? = null
 ) : ViewModel() {
 
     // 批 6g（真机反馈 #6）：默认展示**近 7 天**——进 App 就能看到趋势与时段分布，
@@ -267,6 +271,36 @@ class AppViewModel(
      */
     private val _onboardingDone = mutableStateOf<Boolean?>(null)
     val onboardingDone: State<Boolean?> = _onboardingDone
+
+    // ---- 批 8b：云同步 UI 状态（非机密配置在 DataStore，机密在 SyncCredentials）----
+
+    private val _webdavUrl = mutableStateOf(com.screentrace.app.data.sync.WebDavProvider.JIANGUOYUN_URL)
+    val webdavUrl: State<String> = _webdavUrl
+
+    private val _webdavUsername = mutableStateOf("")
+    val webdavUsername: State<String> = _webdavUsername
+
+    private val _webdavRemoteDir = mutableStateOf("/screen-time/")
+    val webdavRemoteDir: State<String> = _webdavRemoteDir
+
+    private val _syncFrequency = mutableStateOf(com.screentrace.app.data.prefs.SyncFrequency.OFF)
+    val syncFrequency: State<com.screentrace.app.data.prefs.SyncFrequency> = _syncFrequency
+
+    private val _syncWifiOnly = mutableStateOf(true)
+    val syncWifiOnly: State<Boolean> = _syncWifiOnly
+
+    private val _syncLastAt = mutableStateOf<Long?>(null)
+    val syncLastAt: State<Long?> = _syncLastAt
+
+    private val _syncLastOk = mutableStateOf<Boolean?>(null)
+    val syncLastOk: State<Boolean?> = _syncLastOk
+
+    private val _syncLastMessage = mutableStateOf("")
+    val syncLastMessage: State<String> = _syncLastMessage
+
+    /** WebDAV 密码是否已保存（只暴露布尔，密码本体不出 ViewModel，§5.10）。 */
+    private val _webdavPasswordSaved = mutableStateOf(false)
+    val webdavPasswordSaved: State<Boolean> = _webdavPasswordSaved
 
     private var loadJob: Job? = null
 
@@ -456,6 +490,31 @@ class AppViewModel(
                     _onboardingDone.value = false
                 }
         }
+        viewModelScope.launch {
+            runCatching { store.webdavUrl.collect { _webdavUrl.value = it } }
+        }
+        viewModelScope.launch {
+            runCatching { store.webdavUsername.collect { _webdavUsername.value = it } }
+        }
+        viewModelScope.launch {
+            runCatching { store.webdavRemoteDir.collect { _webdavRemoteDir.value = it } }
+        }
+        viewModelScope.launch {
+            runCatching { store.syncFrequency.collect { _syncFrequency.value = it } }
+        }
+        viewModelScope.launch {
+            runCatching { store.syncWifiOnly.collect { _syncWifiOnly.value = it } }
+        }
+        viewModelScope.launch {
+            runCatching {
+                store.syncLastAt.collect { at ->
+                    _syncLastAt.value = at
+                    _syncLastOk.value = store.syncLastOk.first()
+                    _syncLastMessage.value = store.syncLastMessage.first()
+                }
+            }
+        }
+        _webdavPasswordSaved.value = (syncCredentials?.webdavPassword?.isNotEmpty() == true)
         viewModelScope.launch {
             runCatching { store.customThemeSeed.collect { _customThemeSeed.value = it } }
         }
@@ -688,6 +747,75 @@ class AppViewModel(
             com.screentrace.app.data.export.HtmlReportExporter.fileName(java.time.LocalDateTime.now()) to
                 com.screentrace.app.data.export.HtmlReportExporter.build(input)
         }.getOrNull()
+    }
+
+    // ---- 批 8b：云同步（§5.10）----
+
+    /** 保存 WebDAV 非机密配置（地址/账号/远端目录）。 */
+    fun setWebdavConfig(url: String, username: String, remoteDir: String) {
+        _webdavUrl.value = url
+        _webdavUsername.value = username
+        _webdavRemoteDir.value = remoteDir
+        viewModelScope.launch {
+            val store = settings ?: return@launch
+            store.setWebdavUrl(url)
+            store.setWebdavUsername(username)
+            store.setWebdavRemoteDir(remoteDir)
+        }
+    }
+
+    /** 保存 WebDAV 授权密码（机密 → EncryptedSharedPreferences，不进日志/备份）。 */
+    fun setWebdavPassword(password: String) {
+        syncCredentials?.webdavPassword = password
+        _webdavPasswordSaved.value = password.isNotEmpty()
+    }
+
+    fun setSyncFrequency(frequency: com.screentrace.app.data.prefs.SyncFrequency) {
+        _syncFrequency.value = frequency
+        viewModelScope.launch { settings?.setSyncFrequency(frequency) }
+    }
+
+    fun setSyncWifiOnly(enabled: Boolean) {
+        _syncWifiOnly.value = enabled
+        viewModelScope.launch { settings?.setSyncWifiOnly(enabled) }
+    }
+
+    suspend fun testCloudConnection(): com.screentrace.app.data.sync.SyncResult {
+        val manager = sync ?: return com.screentrace.app.data.sync.SyncResult.Err(
+            com.screentrace.app.data.sync.SyncFailure.UNKNOWN, "同步模块未装配"
+        )
+        val result = manager.testConnection()
+        refreshSyncStatus()
+        return result
+    }
+
+    /** 手动上传：完整备份覆盖远端固定文件 screen-time-backup.json（§5.10）。 */
+    suspend fun uploadToCloud(): com.screentrace.app.data.sync.SyncResult {
+        val manager = sync ?: return com.screentrace.app.data.sync.SyncResult.Err(
+            com.screentrace.app.data.sync.SyncFailure.UNKNOWN, "同步模块未装配"
+        )
+        val result = manager.uploadManual(appVersion = "app")
+        refreshSyncStatus()
+        return result
+    }
+
+    /** 从云端下载固定文件并解码（恢复策略二选一在 UI 层，执行仍走统一入口）。 */
+    suspend fun downloadFromCloud(): com.screentrace.app.data.sync.SyncManager.DownloadedBackup {
+        val manager = sync ?: return com.screentrace.app.data.sync.SyncManager.DownloadedBackup(
+            error = com.screentrace.app.data.sync.SyncResult.Err(
+                com.screentrace.app.data.sync.SyncFailure.UNKNOWN, "同步模块未装配"
+            )
+        )
+        val downloaded = manager.downloadManual()
+        refreshSyncStatus()
+        return downloaded
+    }
+
+    private suspend fun refreshSyncStatus() {
+        val store = settings ?: return
+        _syncLastAt.value = store.syncLastAt.first()
+        _syncLastOk.value = store.syncLastOk.first()
+        _syncLastMessage.value = store.syncLastMessage.first()
     }
 
     // ---- 批 8：备份与恢复 ----

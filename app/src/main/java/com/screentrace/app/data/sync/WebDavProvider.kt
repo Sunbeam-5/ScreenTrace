@@ -21,8 +21,8 @@ import org.xmlpull.v1.XmlPullParser
  * 格式错误 / 507 空间不足。
  */
 class WebDavProvider(
-    /** 每次调用读当前配置（设置页随时可改，不能建连时缓存）。 */
-    private val config: () -> WebDavConfig,
+    /** 每次调用读当前配置（设置页随时可改，不能建连时缓存）；从 DataStore 读需 suspend。 */
+    private val config: suspend () -> WebDavConfig,
     private val client: OkHttpClient = defaultClient()
 ) : SyncProvider {
 

@@ -113,6 +113,10 @@ fun SettingsScreen(
         Boolean,
         Boolean
     ) -> com.screentrace.app.data.backup.BackupRepository.RestoreResult? = { _, _, _ -> null },
+    /** 批 8b：云端下载的备份候选，转给 BackupGroup 的统一恢复流程。 */
+    externalCloudCandidate: Pair<com.screentrace.app.data.backup.BackupFile, com.screentrace.app.data.backup.BackupSummary>? = null,
+    /** 批 8b：云端同步卡片（AppNav 装配 CloudSyncGroup，本页不感知云细节）。 */
+    cloudSection: @Composable () -> Unit = {},
     onNotice: (String) -> Unit = {}
 ) {
     GoalGroup(
@@ -153,8 +157,11 @@ fun SettingsScreen(
         onBuildCsv = onBuildCsv,
         onDecode = onDecodeBackup,
         onRestore = onRestoreBackup,
+        externalCandidate = externalCloudCandidate,
         onNotice = onNotice
     )
+
+    cloudSection()
 
     SettingsGroup("AI 分析") {
         val palette = LocalFreshPalette.current
@@ -641,7 +648,7 @@ private fun AboutNote(title: String, body: String) {
 // ---------------------------------------------------------------- 通用小件
 
 @Composable
-private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
     val palette = LocalFreshPalette.current
     Column(
         modifier = Modifier
@@ -671,7 +678,7 @@ private fun SettingSwitchRow(label: String, checked: Boolean, onCheckedChange: (
 
 /** 「标签 + 当前值 →」的可点击行（≥48dp 点击区，§5.9）。 */
 @Composable
-private fun ActionRow(label: String, value: String, onClick: () -> Unit) {
+internal fun ActionRow(label: String, value: String, onClick: () -> Unit) {
     val palette = LocalFreshPalette.current
     Row(
         modifier = Modifier
@@ -712,7 +719,7 @@ private fun StatusLine(text: String, ok: Boolean) {
 
 /** 三选一的胶囊按钮（拉取频率用；与 SegmentedControl 视觉一致但支持等宽均分）。 */
 @Composable
-private fun ChoiceChip(
+internal fun ChoiceChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
