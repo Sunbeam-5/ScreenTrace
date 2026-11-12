@@ -48,6 +48,11 @@ data class FreshPalette(
     val ringGradientEnd: Color = Color(0xFF6FA3BC),
     /** CR-07/§4.2：圆环第二圈色（超目标信号，primary 向黑混 35%——更深的主色）。 */
     val ringOver: Color = Color(0xFF17384A),
+    /** CR-07/§4.3 状态标签三色（固定信号色，不随主题变色相）：超目标 / 中性对比 / 下降。 */
+    val chipSurface: Color = Color(0xFFEAF2F6),
+    val chipOn: Color = Color(0xFF2F5265),
+    val downSurface: Color = Color(0xFFDDEFE8),
+    val downOn: Color = Color(0xFF1F6B4F),
     /** CR-06/VI-1-3：超目标信号色（珊瑚暖色，固定色相不随主题——信号不是警报，不整圈变红）。 */
     val overTarget: Color = Color(0xFFB04A28),
     /** CR-06/VI-1-3：超目标 chip 底色（配 overTarget 文字，浅色 ≥4.5:1）。 */
@@ -192,8 +197,12 @@ internal fun derivePalette(
             shadow = seed.copy(alpha = 0.08f),
             ringGradientEnd = seed.mix(White, 0.35f),
             ringOver = seed.mix(Black, 0.35f),
-            overTarget = Color(0xFFB04A28),
+            overTarget = Color(0xFF9A4121),
             overTargetSurface = Color(0xFFFBE9E1),
+            chipSurface = Color(0xFFEAF2F6),
+            chipOn = Color(0xFF2F5265),
+            downSurface = Color(0xFFDDEFE8),
+            downOn = Color(0xFF1F6B4F),
             onSurfaceMuted = muteForeground(onSurface, White, dark = false),
             darkTheme = false
         )
@@ -246,6 +255,10 @@ internal fun derivePalette(
         ringOver = seed.mix(Black, 0.35f),
         overTarget = Color(0xFFE8926F),
         overTargetSurface = Color(0xFF3A2A22),
+        chipSurface = Color(0xFF25323A),
+        chipOn = Color(0xFFB8D4E2),
+        downSurface = Color(0xFF1E3A2E),
+        downOn = Color(0xFF9DD4B8),
         onSurfaceMuted = muteForeground(onSurface, surface, dark = true),
         darkTheme = true
     )

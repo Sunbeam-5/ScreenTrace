@@ -5,10 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -58,13 +54,15 @@ fun MetricValueText(
     value: MetricValue,
     numberColor: Color,
     unitColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** CR-07/§4.1：统计型卡数字 28sp 覆盖（>0 生效；默认走常规档 30sp）。 */
+    numberFontSize: Int = 0
 ) {
     val parts = when (value) {
         is MetricValue.Number -> listOf(MetricPart(value.text, isUnit = false))
         is MetricValue.Duration -> durationParts(value.minutes)
     }
-    MetricText(parts, numberColor, unitColor, modifier)
+    MetricText(parts, numberColor, unitColor, modifier, numberFontSize)
 }
 
 /** §5.3：≥1h「X小时Y分钟」（整小时省略 0 分钟）、<1h「X分钟」、0「0分钟」。 */
@@ -87,8 +85,10 @@ private fun MetricText(
     parts: List<MetricPart>,
     numberColor: Color,
     unitColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    numberFontSize: Int = 0
 ) {
+    val regNum = if (numberFontSize > 0) numberFontSize else REGULAR_NUM
     val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
     // 常规档 26/13、紧凑档 24/12（§5.3）。两档都先组好，测量时只用得上一个。
     //
@@ -103,7 +103,7 @@ private fun MetricText(
         modifier = modifier,
         content = {
             Text(
-                text = buildMetricAnnotated(parts, REGULAR_NUM, REGULAR_UNIT, numberColor, unitColor),
+                text = buildMetricAnnotated(parts, regNum, REGULAR_UNIT, numberColor, unitColor),
                 style = FreshType.metricNumber,
                 maxLines = 1
             )
@@ -117,9 +117,9 @@ private fun MetricText(
     )
 }
 
-private const val REGULAR_NUM = 26
+private const val REGULAR_NUM = 30 // CR-07：指标卡数字 30sp（统计型卡用 numberFontSize=28 覆盖）
 private const val REGULAR_UNIT = 13
-private const val COMPACT_NUM = 24
+private const val COMPACT_NUM = 26 // 宽度不足降一档（§5.3 兜底）
 private const val COMPACT_UNIT = 12
 
 /**
@@ -217,34 +217,6 @@ private fun buildMetricAnnotated(
     }
 }
 
-/**
- * §5.3 对比行：14sp/600 文字 + 12dp 箭头图标，颜色用 primary；
- * 增减方向由箭头形状表达，不单靠颜色（§5.4）。
- * up=null 表示持平或无对比数据（「暂无上一周期数据」），不画箭头。
- */
-@Composable
-fun CompareLine(
-    text: String,
-    up: Boolean?,
-    modifier: Modifier = Modifier
-) {
-    val palette = LocalFreshPalette.current
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        if (up != null) {
-            Icon(
-                imageVector = if (up) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                contentDescription = null, // 方向信息由文案「增加/减少」承载，图标不重复播报（§5.9）
-                tint = palette.primary,
-                modifier = Modifier.size(12.dp)
-            )
-        }
-        Text(text = text, style = FreshType.button, color = palette.primary)
-    }
-}
 
 @Preview(widthDp = 360, showBackground = true)
 @Composable

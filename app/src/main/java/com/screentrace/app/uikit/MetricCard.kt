@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -63,7 +67,11 @@ fun MetricCard(
     variant: MetricCardVariant = MetricCardVariant.Secondary,
     onClick: (() -> Unit)? = null,
     /** 读屏文案（「标签 + 当前值 + 查看详情」）；为 null 时退回默认拼接。 */
-    clickDescription: String? = null
+    clickDescription: String? = null,
+    /** CR-07/§4.1：左上 34×34 白 55% 透明图标底块（可下钻卡：解锁挂锁 / 通知铃铛）。 */
+    icon: ImageVector? = null,
+    /** 统计型卡（最久/最少/低于阈值）：数字 28sp、最小高 104（§4.1）。 */
+    compact: Boolean = false
 ) {
     val palette = LocalFreshPalette.current
     val background = when (variant) {
@@ -86,12 +94,16 @@ fun MetricCard(
 
     // 缩放必须作用在**整卡**（含背景）：graphicsLayer 放在最外层，
     // 否则只有内容在缩、底板不动，按下去会露出边。
+    // CR-07/§4.1：可下钻卡最小高 124、统计型 104（heightIn 不写死，1.3 倍字体可增高）
+    val minH = if (onClick != null) 124.dp else if (compact) 104.dp else 0.dp
     val base = if (onClick == null) {
         modifier
+            .heightIn(min = minH)
             .clip(RoundedCornerShape(24.dp))
             .background(background)
     } else {
         modifier
+            .heightIn(min = minH)
             // 容器变换起点：整卡的矩形与圆角（§5.5）。只在主页面层生效力，
             // 覆盖层里 CompositionLocal 为 null 时这个修饰符是空操作。
             .transformSource(cornerRadius = 24.dp)
@@ -112,37 +124,64 @@ fun MetricCard(
             )
     }
 
-    Row(
+    Column(
         modifier = base.padding(16.dp), // §5.2：tonal 卡内边距 16dp（返修 P2-3）
-        verticalAlignment = Alignment.Top
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(text = label, style = FreshType.label, color = contentColor)
-            MetricValueText(
-                value = value,
-                numberColor = palette.onSurface,
-                unitColor = palette.mutedOn(background)
-            )
-            if (note != null) {
-                if (noteAsCompare) {
-                    CompareLine(text = note, up = noteUp)
-                } else {
-                    Text(text = note, style = FreshType.label, color = contentColor)
+        // CR-07/§4.1：可下钻卡顶行 = 左上图标底块 + 右上 18dp 箭头
+        if (icon != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(palette.onSurface.copy(alpha = 0.55f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = palette.onSurface,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                if (onClick != null) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = palette.mutedOn(background),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
-        if (onClick != null) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = palette.mutedOn(background),
-                modifier = Modifier
-                    .padding(start = 4.dp)
-                    .size(16.dp)
-            )
+        Text(text = label, style = FreshType.label, color = contentColor)
+        MetricValueText(
+            value = value,
+            numberColor = palette.onSurface,
+            unitColor = palette.mutedOn(background),
+            numberFontSize = if (compact) 28 else 0
+        )
+        if (note != null) {
+            if (noteAsCompare) {
+                CompareLine(text = note, up = noteUp)
+            } else {
+                Text(text = note, style = FreshType.label, color = contentColor)
+            }
+        }
+        if (icon == null && onClick != null) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = palette.mutedOn(background),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
@@ -177,7 +216,9 @@ fun MetricCardPair(
     leftOnClick: (() -> Unit)? = null,
     rightOnClick: (() -> Unit)? = null,
     leftClickDescription: String? = null,
-    rightClickDescription: String? = null
+    rightClickDescription: String? = null,
+    leftIcon: ImageVector? = null,
+    rightIcon: ImageVector? = null
 ) {
     Row(
         modifier = modifier
@@ -194,6 +235,7 @@ fun MetricCardPair(
             variant = MetricCardVariant.Secondary,
             onClick = leftOnClick,
             clickDescription = leftClickDescription,
+            icon = leftIcon,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
@@ -207,6 +249,7 @@ fun MetricCardPair(
             variant = MetricCardVariant.Primary,
             onClick = rightOnClick,
             clickDescription = rightClickDescription,
+            icon = rightIcon,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()

@@ -126,10 +126,6 @@ fun RingProgress(
     }
 }
 
-/** 「超出目标」chip 文案（§5.7-4：目标 ≤0 或未超目标时不显示）。 */
-fun overTargetChipText(overMinutes: Int): String =
-    "超出目标 ${UsageCalculator.formatDuration(overMinutes)}"
-
 @Preview(showBackground = true)
 @Composable
 private fun RingOverPreview() {

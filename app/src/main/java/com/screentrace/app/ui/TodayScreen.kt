@@ -25,7 +25,14 @@ import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.uikit.FreshCard
 import com.screentrace.app.theme.ScreenTimeTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
+import com.screentrace.app.uikit.ChipKind
 import com.screentrace.app.uikit.CompareLine
+import com.screentrace.app.uikit.overTargetChipText
+import com.screentrace.app.uikit.shouldShowCompare
+import com.screentrace.app.uikit.shouldShowOverChip
 import com.screentrace.app.uikit.EmptyState
 import com.screentrace.app.uikit.ErrorRetry
 import com.screentrace.app.uikit.LoadingSkeleton
@@ -34,6 +41,7 @@ import com.screentrace.app.uikit.transformSource
 import com.screentrace.app.uikit.MetricValue
 import com.screentrace.app.uikit.RatioBar
 import com.screentrace.app.uikit.RingMath
+import com.screentrace.app.uikit.StatusChip
 import com.screentrace.app.uikit.RingProgress
 import com.screentrace.app.uikit.SecondaryButton
 import com.screentrace.app.uikit.Segment
@@ -106,7 +114,22 @@ private fun TodayContent(
             goalMinutes = dailyGoalMin,
             caption = if (single) "今日亮屏" else "日均亮屏"
         )
-        CompareLine(text = data.compare.text, up = data.compare.increase)
+        // 标签行（§5.7-4）：「超出目标」仅超目标出现；对比标签无数据时整行不显示
+        val overMinutes = (usageMin - dailyGoalMin).coerceAtLeast(0)
+        val showOver = shouldShowOverChip(usageMin, dailyGoalMin)
+        val showCompare = shouldShowCompare(data.compare)
+        if (showOver || showCompare) {
+            androidx.compose.foundation.layout.Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (showOver) {
+                    StatusChip(text = overTargetChipText(overMinutes), kind = ChipKind.OVER)
+                }
+                if (showCompare) {
+                    CompareLine(text = data.compare.text, up = data.compare.increase)
+                }
+            }
+        }
         Text(
             text = "最长连续 ${UsageCalculator.formatDuration(data.summary.longestSessionMin)}",
             style = FreshType.label,
@@ -139,6 +162,8 @@ private fun TodayContent(
         } else {
             "未采集到通知事件"
         },
+        leftIcon = Icons.Default.Lock,
+        rightIcon = Icons.Default.Notifications,
         leftOnClick = onOpenUnlock,
         rightOnClick = onOpenNotification,
         leftClickDescription = if (unlockAvailable) {

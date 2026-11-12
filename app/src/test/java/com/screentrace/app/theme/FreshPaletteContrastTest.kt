@@ -57,9 +57,11 @@ class FreshPaletteContrastTest {
                 )
                 checkAtLeast(p.error, p.background, 4.5, "error/background", variant, dark)
                 checkAtLeast(p.error, p.surface, 4.5, "error/surface", variant, dark)
-                // CR-06/VI-1-3：超目标信号色（内环图形 ≥3；chip 文字/底 ≥4.5）
-                checkAtLeast(p.overTarget, p.background, 3.0, "overTarget(图形)", variant, dark)
-                checkAtLeast(p.overTarget, p.overTargetSurface, 4.5, "overTarget/chip底", variant, dark)
+                // CR-07/§4.3：状态标签三色（文字/底 ≥4.5）+ 圆环第二圈图形 ≥3
+                checkAtLeast(p.overTarget, p.background, 3.0, "ringOver(图形)", variant, dark)
+                checkAtLeast(p.overTarget, p.overTargetSurface, 4.5, "超目标chip字/底", variant, dark)
+                checkAtLeast(p.chipOn, p.chipSurface, 4.5, "对比chip字/底", variant, dark)
+                checkAtLeast(p.downOn, p.downSurface, 4.5, "下降chip字/底", variant, dark)
             }
         }
         report()
