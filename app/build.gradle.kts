@@ -95,6 +95,9 @@ dependencies {
     // CSV 多文件导出走 SAF 目录（七张表各一个文件）
     implementation("androidx.documentfile:documentfile:1.0.1")
 
-    // TODO(批 8)：云同步
-    // implementation("com.squareup.okhttp3:okhttp:4.12.0") // §5.10 云同步
+    // ---- 批 8b：云同步（§5.10 / §6 白名单）----
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // EncryptedSharedPreferences（§5.10 凭据禁明文）；Google 登录依赖随 8b-2 加
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }

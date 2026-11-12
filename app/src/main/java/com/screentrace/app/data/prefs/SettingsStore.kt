@@ -108,6 +108,37 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         prefs[CATEGORY_OVERRIDES] = current.filterNot { it.startsWith("$pkg=") }.toSet() + "$pkg=${category.name}"
     }
 
+    // ---- 批 8b：云同步非机密配置与状态（§5.10；密码/令牌在 SyncCredentials）----
+
+    /** WebDAV 地址（默认坚果云，可改任意 WebDAV 服务）。 */
+    val webdavUrl: Flow<String> = dataStore.data.map { it[WEBDAV_URL] ?: com.screentrace.app.data.sync.WebDavProvider.JIANGUOYUN_URL }
+    suspend fun setWebdavUrl(value: String) = dataStore.edit { it[WEBDAV_URL] = value }
+
+    val webdavUsername: Flow<String> = dataStore.data.map { it[WEBDAV_USERNAME] ?: "" }
+    suspend fun setWebdavUsername(value: String) = dataStore.edit { it[WEBDAV_USERNAME] = value }
+
+    /** 远端目录（默认 /screen-time/）。 */
+    val webdavRemoteDir: Flow<String> = dataStore.data.map { it[WEBDAV_REMOTE_DIR] ?: "/screen-time/" }
+    suspend fun setWebdavRemoteDir(value: String) = dataStore.edit { it[WEBDAV_REMOTE_DIR] = value }
+
+    /** 自动同步频率（默认关闭，§5.10）。 */
+    val syncFrequency: Flow<SyncFrequency> = dataStore.data.map { SyncFrequency.of(it[SYNC_FREQUENCY]) }
+    suspend fun setSyncFrequency(value: SyncFrequency) = dataStore.edit { it[SYNC_FREQUENCY] = value.name }
+
+    /** 仅 Wi-Fi 同步（默认开启，§5.10）。 */
+    val syncWifiOnly: Flow<Boolean> = dataStore.data.map { it[SYNC_WIFI_ONLY] ?: true }
+    suspend fun setSyncWifiOnly(value: Boolean) = dataStore.edit { it[SYNC_WIFI_ONLY] = value }
+
+    /** 上次同步时间与结果（失败静默写状态，设置页展示，§5.10）。 */
+    val syncLastAt: Flow<Long?> = dataStore.data.map { it[SYNC_LAST_AT] }
+    val syncLastOk: Flow<Boolean?> = dataStore.data.map { it[SYNC_LAST_OK] }
+    val syncLastMessage: Flow<String> = dataStore.data.map { it[SYNC_LAST_MESSAGE] ?: "" }
+    suspend fun recordSync(atMs: Long, ok: Boolean, message: String) = dataStore.edit {
+        it[SYNC_LAST_AT] = atMs
+        it[SYNC_LAST_OK] = ok
+        it[SYNC_LAST_MESSAGE] = message
+    }
+
     companion object {
         /** §5.8 设置默认值：每日目标 240 分钟（与 AppViewModel.DEFAULT_GOAL_MIN 一致）。 */
         const val DEFAULT_GOAL_MIN = 240
@@ -121,6 +152,14 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         private val CATEGORY_OVERRIDES = stringSetPreferencesKey("category_overrides")
         private val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         private val CUSTOM_THEME_SEED = androidx.datastore.preferences.core.longPreferencesKey("custom_theme_seed")
+        private val WEBDAV_URL = stringPreferencesKey("webdav_url")
+        private val WEBDAV_USERNAME = stringPreferencesKey("webdav_username")
+        private val WEBDAV_REMOTE_DIR = stringPreferencesKey("webdav_remote_dir")
+        private val SYNC_FREQUENCY = stringPreferencesKey("sync_frequency")
+        private val SYNC_WIFI_ONLY = booleanPreferencesKey("sync_wifi_only")
+        private val SYNC_LAST_AT = androidx.datastore.preferences.core.longPreferencesKey("sync_last_at")
+        private val SYNC_LAST_OK = booleanPreferencesKey("sync_last_ok")
+        private val SYNC_LAST_MESSAGE = stringPreferencesKey("sync_last_message")
     }
 }
 
@@ -162,4 +201,22 @@ internal object LowUsageThreshold {
     /** 小时 → 分钟（写入用）。 */
     fun minutesOf(hours: Int): Int =
         hours.coerceIn(MIN_HOURS, MAX_HOURS) * 60
+}
+
+
+/**
+ * §5.10 自动同步频率（默认关闭）。手动下拉成功在「每次成功拉取后」档同样触发上传（C10）；
+ * 「每 1/3/7 天」按时间窗口判断，不因手动刷新提前或推迟。
+ */
+enum class SyncFrequency(val label: String, val days: Long) {
+    OFF("关闭", 0),
+    EVERY_PULL("每次成功拉取后", 0),
+    EVERY_1_DAY("每 1 天", 1),
+    EVERY_3_DAYS("每 3 天", 3),
+    EVERY_7_DAYS("每 7 天", 7);
+
+    companion object {
+        fun of(raw: String?): SyncFrequency =
+            entries.firstOrNull { it.name.equals(raw, ignoreCase = true) } ?: OFF
+    }
 }
