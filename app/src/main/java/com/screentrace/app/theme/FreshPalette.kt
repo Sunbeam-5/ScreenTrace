@@ -44,6 +44,10 @@ data class FreshPalette(
     val gradientMid: Color = Color(0xFFE9F1F5),
     /** CR-07：卡片阴影色（主色低透明度近似两层阴影；深色不用，靠色阶分层）。 */
     val shadow: Color = Color(0x142C576D),
+    /** CR-07/§4.2：圆环第一圈渐变末端（primary 向白混 35%，#2C576D→#6FA3BC 的派生）。 */
+    val ringGradientEnd: Color = Color(0xFF6FA3BC),
+    /** CR-07/§4.2：圆环第二圈色（超目标信号，primary 向黑混 35%——更深的主色）。 */
+    val ringOver: Color = Color(0xFF17384A),
     /** CR-06/VI-1-3：超目标信号色（珊瑚暖色，固定色相不随主题——信号不是警报，不整圈变红）。 */
     val overTarget: Color = Color(0xFFB04A28),
     /** CR-06/VI-1-3：超目标 chip 底色（配 overTarget 文字，浅色 ≥4.5:1）。 */
@@ -82,6 +86,7 @@ enum class ThemeVariant(
 }
 
 internal val White = Color(0xFFFFFFFF)
+internal val Black = Color(0xFF000000)
 internal val DarkNeutral = Color(0xFF101613)
 internal val DeepInk = Color(0xFF10201A)
 
@@ -185,6 +190,8 @@ internal fun derivePalette(
             gradientTop = seed.mix(White, 0.85f),
             gradientMid = seed.mix(White, 0.93f),
             shadow = seed.copy(alpha = 0.08f),
+            ringGradientEnd = seed.mix(White, 0.35f),
+            ringOver = seed.mix(Black, 0.35f),
             overTarget = Color(0xFFB04A28),
             overTargetSurface = Color(0xFFFBE9E1),
             onSurfaceMuted = muteForeground(onSurface, White, dark = false),
@@ -235,6 +242,8 @@ internal fun derivePalette(
         gradientTop = seed.mix(DarkNeutral, 0.86f),
         gradientMid = seed.mix(DarkNeutral, 0.93f),
         shadow = seed.copy(alpha = 0.20f),
+        ringGradientEnd = seed.mix(White, 0.52f),
+        ringOver = seed.mix(Black, 0.35f),
         overTarget = Color(0xFFE8926F),
         overTargetSurface = Color(0xFF3A2A22),
         onSurfaceMuted = muteForeground(onSurface, surface, dark = true),

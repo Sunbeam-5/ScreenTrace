@@ -6,45 +6,42 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * CR-06（负责人勘误版）：24 小时全天环几何。变异验证过：daySweep 去掉
- * coerceIn(0f,1f) 后「超 24 小时封顶」用例变红。
+ * CR-07（新规格 §4.2）：目标环双层几何。变异验证过：secondSweep 去掉
+ * coerceIn 上限后「超 2 倍目标封顶」用例变红。
  */
 class RingMathTest {
 
     @Test
-    fun `0 分钟不画弧`() {
-        assertEquals(0f, RingMath.daySweep(0), 1e-6f)
+    fun `未达目标只有一圈且不满`() {
+        assertEquals(0.5f, RingMath.firstSweep(0.5f), 1e-6f)
+        assertFalse(RingMath.shouldShowSecond(0.5f))
     }
 
     @Test
-    fun `弧长等于使用占 24 小时的比例`() {
-        // 负责人例子：15 小时 → 15/24
-        assertEquals(0.625f, RingMath.daySweep(15 * 60), 0.001f)
-        // 设计稿例子：5:42 ≈ 5.7h → 5.7/24
-        assertEquals(0.2375f, RingMath.daySweep(5 * 60 + 42), 0.001f)
+    fun `恰好达目标时第一圈满且无第二圈`() {
+        assertEquals(1f, RingMath.firstSweep(1f), 1e-6f)
+        assertFalse(RingMath.shouldShowSecond(1f))
     }
 
     @Test
-    fun `满 24 小时为整圈`() {
-        assertEquals(1f, RingMath.daySweep(24 * 60), 1e-6f)
+    fun `超目标时第二圈弧长等于超出比例`() {
+        // 设计稿示例：目标 4:00、已用 5:42 → progress = 1.425，第二圈 ≈ 153°（0.425 圈）
+        val progress = (5 * 60 + 42) / (4f * 60) // = 1.425
+        assertTrue(RingMath.shouldShowSecond(progress))
+        assertEquals(1f, RingMath.firstSweep(progress), 1e-6f)
+        assertEquals(0.425f, RingMath.secondSweep(progress), 0.001f) // ≈153°（设计稿示例）
     }
 
     @Test
-    fun `超过 24 小时封顶不溢出`() {
-        assertEquals(1f, RingMath.daySweep(26 * 60), 1e-6f)
+    fun `超过两倍目标第二圈封顶不画螺旋`() {
+        assertTrue(RingMath.shouldShowSecond(2.6f))
+        assertEquals(1f, RingMath.secondSweep(2.6f), 1e-6f)
+        assertEquals(2f, RingMath.clampProgress(2.6f), 1e-6f)
     }
 
     @Test
-    fun `超出 chip 只在真正超目标时出现`() {
-        assertFalse(RingMath.shouldShowOverChip(usageMinutes = 200, goalMinutes = 240))
-        assertFalse(RingMath.shouldShowOverChip(usageMinutes = 240, goalMinutes = 240)) // 恰好等于不算超
-        assertFalse(RingMath.shouldShowOverChip(usageMinutes = 300, goalMinutes = 0))   // 无目标不出
-        assertTrue(RingMath.shouldShowOverChip(usageMinutes = 282, goalMinutes = 180))
-    }
-
-    @Test
-    fun `超出分钟数为正差`() {
-        assertEquals(102, RingMath.overMinutes(usageMinutes = 282, goalMinutes = 180)) // 4h42 - 3h
-        assertEquals(0, RingMath.overMinutes(usageMinutes = 100, goalMinutes = 180))
+    fun `负值不画任何弧`() {
+        assertEquals(0f, RingMath.firstSweep(-1f), 1e-6f)
+        assertFalse(RingMath.shouldShowSecond(-1f))
     }
 }

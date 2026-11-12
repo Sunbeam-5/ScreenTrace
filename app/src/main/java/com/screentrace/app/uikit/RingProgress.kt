@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.tooling.preview.Preview
@@ -29,88 +30,119 @@ import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.ScreenTimeTheme
 
 /**
- * §5.3 / §5.7 hero 圆环（CR-06 **24 小时全天环**，负责人勘误版）：
- * - **整圈 = 24 小时**，弧长 = 当日使用 ÷ 24h（15 小时占 15/24），从 12 点顺时针画起；
- *   未用部分为 track 底色。目标**不画进环**——只做中心下行动文字与「超出目标」chip 依据；
- * - 中心三行：caption（label）/ `H:MM`（heroNumber 44sp，传 usageMinutes 时数字滚动）/
- *   note（label，如「目标 4:00」）。
+ * §5.3 / §5.7 hero 圆环（CR-07 **目标环双层**，新规格 §4.2）：
+ * - `progress = 当日使用 / 每日目标`，允许超过 1、**上限 2**；
+ * - **第一圈**：track 底 + 线性渐变主色（左上→右下），`min(p,1)` 满圈即止；
+ * - **第二圈**（超目标才有）：从 12 点起按 `(p-1)×360°` 叠画更深主色（primary 向黑混 35%）；
+ * - 中心三行：caption（12sp，「今日亮屏 / 日均亮屏」）/ `H:MM`（heroNumber 46sp
+ *   滚动数字）/ 「目标 X:XX」（12sp）；**目标 ≤0 时不画进度、不显示目标行**（§5.7-4）。
  *
- * 几何在 [RingMath]（纯函数可单测）；进场动画弧长 0→终值（700ms FastOutSlowIn），
- * 减少动画（[rememberReduceMotion]）直接落终值——不是缩短时长。
+ * 进场动画：单一动画值 0→progress（900ms FastOutSlowIn），两圈与数字同源驱动；
+ * 减少动画（[rememberReduceMotion]）直接落终值。几何在 [RingMath]（JVM 可测）。
  */
 @Composable
 fun RingProgress(
+    progress: Float,
     usageMinutes: Int,
-    modifier: Modifier = Modifier,
-    caption: String? = null,
-    note: String? = null
+    goalMinutes: Int,
+    caption: String,
+    modifier: Modifier = Modifier
 ) {
     val palette = LocalFreshPalette.current
     val reduceMotion = rememberReduceMotion()
+    val hasGoal = goalMinutes > 0
+    val clamped = RingMath.clampProgress(progress)
 
-    // 进场：弧长从 0 起（不许先闪一帧满圈）；减少动画直接落终值
-    val sweep = remember { Animatable(0f) }
-    LaunchedEffect(usageMinutes) {
-        val target = RingMath.daySweep(usageMinutes)
-        if (reduceMotion) sweep.snapTo(target) else sweep.animateTo(target, tween(700, easing = FastOutSlowInEasing))
+    // 单一动画值驱动两圈与数字（§6.1）：0→progress 一次，不循环
+    val animated = remember { Animatable(0f) }
+    LaunchedEffect(clamped) {
+        if (reduceMotion) animated.snapTo(clamped)
+        else animated.animateTo(clamped, tween(900, easing = FastOutSlowInEasing))
     }
     val animatedMinutes by animateIntAsState(
         targetValue = usageMinutes,
-        animationSpec = if (reduceMotion) tween(0) else tween(700, easing = FastOutSlowInEasing),
+        animationSpec = if (reduceMotion) tween(0) else tween(900, easing = FastOutSlowInEasing),
         label = "ringMinutes"
     )
-    val displayTime = UsageCalculator.formatClock(animatedMinutes)
 
     Box(
         modifier = modifier.size(184.dp),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.matchParentSize()) {
-            val strokeWidth = 9.dp.toPx()
+        Canvas(modifier = Modifier.size(184.dp)) {
+            val strokeWidth = 14.dp.toPx()
             val half = strokeWidth / 2f
             val stroke = Stroke(width = strokeWidth, cap = StrokeCap.Round)
             val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
-            // track：整圈 24 小时的底
+            // track：整圈底
             drawArc(
                 color = palette.track,
                 startAngle = -90f, sweepAngle = 360f, useCenter = false,
                 topLeft = Offset(half, half), size = arcSize, style = stroke
             )
-            // 使用弧：从 12 点顺时针，弧长 = 使用/24h
-            if (sweep.value > 0f) {
+            if (hasGoal && animated.value > 0f) {
+                // 第一圈：线性渐变主色（左上→右下），min(p,1) 满圈即止
                 drawArc(
-                    color = palette.primary,
-                    startAngle = -90f, sweepAngle = 360f * sweep.value, useCenter = false,
+                    brush = Brush.linearGradient(
+                        colors = listOf(palette.primary, palette.ringGradientEnd),
+                        start = Offset.Zero,
+                        end = Offset(size.width, size.height)
+                    ),
+                    startAngle = -90f,
+                    sweepAngle = 360f * RingMath.firstSweep(animated.value),
+                    useCenter = false,
                     topLeft = Offset(half, half), size = arcSize, style = stroke
                 )
+                // 第二圈：超目标部分，更深主色，从 12 点叠画
+                if (RingMath.shouldShowSecond(animated.value)) {
+                    drawArc(
+                        color = palette.ringOver,
+                        startAngle = -90f,
+                        sweepAngle = 360f * RingMath.secondSweep(animated.value),
+                        useCenter = false,
+                        topLeft = Offset(half, half), size = arcSize, style = stroke
+                    )
+                }
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (caption != null) {
-                Text(text = caption, style = FreshType.label, color = palette.onSurfaceVariant)
+            Text(text = caption, style = FreshType.label, color = palette.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = UsageCalculator.formatClock(animatedMinutes),
+                style = FreshType.heroNumber,
+                color = palette.onSurface,
+                maxLines = 1
+            )
+            if (hasGoal) {
                 Spacer(Modifier.height(4.dp))
-            }
-            Text(text = displayTime, style = FreshType.heroNumber, color = palette.onSurface)
-            if (note != null) {
-                Spacer(Modifier.height(4.dp))
-                Text(text = note, style = FreshType.label, color = palette.onSurfaceVariant)
+                Text(
+                    text = "目标 ${UsageCalculator.formatClock(goalMinutes)}",
+                    style = FreshType.label,
+                    color = palette.onSurfaceVariant
+                )
             }
         }
     }
 }
 
-/** 「超出目标」chip 文案（页面按 [RingMath.shouldShowOverChip] 决定是否渲染）。 */
+/** 「超出目标」chip 文案（§5.7-4：目标 ≤0 或未超目标时不显示）。 */
 fun overTargetChipText(overMinutes: Int): String =
     "超出目标 ${UsageCalculator.formatDuration(overMinutes)}"
 
 @Preview(showBackground = true)
 @Composable
-private fun RingProgressPreview() {
+private fun RingOverPreview() {
     ScreenTimeTheme {
-        RingProgress(
-            usageMinutes = 342, // 5:42，全天环占 5.7/24
-            caption = "今日亮屏",
-            note = "目标 4:00"
-        )
+        // 设计稿示例：目标 4:00、已用 5:42 → progress ≈ 1.44，第二圈 ≈ 157°
+        RingProgress(progress = 1.4375f, usageMinutes = 342, goalMinutes = 240, caption = "今日亮屏")
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun RingNormalPreview() {
+    ScreenTimeTheme {
+        RingProgress(progress = 0.62f, usageMinutes = 149, goalMinutes = 240, caption = "今日亮屏")
     }
 }
