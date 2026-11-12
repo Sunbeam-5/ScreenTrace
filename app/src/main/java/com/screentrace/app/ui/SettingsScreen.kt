@@ -200,60 +200,35 @@ private fun GoalGroup(
 ) {
     val palette = LocalFreshPalette.current
     SettingsGroup("目标与同步") {
-        Text(text = "每日目标", style = FreshType.body, color = palette.onSurface)
-
-        // 与低使用阈值同一套交互：拖动只改草稿，松手才落盘（拖动中每次落地都会
-        // 重算今日页圆环与进度文案，手感会变卡）。
-        var draftHours by remember(dailyGoalMin) {
-            mutableFloatStateOf((dailyGoalMin / 60f).coerceIn(GOAL_HOURS.start, GOAL_HOURS.endInclusive))
-        }
-        var numberText by remember(dailyGoalMin) {
-            mutableStateOf((dailyGoalMin / 60).toString())
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = numberText,
-                onValueChange = { text ->
-                    numberText = text
-                    val hours = text.trim().toIntOrNull()
-                    if (hours != null && hours in GOAL_HOURS.start.roundToInt()..GOAL_HOURS.endInclusive.roundToInt()) {
-                        draftHours = hours.toFloat()
-                        onDailyGoalChange(hours * 60)
-                    }
-                },
-                label = { Text("小时", style = FreshType.label) },
-                singleLine = true,
-                isError = numberText.isNotBlank() &&
-                    (numberText.trim().toIntOrNull()
-                        ?: 0) !in GOAL_HOURS.start.roundToInt()..GOAL_HOURS.endInclusive.roundToInt(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Done
-                ),
-                modifier = Modifier.width(112.dp)
-            )
-            Text(
-                text = "当前 ${draftHours.roundToInt()} 小时",
-                style = FreshType.label,
-                color = palette.onSurfaceVariant,
-                modifier = Modifier.padding(start = 12.dp)
-            )
-        }
-        Slider(
-            value = draftHours.coerceIn(GOAL_HOURS.start, GOAL_HOURS.endInclusive),
-            onValueChange = {
-                draftHours = it
-                numberText = it.roundToInt().toString()
-            },
-            onValueChangeFinished = { onDailyGoalChange(draftHours.roundToInt() * 60) },
-            valueRange = GOAL_HOURS,
-            steps = GOAL_HOURS.endInclusive.roundToInt() - GOAL_HOURS.start.roundToInt() - 1
+        // CR-05 连带项（负责人确认统一）：每日目标与统计口径阈值共用同一套
+        // 「一行状态 + 滚轮弹层」交互——此前「滑杆 + 数字输入框」与滚轮在同一屏
+        // 并存，两套交互观感不统一。
+        var showGoalWheel by remember { mutableStateOf(false) }
+        val goalHours = (dailyGoalMin / 60).coerceIn(
+            GOAL_HOURS.start.roundToInt(),
+            GOAL_HOURS.endInclusive.roundToInt()
+        )
+        ActionRow(
+            label = "每日目标",
+            value = "$goalHours 小时",
+            onClick = { showGoalWheel = true }
         )
         Text(
             text = "今日页圆环按这个目标算进度；到达目标只做提示，不会锁机。",
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )
+        if (showGoalWheel) {
+            NumberWheelSheet(
+                title = "每日目标",
+                range = GOAL_HOURS.start.roundToInt()..GOAL_HOURS.endInclusive.roundToInt(),
+                value = goalHours,
+                unit = "小时",
+                hint = "到达目标只做提示，不会锁机",
+                onConfirm = { onDailyGoalChange(it * 60) },
+                onDismiss = { showGoalWheel = false }
+            )
+        }
 
         Box(
             Modifier
