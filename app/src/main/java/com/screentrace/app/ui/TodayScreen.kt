@@ -70,7 +70,7 @@ fun TodayScreen(
         )
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
-        state.data == null && pulling -> PullingState()
+        pulling -> PullingState() // 前序分支已截 data != null，此处无需再判（评审 P2-9）
         else -> DataEmptyState(
             reason = state.empty,
             noDataTitle = "尚无使用记录",

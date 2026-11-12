@@ -13,6 +13,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -111,8 +112,10 @@ fun ScreenTimeTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
+    // 评审 P2-7：派生 + 自动校正最坏上千次对比度计算，必须 remember——
+    // 否则每次重组合都重跑一遍
     val palette = customSeed
-        ?.let { PaletteEngine.paletteFromSeed(it, darkTheme) }
+        ?.let { seed -> remember(seed, darkTheme) { PaletteEngine.paletteFromSeed(seed, darkTheme) } }
         ?: variant.palette(darkTheme)
     val useDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme = when {

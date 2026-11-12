@@ -622,7 +622,12 @@ fun AppNav() {
         if (showStyleSheet) {
             StyleSheet(
                 current = variant,
-                onSelect = viewModel::setThemeVariant,
+                onSelect = { variant ->
+                    // 评审 P1-5：点哪套就是哪套——选预设即退出自定义主题。
+                    // 否则种子还留着时 variant 变了色板不变，用户会以为主题切换坏了
+                    viewModel.setThemeVariant(variant)
+                    viewModel.setCustomThemeSeed(null)
+                },
                 onDismiss = { showStyleSheet = false }
             )
         }

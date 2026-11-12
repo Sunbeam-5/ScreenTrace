@@ -66,9 +66,11 @@ class RoomUsageRepository(
     override suspend fun hasDataIn(selection: DateSelection): Boolean {
         val start = selection.startDate.toString()
         val end = selection.endDate.toString()
+        // 评审 P2-2：按「行数」判会把 0 分钟行也算有记录（假 0 口径）——
+        // hour_usage 用分钟合计判，0 行只说明「建过表结构」不说明「有使用」
         return db.daySummaryDao().countBetween(start, end) > 0 ||
             db.appUsageDao().countBetween(start, end) > 0 ||
-            db.hourUsageDao().countBetween(start, end) > 0
+            db.hourUsageDao().sumMinutesBetween(start, end) > 0
     }
 
     override suspend fun summary(selection: DateSelection): Summary =

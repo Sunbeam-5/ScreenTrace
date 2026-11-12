@@ -138,6 +138,10 @@ interface HourUsageDao {
     @Query("SELECT COUNT(*) FROM hour_usage WHERE date BETWEEN :start AND :end")
     suspend fun countBetween(start: String, end: String): Int
 
+    /** 评审 P2-2：「有记录」按分钟合计判，0 分钟行不算有使用。 */
+    @Query("SELECT COALESCE(SUM(minutes), 0) FROM hour_usage WHERE date BETWEEN :start AND :end")
+    suspend fun sumMinutesBetween(start: String, end: String): Int
+
     @Query("DELETE FROM hour_usage WHERE date = :date AND hour = :hour")
     suspend fun delete(date: String, hour: Int)
 

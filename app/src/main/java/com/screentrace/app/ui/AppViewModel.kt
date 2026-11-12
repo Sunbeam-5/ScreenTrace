@@ -441,6 +441,11 @@ class AppViewModel(
         }
         viewModelScope.launch {
             runCatching { store.onboardingDone.collect { _onboardingDone.value = it } }
+                .onFailure {
+                    // 评审 P1-4：DataStore 读失败（prefs 损坏/磁盘满）不能把用户
+                    // 永远卡在「只铺底色」的纯色屏——兜底视为未完成，直接走向导
+                    _onboardingDone.value = false
+                }
         }
         viewModelScope.launch {
             runCatching { store.customThemeSeed.collect { _customThemeSeed.value = it } }

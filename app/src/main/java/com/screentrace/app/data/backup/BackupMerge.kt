@@ -42,7 +42,11 @@ object BackupMerge {
                     rows += row
                     added++
                 }
-                row.screenUnlockMin > current.screenUnlockMin -> {
+                // §4「取 screen_unlock_min 较大的一行整体保留」；评审 P2-3：平手时
+                // 次级比较 screenMin——两台设备 unlock 相同而 screen 差一倍时，
+                // 只比 unlock 会保留屏幕时长残缺的那行
+                row.screenUnlockMin > current.screenUnlockMin ||
+                    (row.screenUnlockMin == current.screenUnlockMin && row.screenMin > current.screenMin) -> {
                     rows += row
                     updated++
                 }

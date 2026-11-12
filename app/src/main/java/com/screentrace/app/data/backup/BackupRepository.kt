@@ -2,7 +2,10 @@ package com.screentrace.app.data.backup
 
 import androidx.room.withTransaction
 import com.screentrace.app.contract.AppCategory
+import com.screentrace.app.data.IngestSanity
 import com.screentrace.app.data.SessionUnion
+import com.screentrace.app.data.parse.AppUsageRow
+import com.screentrace.app.data.parse.DayMetrics
 import com.screentrace.app.data.db.AppLimitEntity
 import com.screentrace.app.data.db.AppUsageEntity
 import com.screentrace.app.data.db.DaySummaryEntity
@@ -221,25 +224,60 @@ class BackupRepository(
         insertDaySummaries(dayPlan.rows)
         report += dayPlan.report
 
+        // 评审 P1-1：备份的应用/时段数据同样要过自洽校验（IngestSanity 与拉取入库同口径）。
+        // 备份里可能带着 MIUI totalTimeUsed 的虚高行——「取大合并」会把它永久固化在库里，
+        // 正确的新数据永远盖不掉，表现为「应用合计 2467 小时 > 屏幕 11 小时」。
+        // 参照物用**合并后的 day_summary**（dayPlan 已插入）。
+        val sanityDays = dayPlan.rows.associate {
+            LocalDate.parse(it.date) to DayMetrics(
+                screenMin = it.screenMin,
+                screenUnlockMin = it.screenUnlockMin,
+                unlocks = it.unlocks,
+                launches = it.launches,
+                longestSessionMin = it.longestSessionMin
+            )
+        }
+        val sanityVerdict = IngestSanity.check(
+            days = sanityDays,
+            appUsage = file.appUsage.map {
+                AppUsageRow(LocalDate.parse(it.date), it.pkg, it.minutes * 60_000L, it.launches)
+            },
+            hourMinutes = file.hourUsage
+                .groupBy { it.date }
+                .mapKeys { LocalDate.parse(it.key) }
+                .mapValues { (_, rows) -> (0..23).map { h -> rows.firstOrNull { it.hour == h }?.minutes ?: 0 } }
+        )
+        val badDates = sanityVerdict.droppedDates.toSet()
+        val safeAppUsage = file.appUsage.filterNot { LocalDate.parse(it.date) in badDates }
+        val safeHourUsage = file.hourUsage.filterNot { LocalDate.parse(it.date) in badDates }
+        val droppedRows = (file.appUsage.size - safeAppUsage.size) +
+            (file.hourUsage.size - safeHourUsage.size)
+        if (sanityVerdict.hasDrops) {
+            report += BackupMerge.Report(skipped = droppedRows)
+        }
+
         val appPlan = BackupMerge.appUsage(
             db.appUsageDao().getAll().map {
                 AppUsageDto(it.date, it.pkg, it.name, it.minutes, it.launches, it.category)
             },
-            file.appUsage
+            safeAppUsage
         )
         insertAppUsage(appPlan.rows)
         report += appPlan.report
 
         val hourPlan = BackupMerge.hourUsage(
             db.hourUsageDao().getAll().map { HourUsageDto(it.date, it.hour, it.minutes) },
-            file.hourUsage
+            safeHourUsage
         )
         insertHourUsage(hourPlan.rows)
         report += hourPlan.report
 
-        val pullRows = file.pullLog.map {
-            PullLogEntity(pulledAt = it.pulledAt, source = it.source, ok = it.ok, note = it.note)
-        }
+        // 评审 P2-1：按 (pulledAt, source) 去重——同一台设备的备份反复合并时日志不膨胀，
+        // 且别台设备更晚的时间戳不会把「最近成功拉取」顶掉后还留一堆重复行
+        val existingPullKeys = db.pullLogDao().getAll().map { it.pulledAt to it.source }.toSet()
+        val pullRows = file.pullLog
+            .filterNot { (it.pulledAt to it.source) in existingPullKeys }
+            .map { PullLogEntity(pulledAt = it.pulledAt, source = it.source, ok = it.ok, note = it.note) }
         pullRows.forEach { db.pullLogDao().insert(it) }
         report += BackupMerge.Report(added = pullRows.size)
 
@@ -324,7 +362,11 @@ class BackupRepository(
                 )
             )
             mergedHours.forEachIndexed { hour, minutes ->
-                db.hourUsageDao().insert(HourUsageEntity(date.toString(), hour, minutes))
+                // 评审 P2-2：0 分钟不写行——「有行」即「有记录」（hasDataIn 按行判断），
+                // 写 0 行会把「只恢复了会话、无事件」的日子误判成有记录（假 0 口径相抵）
+                if (minutes > 0) {
+                    db.hourUsageDao().insert(HourUsageEntity(date.toString(), hour, minutes))
+                }
             }
         }
         return BackupMerge.Report(added = added, updated = updated, skipped = 0)
