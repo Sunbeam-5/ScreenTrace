@@ -105,6 +105,16 @@ fun SettingsScreen(
     appVersion: String,
     /** 生成报告：入参 = 是否隐藏应用名称，返回（建议文件名, HTML 全文）。 */
     buildReport: suspend (Boolean) -> Pair<String, String>?,
+    /** 批 8：备份导出/恢复（§5.10）。 */
+    onBuildBackupJson: suspend () -> Pair<String, String>? = { null },
+    onBuildCsv: suspend () -> List<Pair<String, String>> = { emptyList() },
+    onDecodeBackup: suspend (String) -> com.screentrace.app.data.backup.BackupCodec.DecodeResult =
+        { com.screentrace.app.data.backup.BackupCodec.decode(it) },
+    onRestoreBackup: suspend (
+        com.screentrace.app.data.backup.BackupFile,
+        Boolean,
+        Boolean
+    ) -> com.screentrace.app.data.backup.BackupRepository.RestoreResult? = { _, _, _ -> null },
     onNotice: (String) -> Unit = {}
 ) {
     GoalGroup(
@@ -139,16 +149,14 @@ fun SettingsScreen(
         )
     }
 
-    SettingsGroup("备份与同步") {
-        val palette = LocalFreshPalette.current
-        Text(text = "尚未开放", style = FreshType.body, color = palette.onSurfaceVariant)
-        Text(
-            text = "JSON 完整备份、CSV 明细、本地恢复与 WebDAV / Google Drive 云同步会一起上线。" +
-                "现在可以先导出上面的 HTML 报告留档。",
-            style = FreshType.label,
-            color = palette.onSurfaceVariant
-        )
-    }
+    BackupGroup(
+        appVersion = appVersion,
+        onBuildJson = onBuildBackupJson,
+        onBuildCsv = onBuildCsv,
+        onDecode = onDecodeBackup,
+        onRestore = onRestoreBackup,
+        onNotice = onNotice
+    )
 
     SettingsGroup("AI 分析") {
         val palette = LocalFreshPalette.current

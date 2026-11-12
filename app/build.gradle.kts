@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
@@ -88,6 +89,11 @@ dependencies {
     // ---- 批 6b：Shizuku 主通道（§2.1）+ provider 注册见 AndroidManifest（S05）----
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
+
+    // 批 8：备份 JSON（schemaVersion=4，§5.10）
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    // CSV 多文件导出走 SAF 目录（七张表各一个文件）
+    implementation("androidx.documentfile:documentfile:1.0.1")
 
     // TODO(批 8)：云同步
     // implementation("com.squareup.okhttp3:okhttp:4.12.0") // §5.10 云同步

@@ -6,4 +6,6 @@ plugins {
     id("org.jetbrains.kotlin.android") version "1.9.24" apply false
     // KSP 版本必须与 Kotlin 1.9.24 对齐（README 预警的首次 Sync 最常见失败点）
     id("com.google.devtools.ksp") version "1.9.24-1.0.20" apply false
+    // 批 8：备份 JSON 序列化（§6 依赖白名单「JSON 序列化库」）
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.24" apply false
 }

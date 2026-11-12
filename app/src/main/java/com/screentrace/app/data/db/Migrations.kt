@@ -55,3 +55,25 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL("DELETE FROM `hour_usage`")
     }
 }
+
+/**
+ * v4 → v5（批 8 第一步，2026-11-12）：新增 `app_limit`（§4 / §5.12 CR-04）。
+ *
+ * 只建表结构，限额业务（CRUD、到量提醒、排行页进度条）在批 11。先在本批建表的原因：
+ * 备份 `schemaVersion=4` 必须包含八张表，要是等批 11 再建，备份结构又得涨一版，
+ * 已经导出的文件全部要写兼容分支。
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `app_limit` (
+                `pkg` TEXT NOT NULL,
+                `limitMin` INTEGER NOT NULL,
+                `enabled` INTEGER NOT NULL,
+                PRIMARY KEY(`pkg`)
+            )
+            """.trimIndent()
+        )
+    }
+}

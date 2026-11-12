@@ -121,6 +121,7 @@ fun AppNav() {
                     repository = container.repository,
                     pulls = container.pullCoordinator,
                     settings = container.settings,
+                    backups = container.backup,
                     // 改拉取频率后立即重排后台任务（§5.8）：等下次冷启动才生效
                     // 在用户看来就是「改了没用」。
                     onPullFrequencyChanged = { frequency ->
@@ -550,6 +551,12 @@ fun AppNav() {
                                     appVersion = appVersion,
                                     buildReport = { hideNames ->
                                         viewModel.buildHtmlReport(hideNames, appVersion)
+                                    },
+                                    onBuildBackupJson = { viewModel.buildBackupJson(appVersion) },
+                                    onBuildCsv = { viewModel.buildCsvFiles(appVersion) },
+                                    onDecodeBackup = { text -> viewModel.decodeBackup(text) },
+                                    onRestoreBackup = { file, overwrite, importSettings ->
+                                        viewModel.restoreBackup(file, overwrite, importSettings)
                                     },
                                     onNotice = viewModel::showNotice
                                 )

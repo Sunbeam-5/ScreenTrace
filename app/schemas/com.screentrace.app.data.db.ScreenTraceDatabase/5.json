@@ -1,0 +1,352 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 5,
+    "identityHash": "387a67370625c7b8108c3a7c043a0c1f",
+    "entities": [
+      {
+        "tableName": "day_summary",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` TEXT NOT NULL, `screenMin` INTEGER NOT NULL, `screenUnlockMin` INTEGER NOT NULL, `unlocks` INTEGER NOT NULL, `launches` INTEGER NOT NULL, `longestSessionMin` INTEGER NOT NULL, `pulledAt` INTEGER NOT NULL, PRIMARY KEY(`date`))",
+        "fields": [
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "screenMin",
+            "columnName": "screenMin",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "screenUnlockMin",
+            "columnName": "screenUnlockMin",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unlocks",
+            "columnName": "unlocks",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "launches",
+            "columnName": "launches",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longestSessionMin",
+            "columnName": "longestSessionMin",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pulledAt",
+            "columnName": "pulledAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "app_usage",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` TEXT NOT NULL, `pkg` TEXT NOT NULL, `name` TEXT NOT NULL, `minutes` INTEGER NOT NULL, `launches` INTEGER NOT NULL, `category` TEXT NOT NULL, PRIMARY KEY(`date`, `pkg`))",
+        "fields": [
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pkg",
+            "columnName": "pkg",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minutes",
+            "columnName": "minutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "launches",
+            "columnName": "launches",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date",
+            "pkg"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "hour_usage",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` TEXT NOT NULL, `hour` INTEGER NOT NULL, `minutes` INTEGER NOT NULL, PRIMARY KEY(`date`, `hour`))",
+        "fields": [
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hour",
+            "columnName": "hour",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minutes",
+            "columnName": "minutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date",
+            "hour"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "pull_log",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `pulledAt` INTEGER NOT NULL, `source` TEXT NOT NULL, `ok` INTEGER NOT NULL, `note` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pulledAt",
+            "columnName": "pulledAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ok",
+            "columnName": "ok",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "unlock_event",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`occurredAtMs` INTEGER NOT NULL, PRIMARY KEY(`occurredAtMs`))",
+        "fields": [
+          {
+            "fieldPath": "occurredAtMs",
+            "columnName": "occurredAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "occurredAtMs"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "notification_event",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`occurredAtMs` INTEGER NOT NULL, `type` TEXT NOT NULL, `pkg` TEXT NOT NULL, `channelId` TEXT, PRIMARY KEY(`occurredAtMs`, `type`, `pkg`))",
+        "fields": [
+          {
+            "fieldPath": "occurredAtMs",
+            "columnName": "occurredAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pkg",
+            "columnName": "pkg",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "channelId",
+            "columnName": "channelId",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "occurredAtMs",
+            "type",
+            "pkg"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_notification_event_pkg",
+            "unique": false,
+            "columnNames": [
+              "pkg"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_notification_event_pkg` ON `${TABLE_NAME}` (`pkg`)"
+          },
+          {
+            "name": "index_notification_event_occurredAtMs",
+            "unique": false,
+            "columnNames": [
+              "occurredAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_notification_event_occurredAtMs` ON `${TABLE_NAME}` (`occurredAtMs`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "screen_session",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `kind` TEXT NOT NULL, PRIMARY KEY(`startMs`, `kind`))",
+        "fields": [
+          {
+            "fieldPath": "startMs",
+            "columnName": "startMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endMs",
+            "columnName": "endMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "startMs",
+            "kind"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_screen_session_endMs",
+            "unique": false,
+            "columnNames": [
+              "endMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_screen_session_endMs` ON `${TABLE_NAME}` (`endMs`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "app_limit",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`pkg` TEXT NOT NULL, `limitMin` INTEGER NOT NULL, `enabled` INTEGER NOT NULL, PRIMARY KEY(`pkg`))",
+        "fields": [
+          {
+            "fieldPath": "pkg",
+            "columnName": "pkg",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "limitMin",
+            "columnName": "limitMin",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enabled",
+            "columnName": "enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "pkg"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '387a67370625c7b8108c3a7c043a0c1f')"
+    ]
+  }
+}

@@ -7,6 +7,11 @@ import androidx.room.Query
 
 @Dao
 interface DaySummaryDao {
+
+    /** §5.10「覆盖本地」：清空该表后再导入备份。 */
+    @Query("DELETE FROM day_summary")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM day_summary WHERE date BETWEEN :start AND :end ORDER BY date")
     suspend fun getBetween(start: String, end: String): List<DaySummaryEntity>
 
@@ -28,10 +33,22 @@ interface DaySummaryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(row: DaySummaryEntity)
+
+    /** 批 8：恢复/重算时批量写入（REPLACE 语义）。 */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(row: DaySummaryEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(rows: List<DaySummaryEntity>)
 }
 
 @Dao
 interface AppUsageDao {
+
+    /** §5.10「覆盖本地」：清空该表后再导入备份。 */
+    @Query("DELETE FROM app_usage")
+    suspend fun deleteAll()
+
     /**
      * §5.7 排行：区间按 (pkg) 聚合（分钟/启动数求和，name/category 取一致值）。
      *
@@ -82,6 +99,14 @@ interface AppUsageDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(row: AppUsageEntity)
+
+    /** 批 8：恢复备份时批量写入。 */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(rows: List<AppUsageEntity>)
+
+    /** 批 8：备份导出需要全表（不限日期区间）。 */
+    @Query("SELECT * FROM app_usage ORDER BY date, minutes DESC")
+    suspend fun getAll(): List<AppUsageEntity>
 }
 
 data class AppUsageAggregated(
@@ -96,6 +121,11 @@ data class PkgName(val pkg: String, val name: String)
 
 @Dao
 interface HourUsageDao {
+
+    /** §5.10「覆盖本地」：清空该表后再导入备份。 */
+    @Query("DELETE FROM hour_usage")
+    suspend fun deleteAll()
+
     @Query("SELECT hour, SUM(minutes) AS minutes FROM hour_usage WHERE date BETWEEN :start AND :end GROUP BY hour ORDER BY hour")
     suspend fun sumBetween(start: String, end: String): List<HourBucketAggregated>
 
@@ -113,14 +143,30 @@ interface HourUsageDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(row: HourUsageEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(rows: List<HourUsageEntity>)
+
+    /** 批 8：备份导出需要全表。 */
+    @Query("SELECT * FROM hour_usage ORDER BY date, hour")
+    suspend fun getAll(): List<HourUsageEntity>
 }
 
 data class HourBucketAggregated(val hour: Int, val minutes: Int)
 
 @Dao
 interface PullLogDao {
+
+    /** §5.10「覆盖本地」：清空该表后再导入备份。 */
+    @Query("DELETE FROM pull_log")
+    suspend fun deleteAll()
+
     @Insert
     suspend fun insert(row: PullLogEntity)
+
+    /** 批 8：备份导出需要全表。 */
+    @Query("SELECT * FROM pull_log ORDER BY pulledAt")
+    suspend fun getAll(): List<PullLogEntity>
 
     @Query("SELECT * FROM pull_log ORDER BY pulledAt DESC LIMIT 1")
     suspend fun latest(): PullLogEntity?
@@ -135,12 +181,21 @@ interface PullLogDao {
 
 @Dao
 interface UnlockEventDao {
+
+    /** §5.10「覆盖本地」：清空该表后再导入备份。 */
+    @Query("DELETE FROM unlock_event")
+    suspend fun deleteAll()
+
     /** §4 合并策略：主键去重，重复插入即忽略。 */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIgnore(row: UnlockEventEntity)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIgnore(rows: List<UnlockEventEntity>)
+
+    /** 批 8：备份导出需要全表。 */
+    @Query("SELECT * FROM unlock_event ORDER BY occurredAtMs")
+    suspend fun getAll(): List<UnlockEventEntity>
 
     @Query("SELECT occurredAtMs FROM unlock_event WHERE occurredAtMs BETWEEN :startMs AND :endMs ORDER BY occurredAtMs")
     suspend fun msBetween(startMs: Long, endMs: Long): List<Long>
@@ -151,6 +206,11 @@ interface UnlockEventDao {
 
 @Dao
 interface NotificationEventDao {
+
+    /** §5.10「覆盖本地」：清空该表后再导入备份。 */
+    @Query("DELETE FROM notification_event")
+    suspend fun deleteAll()
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIgnore(row: NotificationEventEntity)
 
@@ -181,12 +241,21 @@ interface NotificationEventDao {
 @Dao
 interface ScreenSessionDao {
 
+    /** §5.10「覆盖本地」：清空该表后再导入备份。 */
+    @Query("DELETE FROM screen_session")
+    suspend fun deleteAll()
+
+
     /** 与窗口相交的全部区间（`endMs >= lo AND startMs <= hi`）。 */
     @Query("SELECT * FROM screen_session WHERE endMs >= :startMs AND startMs <= :endMs ORDER BY startMs")
     suspend fun overlapping(startMs: Long, endMs: Long): List<ScreenSessionEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(rows: List<ScreenSessionEntity>)
+
+    /** 批 8：备份导出 / 合并后重算需要全表。 */
+    @Query("SELECT * FROM screen_session ORDER BY startMs")
+    suspend fun getAll(): List<ScreenSessionEntity>
 
     /** 与窗口相交的区间整段删除（合并输出覆盖了它们的全部范围，无信息丢失）。 */
     @Query("DELETE FROM screen_session WHERE endMs >= :startMs AND startMs <= :endMs")
@@ -197,4 +266,30 @@ interface ScreenSessionDao {
 
     @Query("SELECT MIN(startMs) FROM screen_session WHERE kind = 'SCREEN'")
     suspend fun minScreenStartMs(): Long?
+}
+
+/**
+ * 批 8 第一步：应用限额 DAO（完整业务在批 11：CRUD + 到量提醒）。
+ * 这里只提供备份/恢复需要的批量读写与清空。
+ */
+@Dao
+interface AppLimitDao {
+
+    @Query("SELECT * FROM app_limit ORDER BY pkg")
+    suspend fun getAll(): List<AppLimitEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(rows: List<AppLimitEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(row: AppLimitEntity)
+
+    @Query("DELETE FROM app_limit WHERE pkg = :pkg")
+    suspend fun delete(pkg: String)
+
+    @Query("DELETE FROM app_limit")
+    suspend fun deleteAll()
+
+    @Query("SELECT COUNT(*) FROM app_limit")
+    suspend fun count(): Int
 }

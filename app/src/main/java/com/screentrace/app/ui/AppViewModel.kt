@@ -159,7 +159,9 @@ class AppViewModel(
      * 批 7：拉取频率改动后立即重排 WorkManager（ViewModel 拿不到 Context，
      * 由 AppNav 用 LocalContext 注入；预览/单测不传，只改内存态）。
      */
-    private val onPullFrequencyChanged: ((com.screentrace.app.data.prefs.PullFrequency) -> Unit)? = null
+    private val onPullFrequencyChanged: ((com.screentrace.app.data.prefs.PullFrequency) -> Unit)? = null,
+    /** 批 8：本地备份导出 / 恢复。 */
+    private val backups: com.screentrace.app.data.backup.BackupRepository? = null
 ) : ViewModel() {
 
     // 批 6g（真机反馈 #6）：默认展示**近 7 天**——进 App 就能看到趋势与时段分布，
@@ -672,6 +674,49 @@ class AppViewModel(
             com.screentrace.app.data.export.HtmlReportExporter.fileName(java.time.LocalDateTime.now()) to
                 com.screentrace.app.data.export.HtmlReportExporter.build(input)
         }.getOrNull()
+    }
+
+    // ---- 批 8：备份与恢复 ----
+
+    /** 生成 JSON 完整备份：（建议文件名, 全文）。 */
+    suspend fun buildBackupJson(appVersion: String): Pair<String, String>? {
+        val repo = backups ?: return null
+        return runCatching { repo.exportJson(appVersion) }.getOrNull()
+    }
+
+    /** 生成七张明细表的 CSV：（文件名, 内容）列表。 */
+    suspend fun buildCsvFiles(appVersion: String): List<Pair<String, String>> {
+        val repo = backups ?: return emptyList()
+        return runCatching { repo.exportCsv(appVersion) }.getOrDefault(emptyList())
+    }
+
+    suspend fun decodeBackup(text: String): com.screentrace.app.data.backup.BackupCodec.DecodeResult =
+        com.screentrace.app.data.backup.BackupCodec.decode(text)
+
+    /**
+     * 执行恢复（单事务）。成功后重算四页——恢复的数据与当前界面必然不一致，
+     * 不重算就会出现「提示导入 8 天，今日页还是空的」。
+     */
+    suspend fun restoreBackup(
+        file: com.screentrace.app.data.backup.BackupFile,
+        overwrite: Boolean,
+        importSettings: Boolean
+    ): com.screentrace.app.data.backup.BackupRepository.RestoreResult? {
+        val repo = backups ?: return null
+        val result = runCatching {
+            repo.restore(
+                file = file,
+                strategy = if (overwrite) {
+                    com.screentrace.app.data.backup.BackupRepository.Strategy.OVERWRITE
+                } else {
+                    com.screentrace.app.data.backup.BackupRepository.Strategy.MERGE
+                },
+                importSettings = importSettings
+            )
+        }.getOrNull() ?: return null
+        _coverage.value = pulls?.historyCoverage()
+        loadAll()
+        return result
     }
 
     /** 报告标题里的区间文案（与页面副标题同一口径，单日不带「天」）。 */

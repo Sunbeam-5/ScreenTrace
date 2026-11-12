@@ -98,6 +98,11 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         }.toMap()
     }
 
+    /** 恢复备份时整批写入（§5.10「同时恢复设置」勾选后）。 */
+    suspend fun setCategoryOverrides(overrides: Map<String, AppCategory>) = dataStore.edit { prefs ->
+        prefs[CATEGORY_OVERRIDES] = overrides.map { (pkg, category) -> "$pkg=${category.name}" }.toSet()
+    }
+
     suspend fun setCategoryOverride(pkg: String, category: AppCategory) = dataStore.edit { prefs ->
         val current = prefs[CATEGORY_OVERRIDES] ?: emptySet()
         prefs[CATEGORY_OVERRIDES] = current.filterNot { it.startsWith("$pkg=") }.toSet() + "$pkg=${category.name}"

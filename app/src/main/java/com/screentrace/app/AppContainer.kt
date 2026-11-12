@@ -32,7 +32,9 @@ class AppContainer(context: Context) {
         .addMigrations(
             com.screentrace.app.data.db.MIGRATION_1_2,
             com.screentrace.app.data.db.MIGRATION_2_3,
-            com.screentrace.app.data.db.MIGRATION_3_4
+            com.screentrace.app.data.db.MIGRATION_3_4,
+            // v5（批 8）：+ app_limit
+            com.screentrace.app.data.db.MIGRATION_4_5
         )
         .build()
 
@@ -59,6 +61,9 @@ class AppContainer(context: Context) {
             UsageStatsUsageProvider(appContext)
         )
     )
+
+    /** 批 8：本地备份导出 / 恢复（JSON、CSV）。 */
+    val backup = com.screentrace.app.data.backup.BackupRepository(db = db, settings = settings)
 
     val repository: UsageRepository = RoomUsageRepository(
         db = db,

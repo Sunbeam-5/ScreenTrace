@@ -104,3 +104,20 @@ data class ScreenSessionEntity(
         const val KIND_KEYGUARD = "KEYGUARD"
     }
 }
+
+/**
+ * §4 / §5.12 CR-04：应用每日时长限额（v5 新增表，批 8 第一步建表）。
+ *
+ * 限额是**用户意图**而不是统计结果，所以合并策略与其它表相反：从备份恢复时
+ * 同 pkg 以备份值覆盖（§4），不是取大。
+ *
+ * 本批（8a）只建表与 DAO，限额的设置 UI 与到量提醒在批 11——先建表是因为
+ * `schemaVersion=4` 的 JSON 备份要包含它，否则批 11 一上线备份结构就得再涨一版。
+ */
+@Entity(tableName = "app_limit")
+data class AppLimitEntity(
+    @PrimaryKey val pkg: String,
+    /** 每日上限（分钟），15..1425，步进 15。 */
+    val limitMin: Int,
+    val enabled: Boolean
+)
