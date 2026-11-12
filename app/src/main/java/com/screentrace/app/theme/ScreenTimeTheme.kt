@@ -43,7 +43,7 @@ object FreshType {
     val heroNumber = TextStyle(
         fontFamily = numberFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 40.sp,
+        fontSize = 44.sp, // CR-06/VI-1-3：圆环中心数字加大（§5.3 token 同步）
         letterSpacing = (-1.6).sp, // 约 -0.04em
         fontFeatureSettings = "'tnum'" // 等宽数字：刷新时宽度不跳
     )

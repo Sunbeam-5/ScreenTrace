@@ -43,6 +43,10 @@ data class FreshPalette(
     val gradientTop: Color = Color(0xFFEAF2F6),
     /** CR-06/VI-1-2：卡片阴影色（0–2dp 极淡；深色模式不用，靠色阶分层）。 */
     val shadow: Color = Color(0x14000000),
+    /** CR-06/VI-1-3：超目标信号色（珊瑚暖色，固定色相不随主题——信号不是警报，不整圈变红）。 */
+    val overTarget: Color = Color(0xFFB04A28),
+    /** CR-06/VI-1-3：超目标 chip 底色（配 overTarget 文字，浅色 ≥4.5:1）。 */
+    val overTargetSurface: Color = Color(0xFFFBE9E1),
     /** §5.4：「数字 + 小单位」排版的单位色（白卡取值）；tonal 卡用 [mutedOn] 同规则派生。 */
     val onSurfaceMuted: Color,
     /** 派生用：是否深色调色板（决定单位色混合上限 30% / 46%，§5.4）。 */
@@ -178,6 +182,8 @@ internal fun derivePalette(
             outline = seed.mix(White, 0.78f),
             gradientTop = seed.mix(White, 0.90f),
             shadow = Color(0x14000000),
+            overTarget = Color(0xFFB04A28),
+            overTargetSurface = Color(0xFFFBE9E1),
             onSurfaceMuted = muteForeground(onSurface, White, dark = false),
             darkTheme = false
         )
@@ -225,6 +231,8 @@ internal fun derivePalette(
         outline = background.mix(White, 0.24f),
         gradientTop = seed.mix(DarkNeutral, 0.86f),
         shadow = Color(0x33000000),
+        overTarget = Color(0xFFE8926F),
+        overTargetSurface = Color(0xFF3A2A22),
         onSurfaceMuted = muteForeground(onSurface, surface, dark = true),
         darkTheme = true
     )

@@ -33,6 +33,7 @@ import com.screentrace.app.uikit.MetricCardPair
 import com.screentrace.app.uikit.transformSource
 import com.screentrace.app.uikit.MetricValue
 import com.screentrace.app.uikit.RatioBar
+import com.screentrace.app.uikit.RingMath
 import com.screentrace.app.uikit.RingProgress
 import com.screentrace.app.uikit.SecondaryButton
 import com.screentrace.app.uikit.Segment
@@ -97,9 +98,13 @@ private fun TodayContent(
 
     // ① hero 圆环卡
     FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        // CR-06（负责人勘误）：24 小时全天环——整圈 = 24h，弧长 = 使用/24h，
+        // 从 12 点起画；目标只做中心下行文字与「超出目标」chip 的依据
+        val overMinutes = RingMath.overMinutes(usageMin, dailyGoalMin)
         RingProgress(
-            progress = if (dailyGoalMin <= 0) 0f else usageMin.toFloat() / dailyGoalMin,
-            timeText = UsageCalculator.formatClock(usageMin)
+            usageMinutes = usageMin,
+            caption = "今日亮屏",
+            note = if (dailyGoalMin > 0) "目标 ${UsageCalculator.formatClock(dailyGoalMin)}" else null
         )
         CompareLine(text = data.compare.text, up = data.compare.increase)
         Text(

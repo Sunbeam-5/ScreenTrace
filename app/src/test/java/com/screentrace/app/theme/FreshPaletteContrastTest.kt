@@ -57,6 +57,9 @@ class FreshPaletteContrastTest {
                 )
                 checkAtLeast(p.error, p.background, 4.5, "error/background", variant, dark)
                 checkAtLeast(p.error, p.surface, 4.5, "error/surface", variant, dark)
+                // CR-06/VI-1-3：超目标信号色（内环图形 ≥3；chip 文字/底 ≥4.5）
+                checkAtLeast(p.overTarget, p.background, 3.0, "overTarget(图形)", variant, dark)
+                checkAtLeast(p.overTarget, p.overTargetSurface, 4.5, "overTarget/chip底", variant, dark)
             }
         }
         report()
