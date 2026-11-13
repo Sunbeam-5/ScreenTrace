@@ -3,17 +3,26 @@
 """
 屏迹 · 转场动画录屏 / 抽帧工具（开发验证用，不参与 App 构建）
 
-一次调用完成：唤醒设备 → 定位入口按钮 → 录一段「打开二级页 → 返回」→
+一次调用完成：唤醒设备 → 定位入口按钮 → 录一段「打开 → 返回」→
 拉取视频 → 生成全流程 / 进入段 / 返回段三张联系表 + 一个压缩视频 →
 自动还原代码与设备设置。
 
-最常用（零参数，自动选唯一在线设备）：
+【App 内转场】零参数，自动选唯一在线设备：
     python scripts/capture_anim.py
-
-看不清动画时双向慢放（临时改常量并构建，finally 必定还原）：
+看不清动画时双向慢放（临时改 Kotlin 常量并构建，finally 必定还原）：
     python scripts/capture_anim.py --slow
 
-指定设备 / 输出目录 / 手动指定按钮坐标：
+【系统桌面参考样本】先把手机停在含目标图标的桌面页，然后：
+    python scripts/capture_anim.py --launcher
+    python scripts/capture_anim.py --launcher --slow
+    录「点设置图标 → 打开系统设置 → 按 HOME 返回桌面」的原生动画。
+    --slow 在此模式改用系统动画缩放（不改代码、不构建），finally 还原。
+    脚本故意不按 HOME 初始化，避免翻到别的桌面页找不到图标。
+    实测（MIUI / Redmi）：Launcher 的启动/返回动画不受这三个 scale 控制，
+    5x 慢放并不会增加过渡帧；观察原生动画请直接看正常速度的 enter.png / exit.png
+    （分段窗口短、抽帧密度高，能连续拍到 4~5 帧缩放态）。
+
+指定设备 / 输出目录 / 手动指定图标坐标：
     python scripts/capture_anim.py -s GAQOHMNFQWFUPBQO --name cr11_recheck
     python scripts/capture_anim.py --tap 1077,263
 
@@ -23,7 +32,7 @@
     clip.mp4   裁剪压缩后的完整视频        raw.mp4  原始录屏
 
 依赖：adb（PATH 内）、ffmpeg（优先 imageio_ffmpeg 自带，其次系统 ffmpeg）；
---slow 模式额外需要 JDK 17 与 gradlew。
+App 内 --slow 模式额外需要 JDK 17 与 gradlew；桌面模式不需要。
 """
 
 from __future__ import annotations
@@ -34,6 +43,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -52,6 +62,8 @@ CONTAINER_TRANSFORM = (
 PACKAGE = "com.screentrace.app"
 REMOTE_MP4 = "/sdcard/st_capture.mp4"
 REMOTE_UI = "/sdcard/st_ui.xml"
+# --launcher --slow 用系统动画缩放放慢原生窗口动画（不改任何代码）
+ANIM_KEYS = ("window_animation_scale", "transition_animation_scale", "animator_duration_scale")
 
 
 def log(msg: str) -> None:
@@ -89,23 +101,53 @@ def pick_device(preferred: str | None) -> str:
 
 
 def locate_button(serial: str, label: str, local_ui: Path) -> tuple[int, int]:
-    """用 uiautomator dump 找 content-desc 匹配的按钮中心，跨机型不写死坐标。"""
+    """
+    用 uiautomator dump 找按钮/图标中心，跨机型不写死坐标。
+    兼容 content-desc 精确/包含匹配与 text 标签（桌面图标与 App 内按钮都能用）；
+    多个候选时取面积最小的，避免点到外层容器。
+    """
     sh(serial, f"uiautomator dump {REMOTE_UI}", check=False)
     adb(serial, "pull", REMOTE_UI, winpath(local_ui), check=False)
     if not local_ui.is_file():
-        raise SystemExit("uiautomator dump 失败，请确认屏幕已解锁且 App 在前台")
+        raise SystemExit("uiautomator dump 失败，请确认屏幕已解锁")
     xml = local_ui.read_text(encoding="utf-8", errors="ignore")
+    candidates: list[tuple[int, int, int]] = []
     for node in re.findall(r"<node\b[^>]*>", xml):
-        if f'content-desc="{label}"' not in node:
+        cd = re.search(r'content-desc="([^"]*)"', node)
+        tx = re.search(r'\stext="([^"]*)"', node)
+        desc = cd.group(1) if cd else ""
+        text = tx.group(1) if tx else ""
+        if label not in desc and label != text:
             continue
         b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', node)
         if b:
             x1, y1, x2, y2 = map(int, b.groups())
-            return (x1 + x2) // 2, (y1 + y2) // 2
-    raise SystemExit(
-        f'未找到 content-desc="{label}" 的按钮；'
-        "可用 --label 换一个描述，或用 --tap X,Y 手动指定坐标。"
-    )
+            candidates.append(((x2 - x1) * (y2 - y1), (x1 + x2) // 2, (y1 + y2) // 2))
+    if not candidates:
+        raise SystemExit(
+            f'未找到含「{label}」的按钮/图标；'
+            "可用 --label 换一个描述，或用 --tap X,Y 手动指定坐标。"
+        )
+    candidates.sort()
+    return candidates[0][1], candidates[0][2]
+
+
+def anim_scales(serial: str) -> dict[str, str]:
+    saved = {}
+    for key in ANIM_KEYS:
+        v = sh(serial, f"settings get global {key}", check=False).stdout.strip()
+        saved[key] = v if v and v != "null" else "1.0"
+    return saved
+
+
+def set_anim_scales(serial: str, value: float) -> None:
+    for key in ANIM_KEYS:
+        sh(serial, f"settings put global {key} {value}", check=False)
+
+
+def restore_anim_scales(serial: str, saved: dict[str, str]) -> None:
+    for key, value in saved.items():
+        sh(serial, f"settings put global {key} {value}", check=False)
 
 
 def gradle_env() -> dict:
@@ -202,8 +244,8 @@ def main() -> int:
     p = argparse.ArgumentParser(
         description="屏迹转场动画录屏 + 抽帧联系表（开发验证用）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="零参数调用：python scripts/capture_anim.py\n"
-               "双向慢放：  python scripts/capture_anim.py --slow",
+        epilog="App 内转场：python scripts/capture_anim.py [--slow]\n"
+               "桌面参考：  python scripts/capture_anim.py --launcher [--slow]",
     )
     p.add_argument("-s", "--device", help="设备序列号；省略时要求恰好一台在线")
     p.add_argument("--name", help="输出子目录名，默认时间戳")
@@ -212,9 +254,14 @@ def main() -> int:
     p.add_argument("--tap", help="手动指定入口坐标 X,Y（跳过自动定位）")
     p.add_argument("--no-back", action="store_true", help="只录进入，不按返回键")
     p.add_argument("--lead", type=float, default=0.8, help="开录到点击的等待秒数")
-    p.add_argument("--slow", action="store_true", help="临时双向慢放（自动构建/还原）")
+    p.add_argument("--launcher", action="store_true",
+                   help="桌面模式：录系统桌面「点图标 → 打开 App → 返回桌面」，不启动屏迹；请先把手机停在含图标的桌面页")
+    p.add_argument("--slow", action="store_true", help="临时双向慢放（App 内改常量构建 / 桌面改系统动画缩放）")
     p.add_argument("--slow-enter", type=int, default=1200, help="--slow 进入时长 ms")
     p.add_argument("--slow-exit", type=int, default=1400, help="--slow 退出时长 ms")
+    p.add_argument("--slow-scale", type=float, default=5.0,
+                   help="--launcher --slow 的系统动画缩放倍数，默认 5")
+    p.add_argument("--back-key", type=int, help="返回用键码，默认 App 内 4(BACK) / 桌面 3(HOME)")
     p.add_argument("--scale", type=int, default=300, help="联系表单帧宽度 px")
     args = p.parse_args()
 
@@ -223,22 +270,34 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 时间线：慢放时自动拉长停留/尾段，保证动画完整落在录屏窗口内
-    enter_s = args.slow_enter / 1000 if args.slow else 0.32
-    exit_s = args.slow_exit / 1000 if args.slow else 0.38
-    # hold 只留「动画跑完 + 短暂停留」，否则联系表大半是静态全屏页。
-    hold = (enter_s + 0.4) if args.slow else 1.0
-    tail = (exit_s + 1.0) if args.slow else 2.0
+    if args.launcher:
+        # 系统窗口动画约 0.4s；--slow 靠 window/transition/animator scale 放大
+        factor = args.slow_scale if args.slow else 1.0
+        enter_s = exit_s = 0.45 * factor
+        hold = enter_s + 0.9     # 给系统设置页加载留时间
+        tail = exit_s + 0.9
+    else:
+        enter_s = args.slow_enter / 1000 if args.slow else 0.32
+        exit_s = args.slow_exit / 1000 if args.slow else 0.38
+        hold = (enter_s + 0.4) if args.slow else 1.0
+        tail = (exit_s + 1.0) if args.slow else 2.0
+    back_key = args.back_key if args.back_key is not None else (3 if args.launcher else 4)
     back_gap = tail
     limit = int(args.lead + hold + tail + 2.0) + 1
 
     original_code: str | None = None
+    original_anim: dict[str, str] | None = None
     original_stayon = "0"
     local_mp4 = out_dir / "raw.mp4"
-    log(f"设备 {serial}｜产物 {out_dir}")
+    log(f"设备 {serial}｜模式 {'桌面参考' if args.launcher else 'App 内转场'}｜产物 {out_dir}")
 
     try:
-        # ---- 代码：可选慢放（finally 无条件还原） ----
-        if args.slow:
+        # ---- 可选慢放（finally 无条件还原） ----
+        if args.slow and args.launcher:
+            original_anim = anim_scales(serial)
+            set_anim_scales(serial, args.slow_scale)
+            log(f"系统动画缩放 → {args.slow_scale}x（原值 {original_anim}）")
+        elif args.slow:
             original_code, patched = slow_durations(args.slow_enter, args.slow_exit)
             CONTAINER_TRANSFORM.write_text(patched, encoding="utf-8")
             log(f"临时慢放 进 {args.slow_enter}ms / 出 {args.slow_exit}ms，构建中…")
@@ -250,10 +309,13 @@ def main() -> int:
         ).stdout.strip() or "0"
         sh(serial, "input keyevent 224", check=False)  # KEYCODE_WAKEUP
         sh(serial, "svc power stayon true", check=False)
-        sh(serial, f"am force-stop {PACKAGE}", check=False)
-        sh(serial, f"monkey -p {PACKAGE} -c android.intent.category.LAUNCHER 1", check=False)
-        import time
-        time.sleep(2.5)
+        if args.launcher:
+            # 故意不按 HOME：图标可能不在默认主屏页，保持用户当前停放的桌面
+            time.sleep(0.8)
+        else:
+            sh(serial, f"am force-stop {PACKAGE}", check=False)
+            sh(serial, f"monkey -p {PACKAGE} -c android.intent.category.LAUNCHER 1", check=False)
+            time.sleep(2.5)
 
         # ---- 定位入口按钮 ----
         if args.tap:
@@ -264,7 +326,8 @@ def main() -> int:
 
         # ---- 录制时间线 ----
         sh(serial, f"rm -f {REMOTE_MP4}", check=False)
-        back = f"input keyevent 4; sleep {back_gap:.2f}" if not args.no_back else f"sleep {back_gap:.2f}"
+        back = (f"input keyevent {back_key}; sleep {back_gap:.2f}"
+                if not args.no_back else f"sleep {back_gap:.2f}")
         timeline = (
             f"screenrecord --time-limit {limit} --bit-rate 4000000 {REMOTE_MP4} & "
             f"sleep {args.lead:.2f}; input tap {x} {y}; sleep {hold:.2f}; {back}; wait"
@@ -325,6 +388,9 @@ def main() -> int:
             sh(serial, f"rm -f {REMOTE_MP4} {REMOTE_UI}", check=False)
         except Exception as e:
             log(f"设备设置还原异常：{e}")
+        if original_anim is not None:
+            restore_anim_scales(serial, original_anim)
+            log(f"已还原系统动画缩放 {original_anim}")
         # ---- 还原代码并重装正式包 ----
         if original_code is not None:
             try:

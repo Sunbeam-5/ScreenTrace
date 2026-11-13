@@ -49,10 +49,16 @@ python scripts/capture_anim.py
 # 看不清动画：双向慢放（临时改常量→构建→录→自动还原重装）
 python scripts/capture_anim.py --slow
 
+# 系统桌面原生动画参考：先把手机停在含目标图标的桌面页，按 HOME 返回桌面
+python scripts/capture_anim.py --launcher
+python scripts/capture_anim.py --launcher --slow   # 5x 系统动画缩放，自动还原
+
 # 多台设备 / 手动指定入口坐标 / 只录进入
 python scripts/capture_anim.py -s GAQOHMNFQWFUPBQO --name cr11_recheck
 python scripts/capture_anim.py --tap 1077,263 --no-back
 ```
+
+桌面模式不启动屏迹、不按 HOME 初始化（避免翻页丢失图标），返回默认用 HOME 键（键码 3），`--label` 可按图标描述改目标。实测 MIUI Launcher 的启动/返回动画不受 `window/transition/animator_animation_scale` 控制，`--slow` 在桌面模式效果有限；看原生过渡请直接看正常速度的 `enter.png` / `exit.png`。
 
 产物默认在 `C:/tmp/screentrace-capture/<名称>/`：`full.png`（全流程联系表）、`enter.png`、`exit.png`、`clip.mp4`、`raw.mp4`。脚本用 `uiautomator dump` 定位按钮（跨机型不写死坐标），并按录屏**真实时长**收敛抽帧窗口（`screenrecord` 静止段不写帧会导致末尾黑格）。
 
