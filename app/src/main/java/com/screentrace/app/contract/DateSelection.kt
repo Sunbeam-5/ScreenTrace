@@ -37,6 +37,15 @@ sealed interface DateSelection {
         fun lastDays(days: Int, now: LocalDate = LocalDate.now()): Range =
             Range.normalized(now.minusDays(days.toLong() - 1), now)
 
+        /**
+         * CR-14：本周（周一至周日的 ISO 周），供统计页日期弹层「本周」快捷项。
+         * 与「本月」同构：区间写满整周，未来无记录的天由统计语义自然处理为无记录。
+         */
+        fun thisWeek(now: LocalDate = LocalDate.now()): Range {
+            val monday = now.minusDays((now.dayOfWeek.value - 1).toLong())
+            return Range(monday, monday.plusDays(6))
+        }
+
         /** 自定义区间上限 366 个自然日（§5.6）。 */
         const val MAX_DAYS = 366
     }

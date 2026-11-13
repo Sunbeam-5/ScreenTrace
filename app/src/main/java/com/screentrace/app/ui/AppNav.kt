@@ -196,6 +196,9 @@ fun AppNav() {
     }
 
     var showDateSheet by rememberSaveable { mutableStateOf(false) }
+    // CR-14：弹层选项集按打开时的入口页裁剪（存 enum name，进程重建也能恢复）。
+    // 主页面顶栏打开时记当前主页面；二级页顶栏打开时强制回 FULL。
+    var dateSheetMode by rememberSaveable { mutableStateOf(DateSheetMode.FULL.name) }
     var showStyleSheet by rememberSaveable { mutableStateOf(false) }
     // 自定义主题取色器不存实例状态：进程重建后滑杆位置无所谓，种子本身已落 DataStore
     var showCustomThemeSheet by remember { mutableStateOf(false) }
@@ -357,7 +360,10 @@ fun AppNav() {
                                     selection
                                 }
                             ),
-                        onDateClick = { showDateSheet = true },
+                        onDateClick = {
+                            dateSheetMode = dateSheetModeFor(mainPage).name
+                            showDateSheet = true
+                        },
                         // CR-10：主页面顶栏三枚中的「主题」，与设置页共用同一个全局 StyleSheet
                         onStyleClick = { showStyleSheet = true },
                         onSettingsClick = viewModel::openSettings
@@ -515,7 +521,10 @@ fun AppNav() {
                                     subtitle = rankingState.data?.summary?.selection
                                         ?.let { selectionSubtitle(it) },
                                     onBack = viewModel::goBack,
-                                    onDateClick = { showDateSheet = true }
+                                    onDateClick = {
+                                        dateSheetMode = DateSheetMode.FULL.name
+                                        showDateSheet = true
+                                    }
                                 )
                                 is AppPage.Settings -> AppHeader(
                                     title = "设置",
@@ -536,7 +545,10 @@ fun AppNav() {
                                     title = "解锁详情",
                                     subtitle = null,
                                     onBack = viewModel::goBack,
-                                    onDateClick = { showDateSheet = true }
+                                    onDateClick = {
+                                        dateSheetMode = DateSheetMode.FULL.name
+                                        showDateSheet = true
+                                    }
                                 )
                                 is AppPage.Period -> AppHeader(
                                     title = "周期总结",
@@ -548,7 +560,10 @@ fun AppNav() {
                                     title = "通知详情",
                                     subtitle = null,
                                     onBack = viewModel::goBack,
-                                    onDateClick = { showDateSheet = true }
+                                    onDateClick = {
+                                        dateSheetMode = DateSheetMode.FULL.name
+                                        showDateSheet = true
+                                    }
                                 )
                             }
                         }
@@ -713,6 +728,7 @@ fun AppNav() {
         if (showDateSheet) {
             DateSheet(
                 current = selection,
+                mode = DateSheetMode.valueOf(dateSheetMode),
                 onApply = {
                     viewModel.applySelection(it)
                     showDateSheet = false

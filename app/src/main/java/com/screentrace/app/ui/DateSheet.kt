@@ -16,6 +16,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -77,6 +79,22 @@ import java.time.temporal.ChronoUnit
 
 private val DAY_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日")
 
+/**
+ * CR-14：日期弹层按入口页面裁剪选项。
+ * - [DAY]：今天 / 昨天 / 指定单日（今日页、日历页——单日页不给区间入口）；
+ * - [RANGE]：近 7 天 / 近 30 天 / 本周 / 本月 / 自定义区间（统计页）；
+ * - [FULL]：完整集合（排行、解锁详情、通知详情三个二级页）。
+ * 所有选项仍写入同一全局 `DateSelection`（§5.6）。
+ */
+enum class DateSheetMode { DAY, RANGE, FULL }
+
+/** 主页面入口 → 弹层模式；二级页（传 null 或非主页面）用完整集合。 */
+fun dateSheetModeFor(page: AppPage?): DateSheetMode = when (page) {
+    AppPage.Today, AppPage.Calendar -> DateSheetMode.DAY
+    AppPage.Stats -> DateSheetMode.RANGE
+    else -> DateSheetMode.FULL
+}
+
 /** M3 DatePicker 以 UTC 日界存取 millis（与设备本地自然日的换算集中在此）。 */
 private fun utcMillis(date: LocalDate): Long =
     date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -86,17 +104,21 @@ private fun localDate(millis: Long): LocalDate =
 
 /**
  * §5.5/§5.6 日期 Modal Bottom Sheet：28dp 顶圆角、拖动条、点内部不误关（M3 默认行为）。
- * 快捷项（今天/昨天/近 7 天/近 30 天/本月）点击即应用并关闭；指定单日 DatePicker、
- * 自定义区间 DateRangePicker（366 天上限拦截后禁用应用按钮）。
+ * CR-14：快捷项按 [mode] 裁剪——DAY 只留今天/昨天/指定单日（今日、日历页），
+ * RANGE 留近 7 天/近 30 天/本周/本月/自定义区间（统计页），FULL 为完整集合（二级页）。
+ * 快捷项点击即应用并关闭；指定单日 DatePicker、自定义区间 DateRangePicker
+ * （366 天上限拦截后禁用应用按钮）。
  * ModalBottomSheet / DatePicker / DateRangePicker 在 BOM 2024.06.00 下为实验 API，
  * 按 S04 决议接受 @OptIn、不为此升级 BOM。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DateSheet(
     current: DateSelection,
     onApply: (DateSelection) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** CR-14：按入口页裁剪的选项集，默认完整集合（二级页调用方不感知）。 */
+    mode: DateSheetMode = DateSheetMode.FULL
 ) {
     val palette = LocalFreshPalette.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -146,61 +168,107 @@ fun DateSheet(
         ) {
             Text(text = "选择日期", style = FreshType.sectionTitle, color = palette.onSurface)
 
-            // 快捷项：点击即应用并关闭（§5.6）
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                QuickChip("今天") { onApply(DateSelection.today()) }
-                QuickChip("昨天") { onApply(DateSelection.Day(LocalDate.now().minusDays(1))) }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                QuickChip("近 7 天") { onApply(DateSelection.lastDays(7)) }
-                QuickChip("近 30 天") { onApply(DateSelection.lastDays(30)) }
-                QuickChip("本月") {
-                    val today = LocalDate.now()
-                    onApply(
-                        DateSelection.Range(
-                            YearMonth.from(today).atDay(1),
-                            YearMonth.from(today).atEndOfMonth()
-                        )
-                    )
-                }
-            }
-
-            SegmentedControl(items = listOf("指定单日", "自定义区间"), selectedIndex = tab, onSelect = { tab = it })
-
-            // 指定单日 ↔ 自定义区间：滑动+淡入淡出切换（真机反馈 #3「过渡不丝滑」）。
-            // 直接 if/else 换内容会瞬间整块替换，高度还突跳；AnimatedContent 会连
-            // 容器高度一起动画，两个面板高度不同也不会跳。
-            AnimatedContent(
-                targetState = tab,
-                transitionSpec = {
-                    val forward = targetState > initialState
-                    (
-                        slideInHorizontally(tween(200, easing = FastOutSlowInEasing)) { w ->
-                            if (forward) w / 4 else -w / 4
-                        } + fadeIn(tween(160))
-                    ).togetherWith(
-                        slideOutHorizontally(tween(160)) { w ->
-                            if (forward) -w / 4 else w / 4
-                        } + fadeOut(tween(120))
-                    )
-                },
-                label = "pickerMode"
-            ) { t ->
-                // **单插槽容器必须包 Column**：AnimatedContent 内部是一个 Box，而两个
-                // Picker 各有 2~4 个并列根节点（输入框 / 日历 / 错误文案 / 应用按钮），
-                // 直接放进去会全部叠在 top-start —— 真机上表现为「应用按钮压在日历上、
-                // 输入框只剩两条边」。TodayContent / StatsContent 已各踩过一次，这是第三次。
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (t == 0) {
+            // 快捷项：点击即应用并关闭（§5.6；CR-14 按入口页裁剪选项集）
+            when (mode) {
+                DateSheetMode.DAY -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        QuickChip("今天") { onApply(DateSelection.today()) }
+                        QuickChip("昨天") { onApply(DateSelection.Day(LocalDate.now().minusDays(1))) }
+                    }
+                    Text(text = "指定单日", style = FreshType.sectionTitle, color = palette.onSurface)
+                    // **单插槽容器必须包 Column**：两个 Picker 各有 2~4 个并列根节点
+                    // （输入框 / 日历 / 错误文案 / 应用按钮），直接放进去会全部叠在
+                    // top-start（TodayContent / StatsContent 已各踩过一次，这是第三次）。
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SingleDayPicker(current = current, onApply = onApply)
-                    } else {
+                    }
+                }
+
+                DateSheetMode.RANGE -> {
+                    // 4 个 chip 一行放不下（360dp 屏），FlowRow 自动换行
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        QuickChip("近 7 天") { onApply(DateSelection.lastDays(7)) }
+                        QuickChip("近 30 天") { onApply(DateSelection.lastDays(30)) }
+                        QuickChip("本周") { onApply(DateSelection.thisWeek()) }
+                        QuickChip("本月") {
+                            val today = LocalDate.now()
+                            onApply(
+                                DateSelection.Range(
+                                    YearMonth.from(today).atDay(1),
+                                    YearMonth.from(today).atEndOfMonth()
+                                )
+                            )
+                        }
+                    }
+                    Text(text = "自定义区间", style = FreshType.sectionTitle, color = palette.onSurface)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         RangePicker(onApply = onApply)
+                    }
+                }
+
+                DateSheetMode.FULL -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        QuickChip("今天") { onApply(DateSelection.today()) }
+                        QuickChip("昨天") { onApply(DateSelection.Day(LocalDate.now().minusDays(1))) }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        QuickChip("近 7 天") { onApply(DateSelection.lastDays(7)) }
+                        QuickChip("近 30 天") { onApply(DateSelection.lastDays(30)) }
+                        QuickChip("本月") {
+                            val today = LocalDate.now()
+                            onApply(
+                                DateSelection.Range(
+                                    YearMonth.from(today).atDay(1),
+                                    YearMonth.from(today).atEndOfMonth()
+                                )
+                            )
+                        }
+                    }
+
+                    SegmentedControl(items = listOf("指定单日", "自定义区间"), selectedIndex = tab, onSelect = { tab = it })
+
+                    // 指定单日 ↔ 自定义区间：滑动+淡入淡出切换（真机反馈 #3「过渡不丝滑」）。
+                    // 直接 if/else 换内容会瞬间整块替换，高度还突跳；AnimatedContent 会连
+                    // 容器高度一起动画，两个面板高度不同也不会跳。
+                    AnimatedContent(
+                        targetState = tab,
+                        transitionSpec = {
+                            val forward = targetState > initialState
+                            (
+                                slideInHorizontally(tween(200, easing = FastOutSlowInEasing)) { w ->
+                                    if (forward) w / 4 else -w / 4
+                                } + fadeIn(tween(160))
+                            ).togetherWith(
+                                slideOutHorizontally(tween(160)) { w ->
+                                    if (forward) -w / 4 else w / 4
+                                } + fadeOut(tween(120))
+                            )
+                        },
+                        label = "pickerMode"
+                    ) { t ->
+                        // **单插槽容器必须包 Column**：AnimatedContent 内部是一个 Box，而两个
+                        // Picker 各有 2~4 个并列根节点（输入框 / 日历 / 错误文案 / 应用按钮），
+                        // 直接放进去会全部叠在 top-start —— 真机上表现为「应用按钮压在日历上、
+                        // 输入框只剩两条边」。TodayContent / StatsContent 已各踩过一次，这是第三次。
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (t == 0) {
+                                SingleDayPicker(current = current, onApply = onApply)
+                            } else {
+                                RangePicker(onApply = onApply)
+                            }
+                        }
                     }
                 }
             }
