@@ -375,16 +375,18 @@ private fun DateInputField(
 ) {
     val palette = LocalFreshPalette.current
     Column(modifier = modifier) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            label = { Text(label, style = FreshType.label) },
-            placeholder = { Text("2026-11-11", style = FreshType.label) },
-            singleLine = true,
-            isError = error.isNotEmpty(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, style = FreshType.label) },
+        placeholder = { Text("2026-11-11", style = FreshType.label) },
+        singleLine = true,
+        isError = error.isNotEmpty(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        // CR-09 验收 41：显示层自动补 `-`，真实文本保持数字流（改字段文本会光标错位）
+        visualTransformation = DateInput.mask,
+        modifier = Modifier.fillMaxWidth()
+    )
         if (error.isNotEmpty()) {
             Text(
                 text = error,

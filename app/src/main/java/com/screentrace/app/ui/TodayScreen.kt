@@ -103,6 +103,13 @@ private fun TodayContent(
     val single = data.summary.selection is DateSelection.Day
     val usageMin =
         if (single) data.summary.totalScreenUnlockMin else data.summary.averageScreenUnlockMin
+    // CR-09 验收 40：caption 写实际显示日（今天才叫「今日亮屏」，昨天写「11月12日亮屏」）
+    val displayDate = (data.summary.selection as? DateSelection.Day)?.date
+    val caption = when {
+        !single -> "日均亮屏"
+        displayDate == java.time.LocalDate.now() -> "今日亮屏"
+        else -> "${displayDate?.monthValue}月${displayDate?.dayOfMonth}日亮屏"
+    }
 
     // ① hero 圆环卡
     FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -112,7 +119,7 @@ private fun TodayContent(
             progress = if (dailyGoalMin > 0) usageMin.toFloat() / dailyGoalMin else 0f,
             usageMinutes = usageMin,
             goalMinutes = dailyGoalMin,
-            caption = if (single) "今日亮屏" else "日均亮屏"
+            caption = caption
         )
         // 标签行（§5.7-4）：「超出目标」仅超目标出现；对比标签无数据时整行不显示
         val overMinutes = (usageMin - dailyGoalMin).coerceAtLeast(0)

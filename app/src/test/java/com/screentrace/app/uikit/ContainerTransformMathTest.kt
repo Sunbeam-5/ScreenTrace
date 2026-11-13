@@ -97,4 +97,29 @@ class ContainerTransformMathTest {
         assertEquals(969f, ContainerTransformMath.offset(969f, -0.5f), eps)
         assertEquals(0f, ContainerTransformMath.offset(969f, 2f), eps)
     }
+
+    // ---- CR-09 验收 42：退出两段式（快出缓收） ----
+
+    @Test
+    fun `退出重映射两端归位且单调不减`() {
+        assertEquals(0f, ContainerTransformMath.exitProgress(0f), eps)
+        assertEquals(1f, ContainerTransformMath.exitProgress(1f), eps)
+        var prev = -1f
+        for (i in 0..100) {
+            val p = ContainerTransformMath.exitProgress(i / 100f)
+            assertTrue("i=$i 处退出重映射出现回退：$prev -> $p", p >= prev - eps)
+            prev = p
+        }
+    }
+
+    @Test
+    fun `退出前半程比线性更快——页面先缩到约半屏`() {
+        // 线性时 progress=0.5 → mapped=0.5；重映射后 0.5^1.6 ≈ 0.33
+        // mapped 更小 = 页面更接近入口矩形（缩得更多），即「先缩到约半屏再缓缓收」
+        val half = ContainerTransformMath.exitProgress(0.5f)
+        assertTrue("0.5 处应小于线性：$half", half < 0.5f && half > 0.2f)
+        // progress=0.9（退出刚开始 10%）时应已明显缩小
+        val early = ContainerTransformMath.exitProgress(0.9f)
+        assertTrue("退出初期应快于线性：$early", early < 0.9f && early > 0.7f)
+    }
 }

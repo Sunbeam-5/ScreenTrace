@@ -122,3 +122,19 @@
 - 真机（`GAQOHMNFQWFUPBQO`）截图 + `uiautomator dump`：副标题「已记录 4 天」、连续记录卡、月视图独立方块（11/10–12 深档白字）、今天 13 白底主色环、图例「少[四块]多 + ○ 今天」、双卡「23小时22分 · 11月11日 周三 / 低于 2 小时 1 天 · 共 4 个有记录日」全部正确；翻 12 月空月渲染正常（补位灰、不着色）；年视图无回归（20 周完整居中）。
 
 **登记待办（不属本步）**：需求 §5.7 第 4 条说年视图色阶按**可配阈值 x**，但 `UsageCalculator.yearLevel` 仍写死 120/240/360（CR-05 遗留）；跟随 x 需改 contract 仓储接口链，超出 VI 边界，已登记文档地图冲突区待裁决。深色模式巡检仍归 Step 9。
+
+---
+
+## 9. CR-09 四项体验整改（2026-11-13）
+
+**背景**：负责人提出四项——①首页指定单日不生效；②区间手输不自动填充；③二级页转场达不到「回到桌面」效果且退场中点屏会飘；④数字滚动僵硬。调研结论：转场官方现成方案 `SharedTransitionLayout` 需 Compose 1.7（BOM 2024.09+），与 S04「不为实验 API 升级 BOM」决议冲突，继续自研；数字滚动现成库均需 JitPack 运行时依赖，与「不添加运行时依赖」红线冲突，自实现。
+
+**改动**：
+- **①首页单日（需求 §5.6 三处 + 验收 40 先行同步）**：`AppViewModel.loadAll` 的 `todaySelection` 改为「单日筛选跟随该单日，区间筛选锚定今天」（CR-03 量纲冲突只在区间下成立）；`TodayScreen` 圆环 caption 写实际显示日（非今天时「11月12日亮屏」）；`AppNav` 今日页副标题单日筛选时跟随该单日。真机验证：点「昨天」→ 首页 22:27 亮屏、副标题「11月12日」、超出目标 18小时27分钟 全部正确。
+- **②手输日期显示掩码（验收 41）**：踩坑实录——先做「onValueChange 里改写文本」的 autoFormat，真机上 `12345678` 被显示成 `1234-67-85`：格式化后的文本回灌导致**光标位置与重排文本错位**，后续输入插错位置。重写为 **VisualTransformation 显示掩码**（`DateInput.mask`）：字段真实文本保持数字流、展示层自动补 `-`、OffsetMapping 处理光标映射；`parse/normalize` 兼容 8 位纯数字；日历回填改写数字流（`format` 两位补零）；中间态（<8 位数字）不再报错。新增 `DateInputTest` 7 例（normalize/parse/maskDigits/format 往返/中间态）。真机验证：`20261113` 显示 `2026-11-13`，双框填 11-13/11-28 正确，倒序区间被正确拦截。
+- **③转场（验收 42）**：修复「退场动画中点屏幕页面飘到点击点」——根因是退场刚开始 `detailPage==null` 就恢复了起点记录，用户一按就把 `origin` 改到点击点；加 `ContainerTransformState.acceptingCaptures`，`ContainerTransformOverlay` 每帧同步（退场中禁止记录），`transformSource`/`recordTransformOrigin` 两个捕获入口都加门控。关闭动画改两段式：`exitProgress = p^1.6`（快出缓收）重映射缩放/位移/圆角——页面先快速缩到约半屏、内容淡出成「图标」状，再缓缓收进入口矩形。新增 `ContainerTransformMathTest` 2 例（重映射两端归位单调、前半程快于线性）。
+- **④数字滚动（验收 42）**：新增 `uikit/RollingNumber.kt`——`RollingNumberText` 逐字符 AnimatedContent 里程表滚动（数值增大向上滚、减小向下滚、非数字交叉淡入），`RollingNumberMath.rollDirection` 纯函数 + 4 例测试；`RingProgress` 中心 H:MM 弃用 `animateIntAsState`（中间值是假读数、所有字符每帧都在变）改接逐位滚动。
+
+**验证**：310 例 / 0 失败（新增 13 例：DateInput 7 + ContainerTransform 2 + RollingNumber 4）。真机已验：①②④（昨天单日、掩码输入、逐位滚动节点）。**未验**：③的录屏观感与「退场中点屏不飘」（验证中途设备被转用），待设备空闲补验。
+
+**已知取舍**：显示掩码约定「字段文本永远不含 `-`」（回填已改数字流）；一位数月/日需补 0（`20260105`，标准掩码行为）；删除掩码分隔符会删除前一位数字（VisualTransformation 标准行为）。

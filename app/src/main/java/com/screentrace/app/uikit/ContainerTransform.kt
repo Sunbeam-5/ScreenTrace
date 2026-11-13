@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.screentrace.app.theme.LocalFreshPalette
 import androidx.compose.ui.util.lerp
+import kotlin.math.pow
 
 /**
  * §5.5 / §7-22：二级页的**容器变换转场**（container transform）。
@@ -71,6 +73,16 @@ class ContainerTransformState {
     /** 入口矩形自身的圆角（px）：起点用它，终点归零。 */
     var originCornerPx by mutableStateOf(0f)
         private set
+
+    /**
+     * CR-09 验收 42：主页面层是否允许记录新的转场起点。
+     *
+     * 退出动画进行中（visible=false 但 progress 还没收到 0）必须是 false——否则
+     * 用户在退场动画里点一下屏幕，起点被改到点击处，正在缩回去的二级页会**飘到
+     * 点击点**（真机反馈）。由 [ContainerTransformOverlay] 每帧同步；覆盖层尚未
+     * 组合过（首次启动）时默认 true。
+     */
+    var acceptingCaptures by mutableStateOf(true)
 
     /** 兜底：只知道按下点（入口没有上报自身矩形）时，以点为心取一个方框。 */
     fun record(point: Offset, sizePx: Float) {
@@ -131,6 +143,7 @@ fun Modifier.transformSource(cornerRadius: Dp = 24.dp): Modifier {
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
+                        if (!target.acceptingCaptures) continue
                         val change = event.changes.firstOrNull() ?: continue
                         if (change.pressed && !change.previousPressed) {
                             target.recordRect(bounds, cornerPx)
@@ -160,7 +173,7 @@ fun Modifier.recordTransformOrigin(
         awaitPointerEventScope {
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
-                if (!currentEnabled) continue
+                if (!currentEnabled || !state.acceptingCaptures) continue
                 val change = event.changes.firstOrNull() ?: continue
                 // 只认「按下的那一帧」，否则拖动过程中会反复覆盖起点
                 if (change.pressed && !change.previousPressed) {
@@ -194,6 +207,11 @@ fun ContainerTransformOverlay(
         ),
         label = "containerTransform"
     )
+
+    // CR-09 验收 42：每帧同步「主页面能否记录新起点」——退场动画中禁止（否则
+    // 点一下屏幕页面就飘到点击点），完全收起后恢复。放在提前 return **之前**，
+    // 否则最后一帧（progress 归零）不会执行。
+    SideEffect { state.acceptingCaptures = !(visible || progress > 0.001f) }
 
     // 完全收起后不再绘制，节点随之移除（下次进入重建二级页，符合预期）
     if (!visible && progress <= 0.001f) return
@@ -229,21 +247,27 @@ fun ContainerTransformOverlay(
 
         // 线性插值到全屏。起点就是入口控件本身（卡片/按钮还在下面），所以收尾缩回去时
         // 正好"融回"那个控件，不需要额外缩到一个点。
-        val scaleX = if (reduceMotion) 1f else ContainerTransformMath.scale(startScaleX, progress)
-        val scaleY = if (reduceMotion) 1f else ContainerTransformMath.scale(startScaleY, progress)
-        val dx = if (reduceMotion) 0f else ContainerTransformMath.offset(startX, progress)
-        val dy = if (reduceMotion) 0f else ContainerTransformMath.offset(startY, progress)
+        // CR-09 验收 42：退出改**两段式**——先快速缩到约半屏（内容同步淡出成"图标"状），
+        // 再缓缓收进入口矩形。exitProgress 重映射实现快出缓收；开启时保持线性。
+        val mapped = if (reduceMotion) progress else {
+            if (visible) progress else ContainerTransformMath.exitProgress(progress)
+        }
+        val scaleX = if (reduceMotion) 1f else ContainerTransformMath.scale(startScaleX, mapped)
+        val scaleY = if (reduceMotion) 1f else ContainerTransformMath.scale(startScaleY, mapped)
+        val dx = if (reduceMotion) 0f else ContainerTransformMath.offset(startX, mapped)
+        val dy = if (reduceMotion) 0f else ContainerTransformMath.offset(startY, mapped)
         val cornerDp = if (reduceMotion) 0f else {
-            val px = ContainerTransformMath.offset(startCornerPx, progress)
+            val px = ContainerTransformMath.offset(startCornerPx, mapped)
             with(density) { px.toDp().value }
         }
         // 前半段只画不透明底板（一块放大的圆角色块，观感等同"图标正在变大"），
         // 内容到后半段才淡入——这正是系统启动动画的节奏：先把图标放大到接近全屏，
         // 再让真实界面浮现。全程不做整页半透明，因此不会透出下层形成叠影。
+        // 退出时 mapped 下降更快 → 内容更早消失（页面还没缩到底就已经"变回图标"）。
         val contentAlpha = if (reduceMotion) {
             progress
         } else {
-            ContainerTransformMath.contentAlpha(progress)
+            ContainerTransformMath.contentAlpha(mapped)
         }
 
         Box(
@@ -296,6 +320,17 @@ internal object ContainerTransformMath {
     /** 缩放：入口尺寸 → 1（全屏）。 */
     fun scale(startScale: Float, progress: Float): Float =
         lerp(startScale.coerceIn(MIN_START_SCALE, 1f), 1f, progress.coerceIn(0f, 1f))
+
+    /**
+     * CR-09 验收 42：退出进度重映射 `p^1.6`（快出缓收）。
+     * f(1)=1、f(0)=0、单调不减：退出前半程 mapped 掉得快（页面迅速缩到约半屏、
+     * 内容先淡出），尾段放缓收进入口矩形，像系统「回到桌面」的节奏。
+     */
+    fun exitProgress(progress: Float): Float =
+        progress.coerceIn(0f, 1f).pow(EXIT_EXPONENT)
+
+    /** 退出重映射指数：>1 则前半程快、尾段缓。 */
+    internal const val EXIT_EXPONENT = 1.6f
 
     /** 位移：入口位置 → 0。终点必须是 0，否则页面边缘会露出下层的缝。 */
     fun offset(startOffset: Float, progress: Float): Float =

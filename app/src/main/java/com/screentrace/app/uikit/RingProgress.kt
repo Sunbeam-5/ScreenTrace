@@ -2,7 +2,6 @@ package com.screentrace.app.uikit
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -53,17 +52,14 @@ fun RingProgress(
     val hasGoal = goalMinutes > 0
     val clamped = RingMath.clampProgress(progress)
 
-    // 单一动画值驱动两圈与数字（§6.1）：0→progress 一次，不循环
+    // 单一动画值驱动两圈（§6.1）：0→progress 一次，不循环。
+    // CR-09 验收 42：中心数字不再用 animateIntAsState（中间值是假读数、所有字符
+    // 每帧都在变）——改 [RollingNumberText] 逐位滚动，直接滚到终值。
     val animated = remember { Animatable(0f) }
     LaunchedEffect(clamped) {
         if (reduceMotion) animated.snapTo(clamped)
         else animated.animateTo(clamped, tween(900, easing = FastOutSlowInEasing))
     }
-    val animatedMinutes by animateIntAsState(
-        targetValue = usageMinutes,
-        animationSpec = if (reduceMotion) tween(0) else tween(900, easing = FastOutSlowInEasing),
-        label = "ringMinutes"
-    )
 
     Box(
         modifier = modifier.size(184.dp),
@@ -108,8 +104,8 @@ fun RingProgress(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text = caption, style = FreshType.label, color = palette.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
-            Text(
-                text = UsageCalculator.formatClock(animatedMinutes),
+            RollingNumberText(
+                text = UsageCalculator.formatClock(usageMinutes),
                 style = FreshType.heroNumber,
                 color = palette.onSurface,
                 maxLines = 1

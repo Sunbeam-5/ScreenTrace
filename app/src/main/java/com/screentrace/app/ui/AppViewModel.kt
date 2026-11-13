@@ -931,11 +931,11 @@ class AppViewModel(
                 val previous = repository.summary(UsageCalculator.previousPeriod(selection))
                 val compare = UsageCalculator.compare(summary, previous, single)
 
-                // ---- 「今日」页与两个下钻详情页**锚定今天**（§5.6 修订，真机反馈）----
-                // 它叫「今日」，却跟随全局筛选显示近 7 天：圆环是**日均**、应用构成是**累计**，
-                // 两套量纲叠在一张卡上永远对不上（用户对照 MIUI：8h27+4h36+28m ≠ 11h09）。
-                // 现在今日页只呈现今天（量纲单一，可与系统对账），统计/日历仍跟随筛选。
-                val todaySelection = DateSelection.today()
+                // ---- 「今日」页与两个下钻详情页**显示单日**（CR-09 扩展 CR-03 修订）----
+                // 全局筛选为单日时跟随该单日（如「昨天」：单日数据与今日页量纲一致——
+                // 圆环=当日亮屏、应用构成=当日构成、明细=当日明细）；筛选为区间时仍锚定
+                // 今天（CR-03 的量纲冲突只在区间下成立：圆环是日均、构成是累计，永远对不上）。
+                val todaySelection = if (single) selection else DateSelection.today()
                 val todayIsSelection = todaySelection == selection
                 val todaySummary =
                     if (todayIsSelection) summary else repository.summary(todaySelection)
