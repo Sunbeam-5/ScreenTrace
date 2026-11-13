@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -141,7 +142,11 @@ private fun StyleSwatch(
                     if (custom) {
                         Brush.linearGradient(listOf(palette.chart1, palette.chart3, palette.chart5))
                     } else {
-                        Brush.linearGradient(listOf(seed ?: palette.primary))
+                        // 预设格是「主色实心圆」。这里原来写的是
+                        // Brush.linearGradient(listOf(seed))——单色渐变在 Compose 会抛
+                        // "colors must have length of at least 2"，导致一打开主题弹层就崩
+                        // （真机 11:41 复现，设置页入口同样受影响）。用 SolidColor 才符合规格。
+                        SolidColor(seed ?: palette.primary)
                     }
                 )
         )
