@@ -43,6 +43,7 @@ import com.screentrace.app.uikit.MetricValueText
 import com.screentrace.app.uikit.PeriodDistribution
 import com.screentrace.app.uikit.TrendChartMath
 import com.screentrace.app.uikit.shouldShowCompare
+import com.screentrace.app.uikit.transformSource
 import com.screentrace.app.uikit.SegmentedControl
 import java.time.LocalDate
 
@@ -253,6 +254,7 @@ private fun PeriodEntryCard(onOpenPeriod: (PeriodType) -> Unit) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .transformSource(cornerRadius = 16.dp, containerColor = palette.surface)
                     .clickable { onOpenPeriod(type) }
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,

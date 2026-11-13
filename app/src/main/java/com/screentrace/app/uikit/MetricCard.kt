@@ -106,7 +106,7 @@ fun MetricCard(
             .heightIn(min = minH)
             // 容器变换起点：整卡的矩形与圆角（§5.5）。只在主页面层生效力，
             // 覆盖层里 CompositionLocal 为 null 时这个修饰符是空操作。
-            .transformSource(cornerRadius = 24.dp)
+            .transformSource(cornerRadius = 24.dp, containerColor = background)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale

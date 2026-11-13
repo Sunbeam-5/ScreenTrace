@@ -1,13 +1,13 @@
 package com.screentrace.app.uikit
 
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
@@ -17,37 +17,62 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp as lerpColor
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import com.screentrace.app.theme.LocalFreshPalette
 import androidx.compose.ui.util.lerp
-import kotlin.math.pow
+import com.screentrace.app.theme.LocalFreshPalette
 
 /**
  * §5.5 / §7-22：二级页的**容器变换转场**（container transform）。
  *
- * ### 为什么不做「从右滑入」
+ * ### 想要的观感（真机反馈原话）
  *
- * 真机反馈原话是「返回上一级退出动画要像打开 app 退出 app 一样，app 展开，app 回到原处」。
- * 系统 App 启动动画的观感是：入口图标先出现在它自己的位置，然后**放大到全屏**；退出时反向
- * 缩回图标处。横向 push/pop 是完全另一种隐喻（并列层级），跟"从卡片里长出来"不是一回事。
+ * 「点击设置，设置图标开始放大，放大到一半左右开始变为设置内容，然后持续放大到全屏；
+ * 返回时先缩小到差不多一半变回设置图标，继续缩小回到原位置」——就是系统打开 / 退出 App
+ * 的那套动画。分三层实现：
+ *
+ * 1. **底板**：入口控件自己的底色（[ContainerTransformState.originColor]），形状与入口一致
+ *    （圆形按钮就是圆形），从入口矩形放大到全屏；放大过程中底色渐变为页面背景色。
+ * 2. **图标**：入口控件上的图标（[ContainerTransformState.originIcon]），跟着底板等比放大，
+ *    在中段淡出——这就是「图标在变大」的那部分观感。
+ * 3. **内容**：二级页本体，在中段淡入。内容**等比**缩放（不压扁文字），超出底板的部分被裁掉。
+ *
+ * ### 上一版为什么「闪一帧、没有效果」（务必不要改回去）
+ *
+ * - 底板曾经直接用页面背景色：放大中的「图标」与页面同色，前半段什么都看不见，
+ *   观感就是「一片空白缩小，然后图标突然冒出来」。
+ * - 底板第 0 帧就是**不透明**的，立刻盖住入口控件；退出收尾时节点一移除，被盖住的控件
+ *   又「弹」出来——这就是闪的那一帧。现在底板不透明度从 0 渐入（[ContainerTransformMath.plateAlpha]），
+ *   起止两端露出的是入口控件本身，没有跳变。
+ * - 圆角写在 `graphicsLayer` 里是**缩放之前**的局部坐标，被 X / Y 非等比缩放后会压扁，
+ *   圆形按钮起步时变成近似方块。现在用 [ScaledCornerShape] 按缩放反算半径，屏幕上始终是正圆角。
+ * - 退出时「内容→图标」的切换窗口只有约 48ms（不到 3 帧）。现在缓动改为 LinearOutSlowIn
+ *   （起步无延迟、切换窗口更宽），退出时长也比进入长一点。
  *
  * ### 关键约束：全程不透明
  *
  * 批 6g 二轮已经踩过一次：覆盖层做半透明淡出时，**底下的主页面会透出来**，两层叠在一起
- * 就是用户说的「视觉残留」。所以这里 alpha 恒为 1（只有减少动画模式才用纯淡入），
- * 转场差异全部由**缩放 + 位移 + 圆角**表达。缩放过程中四周露出主页面是 container
- * transform 的正常观感（卡片放大盖住页面），不是叠影——因为上层始终是实心的。
+ * 就是用户说的「视觉残留」。底板只在**入口矩形附近**（进度 < [PLATE_FADE_END]）渐入渐出，
+ * 那里下面就是入口控件本身，透出来的不是主页面；之后一直不透明。
  *
  * ### 首帧不能靠 LaunchedEffect
  *
@@ -57,11 +82,10 @@ import kotlin.math.pow
  *
  * ### 几何
  *
- * 起点 = 入口矩形（点击点 + 典型卡片尺寸）；缩略图**内接**于该矩形并中心对齐，
- * 所以视觉上像"从这块地方长出来"。progress 从 0→1 时：
- * - scale：`startScale → 1`
+ * 起点 = 入口矩形（控件自己上报的 `boundsInWindow`）。progress 从 0→1 时：
+ * - scale：`startScale → 1`（X / Y 独立）
  * - translation：`起点偏移 → 0`（保证终点严丝合缝铺满）
- * - 圆角：`28dp → 0`
+ * - 圆角：`入口圆角 → 0`
  */
 @Stable
 class ContainerTransformState {
@@ -72,6 +96,21 @@ class ContainerTransformState {
 
     /** 入口矩形自身的圆角（px）：起点用它，终点归零。 */
     var originCornerPx by mutableStateOf(0f)
+        private set
+
+    /**
+     * 入口控件自己的底色。[Color.Unspecified] = 不知道（兜底按钮 / 没有上报），
+     * 覆盖层退回调色板的 `surface`。
+     */
+    var originColor by mutableStateOf(Color.Unspecified)
+        private set
+
+    /**
+     * 入口控件上的图标（可为空：卡片、文字按钮没有「图标」，只放大底板）。
+     * 覆盖层在放大过程中用它的布局尺寸 = 入口矩形尺寸重画一份，所以传进来的内容
+     * 要和控件上的图标**等价**（同一个 Icon / 同一个 Canvas）。
+     */
+    var originIcon by mutableStateOf<(@Composable () -> Unit)?>(null)
         private set
 
     /**
@@ -94,18 +133,30 @@ class ContainerTransformState {
             bottom = point.y + half
         )
         originCornerPx = half
+        // 兜底起点不知道底色与图标：必须清掉上一个入口留下的，否则会放大出错的图标
+        originColor = Color.Unspecified
+        originIcon = null
     }
 
-    /** 精确入口：被点击控件自己的矩形与圆角。 */
-    fun recordRect(bounds: Rect, cornerPx: Float) {
+    /** 精确入口：被点击控件自己的矩形、圆角、底色与图标。 */
+    fun recordRect(
+        bounds: Rect,
+        cornerPx: Float,
+        color: Color = Color.Unspecified,
+        icon: (@Composable () -> Unit)? = null
+    ) {
         if (bounds.width <= 0f || bounds.height <= 0f) return
         origin = bounds
         originCornerPx = cornerPx
+        originColor = color
+        originIcon = icon
     }
 
     fun clear() {
         origin = null
         originCornerPx = 0f
+        originColor = Color.Unspecified
+        originIcon = null
     }
 }
 
@@ -127,26 +178,48 @@ val LocalContainerTransformState = staticCompositionLocalOf<ContainerTransformSt
  * 事件用 [PointerEventPass.Initial]**只读不消费**：既不影响控件的 clickable/ripple，
  * 也不影响 Pager 横滑。父容器（[Modifier.recordTransformOrigin]）会先记一个按下点兜底，
  * 这里随后用精确矩形覆盖它。
+ *
+ * @param cornerRadius 入口**可见形状**的圆角（圆形按钮 = 半径）。
+ * @param containerColor 入口控件的底色。放大的底板用它，起步时才和入口控件无缝衔接；
+ *   不传就退回调色板 `surface`。
+ * @param inset 点击区比可见形状大多少（每边）。例如 48dp 点击区里画了 40dp 圆，
+ *   传 4.dp，登记的矩形就是那个 40dp 圆，而不是 48dp 方框。
+ * @param icon 入口控件上的图标。放大时跟着底板一起变大再淡出；卡片 / 文字按钮不传。
  */
 @Composable
-fun Modifier.transformSource(cornerRadius: Dp = 24.dp): Modifier {
+fun Modifier.transformSource(
+    cornerRadius: Dp = 24.dp,
+    containerColor: Color = Color.Unspecified,
+    inset: Dp = 0.dp,
+    icon: (@Composable () -> Unit)? = null
+): Modifier {
     val state = LocalContainerTransformState.current
     var bounds by remember { mutableStateOf(Rect.Zero) }
-    val cornerPx = with(LocalDensity.current) { cornerRadius.toPx() }
+    val density = LocalDensity.current
+    val cornerPx = with(density) { cornerRadius.toPx() }
+    val insetPx = with(density) { inset.toPx() }
+    // 颜色与图标每次重组都可能是新实例；按下那一刻读最新值即可，不需要重启 pointerInput
+    val latestColor by rememberUpdatedState(containerColor)
+    val latestIcon by rememberUpdatedState(icon)
     val target = state
     return if (target == null) {
         this
     } else {
         this
             .onGloballyPositioned { bounds = it.boundsInWindow() }
-            .pointerInput(target, cornerPx) {
+            .pointerInput(target, cornerPx, insetPx) {
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         if (!target.acceptingCaptures) continue
                         val change = event.changes.firstOrNull() ?: continue
                         if (change.pressed && !change.previousPressed) {
-                            target.recordRect(bounds, cornerPx)
+                            target.recordRect(
+                                bounds = if (insetPx > 0f) bounds.deflate(insetPx) else bounds,
+                                cornerPx = cornerPx,
+                                color = latestColor,
+                                icon = latestIcon
+                            )
                         }
                     }
                 }
@@ -201,9 +274,17 @@ fun ContainerTransformOverlay(
     val progress by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
         animationSpec = tween(
-            // 减少动画：不缩放不位移，退化成短淡入（§5.5 降级要求）
-            durationMillis = if (reduceMotion) 120 else 320,
-            easing = FastOutSlowInEasing
+            // 减少动画：不缩放不位移，退化成短淡入（§5.5 降级要求）。
+            // 进入与退出分开定时长：退出起步无延迟、前半程很快，需要更长的收尾才不显仓促。
+            durationMillis = when {
+                reduceMotion -> 120
+                visible -> ContainerTransformMath.ENTER_DURATION_MS
+                else -> ContainerTransformMath.EXIT_DURATION_MS
+            },
+            // LinearOutSlowIn：起步即全速（返回键按下立刻有反馈）、尾段缓缓落位；
+            // 中段接近线性，「内容↔图标」的切换窗口才够宽。退出时同一条曲线反向取值 =
+            // 快出缓收，不再另做 p^1.6 重映射。
+            easing = LinearOutSlowInEasing
         ),
         label = "containerTransform"
     )
@@ -217,96 +298,162 @@ fun ContainerTransformOverlay(
     if (!visible && progress <= 0.001f) return
 
     val palette = LocalFreshPalette.current
+    val density = LocalDensity.current
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val width = constraints.maxWidth.toFloat()
         val height = constraints.maxHeight.toFloat()
         val origin = state.origin
-        val density = LocalDensity.current
-        val startCornerPx = state.originCornerPx
 
-        val startScaleX: Float
-        val startScaleY: Float
-        val startX: Float
-        val startY: Float
+        // 入口矩形（窗口坐标）
+        val originLeft: Float
+        val originTop: Float
+        val originW: Float
+        val originH: Float
         if (origin != null && origin.width > 0f && origin.height > 0f) {
-            // **X / Y 独立缩放**，不是等比：卡片是 1.6:1、屏幕是 1:2.2，等比内接会让
-            // 缩略图变成一条窄条，看起来像"从卡片中间挤出来"而不是"卡片展开"。
-            // 与系统 shared element（ChangeTransform）一样按轴分别插值。
-            startScaleX = (origin.width / width).coerceIn(MIN_START_SCALE, 1f)
-            startScaleY = (origin.height / height).coerceIn(MIN_START_SCALE, 1f)
-            // 左上角对齐：起点矩形左上角就是入口控件左上角
-            startX = origin.left
-            startY = origin.top
+            originLeft = origin.left
+            originTop = origin.top
+            originW = origin.width
+            originH = origin.height
         } else {
             // 没有记录到入口（例如深链直达二级页）：居中小幅放大兜底
-            startScaleX = FALLBACK_START_SCALE
-            startScaleY = FALLBACK_START_SCALE
-            startX = (width - width * startScaleX) / 2f
-            startY = (height - height * startScaleY) / 2f
+            originW = width * FALLBACK_START_SCALE
+            originH = height * FALLBACK_START_SCALE
+            originLeft = (width - originW) / 2f
+            originTop = (height - originH) / 2f
         }
 
-        // 线性插值到全屏。起点就是入口控件本身（卡片/按钮还在下面），所以收尾缩回去时
-        // 正好"融回"那个控件，不需要额外缩到一个点。
-        // CR-09 验收 42：退出改**两段式**——先快速缩到约半屏（内容同步淡出成"图标"状），
-        // 再缓缓收进入口矩形。exitProgress 重映射实现快出缓收；开启时保持线性。
-        val mapped = if (reduceMotion) progress else {
-            if (visible) progress else ContainerTransformMath.exitProgress(progress)
-        }
-        val scaleX = if (reduceMotion) 1f else ContainerTransformMath.scale(startScaleX, mapped)
-        val scaleY = if (reduceMotion) 1f else ContainerTransformMath.scale(startScaleY, mapped)
-        val dx = if (reduceMotion) 0f else ContainerTransformMath.offset(startX, mapped)
-        val dy = if (reduceMotion) 0f else ContainerTransformMath.offset(startY, mapped)
-        val cornerDp = if (reduceMotion) 0f else {
-            val px = ContainerTransformMath.offset(startCornerPx, mapped)
-            with(density) { px.toDp().value }
-        }
-        // 前半段只画不透明底板（一块放大的圆角色块，观感等同"图标正在变大"），
-        // 内容到后半段才淡入——这正是系统启动动画的节奏：先把图标放大到接近全屏，
-        // 再让真实界面浮现。全程不做整页半透明，因此不会透出下层形成叠影。
-        // 退出时 mapped 下降更快 → 内容更早消失（页面还没缩到底就已经"变回图标"）。
-        val contentAlpha = if (reduceMotion) {
-            progress
+        // 进度：进入退出同一条 `progress`（0 = 入口矩形，1 = 全屏）
+        val p = progress
+
+        // **X / Y 独立缩放**，不是等比：卡片是 1.6:1、屏幕是 1:2.2，等比内接会让
+        // 缩略图变成一条窄条，看起来像"从卡片中间挤出来"而不是"卡片展开"。
+        // 与系统 shared element（ChangeTransform）一样按轴分别插值。
+        val sx = if (reduceMotion) 1f else ContainerTransformMath.scale(originW / width, p)
+        val sy = if (reduceMotion) 1f else ContainerTransformMath.scale(originH / height, p)
+        // 左上角对齐：起点矩形左上角就是入口控件左上角
+        val dx = if (reduceMotion) 0f else ContainerTransformMath.offset(originLeft, p)
+        val dy = if (reduceMotion) 0f else ContainerTransformMath.offset(originTop, p)
+        val cornerPx = if (reduceMotion) 0f else ContainerTransformMath.offset(state.originCornerPx, p)
+
+        val contentAlpha = if (reduceMotion) p else ContainerTransformMath.contentAlpha(p)
+        val plateAlpha = if (reduceMotion) 1f else ContainerTransformMath.plateAlpha(p)
+        val iconAlpha = if (reduceMotion) 0f else ContainerTransformMath.iconAlpha(p)
+
+        // 底板底色：入口控件的底色 → 页面背景色（随内容淡入完成渐变）。
+        // 底板是"放大中的那一块"，必须就是入口控件的样子，否则起步与收尾都会跳变。
+        val sourceColor = state.originColor.takeIf { it != Color.Unspecified } ?: palette.surface
+        val plateColor = if (reduceMotion) {
+            palette.background
         } else {
-            ContainerTransformMath.contentAlpha(mapped)
+            lerpColor(sourceColor, palette.background, contentAlpha)
         }
 
+        // 内容等比缩放：外层 layer 按 (sx, sy) 非等比缩放，这里在 Y 上补偿 sx/sy，
+        // 净效果 X、Y 都是 sx——文字不会被压扁，多出来的下半截被外层裁剪挡掉。
+        val contentScaleY = if (reduceMotion) 1f else sx / sy
+        val fullyOpen = sx >= 0.999f && sy >= 0.999f && cornerPx <= 0.5f
+
+        // ---- 第 1、3 层：底板 + 内容（同一个被缩放、被圆角裁剪的容器）----
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
                     // 以左上角为变换原点，位移才能直接按「屏幕坐标差」计算
                     transformOrigin = TransformOrigin(0f, 0f)
-                    this.scaleX = scaleX
-                    this.scaleY = scaleY
+                    scaleX = sx
+                    scaleY = sy
                     translationX = dx
                     translationY = dy
-                    shape = RoundedCornerShape(cornerDp.dp)
-                    clip = cornerDp > 0.5f
+                    // 圆角半径在缩放之前的局部坐标里：除以缩放比，屏幕上才是半径 cornerPx 的正圆角
+                    shape = ScaledCornerShape(radiusX = cornerPx / sx, radiusY = cornerPx / sy)
+                    clip = !fullyOpen
                 }
         ) {
-            // 底板必须不透明且跟随缩放：它就是"放大中的那一块"
+            // 底板：不透明度从 0 渐入——起点处下面就是入口控件本身，不能把它盖住
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(palette.background)
+                    .background(plateColor.copy(alpha = plateAlpha))
             )
             Box(
                 Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = contentAlpha }
+                    .graphicsLayer {
+                        transformOrigin = TransformOrigin(0f, 0f)
+                        scaleY = contentScaleY
+                        alpha = contentAlpha
+                    }
             ) {
                 content()
+            }
+        }
+
+        // ---- 第 2 层：入口图标 ----
+        // 不放进上面的容器：那个容器是非等比缩放的，图标会被拉扁。这里单独做**等比**变换：
+        // 布局尺寸 = 入口矩形尺寸，居中放在当前底板矩形的中心，缩放比 = 底板短边 / 入口短边。
+        val icon = state.originIcon
+        if (!reduceMotion && icon != null && iconAlpha > 0.01f) {
+            val rectW = sx * width
+            val rectH = sy * height
+            val iconScale = minOf(rectW, rectH) / minOf(originW, originH)
+            Box(
+                modifier = Modifier
+                    .size(
+                        width = with(density) { originW.toDp() },
+                        height = with(density) { originH.toDp() }
+                    )
+                    .graphicsLayer {
+                        transformOrigin = TransformOrigin.Center
+                        translationX = dx + rectW / 2f - originW / 2f
+                        translationY = dy + rectH / 2f - originH / 2f
+                        scaleX = iconScale
+                        scaleY = iconScale
+                        alpha = iconAlpha
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                icon()
             }
         }
     }
 }
 
-/** 起点缩放下限：点击点靠近屏幕边缘时避免缩略图小到看不清内容。 */
-private const val MIN_START_SCALE = 0.05f
+/**
+ * 圆角半径显式给定（X、Y 可不同）的矩形。
+ *
+ * 用在被非等比缩放的 layer 上：局部坐标里的椭圆角（`r / sx`, `r / sy`）经缩放后，
+ * 在屏幕上正好是半径 `r` 的正圆角。半径超过边长一半时 [RoundRect] 会按比例收到最大值，
+ * 圆形按钮（半径 ≥ 半边长）因此仍然是正圆。
+ */
+private class ScaledCornerShape(
+    private val radiusX: Float,
+    private val radiusY: Float
+) : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density
+    ): Outline = Outline.Rounded(RoundRect(Rect(Offset.Zero, size), radiusX, radiusY))
+}
 
-/** 内容开始淡入 / 完成淡入的进度点（前半段只画底板）。 */
+/**
+ * 起点缩放下限：只防止除零 / 极端入口。
+ *
+ * 曾经是 0.05：但顶部 40dp 圆按钮在 1220×2712 屏上 Y 向占比只有 0.044，被夹到 0.05 后
+ * 底板比按钮高 11%，起步就对不上控件。0.01 对应「入口只有屏高的 1%」，真实控件不会这么小。
+ */
+private const val MIN_START_SCALE = 0.01f
+
+/** 内容开始淡入 / 完成淡入的进度点（前半段只画底板与图标）。 */
 internal const val CONTENT_FADE_START = 0.42f
 internal const val CONTENT_FADE_END = 0.86f
+
+/** 入口图标开始 / 完成淡出的进度点：在「约一半」附近消失，与内容淡入交叠。 */
+internal const val ICON_FADE_START = 0.35f
+internal const val ICON_FADE_END = 0.65f
+
+/** 底板从透明渐变到不透明所需的进度（只在入口矩形附近，避免起止两端盖住入口控件）。 */
+internal const val PLATE_FADE_END = 0.12f
 
 /** 没有入口信息时的兜底起点。 */
 private const val FALLBACK_START_SCALE = 0.92f
@@ -317,20 +464,18 @@ private const val FALLBACK_START_SCALE = 0.92f
  */
 internal object ContainerTransformMath {
 
+    /** 进入时长（§5.5：320ms）。 */
+    const val ENTER_DURATION_MS = 320
+
+    /**
+     * 退出时长。比进入长：LinearOutSlowIn 反向取值时前 20% 时间就缩到约半屏，
+     * 后面 80% 用来缓缓落回入口；380ms 下「内容→图标」切换窗口约 80ms（320ms 只有约 68ms）。
+     */
+    const val EXIT_DURATION_MS = 380
+
     /** 缩放：入口尺寸 → 1（全屏）。 */
     fun scale(startScale: Float, progress: Float): Float =
         lerp(startScale.coerceIn(MIN_START_SCALE, 1f), 1f, progress.coerceIn(0f, 1f))
-
-    /**
-     * CR-09 验收 42：退出进度重映射 `p^1.6`（快出缓收）。
-     * f(1)=1、f(0)=0、单调不减：退出前半程 mapped 掉得快（页面迅速缩到约半屏、
-     * 内容先淡出），尾段放缓收进入口矩形，像系统「回到桌面」的节奏。
-     */
-    fun exitProgress(progress: Float): Float =
-        progress.coerceIn(0f, 1f).pow(EXIT_EXPONENT)
-
-    /** 退出重映射指数：>1 则前半程快、尾段缓。 */
-    internal const val EXIT_EXPONENT = 1.6f
 
     /** 位移：入口位置 → 0。终点必须是 0，否则页面边缘会露出下层的缝。 */
     fun offset(startOffset: Float, progress: Float): Float =
@@ -348,5 +493,30 @@ internal object ContainerTransformMath {
         val p = progress.coerceIn(0f, 1f)
         return ((p - CONTENT_FADE_START) / (CONTENT_FADE_END - CONTENT_FADE_START))
             .coerceIn(0f, 1f)
+    }
+
+    /**
+     * 入口图标不透明度：[ICON_FADE_START] 之前保持 1（图标随底板一起变大），
+     * 到 [ICON_FADE_END] 淡到 0。必须在内容完全浮现（[CONTENT_FADE_END]）之前就消失，
+     * 否则放大的巨型图标会盖在页面内容上。
+     */
+    fun iconAlpha(progress: Float): Float {
+        val p = progress.coerceIn(0f, 1f)
+        return 1f - smoothStep((p - ICON_FADE_START) / (ICON_FADE_END - ICON_FADE_START))
+    }
+
+    /**
+     * 底板不透明度：入口矩形附近从 0 渐入到 1。
+     *
+     * 起点处底板与入口控件重合——若这时就不透明，会把控件（文字 / 图标）盖掉，退出收尾时
+     * 节点移除，控件又「弹」出来（上一版闪的那一帧）。渐入渐出让两端都是平滑交接。
+     */
+    fun plateAlpha(progress: Float): Float =
+        smoothStep(progress.coerceIn(0f, 1f) / PLATE_FADE_END)
+
+    /** 三次平滑阶跃：0→1，两端斜率为 0。 */
+    private fun smoothStep(x: Float): Float {
+        val t = x.coerceIn(0f, 1f)
+        return t * t * (3f - 2f * t)
     }
 }

@@ -71,6 +71,7 @@ import com.screentrace.app.uikit.MonthCalendarHeader
 import com.screentrace.app.uikit.MonthCalendarLegend
 import com.screentrace.app.uikit.SegmentedControl
 import com.screentrace.app.uikit.rememberReduceMotion
+import com.screentrace.app.uikit.transformSource
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -191,6 +192,7 @@ private fun CalendarContent(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .transformSource(cornerRadius = 28.dp, containerColor = palette.surface)
             .clip(CircleShape)
             .background(palette.surface)
             .clickable { onOpenPeriod(PeriodType.WEEK) }

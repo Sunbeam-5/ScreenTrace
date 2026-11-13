@@ -251,7 +251,16 @@ private fun HeaderActionButton(
             .size(48.dp)
             // 容器变换起点：这个按钮的矩形与圆形圆角（§5.5）。覆盖层里的按钮
             // 读不到 Provider（为 null），因此不会把自己登记成新起点。
-            .transformSource(cornerRadius = 24.dp)
+            // 登记的是 40dp 可见圆（点击区每边多 4dp），底色与图标一并上报，
+            // 覆盖层才能放大「这个按钮本身」而不是一块同色空板。
+            .transformSource(
+                cornerRadius = 20.dp,
+                containerColor = palette.buttonSurface,
+                inset = 4.dp,
+                icon = {
+                    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { icon() }
+                }
+            )
             .clip(CircleShape) // ripple 与点击区同为圆形
             .semantics {
                 this.contentDescription = contentDescription

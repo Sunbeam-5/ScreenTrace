@@ -603,6 +603,7 @@ class AppViewModel(
             is AppPage.NotificationDetail -> current.returnTo
             is AppPage.Period -> current.returnTo
             is AppPage.AppCategories -> current.returnTo
+            is AppPage.CloudSync -> current.returnTo
             else -> current
         }
     }

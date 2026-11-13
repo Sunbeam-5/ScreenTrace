@@ -225,7 +225,10 @@ private fun TodayContent(
             // 圆角与按钮本体（18dp）保持一致，展开时才不会从错误的形状起跳。
             modifier = Modifier
                 .fillMaxWidth()
-                .transformSource(cornerRadius = 18.dp)
+                .transformSource(
+                    cornerRadius = 18.dp,
+                    containerColor = LocalFreshPalette.current.viewAllSurface
+                )
         )
     }
 }
