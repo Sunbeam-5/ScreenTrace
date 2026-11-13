@@ -22,10 +22,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
@@ -73,6 +70,7 @@ import com.screentrace.app.uikit.ContainerTransformOverlay
 import com.screentrace.app.uikit.ContainerTransformState
 import com.screentrace.app.uikit.FreshNavBar
 import com.screentrace.app.uikit.LocalContainerTransformState
+import com.screentrace.app.uikit.NavIconKind
 import com.screentrace.app.uikit.NavItem
 import com.screentrace.app.uikit.PageScaffold
 import com.screentrace.app.uikit.ScrollablePage
@@ -360,6 +358,8 @@ fun AppNav() {
                                 }
                             ),
                         onDateClick = { showDateSheet = true },
+                        // CR-10：主页面顶栏三枚中的「主题」，与设置页共用同一个全局 StyleSheet
+                        onStyleClick = { showStyleSheet = true },
                         onSettingsClick = viewModel::openSettings
                     )
                 }
@@ -698,9 +698,9 @@ fun AppNav() {
             ) {
                 FreshNavBar(
                     items = listOf(
-                        NavItem("今日", Icons.Default.Home),
-                        NavItem("统计", Icons.AutoMirrored.Filled.List),
-                        NavItem("日历", Icons.Default.DateRange)
+                        NavItem("今日", NavIconKind.TODAY),
+                        NavItem("统计", NavIconKind.STATS),
+                        NavItem("日历", NavIconKind.CALENDAR)
                     ),
                     selectedIndex = MAIN_PAGES.indexOf(mainPage).coerceAtLeast(0),
                     onSelect = { index ->

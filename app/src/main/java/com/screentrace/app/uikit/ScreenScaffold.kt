@@ -112,6 +112,11 @@ fun ScrollablePage(
             .padding(horizontal = 20.dp)
             // 底部预留 = 悬浮导航高度 + 系统手势条。只留 112dp 时，全面屏机型上
             // 手势条会把「查看全部应用」这类最后一屏内容压住（真机可见）。
+            // 【Step 7 复核结论 2026-11-13，Redmi 1220×2712】此值**足够，不要再加大**：
+            // 滚到底时「查看全部应用」bottom=2181px，导航胶囊 top≈2400px，末尾内容已在胶囊上方；
+            // 首屏看到日间/夜间行与胶囊重叠，是「固定悬浮覆盖层 + 长内容滚动前自然交叠」，
+            // 不是 viewport / padding 缺陷。加留白只会让首屏更空、滚到底拖出一大片空白。
+            // 观感由 §4.6 的胶囊质感（92% 白 + 描边 + 阴影）解决，不靠堆 padding。
             .padding(bottom = 112.dp)
             .navigationBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -127,10 +132,10 @@ fun ScrollablePage(
 }
 
 /**
- * §5.2（CR-06 修订）：左标题 + 日期副标题；右侧动作按钮「日期 / 设置」两枚，
- * 视觉 40dp、点击区 ≥48dp。风格切换曾占第三枚按钮但一个月点不了两次，
- * VI-1-4 收敛掉——入口保留在设置页「外观 → 界面风格」（色块网格）。
- * 主页面无返回键；二级页传 onBack 显示「返回 + 标题」（§5.2）。
+ * §5.2（CR-10 终态）：左标题 + 日期副标题；右侧固定「日期 / 主题 / 设置」三枚圆按钮，
+ * 视觉 40dp、点击区 ≥48dp。主题按钮居中，三色圆点自绘（不引 icons-extended）；
+ * 两处主题入口（顶栏 / 设置页）共用 AppNav 全局 `showStyleSheet` 的同一个 `StyleSheet`。
+ * 主页面无返回键；二级页传 onBack 显示「返回 + 标题」，且不传 `onStyleClick`（§5.2）。
  * 未传入的按钮不渲染——调用方只接线真实可用的动作，避免假按钮（§6）。
  *
  * 标题与副标题走 `Crossfade`：主页面之间横滑时标题是跟着换的，
@@ -143,6 +148,7 @@ fun AppHeader(
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
     onDateClick: (() -> Unit)? = null,
+    onStyleClick: (() -> Unit)? = null,
     onSettingsClick: (() -> Unit)? = null
 ) {
     val palette = LocalFreshPalette.current
@@ -195,6 +201,11 @@ fun AppHeader(
                 )
             }
         }
+        if (onStyleClick != null) {
+            HeaderActionButton(contentDescription = "界面风格", onClick = onStyleClick) {
+                ThemeDotsIcon()
+            }
+        }
         if (onSettingsClick != null) {
             HeaderActionButton(contentDescription = "设置", onClick = onSettingsClick) {
                 Icon(
@@ -204,6 +215,25 @@ fun AppHeader(
                     modifier = Modifier.size(22.dp)
                 )
             }
+        }
+    }
+}
+
+/**
+ * CR-10 / §4.9：主题按钮的「三色圆点」线性图标。
+ * icons-core 没有调色板图标，不为此引入 icons-extended；三个点取主色色阶的深/中/浅，
+ * 与「一个主色派生全套色阶」的既有原则一致。
+ */
+@Composable
+private fun ThemeDotsIcon() {
+    val palette = LocalFreshPalette.current
+    Canvas(modifier = Modifier.size(22.dp)) {
+        val radius = 3.4.dp.toPx()
+        val cy = size.height / 2f
+        val colors = listOf(palette.primary, palette.chart2, palette.chart4)
+        val xs = listOf(size.width * 0.2f, size.width * 0.5f, size.width * 0.8f)
+        xs.forEachIndexed { i, x ->
+            drawCircle(color = colors[i], radius = radius, center = Offset(x, cy))
         }
     }
 }
@@ -252,6 +282,7 @@ private fun AppHeaderPreview() {
                 title = "屏迹",
                 subtitle = "今天 · 11 月 10 日",
                 onDateClick = {},
+                onStyleClick = {},
                 onSettingsClick = {}
             )
             AppHeader(title = "全部应用", subtitle = null, onBack = {}, onDateClick = {})
