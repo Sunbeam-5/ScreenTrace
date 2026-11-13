@@ -13,9 +13,9 @@
 [![Stars](https://img.shields.io/github/stars/Sunbeam-5/ScreenTrace?style=social)](https://github.com/Sunbeam-5/ScreenTrace/stargazers)
 
 <p align="center">
-  <img src="docs/screenshots/home.png" width="28%" alt="今日" />
-  <img src="docs/screenshots/stats.png" width="28%" alt="统计" />
-  <img src="docs/screenshots/calendar.png" width="28%" alt="日历" />
+  <img src="docs/assets/screenshots/home.png" width="28%" alt="今日" />
+  <img src="docs/assets/screenshots/stats.png" width="28%" alt="统计" />
+  <img src="docs/assets/screenshots/calendar.png" width="28%" alt="日历" />
 </p>
 
 </div>
@@ -82,7 +82,6 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - [需求文档](docs/需求文档-屏幕使用时间App.md)（v2.6）—— 数据口径、UI 规范、验收标准
 - [实施任务批次计划](docs/实施任务批次计划-v2.md) —— 开发进度与批次划分
 - [开发与构建说明](docs/开发与构建说明.md) —— 环境、构建、常见故障
-- [AI 评审提示词](docs/AI评审提示词-千问4.md) —— 需求 / 批次计划 / Code Review 的评审模板
 
 ## 致谢
 
