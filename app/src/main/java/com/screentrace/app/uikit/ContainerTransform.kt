@@ -399,7 +399,9 @@ fun ContainerTransformOverlay(
         val icon = state.originIcon
         if (!reduceMotion && icon != null && iconAlpha > 0.01f) {
             // 等比：按裁剪框宽度（窗口比图标高，取短边 = 宽）放大
-            val iconScale = minOf(rectW, rectH) / minOf(originW, originH)
+            // CR-13 定稿：图标最多放大到 1.5×（线性无折点），不再跟着裁剪框短边
+            // 放大到占满整块；淡出时机仍按 CR-11 的 0.35–0.65，保留可见锚点。
+            val iconScale = ContainerTransformMath.iconScale(p)
             Box(
                 modifier = Modifier
                     .size(
@@ -453,6 +455,9 @@ internal const val CONTENT_FADE_START = 0.42f
 internal const val CONTENT_FADE_END = 0.86f
 
 /** 入口图标开始 / 完成淡出的进度点：在「约一半」附近消失，与内容淡入交叠。 */
+/** CR-13 定稿：入口图标最大放大倍数（原来无上限，会变成巨型齿轮）。 */
+internal const val ICON_MAX_SCALE = 1.5f
+
 internal const val ICON_FADE_START = 0.35f
 internal const val ICON_FADE_END = 0.65f
 
@@ -493,6 +498,13 @@ internal object ContainerTransformMath {
         val start = maxOf(originW / width, originH / height).coerceIn(MIN_START_SCALE, 1f)
         return lerp(start, 1f, progress.coerceIn(0f, 1f))
     }
+
+    /**
+     * CR-13：入口图标缩放比，线性 1 → [ICON_MAX_SCALE]，全程不超过上限。
+     * 旧实现直接取「裁剪框短边 / 入口短边」，会一路放大成巨型齿轮。
+     */
+    fun iconScale(progress: Float): Float =
+        lerp(1f, ICON_MAX_SCALE, progress.coerceIn(0f, 1f))
 
     /** 圆角：[CORNER_HOLD] 之前保持入口圆角，之后平滑收到 0（全屏无圆角）。 */
     fun cornerRadius(startPx: Float, progress: Float): Float =

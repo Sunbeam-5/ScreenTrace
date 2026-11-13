@@ -160,6 +160,30 @@ class ContainerTransformMathTest {
         }
     }
 
+    // ---- CR-13：图标放大上限（B 方案） ----
+
+    @Test
+    fun `图标缩放起点为 1 终点为 1_5 且全程不超上限`() {
+        assertEquals(1f, ContainerTransformMath.iconScale(0f), eps)
+        assertEquals(1.5f, ContainerTransformMath.iconScale(1f), eps)
+        for (i in 0..100) {
+            val p = i / 100f
+            val s = ContainerTransformMath.iconScale(p)
+            assertTrue("p=$p 超过 1.5 倍上限", s <= 1.5f + eps)
+            assertTrue("p=$p 小于 1 倍", s >= 1f - eps)
+        }
+    }
+
+    @Test
+    fun `图标缩放随进度单调递增且线性`() {
+        for (i in 1..100) {
+            val prev = ContainerTransformMath.iconScale((i - 1) / 100f)
+            val cur = ContainerTransformMath.iconScale(i / 100f)
+            assertTrue("p=${i / 100f} 非单调", cur >= prev - eps)
+        }
+        assertEquals(1.25f, ContainerTransformMath.iconScale(0.5f), eps)
+    }
+
     @Test
     fun `圆角大半程保持入口圆角 终点归零`() {
         assertEquals(55f, ContainerTransformMath.cornerRadius(55f, 0f), eps)
