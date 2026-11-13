@@ -103,33 +103,41 @@ def pick_device(preferred: str | None) -> str:
 def locate_button(serial: str, label: str, local_ui: Path) -> tuple[int, int]:
     """
     用 uiautomator dump 找按钮/图标中心，跨机型不写死坐标。
-    兼容 content-desc 精确/包含匹配与 text 标签（桌面图标与 App 内按钮都能用）；
-    多个候选时取面积最小的，避免点到外层容器。
+    兼容 content-desc 精确/包含匹配与 text 标签（桌面图标与 App 内按钮都能用）。
+    **精确 content-desc 优先**，其次精确 text、最后包含匹配；同级才按面积取最小。
+    （Redmi 底部导航也有 text="设置"，只按面积排会误点到底部胶囊。）
     """
     sh(serial, f"uiautomator dump {REMOTE_UI}", check=False)
     adb(serial, "pull", REMOTE_UI, winpath(local_ui), check=False)
     if not local_ui.is_file():
         raise SystemExit("uiautomator dump 失败，请确认屏幕已解锁")
     xml = local_ui.read_text(encoding="utf-8", errors="ignore")
-    candidates: list[tuple[int, int, int]] = []
+    candidates: list[tuple[int, int, int, int]] = []
     for node in re.findall(r"<node\b[^>]*>", xml):
         cd = re.search(r'content-desc="([^"]*)"', node)
         tx = re.search(r'\stext="([^"]*)"', node)
         desc = cd.group(1) if cd else ""
         text = tx.group(1) if tx else ""
-        if label not in desc and label != text:
+        if desc == label:
+            priority = 0
+        elif text == label:
+            priority = 1
+        elif label in desc:
+            priority = 2
+        else:
             continue
         b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', node)
         if b:
             x1, y1, x2, y2 = map(int, b.groups())
-            candidates.append(((x2 - x1) * (y2 - y1), (x1 + x2) // 2, (y1 + y2) // 2))
+            candidates.append((priority, (x2 - x1) * (y2 - y1),
+                               (x1 + x2) // 2, (y1 + y2) // 2))
     if not candidates:
         raise SystemExit(
             f'未找到含「{label}」的按钮/图标；'
             "可用 --label 换一个描述，或用 --tap X,Y 手动指定坐标。"
         )
     candidates.sort()
-    return candidates[0][1], candidates[0][2]
+    return candidates[0][2], candidates[0][3]
 
 
 def anim_scales(serial: str) -> dict[str, str]:
