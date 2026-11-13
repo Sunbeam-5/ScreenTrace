@@ -190,3 +190,25 @@
 - 需求 §5.5 / §7-22 的「全程不透明」旧口径已按 CR-11 修订为「仅入口矩形附近渐入渐出不算叠影」，验收仍 42 条。
 
 **环境备注**：验证期间为防息屏临时执行过 `svc power stayon true`，结束后已恢复；vivo 未连回，本轮为 Redmi 单机验证。
+
+---
+
+## 13. CR-12 转场几何修订（2026-11-13，负责人提供 Claude fix-nav 补丁）
+
+**来源**：`D:/Personal/Downloads0001-fix-nav(1).patch`（14:19，2 文件 +90/−39），基线 `4c4a2e8` / `033ceb7` 与本机完全一致，`git apply --check` 全过。文档先行已立 CR-12（`e2760c6`），再应用代码。
+
+**改了什么**（CR-11 第 12 节的几何实现被替换，三层结构不变）：
+- **裁剪框独立插值**：`clipL/T/R/B` 在屏幕坐标里从入口矩形 `lerp` 到全屏；`RectCornerShape` 直接按真实屏幕半径绘制圆角，保持入口圆角到 `CORNER_HOLD=0.6` 再 `smoothStep` 收为 0。废止 `ScaledCornerShape` 的 X/Y 缩放反算。
+- **页面等比缩放**：新增 `ContainerTransformMath.coverScale`，起点 `max(入口宽/屏宽, 入口高/屏高)` → 1，页面中心对齐裁剪框中心（`contentTx/Ty`）。数学上任一进度 `s·W ≥ rectW`、`s·H ≥ rectH`，不露缝。
+- **图标层**同步改用裁剪框尺寸计算 `iconScale` 与位移；`fullyOpen` 判据改为裁剪框铺满 + 圆角归零；`reduceMotion` 分支退化为全屏裁剪 + `s=1` + 零位移。
+- 新增 3 例单测：coverScale 起终点、101 点采样「任意进度盖得住裁剪框」、cornerRadius 三点。
+
+**验证**：
+- 编译 BUILD SUCCESSFUL（`RoundRect(left,top,right,bottom,rX,rY)` 六参构造在 BOM 2024.06 下存在，Claude 原补丁注明未在本环境运行）；全量 **314 例 / 0 失败**。
+- 变异验证（评估阶段对同一份补丁）：`coverScale` 的 `maxOf → minOf` → 2 例变红，非假绿。
+- 真机（Redmi `GAQOHMNFQWFUPBQO`）：`capture_anim.py --slow` 录 1200/1400ms 慢放（`cr12_slow/`）、正常速度录屏 + 帧差分定位（`cr12_normal/`，进入 0.97–1.20s / 返回 1.83–2.00s），生成 `enter_zoom` / `exit_zoom` 过渡特写；与 CR-11 旧版 `smoke_slow/`、系统原生 `launcher_normal/enter_zoom.png` 三方对照。脚本 `--slow` 结束后 `ContainerTransform.kt` 与 CR-12 基线逐字节一致、时长常量还原 320/380、设备 `stay_on=0`。
+
+**如实记录的观感结论（未夸大）**：
+- 起步阶段那块**竖向绿色圆角块仍然存在**，与 CR-11 旧版相比形状没有明显变化——原因是裁剪框从 40×40 入口矩形插值到 1220×2712 全屏时，高度增量是宽度的约 2.3 倍，中间态必然偏竖；系统桌面原生的白色卡片中间态（`launcher_normal/enter_zoom.png` 第 4–8 帧）同样是竖向矩形，所以它本身不是缺陷。
+- CR-12 真正消除的是**页面内容被外层非等比变换牵连**的风险，并带来三点可见改善：内容缩略图中心对齐裁剪框（旧版左上角对齐）、圆角是真实屏幕半径且大半程保持、齿轮与文字全程等比不变形；代码里也去掉了绕来绕去的 `ScaledCornerShape` 反算。
+- **仍与系统有差距**：系统是「一张卡片从图标位置放大、内容始终在卡片里」，我们仍是「底板 + 图标层淡出 / 内容层淡入」的交叉换层；且起步是整页缩略图被裁一个方窗。若负责人要求更贴近原生，需要改裁剪框插值策略（例如起点用按屏幕比例放大的矩形而非入口正方形）或让内容层在放大初期即可见——属新的设计决策，已登记 `docs/TODO.md` 待裁决，不在本步范围。

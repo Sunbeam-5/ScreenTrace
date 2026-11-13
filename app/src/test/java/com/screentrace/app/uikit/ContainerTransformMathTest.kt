@@ -136,4 +136,34 @@ class ContainerTransformMathTest {
     fun `退出时长不短于进入`() {
         assertTrue(ContainerTransformMath.EXIT_DURATION_MS >= ContainerTransformMath.ENTER_DURATION_MS)
     }
+
+    // ---- 等比窗口 + 独立裁剪框 ----
+
+    @Test
+    fun `页面等比缩放起点盖住入口矩形 终点为 1`() {
+        // 40×40 的图标在 412×892 屏上：宽向占比 0.097 > 高向 0.045，取大者
+        val s0 = ContainerTransformMath.coverScale(40f, 40f, 412f, 892f, 0f)
+        assertEquals(40f / 412f, s0, eps)
+        assertEquals(1f, ContainerTransformMath.coverScale(40f, 40f, 412f, 892f, 1f), eps)
+    }
+
+    @Test
+    fun `任一进度下页面都盖得住裁剪框`() {
+        val w = 412f; val h = 892f; val ow = 40f; val oh = 40f
+        for (i in 0..100) {
+            val p = i / 100f
+            val s = ContainerTransformMath.coverScale(ow, oh, w, h, p)
+            val rectW = ow + (w - ow) * p
+            val rectH = oh + (h - oh) * p
+            assertTrue("p=$p 宽向露缝", s * w >= rectW - 1e-3f)
+            assertTrue("p=$p 高向露缝", s * h >= rectH - 1e-3f)
+        }
+    }
+
+    @Test
+    fun `圆角大半程保持入口圆角 终点归零`() {
+        assertEquals(55f, ContainerTransformMath.cornerRadius(55f, 0f), eps)
+        assertEquals(55f, ContainerTransformMath.cornerRadius(55f, CORNER_HOLD), eps)
+        assertEquals(0f, ContainerTransformMath.cornerRadius(55f, 1f), eps)
+    }
 }

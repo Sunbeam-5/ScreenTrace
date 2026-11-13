@@ -64,7 +64,7 @@ import com.screentrace.app.theme.LocalFreshPalette
  *   又「弹」出来——这就是闪的那一帧。现在底板不透明度从 0 渐入（[ContainerTransformMath.plateAlpha]），
  *   起止两端露出的是入口控件本身，没有跳变。
  * - 圆角写在 `graphicsLayer` 里是**缩放之前**的局部坐标，被 X / Y 非等比缩放后会压扁，
- *   圆形按钮起步时变成近似方块。现在用 [ScaledCornerShape] 按缩放反算半径，屏幕上始终是正圆角。
+ *   圆形按钮起步时变成近似方块。现在裁剪框直接在屏幕坐标里画圆角（[RectCornerShape]），页面另行等比缩放，半径即真实半径。
  * - 退出时「内容→图标」的切换窗口只有约 48ms（不到 3 帧）。现在缓动改为 LinearOutSlowIn
  *   （起步无延迟、切换窗口更宽），退出时长也比进入长一点。
  *
@@ -325,47 +325,49 @@ fun ContainerTransformOverlay(
         // 进度：进入退出同一条 `progress`（0 = 入口矩形，1 = 全屏）
         val p = progress
 
-        // **X / Y 独立缩放**，不是等比：卡片是 1.6:1、屏幕是 1:2.2，等比内接会让
-        // 缩略图变成一条窄条，看起来像"从卡片中间挤出来"而不是"卡片展开"。
-        // 与系统 shared element（ChangeTransform）一样按轴分别插值。
-        val sx = if (reduceMotion) 1f else ContainerTransformMath.scale(originW / width, p)
-        val sy = if (reduceMotion) 1f else ContainerTransformMath.scale(originH / height, p)
-        // 左上角对齐：起点矩形左上角就是入口控件左上角
-        val dx = if (reduceMotion) 0f else ContainerTransformMath.offset(originLeft, p)
-        val dy = if (reduceMotion) 0f else ContainerTransformMath.offset(originTop, p)
-        val cornerPx = if (reduceMotion) 0f else ContainerTransformMath.offset(state.originCornerPx, p)
+        // 系统「打开 / 返回桌面」的观感：**窗口本体等比缩放**（始终是整屏的缩略图，不被压成细条），
+        // 而**裁剪框**从入口矩形独立插值到全屏。两者分开，才会既保持页面比例又从图标形状长出来。
+        // （上一版把 X / Y 独立缩放直接作用在整页上：40dp 方形图标会拉成一根高瘦的药丸，
+        // 真机录屏里就是「一条绿柱子 + 巨大齿轮」。）
+        val clipL = if (reduceMotion) 0f else ContainerTransformMath.offset(originLeft, p)
+        val clipT = if (reduceMotion) 0f else ContainerTransformMath.offset(originTop, p)
+        val clipR = if (reduceMotion) width
+        else lerp(originLeft + originW, width, p.coerceIn(0f, 1f))
+        val clipB = if (reduceMotion) height
+        else lerp(originTop + originH, height, p.coerceIn(0f, 1f))
+        val rectW = clipR - clipL
+        val rectH = clipB - clipT
+        // 圆角在大半程保持入口圆角（系统窗口缩小时一直是大圆角），最后一段才收到 0
+        val cornerPx = if (reduceMotion) 0f
+        else ContainerTransformMath.cornerRadius(state.originCornerPx, p)
 
         val contentAlpha = if (reduceMotion) p else ContainerTransformMath.contentAlpha(p)
         val plateAlpha = if (reduceMotion) 1f else ContainerTransformMath.plateAlpha(p)
         val iconAlpha = if (reduceMotion) 0f else ContainerTransformMath.iconAlpha(p)
 
+        // 页面等比缩放比：起点取「刚好盖住入口矩形」的比例，终点 1；中心对齐裁剪框中心
+        val s = if (reduceMotion) 1f
+        else ContainerTransformMath.coverScale(originW, originH, width, height, p)
+        val contentTx = clipL + rectW / 2f - s * width / 2f
+        val contentTy = clipT + rectH / 2f - s * height / 2f
+
         // 底板底色：入口控件的底色 → 页面背景色（随内容淡入完成渐变）。
-        // 底板是"放大中的那一块"，必须就是入口控件的样子，否则起步与收尾都会跳变。
         val sourceColor = state.originColor.takeIf { it != Color.Unspecified } ?: palette.surface
         val plateColor = if (reduceMotion) {
             palette.background
         } else {
             lerpColor(sourceColor, palette.background, contentAlpha)
         }
+        val fullyOpen = clipL <= 0.5f && clipT <= 0.5f &&
+            rectW >= width - 0.5f && rectH >= height - 0.5f && cornerPx <= 0.5f
 
-        // 内容等比缩放：外层 layer 按 (sx, sy) 非等比缩放，这里在 Y 上补偿 sx/sy，
-        // 净效果 X、Y 都是 sx——文字不会被压扁，多出来的下半截被外层裁剪挡掉。
-        val contentScaleY = if (reduceMotion) 1f else sx / sy
-        val fullyOpen = sx >= 0.999f && sy >= 0.999f && cornerPx <= 0.5f
-
-        // ---- 第 1、3 层：底板 + 内容（同一个被缩放、被圆角裁剪的容器）----
+        // ---- 第 1、3 层：底板 + 内容（裁剪框 + 等比缩放的页面）----
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    // 以左上角为变换原点，位移才能直接按「屏幕坐标差」计算
-                    transformOrigin = TransformOrigin(0f, 0f)
-                    scaleX = sx
-                    scaleY = sy
-                    translationX = dx
-                    translationY = dy
-                    // 圆角半径在缩放之前的局部坐标里：除以缩放比，屏幕上才是半径 cornerPx 的正圆角
-                    shape = ScaledCornerShape(radiusX = cornerPx / sx, radiusY = cornerPx / sy)
+                    // 本层不做变换，只负责按屏幕坐标裁剪：圆角半径就是屏幕上的真实半径
+                    shape = RectCornerShape(clipL, clipT, clipR, clipB, cornerPx)
                     clip = !fullyOpen
                 }
         ) {
@@ -380,7 +382,10 @@ fun ContainerTransformOverlay(
                     .fillMaxSize()
                     .graphicsLayer {
                         transformOrigin = TransformOrigin(0f, 0f)
-                        scaleY = contentScaleY
+                        scaleX = s
+                        scaleY = s
+                        translationX = contentTx
+                        translationY = contentTy
                         alpha = contentAlpha
                     }
             ) {
@@ -393,8 +398,7 @@ fun ContainerTransformOverlay(
         // 布局尺寸 = 入口矩形尺寸，居中放在当前底板矩形的中心，缩放比 = 底板短边 / 入口短边。
         val icon = state.originIcon
         if (!reduceMotion && icon != null && iconAlpha > 0.01f) {
-            val rectW = sx * width
-            val rectH = sy * height
+            // 等比：按裁剪框宽度（窗口比图标高，取短边 = 宽）放大
             val iconScale = minOf(rectW, rectH) / minOf(originW, originH)
             Box(
                 modifier = Modifier
@@ -404,8 +408,8 @@ fun ContainerTransformOverlay(
                     )
                     .graphicsLayer {
                         transformOrigin = TransformOrigin.Center
-                        translationX = dx + rectW / 2f - originW / 2f
-                        translationY = dy + rectH / 2f - originH / 2f
+                        translationX = clipL + rectW / 2f - originW / 2f
+                        translationY = clipT + rectH / 2f - originH / 2f
                         scaleX = iconScale
                         scaleY = iconScale
                         alpha = iconAlpha
@@ -419,21 +423,21 @@ fun ContainerTransformOverlay(
 }
 
 /**
- * 圆角半径显式给定（X、Y 可不同）的矩形。
- *
- * 用在被非等比缩放的 layer 上：局部坐标里的椭圆角（`r / sx`, `r / sy`）经缩放后，
- * 在屏幕上正好是半径 `r` 的正圆角。半径超过边长一半时 [RoundRect] 会按比例收到最大值，
- * 圆形按钮（半径 ≥ 半边长）因此仍然是正圆。
+ * 屏幕坐标里的圆角矩形裁剪框（本层不做缩放，半径即真实半径）。
+ * 半径超过短边一半时 [RoundRect] 自动收到最大值，所以圆形按钮起步就是正圆。
  */
-private class ScaledCornerShape(
-    private val radiusX: Float,
-    private val radiusY: Float
+private class RectCornerShape(
+    private val left: Float,
+    private val top: Float,
+    private val right: Float,
+    private val bottom: Float,
+    private val radius: Float
 ) : Shape {
     override fun createOutline(
         size: Size,
         layoutDirection: LayoutDirection,
         density: Density
-    ): Outline = Outline.Rounded(RoundRect(Rect(Offset.Zero, size), radiusX, radiusY))
+    ): Outline = Outline.Rounded(RoundRect(left, top, right, bottom, radius, radius))
 }
 
 /**
@@ -454,6 +458,9 @@ internal const val ICON_FADE_END = 0.65f
 
 /** 底板从透明渐变到不透明所需的进度（只在入口矩形附近，避免起止两端盖住入口控件）。 */
 internal const val PLATE_FADE_END = 0.12f
+
+/** 圆角保持入口圆角到这个进度，之后收为 0。 */
+internal const val CORNER_HOLD = 0.6f
 
 /** 没有入口信息时的兜底起点。 */
 private const val FALLBACK_START_SCALE = 0.92f
@@ -476,6 +483,20 @@ internal object ContainerTransformMath {
     /** 缩放：入口尺寸 → 1（全屏）。 */
     fun scale(startScale: Float, progress: Float): Float =
         lerp(startScale.coerceIn(MIN_START_SCALE, 1f), 1f, progress.coerceIn(0f, 1f))
+
+    /**
+     * 页面等比缩放比：起点 = 刚好盖住入口矩形的比例（`max(ow/W, oh/H)`），终点 = 1。
+     * 裁剪框尺寸是 `lerp(入口, 全屏)`，页面尺寸是 `lerp(起点比例, 1) × 屏幕`，
+     * 起点比例 ≥ 入口占比，所以任一进度下页面都盖得住裁剪框，不会露出缝。
+     */
+    fun coverScale(originW: Float, originH: Float, width: Float, height: Float, progress: Float): Float {
+        val start = maxOf(originW / width, originH / height).coerceIn(MIN_START_SCALE, 1f)
+        return lerp(start, 1f, progress.coerceIn(0f, 1f))
+    }
+
+    /** 圆角：[CORNER_HOLD] 之前保持入口圆角，之后平滑收到 0（全屏无圆角）。 */
+    fun cornerRadius(startPx: Float, progress: Float): Float =
+        startPx * (1f - smoothStep((progress.coerceIn(0f, 1f) - CORNER_HOLD) / (1f - CORNER_HOLD)))
 
     /** 位移：入口位置 → 0。终点必须是 0，否则页面边缘会露出下层的缝。 */
     fun offset(startOffset: Float, progress: Float): Float =
