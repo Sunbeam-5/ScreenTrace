@@ -33,17 +33,42 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.ScreenTimeTheme
 
 /** tonal 双卡的两个变体（§5.5 MetricCard / §5.7 tonal 双卡）。 */
 enum class MetricCardVariant { Secondary, Primary }
+
+/**
+ * P3-1：可下钻卡整卡读屏一句话「标签 + 当前值 + 说明 + 查看详情」（§5.2）。
+ *
+ * 原默认拼接 `"$label 查看详情"` **缺当前值**，与 §5.2 原文不符；说明（对比行 /
+ * 副注）一并读出。纯函数抽出来是为了 JVM 单测钉住拼接口径（不引 Compose 测试依赖）。
+ * 时长值与页面同源（[UsageCalculator.formatDuration]）。
+ */
+internal fun metricCardDescription(
+    label: String,
+    value: MetricValue,
+    note: String? = null
+): String {
+    val valueText = when (value) {
+        is MetricValue.Number -> value.text
+        is MetricValue.Duration -> UsageCalculator.formatDuration(value.minutes)
+    }
+    return buildString {
+        append(label).append(' ').append(valueText)
+        if (note != null) append("，").append(note)
+        append("，查看详情")
+    }
+}
 
 /**
  * §5.5：MetricCard 固定「标签 / 数值 / 可选一句说明」结构，24dp 无描边卡片（§5.2）。
@@ -115,9 +140,13 @@ fun MetricCard(
             }
             .clip(RoundedCornerShape(24.dp))
             .background(background)
-            .semantics {
+            // P3-1：整卡一句话读屏（§5.2「标签 + 当前值 + 查看详情」），用
+            // clearAndSetSemantics 整体替换卡内逐节点朗读——否则 RollingNumberText
+            // 逐位拆读（「87」念成「8」「7」）、label/说明与描述重复念。
+            // 点击动作由外层 clickable 保留，真机 dump 复核 clickable=true。
+            .clearAndSetSemantics {
                 role = Role.Button
-                contentDescription = clickDescription ?: "$label 查看详情"
+                contentDescription = clickDescription ?: metricCardDescription(label, value, note)
             }
             .clickable(
                 interactionSource = interaction,

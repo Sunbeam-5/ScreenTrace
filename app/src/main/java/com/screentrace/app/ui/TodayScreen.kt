@@ -182,13 +182,16 @@ private fun TodayContent(
         rightOnClick = onOpenNotification,
         // CR-15 A1：切日期时两个次数数字逐位滚动，而不是整块瞬变
         rolling = true,
+        // P3-1：可用态不传描述，走 metricCardDescription 默认拼接
+        // 「标签 + 当前值 + 说明 + 查看详情」（说明含「已查看 X 次」，§5.2）；
+        // 无事件源时保留自定义——数字是「—」，读屏说「暂无事件」比念破折号清楚。
         leftClickDescription = if (unlockAvailable) {
-            "$unlockLabel $unlockValue，查看详情"
+            null
         } else {
             "$unlockLabel，暂无解锁事件，查看详情"
         },
         rightClickDescription = if (notificationAvailable) {
-            "$notificationLabel $notificationValue，查看详情"
+            null
         } else {
             "$notificationLabel，暂无通知事件，查看详情"
         }

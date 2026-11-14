@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 /**
  * CR-09 验收 42：里程表式逐位滚动数字（odometer）。
@@ -42,7 +43,12 @@ fun RollingNumberText(
         Text(text = text, style = style, color = color, maxLines = maxLines, modifier = modifier)
         return
     }
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+    // P3-1：逐位 AnimatedContent 每个字符是独立语义节点，TalkBack 会把「87」拆成
+    // 「8」「7」两段；mergeDescendants 把整串合成一个可读单元（统计页大数字同此）。
+    Row(
+        modifier = modifier.semantics(mergeDescendants = true) { },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         text.forEachIndexed { index, ch ->
             AnimatedContent(
                 targetState = ch,
