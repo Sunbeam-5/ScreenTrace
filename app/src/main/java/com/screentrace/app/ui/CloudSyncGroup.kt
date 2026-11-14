@@ -20,7 +20,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -69,14 +68,27 @@ fun CloudSyncGroup(
     onDownload: suspend () -> SyncManager.DownloadedBackup,
     /** 下载成功后交给本地恢复的策略二选一流程（同一套 UI、同一入口）。 */
     onDownloadedReady: (BackupFile, BackupSummary) -> Unit,
+    // CR-15 ③ 批 C：设备卡片（本机昵称可改，其它设备只读查看）
+    deviceNickname: String,
+    deviceIdShort: String,
+    onDeviceNicknameChange: suspend (String) -> Unit,
+    onListDevices: suspend () -> SyncManager.DevicesResult,
+    onInspectDevice: suspend (String) -> SyncManager.DownloadedBackup,
     onNotice: (String) -> Unit
 ) {
     val palette = LocalFreshPalette.current
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     // 真机反馈 #1：全局提示条被二级页覆盖层遮挡、看不见——操作结果必须**就地**显示
     var lastResult by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
+
+    // 批 C：设备列表只在用户点开时拉，不进页面就发网络请求（§5.10 网络边界）
+    var editingName by remember { mutableStateOf(false) }
+    var nameDraft by remember(deviceNickname) { mutableStateOf(deviceNickname) }
+    var devices by remember { mutableStateOf<List<SyncManager.DeviceBackup>?>(null) }
+    var devicesBusy by remember { mutableStateOf(false) }
+    var deviceError by remember { mutableStateOf<String?>(null) }
+    var inspectText by remember { mutableStateOf<String?>(null) }
 
     // 配置草稿：改动后需点「保存配置」落盘（避免每敲一个字符写 DataStore）
     var url by remember(webdavUrl) { mutableStateOf(webdavUrl) }
@@ -178,7 +190,7 @@ fun CloudSyncGroup(
                         busy = false
                         if (result is SyncResult.Ok) {
                             lastResult = null
-                            onNotice("已上传 screen-time-backup.json")
+                            onNotice("已上传到本设备目录 devices/")
                         } else {
                             val msg = "上传失败：${(result as SyncResult.Err).kind.userMessage()}"
                             lastResult = msg to false
@@ -258,7 +270,7 @@ fun CloudSyncGroup(
             Switch(checked = syncWifiOnly, onCheckedChange = onWifiOnlyChange)
         }
         Text(
-            text = "自动备份带时间戳，仅保留最近 5 份；手动上传的固定文件不受清理影响。",
+            text = "自动备份带时间戳与设备短 ID，仅保留最近 5 份（只清本设备目录）；手动上传的固定文件不受清理影响。",
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )
@@ -276,6 +288,139 @@ fun CloudSyncGroup(
             text = if (lastAt == null) "从未同步" else "${formatSyncTime(lastAt)} · ${lastMessage.ifEmpty { if (lastOk == true) "成功" else "失败" }}",
             style = FreshType.label,
             color = if (lastOk == false) palette.error else palette.onSurfaceVariant
+        )
+
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(palette.track)
+        )
+
+        // §5.10 批 C：设备卡片。切换查看只读——不写本机库、不自动合并、不提供跨设备恢复入口
+        Text(text = "设备", style = FreshType.body, color = palette.onSurface)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "本机：${deviceNickname.ifBlank { "未命名" }}",
+                    style = FreshType.body,
+                    color = palette.onSurface
+                )
+                Text(
+                    text = "ID ${deviceIdShort.ifBlank { "—" }} · 备份写入 devices/<本机ID>/",
+                    style = FreshType.label,
+                    color = palette.onSurfaceVariant
+                )
+            }
+            SecondaryButton(
+                text = if (editingName) "取消" else "改昵称",
+                onClick = {
+                    nameDraft = deviceNickname
+                    editingName = !editingName
+                }
+            )
+        }
+        if (editingName) {
+            OutlinedTextField(
+                value = nameDraft,
+                onValueChange = { nameDraft = it },
+                label = { Text("设备昵称", style = FreshType.label) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            SecondaryButton(
+                text = if (devicesBusy) "保存中…" else "保存昵称",
+                enabled = !devicesBusy,
+                onClick = {
+                    scope.launch {
+                        devicesBusy = true
+                        onDeviceNicknameChange(nameDraft)
+                        devicesBusy = false
+                        editingName = false
+                    }
+                }
+            )
+        }
+
+        SecondaryButton(
+            text = when {
+                devicesBusy -> "读取中…"
+                devices == null -> "查看所有设备的备份"
+                else -> "刷新设备列表"
+            },
+            enabled = !devicesBusy,
+            onClick = {
+                scope.launch {
+                    devicesBusy = true
+                    val result = onListDevices()
+                    devicesBusy = false
+                    inspectText = null
+                    if (result.error != null) {
+                        deviceError = result.error?.kind?.userMessage() ?: "远端不可达"
+                    } else {
+                        deviceError = null
+                        devices = result.devices
+                    }
+                }
+            }
+        )
+        deviceError?.let {
+            Text(text = "读取失败：$it", style = FreshType.label, color = palette.error)
+        }
+        devices?.forEach { device ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = device.label +
+                            (if (device.isLocal) " · 本机" else "") +
+                            (if (device.isLegacy) " · 旧备份" else ""),
+                        style = FreshType.body,
+                        color = palette.onSurface
+                    )
+                    Text(
+                        text = "${device.fileCount} 份备份 · ${device.latestName ?: "尚未上传"}",
+                        style = FreshType.label,
+                        color = palette.onSurfaceVariant
+                    )
+                }
+                SecondaryButton(
+                    text = "查看摘要",
+                    enabled = !devicesBusy && device.fileCount > 0,
+                    onClick = {
+                        scope.launch {
+                            devicesBusy = true
+                            val downloaded = onInspectDevice(device.deviceId)
+                            devicesBusy = false
+                            inspectText = downloaded.summary?.let { s ->
+                                "来源：${downloaded.deviceLabel ?: "未知设备"}\n" +
+                                    "导出：${s.exportedAt} · App ${s.appVersion} · v${s.schemaVersion}\n" +
+                                    "范围：${s.rangeText}\n" +
+                                    "记录：日 ${s.dayCount} / 应用 ${s.appRows} / 时段 ${s.hourRows} / 事件 ${s.unlockRows + s.notificationRows} 条\n" +
+                                    "只读查看，不会写入本机数据"
+                            } ?: "查看失败：${
+                                (downloaded.error as? SyncResult.Err)?.kind?.userMessage()
+                                    ?: "远端备份不可用"
+                            }"
+                        }
+                    }
+                )
+            }
+        }
+        inspectText?.let {
+            Text(text = it, style = FreshType.label, color = palette.onSurfaceVariant)
+        }
+        Text(
+            text = "升级前的旧备份归「未知设备」，原地保留不迁移；其它设备的备份只可查看，不会合并进本机数据。",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
         )
     }
 }

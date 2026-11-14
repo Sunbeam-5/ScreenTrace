@@ -174,6 +174,9 @@ fun AppNav() {
     val syncFrequency by viewModel.syncFrequency
     val syncWifiOnly by viewModel.syncWifiOnly
     val syncLastAt by viewModel.syncLastAt
+    // CR-15 ③ 批 C：云同步页设备卡片
+    val deviceNickname by viewModel.deviceNickname
+    val deviceIdShort by viewModel.deviceIdShort
     val syncLastOk by viewModel.syncLastOk
     val syncLastMessage by viewModel.syncLastMessage
 
@@ -674,6 +677,11 @@ fun AppNav() {
                                     onRestore = { file, overwrite, importSettings ->
                                         viewModel.restoreBackup(file, overwrite, importSettings)
                                     },
+                                    deviceNickname = deviceNickname,
+                                    deviceIdShort = deviceIdShort,
+                                    onDeviceNicknameChange = { name -> viewModel.setDeviceNickname(name) },
+                                    onListDevices = { viewModel.listCloudDevices() },
+                                    onInspectDevice = { id -> viewModel.inspectCloudDevice(id) },
                                     onNotice = viewModel::showNotice
                                 )
                                 is AppPage.AppCategories -> AppCategoryScreen(

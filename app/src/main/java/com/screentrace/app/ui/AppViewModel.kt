@@ -21,6 +21,7 @@ import com.screentrace.app.contract.StreakInfo
 import com.screentrace.app.contract.Summary
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.contract.UsageRepository
+import com.screentrace.app.data.prefs.DeviceIds
 import com.screentrace.app.data.prefs.SettingsStore
 import com.screentrace.app.data.pull.HistoryCoverage
 import com.screentrace.app.data.pull.PullChannel
@@ -340,6 +341,14 @@ class AppViewModel(
     private val _webdavPasswordSaved = mutableStateOf(false)
     val webdavPasswordSaved: State<Boolean> = _webdavPasswordSaved
 
+    // ---- CR-15 ③ 批 C：本机设备身份（昵称可改，ID 只展示短码）----
+
+    private val _deviceNickname = mutableStateOf("本机设备")
+    val deviceNickname: State<String> = _deviceNickname
+
+    private val _deviceIdShort = mutableStateOf("")
+    val deviceIdShort: State<String> = _deviceIdShort
+
     private var loadJob: Job? = null
 
     // ---- 批 6b：拉取状态（§5.8 未启动/未授权/拉取中/失败/空 dump） ----
@@ -567,6 +576,13 @@ class AppViewModel(
         _webdavPasswordSaved.value = (syncCredentials?.webdavPassword?.isNotEmpty() == true)
         viewModelScope.launch {
             runCatching { store.customThemeSeed.collect { _customThemeSeed.value = it } }
+        }
+        // 批 C：昵称随 DataStore 变，deviceId 首启生成一次后只展示短码（不进备份 settings）
+        viewModelScope.launch {
+            runCatching { store.deviceNickname.collect { _deviceNickname.value = it } }
+        }
+        viewModelScope.launch {
+            runCatching { _deviceIdShort.value = DeviceIds.short(store.getOrCreateDeviceId()) }
         }
     }
 
@@ -886,6 +902,35 @@ class AppViewModel(
         val downloaded = manager.downloadManual()
         refreshSyncStatus()
         return downloaded
+    }
+
+    /** §5.10 批 C：昵称只存本机 DataStore；空串回落机型默认值。挂起写盘，调用方等得到结果。 */
+    suspend fun setDeviceNickname(value: String) {
+        _deviceNickname.value = value.trim().ifEmpty { "本机设备" }
+        runCatching { settings?.setDeviceNickname(value) }
+    }
+
+    /** 列举所有设备备份（只读；不写库、不自动合并）。 */
+    suspend fun listCloudDevices(): com.screentrace.app.data.sync.SyncManager.DevicesResult {
+        val manager = sync ?: return com.screentrace.app.data.sync.SyncManager.DevicesResult(
+            devices = emptyList(),
+            error = com.screentrace.app.data.sync.SyncResult.Err(
+                com.screentrace.app.data.sync.SyncFailure.UNKNOWN, "同步模块未装配"
+            )
+        )
+        return manager.listDevices()
+    }
+
+    /** 只读查看指定设备的备份摘要：只下载+解码，绝不调 restore。 */
+    suspend fun inspectCloudDevice(
+        deviceId: String
+    ): com.screentrace.app.data.sync.SyncManager.DownloadedBackup {
+        val manager = sync ?: return com.screentrace.app.data.sync.SyncManager.DownloadedBackup(
+            error = com.screentrace.app.data.sync.SyncResult.Err(
+                com.screentrace.app.data.sync.SyncFailure.UNKNOWN, "同步模块未装配"
+            )
+        )
+        return manager.inspectDevice(deviceId)
     }
 
     private suspend fun refreshSyncStatus() {

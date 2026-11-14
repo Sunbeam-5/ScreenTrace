@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import com.screentrace.app.data.backup.BackupFile
 import com.screentrace.app.data.backup.BackupRepository
 import com.screentrace.app.data.backup.BackupSummary
@@ -42,10 +41,15 @@ fun CloudSyncScreen(
     onUpload: suspend () -> SyncResult,
     onDownload: suspend () -> SyncManager.DownloadedBackup,
     onRestore: suspend (BackupFile, Boolean, Boolean) -> BackupRepository.RestoreResult?,
+    // CR-15 ③ 批 C：设备卡片（只读查看）
+    deviceNickname: String,
+    deviceIdShort: String,
+    onDeviceNicknameChange: suspend (String) -> Unit,
+    onListDevices: suspend () -> SyncManager.DevicesResult,
+    onInspectDevice: suspend (String) -> SyncManager.DownloadedBackup,
     onNotice: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     var candidate by remember { mutableStateOf<Pair<BackupFile, BackupSummary>?>(null) }
 
     CloudSyncGroup(
@@ -66,6 +70,11 @@ fun CloudSyncScreen(
         onUpload = onUpload,
         onDownload = onDownload,
         onDownloadedReady = { file, summary -> candidate = file to summary },
+        deviceNickname = deviceNickname,
+        deviceIdShort = deviceIdShort,
+        onDeviceNicknameChange = onDeviceNicknameChange,
+        onListDevices = onListDevices,
+        onInspectDevice = onInspectDevice,
         onNotice = onNotice
     )
 
