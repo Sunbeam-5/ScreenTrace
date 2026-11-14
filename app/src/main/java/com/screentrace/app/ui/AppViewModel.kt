@@ -1,7 +1,10 @@
 package com.screentrace.app.ui
 
+import android.net.Uri
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.screentrace.app.contract.AppUsage
@@ -28,12 +31,16 @@ import com.screentrace.app.data.pull.PullChannel
 import com.screentrace.app.data.pull.PullCoordinator
 import com.screentrace.app.data.pull.PullOutcome
 import com.screentrace.app.data.pull.ProviderStatus
+import com.screentrace.app.data.wallpaper.WallpaperConfig
+import com.screentrace.app.data.wallpaper.WallpaperStore
 import com.screentrace.app.theme.ThemeVariant
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -186,7 +193,9 @@ class AppViewModel(
     /** 批 8b：云同步编排（WebDAV）。 */
     private val sync: com.screentrace.app.data.sync.SyncManager? = null,
     /** 批 8b：机密凭据（WebDAV 授权密码等，EncryptedSharedPreferences）。 */
-    private val syncCredentials: com.screentrace.app.data.sync.SyncCredentials? = null
+    private val syncCredentials: com.screentrace.app.data.sync.SyncCredentials? = null,
+    /** §5.4 批 E：壁纸文件读写；单测/预览不传，只走内存态。 */
+    private val wallpaperStore: WallpaperStore? = null
 ) : ViewModel() {
 
     // ---- 日期筛选（§5.6 / CR-15 B：两份互相独立的状态）----
@@ -349,6 +358,19 @@ class AppViewModel(
     private val _deviceIdShort = mutableStateOf("")
     val deviceIdShort: State<String> = _deviceIdShort
 
+    // ---- CR-15 ⑤ 批 E：自定义壁纸（单份位图 + 一份参数）----
+
+    private val _wallpaperBitmap = mutableStateOf<ImageBitmap?>(null)
+    val wallpaperBitmap: State<ImageBitmap?> = _wallpaperBitmap
+
+    private val _wallpaperConfig = mutableStateOf(WallpaperConfig())
+    val wallpaperConfig: State<WallpaperConfig> = _wallpaperConfig
+
+    /** 设置页卡片内的就地反馈（成功/失败都不弹全局横幅）。 */
+    private val _wallpaperMessage = mutableStateOf<String?>(null)
+    val wallpaperMessage: State<String?> = _wallpaperMessage
+    fun consumeWallpaperMessage() { _wallpaperMessage.value = null }
+
     private var loadJob: Job? = null
 
     // ---- 批 6b：拉取状态（§5.8 未启动/未授权/拉取中/失败/空 dump） ----
@@ -369,6 +391,7 @@ class AppViewModel(
 
     init {
         observeSettings()
+        loadWallpaper()
         loadAll()
         // 拉取**不放在 init**：由 AppNav 挂在 ON_RESUME 上（§2.1「App 打开时拉取」），
         // 否则「退到后台再回来」与「去 Shizuku 授权完切回来」都不会触发拉取。
@@ -583,6 +606,10 @@ class AppViewModel(
         }
         viewModelScope.launch {
             runCatching { _deviceIdShort.value = DeviceIds.short(store.getOrCreateDeviceId()) }
+        }
+        // 批 E：壁纸参数走 DataStore，图片本体只存私有 no_backup 目录
+        viewModelScope.launch {
+            runCatching { store.wallpaper.collect { _wallpaperConfig.value = it } }
         }
     }
 
@@ -902,6 +929,63 @@ class AppViewModel(
         val downloaded = manager.downloadManual()
         refreshSyncStatus()
         return downloaded
+    }
+
+    // ---- CR-15 ⑤ 批 E：壁纸操作 ----
+
+    /** 冷启动只解码一次，之后整棵 Compose 树共用这一份 ImageBitmap。 */
+    private fun loadWallpaper() {
+        val store = wallpaperStore ?: return
+        viewModelScope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                if (store.exists()) store.loadBitmap()?.asImageBitmap() else null
+            }
+            _wallpaperBitmap.value = bitmap
+        }
+    }
+
+    /** 选图回调：取消或失败都保留原壁纸与参数（§5.4 失败处理）。 */
+    fun onWallpaperPicked(uri: Uri?) {
+        // 取消选择先返回：这个分支不该依赖 store 是否装配，测试也能直接打靶
+        if (uri == null) return
+        val store = wallpaperStore ?: return
+        viewModelScope.launch {
+            val brightness = withContext(Dispatchers.IO) { store.save(uri) }
+            if (brightness == null) {
+                _wallpaperMessage.value = "图片读取失败，已保留原壁纸"
+                return@launch
+            }
+            _wallpaperBitmap.value = withContext(Dispatchers.IO) {
+                store.loadBitmap()?.asImageBitmap()
+            }
+            val next = _wallpaperConfig.value.copy(enabled = true, brightness = brightness)
+            _wallpaperConfig.value = next
+            runCatching { settings?.setWallpaper(next) }
+            _wallpaperMessage.value = "壁纸已应用"
+        }
+    }
+
+    /** 挂起写盘：滑杆在协程里调用，改完就能确定已落盘（不靠 fire-and-forget 的时序）。 */
+    suspend fun setWallpaperDim(value: Int) = updateWallpaper { it.copy(dimPercent = value) }
+
+    suspend fun setWallpaperBlur(value: Int) = updateWallpaper { it.copy(blurDp = value) }
+
+    private suspend fun updateWallpaper(change: (WallpaperConfig) -> WallpaperConfig) {
+        val next = change(_wallpaperConfig.value)
+        _wallpaperConfig.value = next
+        runCatching { settings?.setWallpaper(next) }
+    }
+
+    fun clearWallpaper() {
+        viewModelScope.launch {
+            // 状态先乐观复位：删文件 / 写 DataStore 都在后面，且可能挂到真实 IO，
+            // 不能让「恢复默认」看起来没反应（A1-④ 同类时序坑）。
+            _wallpaperBitmap.value = null
+            _wallpaperConfig.value = WallpaperConfig()
+            _wallpaperMessage.value = "已恢复默认背景"
+            runCatching { wallpaperStore?.clear() } // 只是删一个私有小文件，同步即可
+            runCatching { settings?.clearWallpaper() }
+        }
     }
 
     /** §5.10 批 C：昵称只存本机 DataStore；空串回落机型默认值。挂起写盘，调用方等得到结果。 */

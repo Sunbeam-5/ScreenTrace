@@ -64,11 +64,14 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.screentrace.app.ScreenTraceApp
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.EmptyUsageRepository
+import android.os.Build
 import com.screentrace.app.data.pull.PullScheduler
+import com.screentrace.app.data.wallpaper.WallpaperTuning
 import com.screentrace.app.ui.onboarding.OnboardingScreen
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.ScreenTimeTheme
+import com.screentrace.app.theme.WallpaperState
 import com.screentrace.app.uikit.AppHeader
 import com.screentrace.app.uikit.ContainerTransformOverlay
 import com.screentrace.app.uikit.ContainerTransformState
@@ -127,6 +130,7 @@ fun AppNav() {
                     backups = container.backup,
                     sync = container.syncManager,
                     syncCredentials = container.syncCredentials,
+                    wallpaperStore = container.wallpaperStore,
                     // 改拉取频率后立即重排后台任务（§5.8）：等下次冷启动才生效
                     // 在用户看来就是「改了没用」。
                     onPullFrequencyChanged = { frequency ->
@@ -140,6 +144,22 @@ fun AppNav() {
     })
     val variant by viewModel.themeVariant
     val darkTheme by viewModel.darkTheme
+    // §5.4 批 E：壁纸参数只有一份，位图由 ScreenTimeTheme 以 CompositionLocal 下发
+    val wallpaperBitmap by viewModel.wallpaperBitmap
+    val wallpaperConfig by viewModel.wallpaperConfig
+    val wallpaperMessage by viewModel.wallpaperMessage
+    val wallpaperState = remember(wallpaperBitmap, wallpaperConfig, darkTheme) {
+        wallpaperBitmap?.takeIf { wallpaperConfig.enabled }?.let { bmp ->
+            WallpaperState(
+                bitmap = bmp,
+                dimAlpha = WallpaperTuning.dimAlpha(wallpaperConfig.dimPercent),
+                themeScrimAlpha = WallpaperTuning.themeScrimAlpha(
+                    wallpaperConfig.brightness, darkTheme
+                ),
+                blurDp = WallpaperTuning.effectiveBlurDp(wallpaperConfig.blurDp, Build.VERSION.SDK_INT)
+            )
+        }
+    }
     val dynamicColor by viewModel.dynamicColor
     val page by viewModel.page
     // CR-15 B：今日页与统计页各自持有日期状态，互不影响
@@ -256,7 +276,8 @@ fun AppNav() {
         darkTheme = darkTheme,
         dynamicColor = dynamicColor,
         // §5.4 CR-04：自定义种子优先于预设；派生结果已含对比度校正
-        customSeed = customThemeSeed?.let { androidx.compose.ui.graphics.Color(it) }
+        customSeed = customThemeSeed?.let { androidx.compose.ui.graphics.Color(it) },
+        wallpaper = wallpaperState
     ) {
         val palette = LocalFreshPalette.current
 
@@ -356,8 +377,20 @@ fun AppNav() {
         SideEffect {
             if (activity != null) {
                 val controller = androidx.core.view.WindowCompat.getInsetsController(activity.window, view)
-                controller.isAppearanceLightStatusBars = !darkTheme
-                controller.isAppearanceLightNavigationBars = !darkTheme
+                // §5.4 批 E：启用壁纸时按「遮罩后实际背景亮度」判图标明暗；
+                // 无壁纸时维持原口径（跟用户选的深浅色，不跟系统）。
+                val lightIcons = if (wallpaperState != null) {
+                    WallpaperTuning.lightStatusIcons(
+                        WallpaperTuning.effectiveBrightness(
+                            wallpaperConfig.brightness,
+                            WallpaperTuning.dimAlpha(wallpaperConfig.dimPercent),
+                            WallpaperTuning.themeScrimAlpha(wallpaperConfig.brightness, darkTheme),
+                            darkTheme
+                        )
+                    )
+                } else !darkTheme
+                controller.isAppearanceLightStatusBars = lightIcons
+                controller.isAppearanceLightNavigationBars = lightIcons
             }
         }
 
@@ -636,6 +669,14 @@ fun AppNav() {
                                     onDarkThemeChange = viewModel::setDarkTheme,
                                     dynamicColor = dynamicColor,
                                     onDynamicColorChange = viewModel::setDynamicColor,
+                                    wallpaperConfig = wallpaperConfig,
+                                    wallpaperMessage = wallpaperMessage,
+                                    blurSupported = WallpaperTuning.blurSupported(Build.VERSION.SDK_INT),
+                                    onWallpaperPicked = viewModel::onWallpaperPicked,
+                                    onWallpaperDimChange = { v -> viewModel.setWallpaperDim(v) },
+                                    onWallpaperBlurChange = { v -> viewModel.setWallpaperBlur(v) },
+                                    onClearWallpaper = viewModel::clearWallpaper,
+                                    onConsumeWallpaperMessage = viewModel::consumeWallpaperMessage,
                                     lowThresholdMin = lowThresholdMin,
                                     onLowThresholdChange = viewModel::setLowThresholdMin,
                                     appVersion = appVersion,

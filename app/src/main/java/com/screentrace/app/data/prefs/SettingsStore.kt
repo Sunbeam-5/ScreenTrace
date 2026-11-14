@@ -11,6 +11,8 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.screentrace.app.contract.AppCategory
 import com.screentrace.app.contract.DEFAULT_LOW_THRESHOLD_MIN
+import com.screentrace.app.data.wallpaper.WallpaperConfig
+import com.screentrace.app.data.wallpaper.WallpaperTuning
 import com.screentrace.app.theme.ThemeVariant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -148,6 +150,34 @@ class SettingsStore(
         model = defaultDeviceName
     )
 
+    // ---- CR-15 ⑤ 批 E：自定义壁纸参数（§5.4；不进 BackupSettings / JSON 备份）----
+
+    val wallpaper: Flow<WallpaperConfig> = dataStore.data.map { prefs ->
+        WallpaperConfig(
+            enabled = prefs[WALLPAPER_ENABLED] ?: false,
+            dimPercent = WallpaperTuning.clampDim(
+                prefs[WALLPAPER_DIM] ?: WallpaperConfig.DEFAULT_DIM
+            ),
+            blurDp = WallpaperTuning.clampBlur(prefs[WALLPAPER_BLUR] ?: 0),
+            brightness = WallpaperTuning.clampBrightness(prefs[WALLPAPER_BRIGHTNESS] ?: 128)
+        )
+    }
+
+    suspend fun setWallpaper(config: WallpaperConfig) = dataStore.edit { prefs ->
+        prefs[WALLPAPER_ENABLED] = config.enabled
+        prefs[WALLPAPER_DIM] = WallpaperTuning.clampDim(config.dimPercent)
+        prefs[WALLPAPER_BLUR] = WallpaperTuning.clampBlur(config.blurDp)
+        prefs[WALLPAPER_BRIGHTNESS] = WallpaperTuning.clampBrightness(config.brightness)
+    }
+
+    /** 恢复默认：清参数；图片文件由 WallpaperStore.clear() 单独删。 */
+    suspend fun clearWallpaper() = dataStore.edit { prefs ->
+        prefs.remove(WALLPAPER_ENABLED)
+        prefs.remove(WALLPAPER_DIM)
+        prefs.remove(WALLPAPER_BLUR)
+        prefs.remove(WALLPAPER_BRIGHTNESS)
+    }
+
     // ---- 批 8b：云同步非机密配置与状态（§5.10；密码/令牌在 SyncCredentials）----
 
     /** WebDAV 地址（默认坚果云，可改任意 WebDAV 服务）。 */
@@ -202,6 +232,10 @@ class SettingsStore(
         private val SYNC_LAST_MESSAGE = stringPreferencesKey("sync_last_message")
         private val DEVICE_ID = stringPreferencesKey("device_id")
         private val DEVICE_NICKNAME = stringPreferencesKey("device_nickname")
+        private val WALLPAPER_ENABLED = booleanPreferencesKey("wallpaper_enabled")
+        private val WALLPAPER_DIM = intPreferencesKey("wallpaper_dim")
+        private val WALLPAPER_BLUR = intPreferencesKey("wallpaper_blur")
+        private val WALLPAPER_BRIGHTNESS = intPreferencesKey("wallpaper_brightness")
     }
 }
 

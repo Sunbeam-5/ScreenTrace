@@ -1,8 +1,10 @@
 package com.screentrace.app.ui
 
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,6 +28,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +53,8 @@ import com.screentrace.app.data.pull.HistoryCoverage
 import com.screentrace.app.data.pull.PullChannel
 import com.screentrace.app.data.pull.ProviderStatus
 import com.screentrace.app.data.pull.ShizukuAuth
+import com.screentrace.app.data.wallpaper.WallpaperConfig
+import com.screentrace.app.data.wallpaper.WallpaperTuning
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.ThemeVariant
@@ -98,6 +103,15 @@ fun SettingsScreen(
     onDarkThemeChange: (Boolean) -> Unit,
     dynamicColor: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
+    /** §5.4 批 E：自定义壁纸（全部给默认值，Preview / 单测零改动）。 */
+    wallpaperConfig: WallpaperConfig = WallpaperConfig(),
+    wallpaperMessage: String? = null,
+    blurSupported: Boolean = false,
+    onWallpaperPicked: (Uri?) -> Unit = {},
+    onWallpaperDimChange: suspend (Int) -> Unit = {},
+    onWallpaperBlurChange: suspend (Int) -> Unit = {},
+    onClearWallpaper: () -> Unit = {},
+    onConsumeWallpaperMessage: () -> Unit = {},
     lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN,
     onLowThresholdChange: (Int) -> Unit = {},
     appVersion: String,
@@ -185,7 +199,15 @@ fun SettingsScreen(
         darkTheme = darkTheme,
         onDarkThemeChange = onDarkThemeChange,
         dynamicColor = dynamicColor,
-        onDynamicColorChange = onDynamicColorChange
+        onDynamicColorChange = onDynamicColorChange,
+        wallpaperConfig = wallpaperConfig,
+        wallpaperMessage = wallpaperMessage,
+        blurSupported = blurSupported,
+        onWallpaperPicked = onWallpaperPicked,
+        onWallpaperDimChange = onWallpaperDimChange,
+        onWallpaperBlurChange = onWallpaperBlurChange,
+        onClearWallpaper = onClearWallpaper,
+        onConsumeWallpaperMessage = onConsumeWallpaperMessage
     )
 
     AboutGroup(coverage = coverage, appVersion = appVersion)
@@ -565,8 +587,18 @@ private fun AppearanceGroup(
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
     dynamicColor: Boolean,
-    onDynamicColorChange: (Boolean) -> Unit
+    onDynamicColorChange: (Boolean) -> Unit,
+    wallpaperConfig: WallpaperConfig,
+    wallpaperMessage: String?,
+    blurSupported: Boolean,
+    onWallpaperPicked: (Uri?) -> Unit,
+    onWallpaperDimChange: suspend (Int) -> Unit,
+    onWallpaperBlurChange: suspend (Int) -> Unit,
+    onClearWallpaper: () -> Unit,
+    onConsumeWallpaperMessage: () -> Unit
 ) {
+    val palette = LocalFreshPalette.current
+    val scope = rememberCoroutineScope()
     SettingsGroup("外观") {
         ActionRow(
             label = "界面风格",
@@ -591,8 +623,79 @@ private fun AppearanceGroup(
         Text(
             text = "动态取色只在系统支持时生效（Android 12+），否则用当前风格的颜色。",
             style = FreshType.label,
-            color = LocalFreshPalette.current.onSurfaceVariant
+            color = palette.onSurfaceVariant
         )
+
+        // §5.4 批 E：自定义壁纸（入口就在「外观」组内，不新增页面、不并入 StyleSheet）
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(palette.track)
+        )
+        Text(text = "自定义壁纸", style = FreshType.body, color = palette.onSurface)
+        Text(
+            text = if (wallpaperConfig.enabled) "已设置 · 全 App 使用同一张" else "未设置 · 使用默认渐变背景",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+        val pickWallpaper = rememberLauncherForActivityResult(
+            ActivityResultContracts.PickVisualMedia()
+        ) { uri -> onWallpaperPicked(uri) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SecondaryButton(
+                text = "选择图片",
+                onClick = {
+                    pickWallpaper.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                modifier = Modifier.weight(1f)
+            )
+            SecondaryButton(
+                text = "恢复默认",
+                enabled = wallpaperConfig.enabled,
+                onClick = onClearWallpaper,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Text(
+            text = "暗化 ${wallpaperConfig.dimPercent}%",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+        Slider(
+            value = wallpaperConfig.dimPercent.toFloat(),
+            onValueChange = { value -> scope.launch { onWallpaperDimChange(value.toInt()) } },
+            valueRange = WallpaperTuning.DIM_MIN.toFloat()..WallpaperTuning.DIM_MAX.toFloat(),
+            enabled = wallpaperConfig.enabled,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Text(
+            text = if (blurSupported) "模糊 ${wallpaperConfig.blurDp}dp"
+            else "当前系统版本不支持模糊（需 Android 12 及以上）",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+        Slider(
+            value = wallpaperConfig.blurDp.toFloat(),
+            onValueChange = { value -> scope.launch { onWallpaperBlurChange(value.toInt()) } },
+            valueRange = WallpaperTuning.BLUR_MIN.toFloat()..WallpaperTuning.BLUR_MAX.toFloat(),
+            enabled = wallpaperConfig.enabled && blurSupported,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Text(
+            text = "图片只存在本机私有目录，不进备份、不上传云端；浅色/深色主题会自动调整遮罩。",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+        wallpaperMessage?.let { message ->
+            Text(text = message, style = FreshType.label, color = palette.primary)
+            LaunchedEffect(message) {
+                kotlinx.coroutines.delay(2500L)
+                onConsumeWallpaperMessage()
+            }
+        }
     }
 }
 

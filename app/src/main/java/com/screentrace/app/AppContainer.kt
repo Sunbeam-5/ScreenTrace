@@ -41,6 +41,9 @@ class AppContainer(context: Context) {
 
     val settings = SettingsStore(appContext)
 
+    /** §5.4 批 E：自定义壁纸（私有 no_backup 目录，不进 Room / 备份 JSON）。 */
+    val wallpaperStore = com.screentrace.app.data.wallpaper.WallpaperStore(appContext)
+
     /**
      * §3-8 展示名：PackageManager 标签优先。同一个实例同时给入库管道与仓库读取层用，
      * 缓存共享——入库时算过的包，读取时不用再查一次 PackageManager。

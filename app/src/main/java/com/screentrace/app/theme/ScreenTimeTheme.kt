@@ -192,6 +192,8 @@ fun ScreenTimeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
     customSeed: androidx.compose.ui.graphics.Color? = null,
+    /** §5.4 批 E：null = 无壁纸，PageScaffold 回落到三段渐变。 */
+    wallpaper: WallpaperState? = null,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -207,7 +209,10 @@ fun ScreenTimeTheme(
         else -> palette.toColorScheme(darkTheme)
     }
 
-    CompositionLocalProvider(LocalFreshPalette provides palette) {
+    CompositionLocalProvider(
+        LocalFreshPalette provides palette,
+        LocalWallpaper provides wallpaper
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             shapes = FreshShapes,

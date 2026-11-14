@@ -3,6 +3,7 @@ package com.screentrace.app.uikit
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,8 +31,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -40,6 +43,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
+import com.screentrace.app.theme.LocalWallpaper
 import com.screentrace.app.theme.ScreenTimeTheme
 
 /**
@@ -60,21 +64,50 @@ fun PageScaffold(
     content: @Composable BoxScope.() -> Unit
 ) {
     val palette = LocalFreshPalette.current
+    // §5.4 批 E：壁纸走 CompositionLocal 的单份位图，主页面层与二级页覆盖层共用；
+    // 无壁纸时才画 CR-07 的三段渐变。绘制顺序必须与 WallpaperTuning 的亮度计算一致：
+    // 壁纸 → 用户暗化（scrim 黑）→ 主题底色（浅/深 background 自动切换）。
+    val wallpaper = LocalWallpaper.current
     // 背景铺满整个 Box（含状态栏后面），内容侧才做 statusBarsPadding：
     // 否则状态栏那一条会露出系统底色（§「上面有一条黑边」的根因）。
     Box(
         modifier = modifier
             .fillMaxSize()
-            // CR-07：三段渐变（0% 顶部 / 18% 中段 / 40% 起落回 background），
-            // 背景固定在屏幕后，不随内容滚动
-            .background(
-                androidx.compose.ui.graphics.Brush.verticalGradient(
-                    0f to palette.gradientTop,
-                    0.18f to palette.gradientMid,
-                    0.40f to palette.background
-                )
+            .then(
+                if (wallpaper == null) Modifier.background(
+                    // CR-07：三段渐变（0% 顶部 / 18% 中段 / 40% 起落回 background），
+                    // 背景固定在屏幕后，不随内容滚动
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0f to palette.gradientTop,
+                        0.18f to palette.gradientMid,
+                        0.40f to palette.background
+                    )
+                ) else Modifier
             )
     ) {
+        if (wallpaper != null) {
+            Image(
+                bitmap = wallpaper.bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    // API < 31 时 effectiveBlurDp 已钳成 0，这里不会调用 blur（不静默假装生效）
+                    .then(if (wallpaper.blurDp > 0f) Modifier.blur(wallpaper.blurDp.dp) else Modifier)
+            )
+            if (wallpaper.dimAlpha > 0f) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(palette.scrim.copy(alpha = wallpaper.dimAlpha))
+                )
+            }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(palette.background.copy(alpha = wallpaper.themeScrimAlpha))
+            )
+        }
         Column(
             Modifier
                 .fillMaxSize()
