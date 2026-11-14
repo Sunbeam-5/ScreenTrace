@@ -96,9 +96,14 @@ enum class DateSheetMode { DAY, RANGE, FULL }
  * CR-16（负责人裁决评审 P1-1）：**与写回目标用同一条判据** `AppPage.mainOf(page)`
  * （即二级页的 `returnTo`）——归属今日的一律 DAY、归属统计的一律 RANGE。
  * 之前二级页统一给 FULL，与写回判据不一致，两个方向都能写出不同量纲的状态：
- * 从今日页进详情选「近 7 天」→ 区间写进 `todaySelection`（今日页回落今天、无任何
- * 可见标记）；从统计页进详情选「今天」→ 单日写进 `statsSelection`（趋势只剩一根柱）。
- * 收窄后二级页只能写同量纲选择，这两条路径在结构上不存在。
+ * 从今日页进解锁详情选「近 7 天」→ 区间写进 `todaySelection`，而两个详情页的取数
+ * 窗口恒为单日 `todayEffective`，于是**选了毫无变化**、只是把今日页状态偷偷改成
+ * 区间（不可见、无清除入口）；从统计页进详情选「今天」→ 单日写进 `statsSelection`
+ * （趋势只剩一根柱）。收窄后二级页只能写同量纲选择，这两条路径在结构上不存在。
+ *
+ * 残留（另立条）：排行页恒取「锚点单日」（§5.7 排行-2），选区间只改锚点结束日，
+ * 默认锚点已是今天，因此从统计侧选「近 30 天」仍表现为无变化——那是排行口径问题，
+ * 不是弹层选项集问题。
  */
 fun dateSheetModeFor(page: AppPage?): DateSheetMode =
     when (page?.let { AppPage.mainOf(it) }) {
