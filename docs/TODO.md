@@ -102,8 +102,11 @@
 - [x] **P2-4 `catch (e: Exception)` 吞 `CancellationException`**：`loadAll` / `loadPeriod` 快速连点日期时，被取消的加载会写入 error 状态。→ 先 `catch (e: CancellationException) { throw e }`。
 - [x] **P2-5 `applySelection` 自己取消自己**：协程赋给 `loadJob` 后调 `loadAll()`，其首行 `loadJob?.cancel()` 取消的正是当前协程，目前靠「之后无挂起点」侥幸可用。→ `loadAll(cancelPrevious: Boolean)`，写入路径传 false。
 - [ ] **P3-1 读屏**：`RollingNumberText` 每位一个 `AnimatedContent` → 一个 `Text`，`MetricCardPair` 未 `clearAndSetSemantics`，TalkBack 可能把「87」读成两段；补语义并真机听一遍。
+  - **建议方案 A（负责人待采纳，2026-11-15 01:50 已给建议）**：可下钻卡改 `clearAndSetSemantics`，一句话读完「标签 + 值 + 对比说明 + 查看详情」；抽 `metricCardDescription()` 纯函数（现状默认 `"$label 查看详情"` **缺当前值**，与 §5.2 原文不符，`TodayScreen` 也没传 `clickDescription`）；`RollingNumberText` 补 `semantics(mergeDescendants = true)` 兜住统计页大数字。约 20 行 + 3 测试；**不引 Compose 测试依赖**，验证用 Redmi `uiautomator dump` 看双卡节点数与 `content-desc`。备选：仅合并 `RollingNumberText`（收益小）；加 `ui-test-junit4`（拖慢构建，不推荐）。
 - [ ] **P3-2 `DateInput.error` 格式错分支不可达**：字段文本恒为数字流，`按 年-月-日 输入` 永不触发且被测试固化；删分支或注明防御性。
+  - **建议方案 A（负责人待采纳）**：代码不动，补 2 条纯函数测试（`error("2026-1-1-1")`、`error("2026/11/11")` → 格式提示），把零覆盖补成真覆盖。**事实修正**：该分支 UI 不可达但**函数可达**（`error()` 是纯函数），不是死代码；现有测试注释已写「只在超过 8 位数字的非掩码形状下兜底」却无用例。备选：删分支 + 删 `SHAPE`（丢防御层）。
 - [ ] **P3-3 `normalizeInput(raw, cursor)` 的 cursor 参数未使用**（永远置末尾），签名误导调用方。
+  - **建议方案 A（负责人待采纳）**：删参数 → `normalizeInput(raw): Pair<String, Int>`，改 `DateSheet` 2 处调用 + `DateInputTest`，KDoc 保留「光标一律置末尾（自动补 0 是末尾插入）」。约 5 行、零风险，顺带消掉编译 warning。备选：真按光标插入（要处理补 0 改长度后的光标映射，当前交互不需要）。
 - [x] ~~**P3-4 `SyncManager` 绑死 `WebDavProvider.MANUAL_FILE`**~~ **批 C 已解决**：远端文件名/路径口径统一收进 `SyncPaths`（`SyncManager` 不再引用 WebDAV 常量），自动备份文件名带设备短 ID；详见 `CODE_REVIEW.md` 文末补记。
 - [ ] **待裁决 · 排行页口径**：§5.7 排行-2 恒取锚点单日，从统计侧进排行选「近 30 天」只改锚点结束日（默认今天）→ 仍表现为无变化。需定「排行改独立单日状态」还是「排行弹层只给单日」。
 - [ ] **复核新增 · 统计侧详情页残留**：CR-16 后从统计页进解锁 / 通知详情，弹层给 RANGE、写回 `statsSelection`，但详情页取数恒用 `todayEffective` → 当前页仍不变（返回统计页才可见）。不同于 P1-1 的完全隐藏，但仍是「选了当前页没反应」。
