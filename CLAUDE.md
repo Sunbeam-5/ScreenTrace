@@ -6,7 +6,7 @@
 ## 1. 项目与构建
 - 路径 `E:\project\ScreenTrace`，包名 `com.screentrace.app`；Kotlin + Compose（BOM 2024.06）+ Room + DataStore + WorkManager。
 - JDK 17；`JAVA_HOME="C:/Users/Administrator/.jdks/jbr-21.0.11"`。
-- 当前基线：**432 测全绿 / 0 skip**，改完必须保持全绿。
+- 当前基线：**437 测全绿 / 0 skip**，改完必须保持全绿。
 
 ## 2. 先读什么（按顺序，不要凭印象）
 1. `docs/需求文档-屏幕使用时间App.md` —— **唯一权威**（数据口径、§5 UI 规范、§7 42 条验收；头部登记了 CR-01~CR-17 全部裁定）
@@ -41,7 +41,7 @@
 - 本地有未推送提交，数量以 `git rev-list --count origin/main..main` 为准。
 
 ## 6. 下一步（按顺序，动手前先让负责人确认范围）
-1. **两条待负责人裁决**：排行页口径、统计侧详情页「选区间当前页不变」。
+1. ~~两条待负责人裁决~~（**2026-11-15 已裁决并落地为 CR-18**：排行弹层只给单日、详情跟随归属；437 测全绿 + Redmi 真机四步复核）。
 2. 远期：Google Drive、年视图色阶、提醒限额、Glance 小组件、多机型适配、AI 分析、PNG 长图、§7 逐条签核。
 
 ## 7. 常用命令
