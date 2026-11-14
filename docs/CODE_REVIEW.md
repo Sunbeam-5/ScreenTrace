@@ -1368,3 +1368,36 @@ P1-1 的探针与 P1-2 的变异都是临时改动，复现后已 `git checkout 
 - **起点重登记**：`QuickMenuOverlay` 下发 `LocalContainerTransformState`，四枚按钮复用带 `transformSource` 的 `HeaderActionButton`。`capture_anim.py` 新增 `--quick-menu`（预展开 → 定位 → 收起 → 录屏重放两步点击），`--slow` 抽帧确认 `enter.png` 首帧圆角底板 + 齿轮出现在面板「设置」按钮 (498,465) 附近而非顶栏右上 (1077,263)，`exit.png` 缩回同处；齿轮保持圆形不拉长、无闪白叠影。产物 `C:/tmp/screentrace-capture/cr_d_quick_menu/`。
 - **验证**：新增 10 测（QuickMenuActions 6 / DeviceSummary 4）；变异 **9 处全部变红**（D8 首轮脚本锚点把带闭合引号的片段当子串，修正后单跑变红）；`--rerun-tasks` **428 测全绿 / 0 skip**。Redmi `GAQOHMNFQWFUPBQO` 真机（vivo 全程禁用）APK `61aaaaef`：四枚 / 日历三枚、主题与日期弹层复用、设备面板「MyRedmi · 本机 1 份 / 未知设备（旧备份）2 份」且摘要 `v4 · 3 天`、返回键收起面板、快速连点 5 次 tab 无错位、crash 缓冲区 0 条 FATAL。
 - **仍未处理**：P3 三条、排行页口径待裁决、统计侧详情页残留、日期弹层标题与状态栏略重叠。本地提交因环境权限规则拒绝读 `~/.ssh/` 未推送，由负责人手动 `git push origin main`。
+
+
+---
+
+## 【补记】P3 三条落地证据（2026-11-15）
+
+> 本节由评审人补记，不改写上文任何评审原文；记录 P3-3 / P3-2 / P3-1 的落地与真机证据。
+> 三条均按负责人采纳的建议方案 A（`docs/TODO.md` 2026-11-15 01:50 版）。
+
+- **P3-3 `normalizeInput` 删未用 cursor 参数（`c0cf556`）**：签名改 `normalizeInput(raw): Pair<String, Int>`，
+  DateSheet 2 处调用去掉第二参，DateInputTest 单参调用零改动；KDoc 保留「光标一律置末尾（自动补 0 是末尾插入）」
+  并注明删参理由；编译 warning 消除。纯删参无行为变化，既有测试钉住行为，无需新增用例。
+- **P3-2 `DateInput.error` 格式错分支补真覆盖（`d64a4a5`，代码不动）**：补 2 条纯函数用例——
+  `error("2026/11/11")` 与 `error("2026-11-11-11")` → 「按 年-月-日 输入」格式提示。
+  **事实修正**：建议方案里的原例 `error("2026-1-1-1")` 实测只有 7 位数字、进不了 ≥8 分支（返回 ""，
+  属输入中间态），换成同样「多余分段」但满 8 位的 4 段形状；该实测结论一并钉进用例。
+  变异（格式错分支改恒走「不存在」）该用例变红。
+- **P3-1 读屏合并语义（`eb381b0` + 真机收口 `035235c`）**：
+  - 抽 `metricCardDescription()` 纯函数：「标签 + 当前值 + 说明 + 查看详情」一句话，修掉原默认
+    `"$label 查看详情"` 缺当前值（与 §5.2 不符）；时长与页面同源（formatDuration）。新增 3 测，
+    变异（去掉值拼接）3 例全红。
+  - `MetricCard` 可下钻分支改 `clearAndSetSemantics` 整卡一句话；`RollingNumberText` 补
+    `semantics(mergeDescendants = true)`；TodayScreen 可用态走默认描述（带「已查看 X 次」），
+    无事件源保留「暂无事件」自定义（不念破折号）。
+  - **真机发现并修复**：`clearAndSetSemantics` 连同节点上的 clickable 语义一起清掉——
+    Redmi uiautomator dump 实测 `clickable=false`（TalkBack 无法激活卡片），在语义块里补回
+    `onClick(label = "查看详情")` 后恢复 `clickable=true`。
+  - Redmi `GAQOHMNFQWFUPBQO` dump 复核（vivo 全程未动）：双卡各为**单节点**且 content-desc 为
+    整句（「通知打扰 1，已查看 0 次，查看详情」），卡内无逐位残留数字节点；统计页大数字单节点
+    「18 小时 23 分钟」；「87」拆读消除。
+- **验证**：`--rerun-tasks` **432 测全绿 / 0 skip**（428 + P3-2 1 例 + P3-1 3 例）；变异验证 P3-2 一处、
+  P3-1 一处均变红并还原。
+- **仍未处理**：排行页口径待裁决、统计侧详情页「选区间当前页不变」待裁决、日期弹层标题与状态栏略重叠。
