@@ -108,9 +108,10 @@ internal object DateInput {
      * - 日首位 4–9 → 自动补 0；首位 0–3 等第二位；
      * - 粘贴带 `-` 的 ISO 日期直接转成规范数字流；
      * - 过滤非数字、**硬截 8 位**（越界映射崩溃的第一道防线）；
-     * - 光标一律置末尾：自动补 0 是末尾插入，逐位输入不会插错位置。
+     * - 光标一律置末尾（自动补 0 是末尾插入，逐位输入不会插错位置）——新光标恒为
+     *   文本长度，故不设入参光标（P3-3：原 `cursor` 参数从未使用，删除）。
      */
-    internal fun normalizeInput(raw: String, cursor: Int = raw.length): Pair<String, Int> {
+    internal fun normalizeInput(raw: String): Pair<String, Int> {
         if (raw.contains('-')) {
             val parsed = runCatching { LocalDate.parse(raw.trim(), FORMAT) }.getOrNull()
             if (parsed != null && parsed.year in MIN_YEAR..MAX_YEAR) {

@@ -396,7 +396,7 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
             error = DateInput.error(startText.text),
             modifier = Modifier.weight(1f),
             onValueChange = { input ->
-                val (text, caret) = DateInput.normalizeInput(input.text, input.selection.start)
+                val (text, caret) = DateInput.normalizeInput(input.text)
                 startText = TextFieldValue(text, TextRange(caret))
                 syncCalendar()
             }
@@ -407,7 +407,7 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
             error = DateInput.error(endText.text),
             modifier = Modifier.weight(1f),
             onValueChange = { input ->
-                val (text, caret) = DateInput.normalizeInput(input.text, input.selection.start)
+                val (text, caret) = DateInput.normalizeInput(input.text)
                 endText = TextFieldValue(text, TextRange(caret))
                 syncCalendar()
             }
