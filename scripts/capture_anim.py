@@ -407,6 +407,13 @@ def main() -> int:
                     6, 3, args.scale, out_dir / enter_name,
                 ),
             }
+            if args.date_switch:
+                # 诊断「闪一帧」用：8×6=48 帧压在 1.0s 内（约 21ms/帧）；必须覆盖
+                # 「弹层收起 → 数据落地 → 数字滚动结束」全过程，只拍 0.55s 会停在弹层未关完的前半段
+                made["switch_dense.png"] = contact_sheet(
+                    ff, local_mp4, enter_start, clamp_window(enter_start, 1.0, duration),
+                    8, 6, args.scale, out_dir / "switch_dense.png",
+                )
             if not args.no_back and not args.date_switch:
                 made["exit.png"] = contact_sheet(
                     ff, local_mp4, exit_start, exit_window,

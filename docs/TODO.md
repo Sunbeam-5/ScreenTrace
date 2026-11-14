@@ -44,7 +44,7 @@
   - 结果：346 测全绿（新增 7 例），去掉钳制/年份守卫后 2 例变红（变异验证）；APK `35cdd282` 已装 Redmi。vivo 当前不在线，待下次补验。
 - [x] **批 A1 · P0 其余两项（2026-11-14 完成）**：
   - [x] ⑥ 时段分布：新增 `UsageCalculator.dailyAveragePeriods`（分母 `Summary.recordedDays`），统计页与周期总结页同源归一；周期页标题标「日均」；Preview 假数据改日均量纲；§5.7 第 7 条补口径。新增 5 测，去掉除法后 3 例变红。
-  - [x] ④ 今日页切换：先用 `dumpsys gfxinfo` 抓 Redmi 帧分布（GPU 50th=4ms 非瓶颈、50th=10ms/90th=18ms/Janky 10.78%）定位为「无反馈 + 偶发 UI 线程慢帧」；再给 `TodayScreen` 加按日期 key 的 `Crossfade`（180ms，减少动画直落终值，单插槽包 Column），双卡数字接 `RollingNumberText` 逐位滚动。
+  - [x] ④ 今日页切换：先用 `dumpsys gfxinfo` 抓 Redmi 帧分布（GPU 50th=4ms 非瓶颈、50th=10ms/90th=18ms/Janky 10.78%）定位为「无反馈 + 偶发 UI 线程慢帧」；双卡数字接 `RollingNumberText` 逐位滚动。**负责人随后反馈「切日期闪一帧」：高密度抽帧（`switch_dense.png`）+ 原始单帧确认是 `Crossfade` 重建内容分支导致 `RingProgress` 的 900ms 入场动画从 0 重播（圆环塌成一小截弧）+ 交叉帧整页半透明；已按修订后的 CR-15 ④ 去掉整页 Crossfade，只留数字滚动与圆环平滑变值。** 复录 `a1_no_flash2/switch_dense.png`（8×6=48 帧 / 1.0s）确认：圆环全程完整深紫、无塌环、无半透明帧，数字仍逐位滚动；APK `b93956ce`。
   - [x] 真机验证：近 7 天（共 5 天有记录、日均 18h42m）四段为 4h33m / 3h13m / 2h47m / 6h24m，**全部落在 6/6/4/8 小时时钟跨度内**；`scripts/capture_anim.py --date-switch` 新模式的 `switch.png` 拍到半透明交叠过渡帧与数字逐位变化；crash 缓冲区 0 条 FATAL。APK `05b5b687` 已装 Redmi（vivo 另有测试，未动）。
 - [ ] **批 B · 日期状态拆分（①）**：ViewModel 拆 `todaySelection`（单日）/ `statsSelection`（区间）各自记忆；日历 tab 顶栏不传 `onDateClick`、锚点固定今天；排行/解锁详情/通知详情跟随入口主页面状态、周期总结跟统计页；改写需求 §5.6「单一状态」条款。
 - [ ] **批 C · 多设备数据层（③ 下半）**：备份 schemaVersion → v5 写 `deviceId`（UUID + 可改昵称）；远端 `devices/<deviceId>/` 分目录 + 自动备份文件名带 deviceId；兼容旧备份归「未知设备」；下载列举所有设备备份，切换查看**只读不写本机库**；同步 §5.10。
@@ -88,6 +88,7 @@ python scripts/capture_anim.py --launcher --slow   # 5x 系统动画缩放，自
 
 # 日期切换过渡：预定位「选择日期」按钮与「昨天」chip，录两步点击全过程
 # 产物 switch.png = 切换瞬间逐帧联系表（不写死坐标、不按返回键）
+# 产物 switch.png = 切换段联系表；switch_dense.png = 8×6 高密度诊断帧（逐帧约 21ms）
 python scripts/capture_anim.py --date-switch -s GAQOHMNFQWFUPBQO --name a1_date_switch
 
 # 多台设备 / 手动指定入口坐标 / 只录进入

@@ -1,7 +1,5 @@
 package com.screentrace.app.ui
 
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,7 +43,6 @@ import com.screentrace.app.uikit.MetricValue
 import com.screentrace.app.uikit.RingMath
 import com.screentrace.app.uikit.StatusChip
 import com.screentrace.app.uikit.RingProgress
-import com.screentrace.app.uikit.rememberReduceMotion
 import com.screentrace.app.uikit.AppBreakdownMath
 import com.screentrace.app.uikit.AppBreakdownSection
 import com.screentrace.app.uikit.ViewAllButton
@@ -70,44 +67,24 @@ fun TodayScreen(
     /** 正在拉取（首次 dump 要十几秒）。此时「没数据」是暂时的，不能显示「尚无使用记录」。 */
     pulling: Boolean = false
 ) {
-    val data = state.data
     // 分支顺序 = 「有数据就画数据」（批 6g）：切换日期时 ViewModel 会带着旧 data
     // 进入 loading，这里必须先渲染旧内容，等新数据落地直接换值——
     // 若把 loading 放在最前，每次切日期都会整页闪一次骨架（真机反馈 #2/#3）。
-    // CR-15 A1：换值本身要有一次轻过渡，否则数字「啪」地跳变，观感生硬。
+    //
+    // CR-15 A1 修订：**不套 Crossfade / AnimatedContent**。真机高密度抽帧证实：
+    // 整页淡变会在切换时重建新内容分支，RingProgress 的 `Animatable(0f)` 跟着
+    // 重建、900ms 入场动画从 0 重播（圆环塌成一小截弧），叠加交叉帧的半透明，
+    // 就是负责人反馈的「闪一帧」。去掉后组件不重建，圆环从旧进度平滑过渡到新值，
+    // 数字由 RollingNumberText 逐位滚动，过渡感保留且零闪帧。
+    val data = state.data
     when {
-        data != null -> {
-            // key 只取日期：拉取刷新造成的数据更新不重播动画。
-            val dateKey = data.summary.selection
-            if (rememberReduceMotion()) {
-                TodayContent(
-                    data = data,
-                    dailyGoalMin = dailyGoalMin,
-                    onOpenRanking = onOpenRanking,
-                    onOpenUnlock = onOpenUnlock,
-                    onOpenNotification = onOpenNotification
-                )
-            } else {
-                Crossfade(
-                    targetState = dateKey,
-                    animationSpec = tween(durationMillis = 180),
-                    label = "todayDateSwitch"
-                ) { _ ->
-                    // **单插槽容器必须包 Column**：Crossfade 内部是 Box，TodayContent
-                    // 有三个并列根节点（圆环卡 / 双卡 / 应用构成卡），直接放会全部
-                    // 叠在 top-start（项目已踩坑两次）。间距对齐 ScrollablePage 的 12dp。
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TodayContent(
-                            data = data,
-                            dailyGoalMin = dailyGoalMin,
-                            onOpenRanking = onOpenRanking,
-                            onOpenUnlock = onOpenUnlock,
-                            onOpenNotification = onOpenNotification
-                        )
-                    }
-                }
-            }
-        }
+        data != null -> TodayContent(
+            data = data,
+            dailyGoalMin = dailyGoalMin,
+            onOpenRanking = onOpenRanking,
+            onOpenUnlock = onOpenUnlock,
+            onOpenNotification = onOpenNotification
+        )
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
         pulling -> PullingState() // 前序分支已截 data != null，此处无需再判（评审 P2-9）
