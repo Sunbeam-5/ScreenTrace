@@ -101,16 +101,19 @@ enum class DateSheetMode { DAY, RANGE, FULL }
  * 区间（不可见、无清除入口）；从统计页进详情选「今天」→ 单日写进 `statsSelection`
  * （趋势只剩一根柱）。收窄后二级页只能写同量纲选择，这两条路径在结构上不存在。
  *
- * 残留（另立条）：排行页恒取「锚点单日」（§5.7 排行-2），选区间只改锚点结束日，
- * 默认锚点已是今天，因此从统计侧选「近 30 天」仍表现为无变化——那是排行口径问题，
- * 不是弹层选项集问题。
+ * 残留收口（CR-18，负责人 2026-11-15 裁决）：排行页恒取「锚点单日」（§5.7 排行-2），
+ * 弹层**恒为单日集合**、不吃区间量纲——从统计侧进排行也不会再给出「选了只挪锚点
+ * 结束日」的区间项；周期口径下显式选日即退出周期窗口（`AppViewModel.applySelection`）。
  */
-fun dateSheetModeFor(page: AppPage?): DateSheetMode =
-    when (page?.let { AppPage.mainOf(it) }) {
+fun dateSheetModeFor(page: AppPage?): DateSheetMode = when {
+    // CR-18：排行例外——无论从哪个主页面进入，弹层都只给单日集合
+    page is AppPage.Ranking -> DateSheetMode.DAY
+    else -> when (page?.let { AppPage.mainOf(it) }) {
         AppPage.Today, AppPage.Calendar -> DateSheetMode.DAY
         AppPage.Stats -> DateSheetMode.RANGE
         else -> DateSheetMode.FULL
     }
+}
 
 /** M3 DatePicker 以 UTC 日界存取 millis（与设备本地自然日的换算集中在此）。 */
 private fun utcMillis(date: LocalDate): Long =

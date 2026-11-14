@@ -675,10 +675,14 @@ class AppViewModel(
     /** CR-01：详情路由入口（批 6d 给双卡接线时启用）。 */
     fun openUnlockDetail() {
         _page.value = AppPage.UnlockDetail(returnTo = AppPage.mainOf(_page.value))
+        // CR-18：打开即按 returnTo 重算——详情取数跟随归属状态，
+        // 切 tab 不触发重载，这里补一次才能保证打开瞬间窗口正确。
+        loadAll()
     }
 
     fun openNotificationDetail() {
         _page.value = AppPage.NotificationDetail(returnTo = AppPage.mainOf(_page.value))
+        loadAll()
     }
 
     fun goBack() {
@@ -727,6 +731,9 @@ class AppViewModel(
             if (!repository.hasDataIn(newSelection)) {
                 _notice.value = "该时段尚无数据，请先拉取"
             } else {
+                // CR-18：周期口径的排行上显式选日 → 退出周期窗口，按所选单日排行
+                // （否则 rankingScope 优先，弹层选了页面没反应，重现「选了没反应」）
+                if (_page.value is AppPage.Ranking) rankingScope = null
                 when (scope) {
                     DateScope.TODAY -> _todaySelection.value = newSelection
                     DateScope.STATS -> _statsSelection.value = newSelection
@@ -1203,19 +1210,41 @@ class AppViewModel(
                     loadMonthLevels(_calendarMonth.value)
                 }
 
-                // ---- 今日 + 两个下钻详情：按今日窗口独立判空（CR-15 B 按页独立）----
-                if (!todaySummary.hasAnyRecord) {
-                    // 昨天/历史有聚合但今天没有（例如今天还没拉取）→ 只空今日与两个明细页
-                    _todayState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                // ---- 两个下钻详情（CR-18：取数跟随归属状态）----
+                // 归属今日 → todayEffective（与今日页双卡同源 §7-16）；归属统计 →
+                // statsSel 原窗口（单日逐小时 / 区间逐日，口径随量纲）。
+                val detailFromStats = dateScopeFor(_page.value) == DateScope.STATS
+                val detailSel = if (detailFromStats) statsSel else todayEffective
+                val detailSummary = if (detailFromStats) statsSummary else todaySummary
+                var detailNotification: MetricDetail? = null
+                var detailUnlock: MetricDetail? = null
+                if (!detailSummary.hasAnyRecord) {
                     _unlockDetail.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
-                    _notificationDetail.value =
-                        LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                    _notificationDetail.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
                 } else {
-                    // 明细页的入口都在今日页的卡上，所以它们的窗口也是今日状态
-                    val notification = repository.metricDetail(MetricKind.NOTIFICATION, todayEffective)
-                    val unlock = repository.metricDetail(MetricKind.UNLOCK, todayEffective)
-                    _notificationDetail.value = LoadState(data = notification)
-                    _unlockDetail.value = LoadState(data = unlock)
+                    detailNotification = repository.metricDetail(MetricKind.NOTIFICATION, detailSel)
+                    detailUnlock = repository.metricDetail(MetricKind.UNLOCK, detailSel)
+                    _notificationDetail.value = LoadState(data = detailNotification)
+                    _unlockDetail.value = LoadState(data = detailUnlock)
+                }
+
+                // ---- 今日页（按今日窗口独立判空，CR-15 B）----
+                if (!todaySummary.hasAnyRecord) {
+                    // 昨天/历史有聚合但今天没有（例如今天还没拉取）→ 只空今日页
+                    _todayState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                } else {
+                    // 卡片数字与详情页同源（§7-16）：窗口一致时直接复用上面的查询
+                    val notification = if (detailFromStats) {
+                        repository.metricDetail(MetricKind.NOTIFICATION, todayEffective)
+                    } else {
+                        detailNotification
+                            ?: repository.metricDetail(MetricKind.NOTIFICATION, todayEffective)
+                    }
+                    val unlock = if (detailFromStats) {
+                        repository.metricDetail(MetricKind.UNLOCK, todayEffective)
+                    } else {
+                        detailUnlock ?: repository.metricDetail(MetricKind.UNLOCK, todayEffective)
+                    }
 
                     val top = todayApps.take(4)
                     val otherMinutes = todayApps.drop(4).sumOf { it.minutes }

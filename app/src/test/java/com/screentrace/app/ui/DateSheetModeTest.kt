@@ -28,11 +28,12 @@ class DateSheetModeTest {
     /**
      * CR-16 核心断言：二级页的选项集必须与它的写回目标同量纲。
      * 从今日页进 → 写 `todaySelection` → 只能是 DAY；从统计页进 → 写 `statsSelection` → 只能是 RANGE。
+     * **CR-18 例外：排行不在本组**——排行恒按「锚点单日」聚合，弹层一律 DAY，见
+     * [ranking always gets day-only sheet]。
      */
     @Test
     fun `detail pages follow the returnTo scope`() {
         listOf(
-            AppPage.Ranking(AppPage.Today),
             AppPage.UnlockDetail(AppPage.Today),
             AppPage.NotificationDetail(AppPage.Today)
         ).forEach { page ->
@@ -40,7 +41,6 @@ class DateSheetModeTest {
         }
 
         listOf(
-            AppPage.Ranking(AppPage.Stats),
             AppPage.UnlockDetail(AppPage.Stats),
             AppPage.NotificationDetail(AppPage.Stats)
         ).forEach { page ->
@@ -48,14 +48,26 @@ class DateSheetModeTest {
         }
     }
 
-    /** 弹层模式与写回归属必须同源——防「改了 dateScopeFor 忘了 dateSheetModeFor」。 */
+    /**
+     * CR-18（负责人 2026-11-15 裁决）：排行弹层**恒为单日集合**——
+     * 排行只做「锚点单日」聚合（§5.7 排行-2），不吃区间量纲，无论从哪个主页面
+     * 进入（含经周期总结的统计侧入口）都给「今天 / 昨天 / 指定单日」。
+     * 这是有意打破 CR-16「弹层量纲 = 写回状态量纲」的**唯一例外**：
+     * 显式选日写回归属状态（排行上选日同时退出周期窗口）。
+     */
+    @Test
+    fun `ranking always gets day-only sheet`() {
+        assertEquals(DateSheetMode.DAY, dateSheetModeFor(AppPage.Ranking(AppPage.Today)))
+        assertEquals(DateSheetMode.DAY, dateSheetModeFor(AppPage.Ranking(AppPage.Stats)))
+    }
+
+    /** 弹层模式与写回归属必须同源——防「改了 dateScopeFor 忘了 dateSheetModeFor」。
+     *  排行是 CR-18 明文例外（恒 DAY），由上一用例单独钉住，不进本组。 */
     @Test
     fun `sheet mode never disagrees with the scope it writes to`() {
         listOf(
             AppPage.Today,
             AppPage.Stats,
-            AppPage.Ranking(AppPage.Today),
-            AppPage.Ranking(AppPage.Stats),
             AppPage.UnlockDetail(AppPage.Today),
             AppPage.UnlockDetail(AppPage.Stats),
             AppPage.NotificationDetail(AppPage.Today),
