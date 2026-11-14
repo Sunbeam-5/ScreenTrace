@@ -42,6 +42,18 @@ class DateInputTest {
     }
 
     @Test
+    fun `格式错分支 P3-2 补覆盖 非掩码形状报格式提示`() {
+        // P3-2：`按 年-月-日 输入` 分支 UI 不可达但函数可达（error() 是纯函数），
+        // 原注释写明兜底却零用例——补成真覆盖。
+        // 计划原例 `2026-1-1-1` 实测只有 7 位数字进不了 ≥8 分支（返回 ""），
+        // 换成同样「多余分段」但满 8 位的 4 段形状。
+        assertEquals("按 年-月-日 输入，例如 2026-11-11", DateInput.error("2026/11/11"))
+        assertEquals("按 年-月-日 输入，例如 2026-11-11", DateInput.error("2026-11-11-11"))
+        // 计划原例实测：7 位数字是输入中间态，不进 ≥8 分支、不报错
+        assertEquals("", DateInput.error("2026-1-1-1"))
+    }
+
+    @Test
     fun `格式化与解析往返一致`() {
         val date = LocalDate.of(2026, 3, 7)
         assertEquals(date, DateInput.parse(DateInput.format(date)))
