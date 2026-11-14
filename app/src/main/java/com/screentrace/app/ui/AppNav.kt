@@ -138,7 +138,9 @@ fun AppNav() {
     val darkTheme by viewModel.darkTheme
     val dynamicColor by viewModel.dynamicColor
     val page by viewModel.page
-    val selection by viewModel.selection
+    // CR-15 B：今日页与统计页各自持有日期状态，互不影响
+    val todaySelection by viewModel.todaySelection
+    val statsSelection by viewModel.statsSelection
     val todayState by viewModel.todayState
     val statsState by viewModel.statsState
     val calendarState by viewModel.calendarState
@@ -276,6 +278,12 @@ fun AppNav() {
         val pullState = rememberPullToRefreshState()
         val mainPage = AppPage.mainOf(page)
         val detailPage = detailOf(page)
+        // CR-15 B：当前页（含二级页 returnTo）归属哪份日期状态；日历 tab = null（无日期按钮）。
+        // active 供弹层/报告按当前页取值，header 供主页面层副标题按主页面取值。
+        val activeSelection =
+            if (dateScopeFor(page) == DateScope.STATS) statsSelection else todaySelection
+        val headerSelection =
+            if (dateScopeFor(mainPage) == DateScope.STATS) statsSelection else todaySelection
 
         // 退出动画期间 `detailPage` 已经变成 null，但覆盖层还得继续画**旧内容**才能缩回去。
         // 所以缓存最后一次非空的二级页。这里的写入只在值真正变化时发生一次（写完就相等），
@@ -354,15 +362,18 @@ fun AppNav() {
                             ?.takeIf { mainPage == AppPage.Calendar }
                             ?.let { data -> "已记录 ${data.yearLevels.count { lv -> lv.recorded }} 天" }
                             ?: selectionSubtitle(
-                                if (mainPage == AppPage.Today && selection is DateSelection.Range) {
+                                if (mainPage == AppPage.Today && headerSelection is DateSelection.Range) {
                                     DateSelection.today()
                                 } else {
-                                    selection
+                                    headerSelection
                                 }
                             ),
-                        onDateClick = {
-                            dateSheetMode = dateSheetModeFor(mainPage).name
-                            showDateSheet = true
+                        // CR-15 B：日历 tab 不参与日期筛选 → 不渲染日期按钮
+                        onDateClick = if (dateScopeFor(mainPage) == null) null else {
+                            {
+                                dateSheetMode = dateSheetModeFor(mainPage).name
+                                showDateSheet = true
+                            }
                         },
                         // CR-10：主页面顶栏三枚中的「主题」，与设置页共用同一个全局 StyleSheet
                         onStyleClick = { showStyleSheet = true },
@@ -424,8 +435,9 @@ fun AppNav() {
                                 )
                                 AppPage.Stats -> StatsScreen(
                                     state = statsState,
-                                    selection = selection,
-                                    onApplySelection = viewModel::applySelection,
+                                    // 统计页只认自己的状态；分段控件写回也只改它
+                                    selection = statsSelection,
+                                    onApplySelection = { viewModel.applySelection(it) },
                                     onRetry = viewModel::reload,
                                     // §5.11 入口：统计页底部「本周/本月/本年总结」
                                     onOpenPeriod = viewModel::openPeriod,
@@ -727,7 +739,8 @@ fun AppNav() {
 
         if (showDateSheet) {
             DateSheet(
-                current = selection,
+                // 二级页弹层显示的是「进入它的主页面」那份状态，applySelection 同口径写回
+                current = activeSelection,
                 mode = DateSheetMode.valueOf(dateSheetMode),
                 onApply = {
                     viewModel.applySelection(it)

@@ -4,8 +4,10 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 /**
- * §5.6：四个数据页面共享的唯一日期状态。冷启动默认今天；旋转、切页、进排行时保持；
- * 清除筛选恢复今天；该状态不做持久化。日期一律为设备本地时区的自然日。
+ * §5.6 / CR-15 B：日期窗口值对象。今日页与统计页各持有一份独立状态
+ * （`todaySelection` 默认 `today()`、`statsSelection` 默认 `lastDays(7)`），
+ * 日历页不参与筛选而用全量历史窗口；二级页按进入它的主页面归属其中一份。
+ * 两份状态都不持久化，进程重建各自回默认。日期一律为设备本地时区的自然日。
  */
 sealed interface DateSelection {
     val startDate: LocalDate

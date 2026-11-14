@@ -173,10 +173,23 @@ class AppViewModel(
     private val syncCredentials: com.screentrace.app.data.sync.SyncCredentials? = null
 ) : ViewModel() {
 
-    // 批 6g（真机反馈 #6）：默认展示**近 7 天**——进 App 就能看到趋势与时段分布，
-    // 而不是只有今天一根柱。清除筛选（clearFilter）仍然回到「今天」。
-    private val _selection = mutableStateOf<DateSelection>(DateSelection.lastDays(7))
-    val selection: State<DateSelection> = _selection
+    // ---- 日期筛选（§5.6 / CR-15 B：两份互相独立的状态）----
+    // 负责人真机反馈「今日 tab 与统计 tab 各自单独生效、互不影响」：
+    // 今日页默认今天（单日量纲），统计页默认近 7 天（趋势需要多根柱）。
+    // 两份状态都不持久化，进程重建各自回默认；日历页不参与筛选（固定今天 + 全量历史）。
+    private val _todaySelection = mutableStateOf<DateSelection>(DateSelection.today())
+    val todaySelection: State<DateSelection> = _todaySelection
+    private val _statsSelection = mutableStateOf<DateSelection>(DateSelection.lastDays(7))
+    val statsSelection: State<DateSelection> = _statsSelection
+
+    /** 按归属取状态；null（日历 tab / 无日期入口页）回落到今日状态，仅供 UI 取值。 */
+    fun selectionFor(scope: DateScope?): DateSelection = when (scope) {
+        DateScope.STATS -> _statsSelection.value
+        else -> _todaySelection.value
+    }
+
+    /** 当前页面（含二级页 `returnTo`）归属的状态：副标题、弹层、报告统一从这里取。 */
+    fun currentSelection(): DateSelection = selectionFor(dateScopeFor(_page.value))
 
     private val _page = mutableStateOf<AppPage>(AppPage.Today)
     val page: State<AppPage> = _page
@@ -545,6 +558,8 @@ class AppViewModel(
     fun openRanking() {
         rankingScope = null
         _page.value = AppPage.Ranking(returnTo = AppPage.mainOf(_page.value))
+        // CR-15 B：默认口径按「进入页归属状态的结束日」单日，换入口就要重算排行。
+        loadAll()
     }
 
     /**
@@ -618,25 +633,40 @@ class AppViewModel(
      * 判据用 `hasDataIn` 而不是 `summary.hasAnyRecord`（评审 P0-1）：降级通道没有
      * `day_summary`，用旧判据会让**每一次选日期都被拦**，用户永远只能看今天。
      */
+    /** 弹层/分段控件的统一入口：按当前页面归属写入对应状态（二级页看 `returnTo`）。 */
     fun applySelection(newSelection: DateSelection) {
+        applySelection(dateScopeFor(_page.value) ?: DateScope.TODAY, newSelection)
+    }
+
+    /**
+     * §5.6：完全无记录时**不应用**新筛选、保留原视图并提示；拦截只作用于即将写入的
+     * 那一份状态，另一份不受牵连（CR-15 B「按页独立」）。清除筛选不做该拦截。
+     * 判据用 `hasDataIn` 而不是 `summary.hasAnyRecord`（评审 P0-1）：降级通道没有
+     * `day_summary`，用旧判据会让**每一次选日期都被拦**。
+     */
+    fun applySelection(scope: DateScope, newSelection: DateSelection) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             if (!repository.hasDataIn(newSelection)) {
                 _notice.value = "该时段尚无数据，请先拉取"
             } else {
-                _selection.value = newSelection
+                when (scope) {
+                    DateScope.TODAY -> _todaySelection.value = newSelection
+                    DateScope.STATS -> _statsSelection.value = newSelection
+                }
                 _notice.value = null
-                resetCalendarAnchor(newSelection)
                 loadAll()
             }
         }
     }
 
     fun clearFilter() {
-        // 「清除筛选」= 回到今天（与默认的近 7 天不同，保留一个明确的回退动作）
-        _selection.value = DateSelection.today()
+        // 「清除筛选」= 该页状态回默认值（今日→今天，统计→近 7 天），另一份不动
+        when (dateScopeFor(_page.value)) {
+            DateScope.STATS -> _statsSelection.value = DateSelection.lastDays(7)
+            else -> _todaySelection.value = DateSelection.today()
+        }
         _notice.value = null
-        resetCalendarAnchor(_selection.value)
         loadAll()
     }
 
@@ -741,7 +771,7 @@ class AppViewModel(
      * 页面状态可能还挂着上一次筛选的旧数据，导出时切过日期就会导错区间。
      */
     suspend fun buildHtmlReport(hideAppNames: Boolean, appVersion: String): Pair<String, String>? {
-        val selection = _selection.value
+        val selection = currentSelection()
         return runCatching {
             val summary = repository.summary(selection)
             val input = com.screentrace.app.data.export.HtmlReportInput(
@@ -896,15 +926,17 @@ class AppViewModel(
 
     // ---- 数据加载 ----
 
-    private fun resetCalendarAnchor(selection: DateSelection) {
-        _calendarMonth.value = YearMonth.from(selection.endDate)
-    }
-
     private fun loadAll() {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            val selection = _selection.value
-            val single = selection is DateSelection.Day
+            // CR-15 B：三份互不干扰的窗口。今日/统计各自记忆，日历固定今天 + 全量历史。
+            val todaySel = _todaySelection.value
+            val statsSel = _statsSelection.value
+            val historySel = historySelection()
+            val today = LocalDate.now()
+            // 今日状态若被二级页完整弹层写成区间，按 CR-09 兼容规则回落今天。
+            val todayEffective =
+                if (todaySel is DateSelection.Day) todaySel else DateSelection.today()
             // 「低于几小时算少」的来源。变化时由 setLowThresholdMin 触发整页重算。
             val threshold = _lowThresholdMin.value
             // §5.7「已有缓存直接渲染」：重算期间**四个主页面也保留上一条结果**——
@@ -922,54 +954,51 @@ class AppViewModel(
                 // 降级通道（普通用户的唯一通道）按设计不写 day_summary，用旧判据会把
                 // 「库里有应用数据」判成「完全无数据」，四页一起盖空白——拉取成功却像坏了。
                 if (!repository.hasAnyData()) {
-                    // 三表全空：真的没数据（返修 P1-3 §5.5 红线，不得渲染 0:00 / 0 次）
                     setAllEmpty(EmptyReason.NO_DATA)
                     return@launch
                 }
 
-                val summary = repository.summary(selection)
-                val apps = repository.appRanking(selection, limit = Int.MAX_VALUE)
-                val hours = repository.hourlyDistribution(selection)
-                val previous = repository.summary(UsageCalculator.previousPeriod(selection))
-                val compare = UsageCalculator.compare(summary, previous, single)
+                // ---- 统计页窗口（statsSelection）----
+                val statsSummary = repository.summary(statsSel)
+                val statsApps = repository.appRanking(statsSel, limit = Int.MAX_VALUE)
+                val statsHours = repository.hourlyDistribution(statsSel)
+                val statsCompare = UsageCalculator.compare(
+                    statsSummary,
+                    repository.summary(UsageCalculator.previousPeriod(statsSel)),
+                    statsSel is DateSelection.Day
+                )
 
-                // ---- 「今日」页与两个下钻详情页**显示单日**（CR-09 扩展 CR-03 修订）----
-                // 全局筛选为单日时跟随该单日（如「昨天」：单日数据与今日页量纲一致——
-                // 圆环=当日亮屏、应用构成=当日构成、明细=当日明细）；筛选为区间时仍锚定
-                // 今天（CR-03 的量纲冲突只在区间下成立：圆环是日均、构成是累计，永远对不上）。
-                val todaySelection = if (single) selection else DateSelection.today()
-                val todayIsSelection = todaySelection == selection
-                val todaySummary =
-                    if (todayIsSelection) summary else repository.summary(todaySelection)
-                val todayApps = if (todayIsSelection) {
-                    apps
-                } else {
-                    repository.appRanking(todaySelection, limit = Int.MAX_VALUE)
-                }
+                // ---- 今日页窗口（todaySelection）----
+                // 与统计窗口同源时复用查询结果，避免重复查库；不同源时各查各的，
+                // 两份数据同时就绪，切 tab 不需要重新加载、也不会互相覆盖。
+                val sameWindow = todayEffective == statsSel
+                val todaySummary = if (sameWindow) statsSummary else repository.summary(todayEffective)
+                val todayApps =
+                    if (sameWindow) statsApps else repository.appRanking(todayEffective, limit = Int.MAX_VALUE)
                 val todayHours =
-                    if (todayIsSelection) hours else repository.hourlyDistribution(todaySelection)
-                val todayCompare = if (todayIsSelection) {
-                    compare
-                } else {
-                    UsageCalculator.compare(
-                        todaySummary,
-                        repository.summary(UsageCalculator.previousPeriod(todaySelection)),
-                        true
-                    )
-                }
+                    if (sameWindow) statsHours else repository.hourlyDistribution(todayEffective)
+                val todayCompare = if (sameWindow) statsCompare else UsageCalculator.compare(
+                    todaySummary,
+                    repository.summary(UsageCalculator.previousPeriod(todayEffective)),
+                    true
+                )
 
-                // 排行只依赖 app_usage，与日聚合无关：降级通道下它是唯一还能用的页面
-                // §7-26：从周期总结进来时按该周期统计，否则按今日页的锚点单日
+                // 排行只依赖 app_usage，与日聚合无关：降级通道下它是唯一还能用的页面。
+                // §7-26：从周期总结进来时按该周期统计；否则按「进入页归属状态的结束日」
+                // 单日（§5.7 排行-2 不跟区间累计）。未来日（如「本月」的月末）回落今天，
+                // 避免锚到还没发生的日期导致排行空白。
                 val scope = rankingScope
+                val anchor = minOf(currentSelection().endDate, today)
+                val rankingWindow: DateSelection = scope ?: DateSelection.Day(anchor)
                 val rankingSummary = when {
-                    scope == null -> todaySummary
-                    scope == selection -> summary
-                    else -> repository.summary(scope)
+                    scope == null && rankingWindow == todayEffective -> todaySummary
+                    scope == null && rankingWindow == statsSel -> statsSummary
+                    else -> repository.summary(rankingWindow)
                 }
                 val rankingApps = when {
-                    scope == null -> todayApps
-                    scope == selection -> apps
-                    else -> repository.appRanking(scope, limit = Int.MAX_VALUE)
+                    scope == null && rankingWindow == todayEffective -> todayApps
+                    scope == null && rankingWindow == statsSel -> statsApps
+                    else -> repository.appRanking(rankingWindow, limit = Int.MAX_VALUE)
                 }
                 _rankingState.value =
                     if (rankingApps.isEmpty()) {
@@ -978,8 +1007,8 @@ class AppViewModel(
                         LoadState(
                             data = RankingData(
                                 // §5.7 排行-2：入口在今日页的「应用构成」卡上，卡片是**今天**
-                                // 的构成，点进去却按全局筛选的区间累计，两处数字对不上。
-                                // 排行默认按今天单日，标题会自动显示「当日累计」；
+                                // 的构成，点进去却按区间累计，两处数字对不上。
+                                // 排行默认按锚点单日，标题会自动显示「当日累计」；
                                 // 从周期总结进入时按周期窗口，标题写明周期（§7-26）。
                                 summary = rankingSummary,
                                 apps = rankingApps,
@@ -988,21 +1017,25 @@ class AppViewModel(
                         )
                     }
 
-                // 两个窗口都没有日聚合 → 屏幕时长/解锁/通知都没有事件源，这些页空态。
-                // 但排行**不能一起清**：它只依赖 app_usage，降级通道下是唯一还能用的页面
-                // （评审 P0-1）。所以这里不用 setAllEmpty（那会把 ranking 也清掉）。
-                if (!todaySummary.hasAnyRecord && !summary.hasAnyRecord) {
-                    _todayState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
-                    _statsState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                // ---- 日历页：固定今天锚点 + 全量历史，与两份筛选都无关（CR-15 B）----
+                // extremes 内部按 historySel 取全部 day_summary；longestDate == null
+                // 等价于「整个历史都没有日聚合」，正是日历页该显示 NO_EVENT_DATA 的条件。
+                val calendarExtremes = repository.extremes(historySel, threshold)
+                if (calendarExtremes.longestDate == null) {
                     _calendarState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
-                    _unlockDetail.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
-                    _notificationDetail.value =
-                        LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
                     _monthLevelsState.value = LoadState(data = emptyList())
-                    return@launch
+                } else {
+                    _calendarState.value = LoadState(
+                        data = CalendarData(
+                            streak = repository.streak(today),
+                            extremes = calendarExtremes,
+                            yearLevels = repository.yearLevels(today)
+                        )
+                    )
+                    loadMonthLevels(_calendarMonth.value)
                 }
 
-                // ---- 今日 ----
+                // ---- 今日 + 两个下钻详情：按今日窗口独立判空（CR-15 B 按页独立）----
                 if (!todaySummary.hasAnyRecord) {
                     // 昨天/历史有聚合但今天没有（例如今天还没拉取）→ 只空今日与两个明细页
                     _todayState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
@@ -1010,10 +1043,9 @@ class AppViewModel(
                     _notificationDetail.value =
                         LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
                 } else {
-                    // 明细页的入口都在今日页的卡上，所以它们的窗口也是今天（不是全局筛选）
-                    val notification =
-                        repository.metricDetail(MetricKind.NOTIFICATION, todaySelection)
-                    val unlock = repository.metricDetail(MetricKind.UNLOCK, todaySelection)
+                    // 明细页的入口都在今日页的卡上，所以它们的窗口也是今日状态
+                    val notification = repository.metricDetail(MetricKind.NOTIFICATION, todayEffective)
+                    val unlock = repository.metricDetail(MetricKind.UNLOCK, todayEffective)
                     _notificationDetail.value = LoadState(data = notification)
                     _unlockDetail.value = LoadState(data = unlock)
 
@@ -1037,33 +1069,23 @@ class AppViewModel(
                     )
                 }
 
-                // ---- 统计 / 日历（跟随全局筛选）----
-                if (!summary.hasAnyRecord) {
+                // ---- 统计：按统计窗口独立判空 ----
+                if (!statsSummary.hasAnyRecord) {
                     _statsState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
-                    _calendarState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
-                    _monthLevelsState.value = LoadState(data = emptyList())
                 } else {
                     _statsState.value = LoadState(
                         data = StatsData(
-                            summary = summary,
-                            compare = compare,
-                            trend = repository.dailyTrend(selection),
+                            summary = statsSummary,
+                            compare = statsCompare,
+                            trend = repository.dailyTrend(statsSel),
                             periods = UsageCalculator.dailyAveragePeriods(
-                                UsageCalculator.periodBuckets(hours),
-                                summary.recordedDays
+                                UsageCalculator.periodBuckets(statsHours),
+                                statsSummary.recordedDays
                             ),
-                            extremes = repository.extremes(selection, threshold),
-                            topAppsPerDay = repository.topAppsPerDay(selection, limit = 3)
+                            extremes = repository.extremes(statsSel, threshold),
+                            topAppsPerDay = repository.topAppsPerDay(statsSel, limit = 3)
                         )
                     )
-                    _calendarState.value = LoadState(
-                        data = CalendarData(
-                            streak = repository.streak(selection.endDate),
-                            extremes = repository.extremes(selection, threshold),
-                            yearLevels = repository.yearLevels(selection.endDate)
-                        )
-                    )
-                    loadMonthLevels(_calendarMonth.value)
                 }
 
                 // §5.11：周期总结页已经打开过 → 跟随本次刷新重算（首次进入由 openPeriod 触发）。

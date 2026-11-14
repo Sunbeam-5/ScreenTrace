@@ -83,10 +83,10 @@ private val DAY_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d�
 
 /**
  * CR-14：日期弹层按入口页面裁剪选项。
- * - [DAY]：今天 / 昨天 / 指定单日（今日页、日历页——单日页不给区间入口）；
+ * - [DAY]：今天 / 昨天 / 指定单日（今日页——单日页不给区间入口；日历页自 CR-15 B 起无日期按钮，映射保留但不渲染）；
  * - [RANGE]：近 7 天 / 近 30 天 / 本周 / 本月 / 自定义区间（统计页）；
  * - [FULL]：完整集合（排行、解锁详情、通知详情三个二级页）。
- * 所有选项仍写入同一全局 `DateSelection`（§5.6）。
+ * 所有选项按入口页归属写入 `todaySelection` 或 `statsSelection`（CR-15 B，§5.6）。
  */
 enum class DateSheetMode { DAY, RANGE, FULL }
 
