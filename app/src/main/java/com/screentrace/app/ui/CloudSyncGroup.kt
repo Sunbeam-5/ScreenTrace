@@ -19,7 +19,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import android.widget.Toast
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -130,8 +129,8 @@ fun CloudSyncGroup(
                         onPasswordSet(password)
                         password = ""
                     }
-                    // 成功类反馈走 Toast（负责人：不必弹带 X 的提示条）
-                    Toast.makeText(context, "云端配置已保存", Toast.LENGTH_SHORT).show()
+                    // CR-17：成功反馈走顶部自绘短时条（2.5s 自动消失）
+                    onNotice("云端配置已保存")
                 },
                 modifier = Modifier.weight(1f)
             )
@@ -147,7 +146,7 @@ fun CloudSyncGroup(
                         busy = false
                         if (result is SyncResult.Ok) {
                             lastResult = null
-                            Toast.makeText(context, "连接成功", Toast.LENGTH_SHORT).show()
+                            onNotice("连接成功")
                         } else {
                             val msg = "测试失败：${(result as SyncResult.Err).kind.userMessage()}"
                             lastResult = msg to false
@@ -179,7 +178,7 @@ fun CloudSyncGroup(
                         busy = false
                         if (result is SyncResult.Ok) {
                             lastResult = null
-                            Toast.makeText(context, "已上传 screen-time-backup.json", Toast.LENGTH_SHORT).show()
+                            onNotice("已上传 screen-time-backup.json")
                         } else {
                             val msg = "上传失败：${(result as SyncResult.Err).kind.userMessage()}"
                             lastResult = msg to false

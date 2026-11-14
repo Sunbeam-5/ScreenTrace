@@ -241,11 +241,9 @@ fun BackupGroup(
                     if (result == null) {
                         onNotice("恢复失败，本地数据未改动")
                     } else {
-                        android.widget.Toast.makeText(
-                            context,
-                            "已恢复：新增 ${result.added} 条、更新 ${result.updated} 条、跳过 ${result.skipped} 条",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
+                        onNotice(
+                            "已恢复：新增 ${result.added} 条、更新 ${result.updated} 条、跳过 ${result.skipped} 条"
+                        )
                     }
                 }
             }

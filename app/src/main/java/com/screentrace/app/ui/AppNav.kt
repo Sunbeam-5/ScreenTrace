@@ -152,6 +152,7 @@ fun AppNav() {
     val calendarMonth by viewModel.calendarMonth
     val dailyGoalMin by viewModel.dailyGoalMin
     val notice by viewModel.notice
+    val transientNotice by viewModel.transientNotice
     val pullError by viewModel.pullError
     val pulling by viewModel.pulling
     val lowThresholdMin by viewModel.lowThresholdMin
@@ -195,6 +196,14 @@ fun AppNav() {
     // 向导第 2 步要显示真实授权状态，进向导时就探一次
     LaunchedEffect(onboardingDone) {
         if (onboardingDone == false) viewModel.refreshChannelStatuses()
+    }
+
+    // CR-17：短时提示 2.5s 后自动消失；key 用 seq，连发同文案也重启计时
+    LaunchedEffect(transientNotice?.seq) {
+        if (transientNotice != null) {
+            kotlinx.coroutines.delay(2_500L)
+            viewModel.consumeTransient()
+        }
     }
 
     var showDateSheet by rememberSaveable { mutableStateOf(false) }
@@ -691,6 +700,16 @@ fun AppNav() {
                 androidx.compose.foundation.layout.Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // CR-17：纯确认类短时条（与常驻条同款样式，2.5s 自动消失，可提前关）
+                    AnimatedVisibility(
+                        visible = transientNotice != null,
+                        enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                        exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                    ) {
+                        transientNotice?.let { n ->
+                            NoticeBar(text = n.text, onDismiss = viewModel::consumeTransient, isError = false)
+                        }
+                    }
                     AnimatedVisibility(
                         visible = notice != null,
                         enter = expandVertically(tween(140)) + fadeIn(tween(140)),

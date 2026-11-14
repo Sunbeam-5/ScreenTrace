@@ -1,6 +1,5 @@
 package com.screentrace.app.ui
 
-import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -83,12 +82,10 @@ fun CloudSyncScreen(
                     if (result == null) {
                         onNotice("恢复失败，本地数据未改动")
                     } else {
-                        // 成功反馈走 Toast（负责人）：恢复结果摘要一行带过，不弹带 X 的横幅
-                        Toast.makeText(
-                            context,
-                            "已恢复：新增 ${result.added} 条、更新 ${result.updated} 条、跳过 ${result.skipped} 条",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        // CR-17：恢复摘要走顶部自绘短时条
+                        onNotice(
+                            "已恢复：新增 ${result.added} 条、更新 ${result.updated} 条、跳过 ${result.skipped} 条"
+                        )
                     }
                 }
             }

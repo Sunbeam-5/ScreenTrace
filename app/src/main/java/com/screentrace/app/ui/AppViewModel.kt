@@ -36,6 +36,20 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
 
+/**
+ * CR-17：纯确认类文案（不需用户采取行动、不需留存）走 2.5s 自绘短时条。
+ * 白名单未命中一律常驻（安全默认）——失败/需引导类文案绝不能被几秒抹掉。
+ */
+private val TRANSIENT_NOTICE_PREFIXES = listOf(
+    "已导出", "已恢复", "云端配置已保存", "连接成功", "已上传", "刚刚已更新", "已复制"
+)
+
+fun isTransientNotice(message: String): Boolean =
+    TRANSIENT_NOTICE_PREFIXES.any { message.startsWith(it) }
+
+/** 短时提示带序号：连发同文案也要重启 2.5s 计时（`LaunchedEffect` 的 key 会变）。 */
+data class TransientNotice(val text: String, val seq: Int)
+
 /** 页面路由（不引入 navigation 库——§6 依赖白名单不含它，单层二级页用状态即可）。 */
 sealed interface AppPage {
     object Today : AppPage
@@ -197,6 +211,11 @@ class AppViewModel(
 
     private val _notice = mutableStateOf<String?>(null)
     val notice: State<String?> = _notice
+
+    // CR-17：与常驻 `_notice` 并列的短时通道，2.5s 后由 UI 调用 consumeTransient 清空
+    private val _transientNotice = mutableStateOf<TransientNotice?>(null)
+    val transientNotice: State<TransientNotice?> = _transientNotice
+    private var transientSeq = 0
 
     private val _todayState = mutableStateOf(LoadState<TodayData>(loading = true))
     val todayState: State<LoadState<TodayData>> = _todayState
@@ -410,7 +429,7 @@ class AppViewModel(
         val last = _lastPulledAt.value ?: 0L
         if (last > 0 && now - last in 0 until PULL_REFRESH_COOLDOWN_MS) {
             loadAll()
-            _notice.value = "刚刚已更新"
+            showNotice("刚刚已更新")
             return
         }
         val outcome = runCatching { coordinator.pull() }
@@ -428,9 +447,20 @@ class AppViewModel(
         _pullError.value = null
     }
 
-    /** 设置页/导出结果等一次性提示（复用顶部提示条，不用 Toast）。 */
+    /**
+     * CR-17 统一反馈入口：需行动 / 需留存的消息走常驻 `NoticeBar`（toast 前的原样），
+     * 纯确认类走顶部自绘短时条（2.5s 自动消失）。默认常驻，避免漏掉失败信息。
+     */
     fun showNotice(message: String) {
-        _notice.value = message
+        if (isTransientNotice(message)) {
+            _transientNotice.value = TransientNotice(message, ++transientSeq)
+        } else {
+            _notice.value = message
+        }
+    }
+
+    fun consumeTransient() {
+        _transientNotice.value = null
     }
 
     /** §5.8 首启向导完成（含跳过）。 */
