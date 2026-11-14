@@ -35,8 +35,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.screentrace.app.contract.UsageCalculator
@@ -143,10 +143,16 @@ fun MetricCard(
             // P3-1：整卡一句话读屏（§5.2「标签 + 当前值 + 查看详情」），用
             // clearAndSetSemantics 整体替换卡内逐节点朗读——否则 RollingNumberText
             // 逐位拆读（「87」念成「8」「7」）、label/说明与描述重复念。
-            // 点击动作由外层 clickable 保留，真机 dump 复核 clickable=true。
+            // **onClick 必须在块里补回**：clearAndSetSemantics 连同节点上的
+            // clickable 语义一起清掉（真机 dump 实测 clickable=false、TalkBack
+            // 无法激活），重新声明动作后恢复 clickable=true。
             .clearAndSetSemantics {
                 role = Role.Button
                 contentDescription = clickDescription ?: metricCardDescription(label, value, note)
+                onClick(label = "查看详情") {
+                    onClick()
+                    true
+                }
             }
             .clickable(
                 interactionSource = interaction,
