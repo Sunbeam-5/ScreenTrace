@@ -22,6 +22,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import kotlin.math.abs
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -32,6 +34,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -78,12 +81,22 @@ data class NavItem(
  *
  * 系统「减少动画」（`ANIMATOR_DURATION_SCALE = 0`）时宽度与颜色都直接到终态（§5.7）。
  */
+
+/**
+ * CR-17 ②：[progress] 是 Pager 的连续页位置（currentPage + offsetFraction）。
+ * 传入时高亮/展开按距离逐帧插值跟手；不传（Preview）时退回原来的离散 spring 动画。
+ * 以 State 传入，只在导航条内部读取，避免调用方每帧重组。
+ */
+fun navProximity(index: Int, progress: Float): Float =
+    (1f - abs(index - progress)).coerceIn(0f, 1f)
+
 @Composable
 fun FreshNavBar(
     items: List<NavItem>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    progress: State<Float>? = null
 ) {
     val palette = LocalFreshPalette.current
     val reduceMotion = rememberReduceMotion()
@@ -129,21 +142,31 @@ fun FreshNavBar(
     ) {
         items.forEachIndexed { index, item ->
             val selected = index == selectedIndex
-            val expand by animateFloatAsState(
+            // CR-17 ②：跟手模式直接取连续插值，不再叠一层 spring（否则二次延迟），
+            // selectedIndex 仍只用于点击/无障碍语义。
+            val proximity = if (progress != null) navProximity(index, progress.value) else 0f
+            val animatedExpand by animateFloatAsState(
                 targetValue = if (selected) 1f else 0f,
                 animationSpec = widthSpec,
                 label = "navExpand"
             )
-            val container by animateColorAsState(
+            val animatedContainer by animateColorAsState(
                 targetValue = if (selected) palette.primary else Color.Transparent,
                 animationSpec = colorSpec,
                 label = "navContainer"
             )
-            val content by animateColorAsState(
+            val animatedContent by animateColorAsState(
                 targetValue = if (selected) palette.onPrimary else palette.primary,
                 animationSpec = colorSpec,
                 label = "navContent"
             )
+            val expand = if (progress != null) proximity else animatedExpand
+            val container = if (progress != null) {
+                lerp(Color.Transparent, palette.primary, proximity)
+            } else animatedContainer
+            val content = if (progress != null) {
+                lerp(palette.primary, palette.onPrimary, proximity)
+            } else animatedContent
             // 标签 0.35→1 区间淡入：等胶囊张开一点再显字，开头那一下不会有半个字挤在边上
             val labelAlpha = ((expand - 0.35f) / 0.65f).coerceIn(0f, 1f)
             // 展开总宽 = 52(图标槽) + 10(图标与文字间距) + 文字宽 + 16(尾部留白)

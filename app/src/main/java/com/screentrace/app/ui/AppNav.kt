@@ -28,6 +28,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -305,10 +309,18 @@ fun AppNav() {
         val pagerState = rememberPagerState(
             initialPage = MAIN_PAGES.indexOf(mainPage).coerceAtLeast(0)
         ) { MAIN_PAGES.size }
+        // CR-17 ②：连续页位置（currentPage + 手指偏移）作为 State 传给导航条。
+        // 只在 FreshNavBar 内部读取 .value，避免整棵 AppNav 每帧重组。
+        val navProgress = remember(pagerState) {
+            derivedStateOf { pagerState.currentPage + pagerState.currentPageOffsetFraction }
+        }
+        val tabScope = rememberCoroutineScope()
 
-        // ① 导航状态 → Pager：点底部导航、或从二级页返回时让 Pager 滑到对应页。
-        //    `animateScrollToPage` 的默认动画就是 spring（StiffnessMediumLow），
-        //    和 Tomato 用 motionScheme 空间动画的手感一致，比固定 tween 自然。
+        // ① 路由 → Pager：只在「路由变化不是 Pager 回写引起」时才滚（二级页返回、
+        //    goBack 回到另一主页面）。CR-17 起点 tab 直接在这里之外发滚动、不写路由，
+        //    所以由 currentPage 回写触发的 mainPage 变化满足 currentPage == target，
+        //    不会再反过来滚一次——双向环路就此断开。
+        //    `animateScrollToPage` 的默认动画是 spring（StiffnessMediumLow）。
         LaunchedEffect(mainPage) {
             // 切主页面时收起打开中的弹层（真机反馈 #7）：弹层属于某一个页面的上下文，
             // 页面都换了还挂着一张旧弹层只会让人困惑。返回二级页不受影响（mainPage 未变）。
@@ -321,12 +333,13 @@ fun AppNav() {
                 else pagerState.animateScrollToPage(target)
             }
         }
-        // ② Pager → 导航状态：用户横滑落定后把选中项同步回 ViewModel，
-        //    否则导航条高亮会和实际页面对不上。
-        //    这里读 `viewModel.page.value` 而不是组合里的 `page`：这个 effect 只起一次，
+        // ② Pager → 路由（单向）：`currentPage` 过半即翻，比 `settledPage`（落定才发值）
+        //    早得多，横滑过程中 tab 就会跟着切；配合 navProgress 的连续插值就是「跟手」。
+        //    点 tab 不再写路由，因此不存在「滞后 settle 回写覆盖用户刚点的新选择」。
+        //    这里读 `viewModel.page.value` 而不是组合里的 `page`：effect 只起一次，
         //    捕获的 `page` 会一直停留在首次组合时的值，判断就会失效。
         LaunchedEffect(pagerState) {
-            snapshotFlow { pagerState.settledPage }.collect { index ->
+            snapshotFlow { pagerState.currentPage }.distinctUntilChanged().collect { index ->
                 val target = MAIN_PAGES.getOrNull(index) ?: return@collect
                 if (AppPage.mainOf(viewModel.page.value) != target) viewModel.selectMain(target)
             }
@@ -755,8 +768,13 @@ fun AppNav() {
                     ),
                     selectedIndex = MAIN_PAGES.indexOf(mainPage).coerceAtLeast(0),
                     onSelect = { index ->
-                        viewModel.selectMain(MAIN_PAGES[index])
-                    }
+                        // CR-17 ②：点 tab 只滚 Pager，不直接写路由；route 由 ② 单向回写
+                        tabScope.launch {
+                            if (reduceMotion) pagerState.scrollToPage(index)
+                            else pagerState.animateScrollToPage(index)
+                        }
+                    },
+                    progress = navProgress
                 )
             }
         }

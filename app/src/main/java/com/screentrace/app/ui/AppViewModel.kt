@@ -583,6 +583,9 @@ class AppViewModel(
     // ---- 导航 ----
 
     fun selectMain(page: AppPage) {
+        // CR-17 ②：幂等去重。Pager 的 currentPage 回写与二级页 mainOf 归位会重复
+        // 写同一个主页面，去重可避免整棵 AppNav 无谓重组、放大双向抖动。
+        if (AppPage.mainOf(_page.value) == page) return
         _page.value = page
     }
 
