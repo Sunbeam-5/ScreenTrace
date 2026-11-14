@@ -1,7 +1,7 @@
 # TODO · 当前待办（单一来源）
 
 > 本文件是**待办的唯一来源**；`docs/项目文档地图.md` 第 2 节只链接到这里，不再复制清单。
-> 最后核对：2026-11-14（**Step 9 深色 + 九套主题巡检通过**（54 截图 + §7.3 抽检，读屏缺口已补齐）；8b-2 自动同步接线完成；339 测全绿含变异验证；双机均已补装并完成 CR-14 冒烟；验收 37 迷你柱已撤销）。**CR-15 六条反馈方案已由负责人两轮裁定并于 11-14 调整（需求文档头部登记，按下方批次实施）**；**批 A0 闪退修复已完成（346 测全绿 + 变异验证 + Redmi 真机复现通过）；批 A1 时段分布真日均 + 今日页切日期过渡已完成（351 测全绿 + 变异验证 + Redmi 录屏抽帧复核）；批 B 日期状态拆分已完成（360 测全绿 + 变异验证 + Redmi 真机双状态互不影响复核）；**批 B 补丁 CR-16 二级页弹层收窄已完成（362 测全绿 + 两处变异验证 + Redmi 真机三路复核）；**CR-15 评审遗留 P1-2 / P2-1~5 已修完（367 测全绿 + 变异验证 + Redmi 统计页录屏复核）****。README 冻结，仅 4 行路径例外。
+> 最后核对：2026-11-14（**Step 9 深色 + 九套主题巡检通过**（54 截图 + §7.3 抽检，读屏缺口已补齐）；8b-2 自动同步接线完成；339 测全绿含变异验证；双机均已补装并完成 CR-14 冒烟；验收 37 迷你柱已撤销）。**CR-15 六条反馈方案已由负责人两轮裁定并于 11-14 调整（需求文档头部登记，按下方批次实施）**；**批 A0 闪退修复已完成（346 测全绿 + 变异验证 + Redmi 真机复现通过）；批 A1 时段分布真日均 + 今日页切日期过渡已完成（351 测全绿 + 变异验证 + Redmi 录屏抽帧复核）；批 B 日期状态拆分已完成（360 测全绿 + 变异验证 + Redmi 真机双状态互不影响复核）；**批 B 补丁 CR-16 二级页弹层收窄已完成（362 测全绿 + 两处变异验证 + Redmi 真机三路复核）；**CR-15 评审遗留 P1-2 / P2-1~5 已修完（367 测全绿）；CR-17 三条真机改进已完成（381 测全绿 + Redmi 真机三条复核）****。README 冻结，仅 4 行路径例外。
 > 文档归类后的目录说明见 `docs/项目文档地图.md` §6；历史评审与交付档案分别在 `CODE_REVIEW.md`、`WRAPUP.md`。
 
 ## 已完成（截至 2026-11-14）
@@ -64,13 +64,13 @@
 
 
 
-## CR-17 三条真机改进（2026-11-14，方案已裁定待实施）
+## CR-17 三条真机改进（2026-11-14，已完成）
 
-> 全文见需求文档头部 CR-17 登记。三项均按负责人选的推荐方案；真机**只用 Redmi**（vivo 在跑自动化，禁止操作）。
+> 全文见需求文档头部 CR-17 登记。三项均按负责人选的推荐方案；真机**只用 Redmi**（vivo 在跑自动化，全程未动）。证据见 `CODE_REVIEW.md` 文末补记。
 
-- [ ] **① 提示分流**：`showNotice` 按白名单前缀分流到常驻 `NoticeBar` / 2.5s 自绘短时条；5 处系统 Toast 改走 `onNotice`；短时条放在 AppHeader 下方 108dp 最上层覆盖层。
-- [ ] **② tab 跟手**：点 tab 只滚 Pager、`snapshotFlow { currentPage }` 单向回写 + `selectMain` 去重；`FreshNavBar` 扩 `progress: State<Float>` 连续插值跟手。
-- [ ] **③ 统计页局部过渡**：`MetricValueText` 支持时长数值平滑（同一 Text）、`CapsuleBarChart` 柱高平滑、`PeriodDistribution` 色带权重与图例数值平滑、文字轻淡入；不包整页容器。
+- [x] **① 提示分流**：`showNotice` 按白名单前缀分流到常驻 `NoticeBar` / 2.5s 自绘短时条；5 处系统 Toast 改走 `onNotice`；短时条放在 AppHeader 下方 108dp 最上层覆盖层。
+- [x] **② tab 跟手**：点 tab 只滚 Pager、`snapshotFlow { currentPage }` 单向回写 + `selectMain` 去重；`FreshNavBar` 扩 `progress: State<Float>` 连续插值跟手。
+- [x] **③ 统计页局部过渡**：`MetricValueText` 支持时长数值平滑（同一 Text）、`CapsuleBarChart` 柱高平滑、`PeriodDistribution` 色带权重与图例数值平滑、文字轻淡入；不包整页容器。
 
 ## CR-15 评审遗留（DeepSeek V4.1 Flash，2026-11-14 12:30；13:53 补登）
 
@@ -130,6 +130,8 @@ python scripts/capture_anim.py --launcher --slow   # 5x 系统动画缩放，自
 python scripts/capture_anim.py --date-switch -s GAQOHMNFQWFUPBQO --name a1_date_switch
 # 统计页切区间（P2-1 复核）：先切 tab，再把 chip 换成「近 30 天」
 python scripts/capture_anim.py --date-switch --switch-tab 统计 --switch-label "近 30 天" -s GAQOHMNFQWFUPBQO --name p21_stats
+# 录 tab 横滑手势（CR-17 ② 跟手复核）
+python scripts/capture_anim.py --swipe 1000,1400,220,1400,400 --no-back -s GAQOHMNFQWFUPBQO --name cr17_tab_swipe
 
 # 多台设备 / 手动指定入口坐标 / 只录进入
 python scripts/capture_anim.py -s GAQOHMNFQWFUPBQO --name cr11_recheck

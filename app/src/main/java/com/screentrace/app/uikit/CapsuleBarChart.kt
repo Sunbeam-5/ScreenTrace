@@ -101,9 +101,19 @@ fun CapsuleBarChart(
     }
     val currentIndex by rememberUpdatedState(selectedIndex)
 
-    // 柱子生长动画（§6.1）：0→1、500ms、每根延迟 30ms；减少动画直接落终值。
-    var started by remember(points) { mutableStateOf(false) }
-    LaunchedEffect(points) { started = true }
+    // CR-17 ③：入场生长只在**首次组合**播一次。原 `remember(points)` 会在每次切区间
+    // 把 started 重置成 false、柱子从 0 重新长（真机中间帧柱图几乎空白）。换数据的
+    // 过渡改由下面的量程/柱高平滑承担，不重播入场动画。
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { started = true }
+
+    // 量程与每根柱的目标值各自平滑：7 天 → 30 天时旧柱从旧值过渡到新值，新增柱
+    // 由 animateFloatAsState 从 0 长起（新数据入场），整图不再塌成空白。
+    val animatedScaleMax by animateFloatAsState(
+        targetValue = scaleMax.toFloat(),
+        animationSpec = tween(if (reduceMotion) 0 else 320),
+        label = "trendScaleMax"
+    )
 
     val safeIndex = TrendSelectionMath.step(selectedIndex, 0, count)
     val selectedPoint = points[safeIndex]
@@ -174,7 +184,8 @@ fun CapsuleBarChart(
                             )
                         }
                         if (average != null) {
-                            val y = size.height * (1f - average.toFloat() / scaleMax)
+                            val y = size.height *
+                                (1f - average.toFloat() / animatedScaleMax.coerceAtLeast(1f))
                             drawLine(
                                 color = palette.primary.copy(alpha = 0.55f),
                                 start = Offset(0f, y), end = Offset(size.width, y),
@@ -209,6 +220,14 @@ fun CapsuleBarChart(
                                         ),
                                         label = "barGrow$index"
                                     )
+                                    val animatedMinutes by animateFloatAsState(
+                                        targetValue = point.minutes.toFloat(),
+                                        animationSpec = tween(
+                                            durationMillis = if (reduceMotion) 0 else 320,
+                                            easing = FastOutSlowInEasing
+                                        ),
+                                        label = "barValue$index"
+                                    )
                                     val selected = selectedIndex == index
                                     Box(
                                         modifier = Modifier
@@ -227,13 +246,15 @@ fun CapsuleBarChart(
                                             },
                                         contentAlignment = Alignment.BottomCenter
                                     ) {
-                                        if (point.minutes > 0) {
+                                        if (animatedMinutes > 0.5f) {
                                             Box(
                                                 modifier = Modifier
                                                     .width(barWidth)
                                                     .height(
                                                         plotHeight *
-                                                            (point.minutes.toFloat() / scaleMax) * growth
+                                                            (animatedMinutes /
+                                                                animatedScaleMax.coerceAtLeast(1f))
+                                                            .coerceIn(0f, 1f) * growth
                                                     )
                                                     .clip(
                                                         RoundedCornerShape(

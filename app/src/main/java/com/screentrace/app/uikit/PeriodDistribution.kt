@@ -1,5 +1,8 @@
 package com.screentrace.app.uikit
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +45,16 @@ fun PeriodDistribution(
     val labels = listOf("06–12", "12–18", "18–22", "22–06")
     val colors = listOf(palette.chart1, palette.chart2, palette.chart3, palette.chart4)
     val percents = PercentMath.distribute(values)
+    // CR-17 ③：四段权重按新值平滑过渡（不重播任何入场动画、不包整页容器）。
+    // 固定 4 段，animateFloatAsState 可以在同一组合作用域里无条件调用 4 次。
+    val reduceMotion = rememberReduceMotion()
+    val animatedValues = values.mapIndexed { index, minutes ->
+        animateFloatAsState(
+            targetValue = minutes.toFloat(),
+            animationSpec = tween(if (reduceMotion) 0 else 320),
+            label = "periodWeight$index"
+        ).value
+    }
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
@@ -69,7 +83,7 @@ fun PeriodDistribution(
                     val right = if (index == lastVisible) outer else inner
                     Box(
                         modifier = Modifier
-                            .weight(minutes.toFloat())
+                            .weight(animatedValues[index].coerceAtLeast(0.001f))
                             .fillMaxHeight()
                             .clip(
                                 RoundedCornerShape(
@@ -114,6 +128,18 @@ private fun PeriodLegendCell(
     modifier: Modifier = Modifier
 ) {
     val palette = LocalFreshPalette.current
+    // CR-17 ③：图例时长与百分比跟着色带一起平滑，而不是一帧跳到新值
+    val reduceMotion = rememberReduceMotion()
+    val shownMinutes by animateIntAsState(
+        targetValue = minutes,
+        animationSpec = tween(if (reduceMotion) 0 else 320),
+        label = "legendMinutes"
+    )
+    val shownPercent by animateIntAsState(
+        targetValue = percent,
+        animationSpec = tween(if (reduceMotion) 0 else 320),
+        label = "legendPercent"
+    )
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.Top,
@@ -133,13 +159,13 @@ private fun PeriodLegendCell(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = UsageCalculator.formatDuration(minutes),
+                    text = UsageCalculator.formatDuration(shownMinutes),
                     style = FreshType.numberBodyLarge,
                     color = palette.onSurface,
                     maxLines = 1
                 )
                 Text(
-                    text = "$percent%",
+                    text = "$shownPercent%",
                     style = FreshType.label,
                     color = palette.onSurfaceVariant,
                     maxLines = 1

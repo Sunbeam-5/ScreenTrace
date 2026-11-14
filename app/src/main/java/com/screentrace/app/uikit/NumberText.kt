@@ -1,5 +1,7 @@
 package com.screentrace.app.uikit
 
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,9 +60,21 @@ fun MetricValueText(
     modifier: Modifier = Modifier,
     /** CR-07/§4.1：统计型卡数字 28sp 覆盖（>0 生效；默认走常规档 30sp）。 */
     numberFontSize: Int = 0,
-    /** CR-15 A1：今日页切日期时数字逐位滚动。仅纯数字卡启用；时长型仍走同 Text 排版。 */
+    /**
+     * CR-15 A1 / CR-17 ③：切日期 / 切区间时数值过渡。
+     * 纯数字卡走 `RollingNumberText` 逐位滚动；时长型在**同一个 Text** 里做数值平滑
+     * （§5.3 禁止把数字与单位拆成两个 Text，时长型不能套 RollingNumberText）。
+     * 减少动画时全部直落终值。
+     */
     rolling: Boolean = false
 ) {
+    val reduceMotion = rememberReduceMotion()
+    val smooth = rolling && !reduceMotion
+    val animatedMinutes by animateIntAsState(
+        targetValue = (value as? MetricValue.Duration)?.minutes ?: 0,
+        animationSpec = tween(if (smooth) 320 else 0),
+        label = "metricMinutes"
+    )
     // §5.3 红线是「数字与单位不得拆成两个 Text」；纯数字卡（解锁/通知次数）本来
     // 就没有单位，直接换成 RollingNumberText 不违反排版纪律，也不会动到
     // MetricText 的 intrinsic 测量策略（双卡在 Row(IntrinsicSize.Min) 里）。
@@ -76,7 +91,7 @@ fun MetricValueText(
     }
     val parts = when (value) {
         is MetricValue.Number -> listOf(MetricPart(value.text, isUnit = false))
-        is MetricValue.Duration -> durationParts(value.minutes)
+        is MetricValue.Duration -> durationParts(if (smooth) animatedMinutes else value.minutes)
     }
     MetricText(parts, numberColor, unitColor, modifier, numberFontSize)
 }

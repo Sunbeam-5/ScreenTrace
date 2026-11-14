@@ -1,5 +1,10 @@
 package com.screentrace.app.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,6 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import com.screentrace.app.uikit.rememberReduceMotion
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -129,7 +137,9 @@ private fun StatsContent(
                     value = MetricValue.Duration(data.summary.averageScreenUnlockMin),
                     numberColor = palette.onSurface,
                     unitColor = palette.onSurfaceMuted,
-                    numberFontSize = 40
+                    numberFontSize = 40,
+                    // CR-17 ③：时长型在同一 Text 内平滑变值（§5.3 不拆数字与单位）
+                    rolling = true
                 )
             }
             // 没有上一周期数据时整枚 chip 不显示，不占行、不写「暂无上一周期数据」
@@ -161,14 +171,15 @@ private fun StatsContent(
         rightLabel = "最少的一天",
         rightValue = MetricValue.Duration(data.extremes.shortestMinutes),
         rightNote = data.extremes.shortestDate?.let { dateWithWeekday(it) },
-        compact = true
+        compact = true,
+        rolling = true
     )
 
     // 洞察：数据足够才显示（§5.7）
     if (data.summary.recordedDays >= 3 && data.extremes.longestDate != null) {
         FreshCard(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = "洞察", style = FreshType.sectionTitle, color = palette.onSurface)
-            Text(
+            FadeText(
                 text = "共 ${data.summary.recordedDays} 天有记录，日均 " +
                     "${UsageCalculator.formatDuration(data.summary.averageScreenUnlockMin)}；" +
                     "最久的一天是 ${data.extremes.longestDate.monthValue}月${data.extremes.longestDate.dayOfMonth}日" +
@@ -200,11 +211,35 @@ private fun AverageLegend(averageMinutes: Int) {
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
             )
         }
-        Text(
+        FadeText(
             text = "日均 ${UsageCalculator.formatDuration(averageMinutes)}",
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )
+    }
+}
+
+/**
+ * CR-17 ③：只包一个 Text 的轻淡入，用于对比/洞察/平均线这类整句文案。
+ * 不套整页容器（A1-④ 已证实那会重播入场动画造成闪一帧）；减少动画直落终值。
+ */
+@Composable
+private fun FadeText(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    if (rememberReduceMotion()) {
+        Text(text = text, style = style, color = color, modifier = modifier)
+        return
+    }
+    AnimatedContent(
+        targetState = text,
+        transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+        label = "statsFadeText"
+    ) { value ->
+        Text(text = value, style = style, color = color, modifier = modifier)
     }
 }
 

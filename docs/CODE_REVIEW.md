@@ -1316,3 +1316,18 @@ P1-1 的探针与 P1-2 的变异都是临时改动，复现后已 `git checkout 
 - **P2-4 / P2-5**：`loadAll` / `loadPeriod` / `loadMonthLevels` 三处 `catch` 前置 `CancellationException → throw e`；`loadAll(cancelPrevious: Boolean = true)`，`applySelection` 传 `false`，消除「自己取消自己」。
 - **验证**：`--rerun-tasks` 后 **367 测全绿 / 0 失败**；Redmi 真机（vivo 另有测试未动）——统计页切「近 30 天」副标题 `10月16日 – 11月14日`、日历 tab 副标题「已记录 5 天」且顶栏无日期按钮、crash 缓冲区 0 条 FATAL。APK `a8d33320`。
 - **仍未处理**：P3 四条、排行页口径待裁决、统计侧详情页「选区间当前页不变」残留，均已在 `docs/TODO.md` 登记。
+
+---
+
+## 【补记】CR-17 三条真机改进落地证据（2026-11-14 15:10）
+
+> 负责人 14:28 提出三条改进、14:30 明确「vivo 在跑自动化，禁止使用」；三项方案均按推荐裁定，真机全程只用 Redmi `GAQOHMNFQWFUPBQO`。
+> 本节记录落地证据，不改写上文任何评审原文。
+
+- **文档先行** `79b4041`：需求文档头部登记 CR-17；§5.5 补「提示分流」与「统计页切区间过渡」条款、§5.2 补「Pager 与底部导航同步」条款；TODO 排期三条。
+- **① 提示分流**（提交见下）：`AppViewModel.showNotice` 按 `isTransientNotice` 白名单把纯确认类（`已导出…` / `已恢复…` / `云端配置已保存` / `连接成功` / `已上传…` / `刚刚已更新`）写进带 `seq` 的短时通道，其余默认常驻；`AppNav` 在 AppHeader 下方 108dp 最上层覆盖层加 2.5s 自绘短时条（复用 `NoticeBar` 胶囊样式、可提前关闭），`LaunchedEffect(seq)` 重启计时；5 处 `android.widget.Toast` 统一改走 `onNotice`。**位置取上方**：底部 50dp 悬浮导航胶囊 + 手势条 + 112dp 预留已占满，系统 Toast 默认落点必重叠。新增 7 测（白名单 + 双通道分流），变异「全部走常驻」3 例变红。
+- **② tab 跟手**（提交见下）：点 tab 只 `animateScrollToPage`、不再直接写路由；`snapshotFlow { currentPage }.distinctUntilChanged()` 单向回写取代落定才发值的 `settledPage`，`selectMain` 幂等去重，根治「滞后 settle 覆盖更晚点击」；`currentPage + currentPageOffsetFraction` 以 `State<Float>` 传给 `FreshNavBar`，`navProximity` 按距离连续插值（跟手阶段不叠 spring 二次延迟，进度只在导航条内部读取避免整树重组）。新增 7 测，变异「导航条离散化 / 去掉去重」3 例变红。
+- **③ 统计页叶子节点过渡**（本批提交）：`MetricValueText` 的 `rolling` 对时长型改在同一 `Text` 内 `animateIntAsState` 平滑（§5.3 禁止拆数字与单位），统计页日均大数字与最久/最少双卡开启；`CapsuleBarChart` 入场生长改为只播一次、量程与每根柱高按新值平滑；`PeriodDistribution` 四段色带权重与图例数值平滑；洞察/平均线文案只包单个 `Text` 做 180ms 淡入，全程不套整页容器（A1-④ 闪帧教训）。减少动画全部直落终值。
+- **验证**：`--rerun-tasks` 后 **381 测全绿 / 0 失败**；Redmi 真机（`vivo` 未动）：① 云同步「保存配置」→ 顶部出现「云端配置已保存」、3.2s 后消失；选无数据的 11/1 → 「该时段尚无数据，请先拉取」4s 后仍在（常驻）；② `--swipe` 录屏抽帧看到两页横向并排的中间帧与导航高亮连续渐变，快速连点 6 轮每轮最终「今日」标题 + 「应用构成」内容一致、无错位；③ 统计页切近 30 天抽帧看到 7 根粗柱平滑过渡到 30 根细柱、无空白帧/半透明/重影；crash 缓冲区 0 条 FATAL。APK `c6ecc22e`。
+- **观察**：真机只有 5 天有记录，近 7 天与近 30 天的日均/时段数值恰好相同，所以数字与色带的平滑在这组数据上看不出中间态（柱图点数变化可见）；逻辑已接线并由纯函数/代码审查保证。
+- **仍未处理**：P3 四条、排行页口径待裁决、统计侧详情页残留，以及日期弹层标题与状态栏略重叠的观察项，均在 `docs/TODO.md` 登记。

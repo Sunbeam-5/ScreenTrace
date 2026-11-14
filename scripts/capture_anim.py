@@ -267,6 +267,7 @@ def main() -> int:
     p.add_argument("--out-root", default="C:/tmp/screentrace-capture", help="产物根目录")
     p.add_argument("--label", default="设置", help="入口按钮 content-desc，默认「设置」")
     p.add_argument("--tap", help="手动指定入口坐标 X,Y（跳过自动定位）")
+    p.add_argument("--swipe", help="录横滑手势 X1,Y1,X2,Y2,MS（如 1000,1400,220,1400,400），用于 tab 跟手验证")
     p.add_argument("--no-back", action="store_true", help="只录进入，不按返回键")
     p.add_argument("--lead", type=float, default=0.8, help="开录到点击的等待秒数")
     p.add_argument("--launcher", action="store_true",
@@ -340,7 +341,9 @@ def main() -> int:
 
         # ---- 定位入口按钮 ----
         date_switch_chip: tuple[int, int] | None = None
-        if args.date_switch:
+        if args.swipe:
+            x, y = 0, 0  # 手势模式不需要入口按钮
+        elif args.date_switch:
             # 快捷 chip 只有弹层打开后才存在：先预打开 → dump 定位 → 关掉，
             # 录屏时间线里再重放同样的两步点击（不写死坐标，跨机型可用）。
             if args.switch_tab:
@@ -364,7 +367,15 @@ def main() -> int:
 
         # ---- 录制时间线 ----
         sh(serial, f"rm -f {REMOTE_MP4}", check=False)
-        if args.date_switch and date_switch_chip is not None:
+        if args.swipe:
+            # 横滑手势：录完整的拖拽 + fling + 落定，供导航条跟手抽帧检查
+            x1, y1, x2, y2, ms = (int(v) for v in args.swipe.split(","))
+            timeline = (
+                f"screenrecord --time-limit {limit} --bit-rate 4000000 {REMOTE_MP4} & "
+                f"sleep {args.lead:.2f}; input swipe {x1} {y1} {x2} {y2} {ms}; "
+                f"sleep {hold + tail:.2f}; wait"
+            )
+        elif args.date_switch and date_switch_chip is not None:
             cx, cy = date_switch_chip
             sheet_wait, after_switch = 0.9, 1.4
             timeline = (
