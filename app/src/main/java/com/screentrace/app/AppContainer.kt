@@ -73,8 +73,12 @@ class AppContainer(context: Context) {
         }
     )
 
-    /** 批 8：本地备份导出 / 恢复（JSON、CSV）。 */
-    val backup = com.screentrace.app.data.backup.BackupRepository(db = db, settings = settings)
+    /** 批 8：本地备份导出 / 恢复（JSON、CSV）；批 C：导出顶层带本机 `device`。 */
+    val backup = com.screentrace.app.data.backup.BackupRepository(
+        db = db,
+        settings = settings,
+        device = { settings.currentDevice() }
+    )
 
     /** 批 8b：云同步机密凭据（EncryptedSharedPreferences，§5.10 禁明文）。
      *  lazy：不碰云同步的测试路径不触发 AndroidKeyStore（Robolectric 无此 provider）。 */
@@ -90,7 +94,12 @@ class AppContainer(context: Context) {
                 remoteDir = settings.webdavRemoteDir.first()
             )
         })
-        com.screentrace.app.data.sync.SyncManager(provider, backup, settings)
+        com.screentrace.app.data.sync.SyncManager(
+            provider = provider,
+            backups = backup,
+            settings = settings,
+            device = { settings.currentDevice() }
+        )
     }
 
     val repository: UsageRepository = RoomUsageRepository(

@@ -34,7 +34,9 @@ import kotlinx.coroutines.flow.first
 class BackupRepository(
     private val db: ScreenTraceDatabase,
     private val settings: SettingsStore? = null,
-    private val zone: ZoneId = ZoneId.systemDefault()
+    private val zone: ZoneId = ZoneId.systemDefault(),
+    /** §5.10 批 C：导出 JSON 顶层 `device` 的来源；null = 不带设备标识（旧行为）。 */
+    private val device: suspend () -> com.screentrace.app.data.prefs.DeviceInfo? = { null }
 ) {
 
     enum class Strategy { OVERWRITE, MERGE }
@@ -48,8 +50,9 @@ class BackupRepository(
 
     // ---------------------------------------------------------------- 导出
 
-    suspend fun buildFile(appVersion: String, at: LocalDateTime = LocalDateTime.now()): BackupFile =
-        BackupFile(
+    suspend fun buildFile(appVersion: String, at: LocalDateTime = LocalDateTime.now()): BackupFile {
+        val info = runCatching { device() }.getOrNull()
+        return BackupFile(
             schemaVersion = BackupCodec.SCHEMA_VERSION,
             exportedAt = at.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
             appVersion = appVersion,
@@ -74,8 +77,10 @@ class BackupRepository(
             },
             appLimit = db.appLimitDao().getAll().map {
                 AppLimitDto(it.pkg, it.limitMin, it.enabled)
-            }
+            },
+            device = info?.let { BackupDevice(it.id, it.nickname, it.model) }
         )
+    }
 
     suspend fun exportJson(appVersion: String): Pair<String, String> {
         val file = buildFile(appVersion)

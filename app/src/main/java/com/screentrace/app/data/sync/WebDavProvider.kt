@@ -31,10 +31,25 @@ class WebDavProvider(
     override suspend fun testConnection(): SyncResult = request("PROPFIND", depth = "0") { it.toResult() }
 
     override suspend fun upload(path: String, bytes: ByteArray): SyncResult {
-        // 远端目录可能还不存在：MKCOL 幂等（405/301 = 已存在，忽略）
-        val dir = request("MKCOL", dirOnly = true) { SyncResult.Ok() }
-        if (dir is SyncResult.Err && dir.kind == SyncFailure.NETWORK) return dir
+        // §5.10 批 C：path 可能是 `devices/<deviceId>/...`，要把两级目录逐级建出来。
+        // MKCOL 幂等（405/301/409 = 已存在，忽略）；只有网络类失败才提前放弃。
+        val ensured = ensureDirsFor(path)
+        if (ensured is SyncResult.Err) return ensured
         return request("PUT", path = path, body = bytes.toRequestBody("application/json".toMediaType())) { it.toResult() }
+    }
+
+    private suspend fun ensureDirsFor(path: String): SyncResult {
+        val root = request("MKCOL", dirOnly = true) { SyncResult.Ok() }
+        if (root is SyncResult.Err && root.kind == SyncFailure.NETWORK) return root
+        var acc = ""
+        path.trimStart('/').substringBeforeLast('/', "").split('/')
+            .filter { it.isNotEmpty() }
+            .forEach { segment ->
+                acc += "$segment/"
+                val made = request("MKCOL", path = acc) { SyncResult.Ok() }
+                if (made is SyncResult.Err && made.kind == SyncFailure.NETWORK) return made
+            }
+        return SyncResult.Ok()
     }
 
     override suspend fun download(path: String): SyncResult = request("GET", path = path) { resp ->
@@ -52,6 +67,22 @@ class WebDavProvider(
             SyncResult.Err(SyncFailure.FORMAT, "目录列表解析失败：${e.message}")
         }
     }
+
+    /** §5.10 批 C：列 `devices/` 才能发现各设备目录，列 `devices/<id>/` 才能看该设备的备份。 */
+    override suspend fun listIn(path: String): SyncResult =
+        request("PROPFIND", path = path, depth = "1") { resp ->
+            val body = resp.body?.string().orEmpty()
+            // PROPFIND 响应第一条是目录自身（href 以 / 结尾且是 collection），要剔掉，
+            // 否则会把 `devices` 自己当成一个设备。
+            val selfName = path.trim('/').substringAfterLast('/')
+            try {
+                SyncResult.Listed(
+                    parsePropfindEntries(body).filterNot { it.isCollection && it.name == selfName }
+                )
+            } catch (e: Exception) {
+                SyncResult.Err(SyncFailure.FORMAT, "目录列表解析失败：${e.message}")
+            }
+        }
 
     override suspend fun delete(path: String): SyncResult = request("DELETE", path = path) { resp ->
         when (resp.code) {
@@ -91,7 +122,7 @@ class WebDavProvider(
                         handle(resp)
                     }
                     507 -> SyncResult.Err(SyncFailure.QUOTA, "HTTP 507 存储空间不足")
-                    in 200..299, 405, 301 -> handle(resp) // 405/301：MKCOL 已存在的幂等语义
+                    in 200..299, 405, 301, 409 -> handle(resp) // MKCOL 已存在的幂等语义
                     else -> SyncResult.Err(SyncFailure.UNKNOWN, "HTTP ${resp.code}")
                 }
             }
@@ -111,8 +142,8 @@ class WebDavProvider(
         /** 坚果云预置地址（§5.10）。 */
         const val JIANGUOYUN_URL = "https://dav.jianguoyun.com/dav/"
 
-        /** 手动备份固定文件名（§5.10：对所有 provider 一致）。 */
-        const val MANUAL_FILE = "screen-time-backup.json"
+        /** 手动备份固定文件名（§5.10：对所有 provider 一致）；口径收在 [SyncPaths]。 */
+        const val MANUAL_FILE = SyncPaths.MANUAL_FILE
 
         private val PROPFIND_BODY = """
             <?xml version="1.0" encoding="utf-8"?>
@@ -128,8 +159,13 @@ class WebDavProvider(
             .build()
 
         /** 解析 PROPFIND Depth-1 响应里的文件名（排除目录自身与子目录）。 */
-        internal fun parsePropfindNames(xml: String): List<RemoteFile> {
-            val files = mutableListOf<RemoteFile>()
+        internal fun parsePropfindNames(xml: String): List<RemoteFile> =
+            parsePropfindEntries(xml).filter { !it.isCollection }
+                .map { RemoteFile(it.name, it.sizeBytes) }
+
+        /** 解析 PROPFIND Depth-1 的全部条目，含子目录（批 C 设备发现用）。 */
+        internal fun parsePropfindEntries(xml: String): List<RemoteEntry> {
+            val files = mutableListOf<RemoteEntry>()
             val parser = android.util.Xml.newPullParser()
             parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
             parser.setInput(xml.reader())
@@ -150,9 +186,11 @@ class WebDavProvider(
                     inResponse && event == XmlPullParser.START_TAG && parser.name == "getcontentlength" ->
                         length = parser.nextText().toLongOrNull() ?: 0L
                     event == XmlPullParser.END_TAG && parser.name == "response" -> {
-                        val name = href?.substringAfterLast('/')?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                        if (inResponse && !isCollection && !name.isNullOrEmpty()) {
-                            files += RemoteFile(name, length)
+                        // 目录的 href 常以 / 结尾，先 trimEnd 才能拿到目录名本身
+                        val name = href?.trimEnd('/')?.substringAfterLast('/')
+                            ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                        if (inResponse && !name.isNullOrEmpty()) {
+                            files += RemoteEntry(name, length, isCollection)
                         }
                         inResponse = false
                     }

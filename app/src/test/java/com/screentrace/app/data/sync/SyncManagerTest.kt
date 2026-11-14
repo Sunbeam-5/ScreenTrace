@@ -8,6 +8,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.screentrace.app.data.backup.BackupRepository
 import com.screentrace.app.data.db.ScreenTraceDatabase
+import com.screentrace.app.data.prefs.DeviceIds
+import com.screentrace.app.data.prefs.DeviceInfo
 import com.screentrace.app.data.prefs.SettingsStore
 import com.screentrace.app.data.prefs.SyncFrequency
 import java.io.File
@@ -42,8 +44,31 @@ private class FakeSyncProvider : SyncProvider {
         val bytes = remote[path] ?: return SyncResult.Err(SyncFailure.NOT_FOUND, "404")
         return SyncResult.Ok(content = bytes)
     }
-    override suspend fun list(): SyncResult =
-        gate() ?: SyncResult.Ok(files = remote.keys.map { RemoteFile(it, remote.getValue(it).size.toLong()) })
+    /** 根目录列表：只认不含 `/` 的键（旧备份），分目录下的键不算根目录文件。 */
+    override suspend fun list(): SyncResult = gate() ?: SyncResult.Ok(
+        files = remote.keys.filter { !it.contains('/') }
+            .map { RemoteFile(it, remote.getValue(it).size.toLong()) }
+    )
+
+    /** 模拟 PROPFIND：以 path 为前缀，把下一级目录标成 collection，下一级文件标成文件。 */
+    override suspend fun listIn(path: String): SyncResult {
+        gate()?.let { return it }
+        val prefix = path.trimEnd('/') + "/"
+        val entries = linkedMapOf<String, RemoteEntry>()
+        remote.keys.forEach { key ->
+            if (!key.startsWith(prefix)) return@forEach
+            val rest = key.removePrefix(prefix)
+            if (rest.isEmpty()) return@forEach
+            val first = rest.substringBefore('/')
+            if (first.isEmpty()) return@forEach
+            entries[first] = if (rest.contains('/')) {
+                RemoteEntry(first, 0L, true)
+            } else {
+                RemoteEntry(first, remote.getValue(key).size.toLong(), false)
+            }
+        }
+        return SyncResult.Listed(entries.values.toList())
+    }
     override suspend fun delete(path: String): SyncResult {
         gate()?.let { return it }
         remote.remove(path)
@@ -74,7 +99,7 @@ class SyncManagerTest {
         settings = SettingsStore(prefs)
         backups = BackupRepository(db, settings)
         provider = FakeSyncProvider()
-        manager = SyncManager(provider, backups, settings)
+        manager = SyncManager(provider, backups, settings, device = { TEST_DEVICE })
     }
 
     @After
@@ -85,16 +110,21 @@ class SyncManagerTest {
 
     @Test
     fun `自动备份仅保留最近 5 份且不动手动固定文件`() = runBlocking {
+        val dir = SyncPaths.deviceDir(TEST_DEVICE_ID)
+        val short = DeviceIds.short(TEST_DEVICE_ID)
         repeat(7) { i ->
             // 时间戳文件名可区分序（同分钟会重名覆盖，这里用不同名模拟 7 个批次）
-            provider.remote["screen-time-backup-auto-20261112-000$i.json"] = "{}".toByteArray()
+            provider.remote["${dir}screen-time-backup-auto-$short-20261112-000$i.json"] =
+                "{}".toByteArray()
         }
         provider.remote[SyncWebDAVManualFile] = "{}".toByteArray()
 
         // 逐次上传触发清理（名字带同一前缀 + 时间戳）
         repeat(3) { manager.uploadAuto("test") }
 
-        val autos = provider.remote.keys.filter { it.startsWith(SyncManager.AUTO_PREFIX) }
+        val autos = provider.remote.keys.filter {
+            it.startsWith(dir) && SyncPaths.isAuto(it.substringAfterLast('/'))
+        }
         // 3 次上传（同分钟同名覆盖 1 个）+ 原 7 个里清理到最多 5 个自动文件
         assertTrue("自动备份应 ≤5 份，实际 ${autos.size}", autos.size <= 5)
         assertTrue("手动固定文件不被清理", provider.remote.containsKey(SyncWebDAVManualFile))
@@ -157,5 +187,7 @@ class SyncManagerTest {
     }
 }
 
-/** §5.10 手动备份固定文件名（与 WebDavProvider.MANUAL_FILE 一致）。 */
-private const val SyncWebDAVManualFile = "screen-time-backup.json"
+/** §5.10 批 C：本设备目录下的手动固定文件（根目录旧文件名只由回落逻辑使用）。 */
+private const val TEST_DEVICE_ID = "test-device-0001"
+private val TEST_DEVICE = DeviceInfo(TEST_DEVICE_ID, "测试机", "Robolectric")
+private val SyncWebDAVManualFile = SyncPaths.manualPath(TEST_DEVICE_ID)

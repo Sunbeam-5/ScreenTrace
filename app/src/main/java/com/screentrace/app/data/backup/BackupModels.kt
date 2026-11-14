@@ -5,13 +5,15 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * §5.10：JSON 备份结构（schemaVersion 首版 **4**）。
+ * §5.10：JSON 备份结构（当前 schemaVersion **5**）。
  *
  * 版本演进（文档 §4「备份范围」）：
  * - v1 = 原四表；
  * - v2 = 增事件表（unlock_event / notification_event）；
  * - v3 = 增会话区间（screen_session）；
- * - v4 = 增应用限额（app_limit），settings 增超时提醒开关与自定义主题种子色。
+ * - v4 = 增应用限额（app_limit），settings 增超时提醒开关与自定义主题种子色；
+ * - v5 = 顶层增 `device` 设备标识（CR-15 ③ 批 C）。旧备份缺该字段时归「未知设备」，
+ *   恢复流程绝不把备份里的 id 写回本机身份。
  *
  * 所有列表都给默认空值：恢复 v1 备份时文件里没有这些键，缺省即「该备份不含此表」，
  * 由 [BackupSummary.missingTables] 逐条提示，而不是靠解析失败去猜。
@@ -29,7 +31,17 @@ data class BackupFile(
     @SerialName("unlock_event") val unlockEvent: List<UnlockEventDto> = emptyList(),
     @SerialName("notification_event") val notificationEvent: List<NotificationEventDto> = emptyList(),
     @SerialName("screen_session") val screenSession: List<ScreenSessionDto> = emptyList(),
-    @SerialName("app_limit") val appLimit: List<AppLimitDto> = emptyList()
+    @SerialName("app_limit") val appLimit: List<AppLimitDto> = emptyList(),
+    /** v5 新增；放在末位且带默认值，旧备份与既有构造点零改动兼容。 */
+    val device: BackupDevice? = null
+)
+
+/** §5.10 批 C：备份的来源设备。只用于展示，不参与恢复时的本机身份写入。 */
+@Serializable
+data class BackupDevice(
+    val id: String,
+    val nickname: String = "",
+    val model: String = ""
 )
 
 /** §5.10：备份里的设置。默认不导入，用户勾选「同时恢复设置」才生效。 */
@@ -109,7 +121,9 @@ data class BackupSummary(
     val limitRows: Int,
     val hasSettings: Boolean,
     /** 旧备份缺的表（逐条提示，不阻断导入）。 */
-    val missingTables: List<String>
+    val missingTables: List<String>,
+    /** v5 起才有；null = 旧备份，UI 显示「未知设备」。 */
+    val device: BackupDevice? = null
 ) {
     /** 「11月1日 – 11月12日 · 8 天」这种一句话范围；无数据时明确说没有。 */
     val rangeText: String
@@ -121,7 +135,7 @@ data class BackupSummary(
 object BackupCodec {
 
     /** 当前 App 能写出的最高备份版本。 */
-    const val SCHEMA_VERSION = 4
+    const val SCHEMA_VERSION = 5
 
     private val json = Json {
         prettyPrint = true
@@ -175,6 +189,7 @@ object BackupCodec {
             if (file.schemaVersion < 2) add("事件明细（解锁 / 通知）")
             if (file.schemaVersion < 3) add("会话区间（恢复后亮屏时长沿用原值）")
             if (file.schemaVersion < 4) add("应用限额")
+            if (file.schemaVersion < 5) add("设备标识（按未知设备处理）")
         }
         return BackupSummary(
             exportedAt = file.exportedAt,
@@ -191,7 +206,8 @@ object BackupCodec {
             sessionRows = file.screenSession.size,
             limitRows = file.appLimit.size,
             hasSettings = file.settings != null,
-            missingTables = missing
+            missingTables = missing,
+            device = file.device
         )
     }
 

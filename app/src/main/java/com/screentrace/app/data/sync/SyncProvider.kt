@@ -20,8 +20,16 @@ interface SyncProvider {
     /** 下载远端文件；不存在返回 [SyncFailure.NOT_FOUND]。 */
     suspend fun download(path: String): SyncResult
 
-    /** 列出远端目录文件（自动备份清理「仅保留最近 5 份」用）。 */
+    /** 列出远端根目录文件（自动备份清理 / 旧备份归类用）。 */
     suspend fun list(): SyncResult
+
+    /**
+     * §5.10 批 C：列出指定子目录的**直接子项**（含子目录本身是 collection 的条目）。
+     * `path` 相对 remoteDir，如 `devices/`、`devices/<id>/`。
+     * 不支持子目录的 provider 走默认实现返回明确错误，绝不静默假装成功。
+     */
+    suspend fun listIn(path: String): SyncResult =
+        SyncResult.Err(SyncFailure.UNKNOWN, "适配器不支持子目录")
 
     /** 删除远端文件（清理旧自动备份用）。 */
     suspend fun delete(path: String): SyncResult
@@ -31,6 +39,9 @@ interface SyncProvider {
 }
 
 data class RemoteFile(val name: String, val sizeBytes: Long)
+
+/** PROPFIND 条目：文件与子目录都要认（批 C 靠 collection 发现 `devices/<id>/`）。 */
+data class RemoteEntry(val name: String, val sizeBytes: Long = 0L, val isCollection: Boolean = false)
 
 /** §5.10 失败分类提示（网络不可达 / 401 鉴权 / 404 目录不存在 / 格式错误 / 空间不足）。 */
 enum class SyncFailure {
@@ -51,6 +62,9 @@ sealed interface SyncResult {
             other is Ok && other.files == files && content.contentEquals(other.content)
         override fun hashCode(): Int = files.hashCode() * 31 + (content?.contentHashCode() ?: 0)
     }
+
+    /** 子目录列表专用：与 [Ok] 分开，避免给 `Ok` 加字段影响所有既有调用点。 */
+    data class Listed(val entries: List<RemoteEntry>) : SyncResult
 
     data class Err(val kind: SyncFailure, val detail: String) : SyncResult
 }

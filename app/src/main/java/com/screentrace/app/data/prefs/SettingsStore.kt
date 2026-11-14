@@ -13,6 +13,7 @@ import com.screentrace.app.contract.AppCategory
 import com.screentrace.app.contract.DEFAULT_LOW_THRESHOLD_MIN
 import com.screentrace.app.theme.ThemeVariant
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -22,9 +23,16 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
  * 「分类修改纳入备份与同步」（§4）——categoryOverrides 随备份导出（批 8）。
  * UI 接线在批 6b（AppViewModel 注入）。
  */
-class SettingsStore(private val dataStore: DataStore<Preferences>) {
+class SettingsStore(
+    private val dataStore: DataStore<Preferences>,
+    /** §5.10 批 C：设备昵称默认值（生产传机型，单测用默认）。 */
+    private val defaultDeviceName: String = "本机设备"
+) {
 
-    constructor(context: Context) : this(context.settingsDataStore)
+    constructor(context: Context) : this(
+        context.settingsDataStore,
+        android.os.Build.MODEL?.takeIf { it.isNotBlank() } ?: "本机设备"
+    )
 
     val dailyGoalMin: Flow<Int> = dataStore.data.map { it[DAILY_GOAL_MIN] ?: DEFAULT_GOAL_MIN }
     suspend fun setDailyGoalMin(value: Int) = dataStore.edit { it[DAILY_GOAL_MIN] = value }
@@ -108,6 +116,38 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         prefs[CATEGORY_OVERRIDES] = current.filterNot { it.startsWith("$pkg=") }.toSet() + "$pkg=${category.name}"
     }
 
+    // ---- CR-15 ③ 批 C：本机设备身份（§5.10；只存 DataStore，不进 Room / 备份 settings）----
+
+    /**
+     * 首启生成一次 UUID v4，之后永远复用；卸载重装才会变。
+     * 用 `edit` 内的二次检查保证并发调用只有一个 ID 胜出。
+     */
+    suspend fun getOrCreateDeviceId(): String {
+        dataStore.data.first()[DEVICE_ID]?.let { return it }
+        val generated = java.util.UUID.randomUUID().toString()
+        dataStore.edit { prefs ->
+            if (prefs[DEVICE_ID] == null) prefs[DEVICE_ID] = generated
+        }
+        return dataStore.data.first()[DEVICE_ID] ?: generated
+    }
+
+    /** 昵称只给人看，可改；空串则回落到机型默认值。 */
+    val deviceNickname: Flow<String> = dataStore.data.map {
+        it[DEVICE_NICKNAME]?.trim()?.takeIf { value -> value.isNotEmpty() } ?: defaultDeviceName
+    }
+
+    suspend fun setDeviceNickname(value: String) = dataStore.edit { prefs ->
+        val clean = value.trim().take(32)
+        if (clean.isEmpty()) prefs.remove(DEVICE_NICKNAME) else prefs[DEVICE_NICKNAME] = clean
+    }
+
+    /** 导出 JSON 顶层 `device` 的来源；恢复流程**不得**把这个 id 写回本机。 */
+    suspend fun currentDevice(): DeviceInfo = DeviceInfo(
+        id = getOrCreateDeviceId(),
+        nickname = deviceNickname.first(),
+        model = defaultDeviceName
+    )
+
     // ---- 批 8b：云同步非机密配置与状态（§5.10；密码/令牌在 SyncCredentials）----
 
     /** WebDAV 地址（默认坚果云，可改任意 WebDAV 服务）。 */
@@ -160,6 +200,8 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         private val SYNC_LAST_AT = androidx.datastore.preferences.core.longPreferencesKey("sync_last_at")
         private val SYNC_LAST_OK = booleanPreferencesKey("sync_last_ok")
         private val SYNC_LAST_MESSAGE = stringPreferencesKey("sync_last_message")
+        private val DEVICE_ID = stringPreferencesKey("device_id")
+        private val DEVICE_NICKNAME = stringPreferencesKey("device_nickname")
     }
 }
 

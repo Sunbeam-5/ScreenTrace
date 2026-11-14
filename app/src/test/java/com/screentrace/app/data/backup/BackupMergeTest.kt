@@ -184,10 +184,12 @@ class BackupMergeTest {
         val result = BackupCodec.decode(BackupCodec.encode(v1))
         assertTrue(result is BackupCodec.DecodeResult.Ok)
         val summary = (result as BackupCodec.DecodeResult.Ok).summary
-        assertEquals(3, summary.missingTables.size)
+        // v5 起多一条「设备标识」提示（CR-15 ③ 批 C）
+        assertEquals(4, summary.missingTables.size)
         assertTrue(summary.missingTables.any { it.contains("事件明细") })
         assertTrue(summary.missingTables.any { it.contains("会话区间") })
         assertTrue(summary.missingTables.any { it.contains("应用限额") })
+        assertTrue(summary.missingTables.any { it.contains("设备标识") })
         assertEquals("2026-09-30", summary.firstDate)
     }
 }

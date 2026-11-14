@@ -113,6 +113,8 @@ class AutoSyncWorker(
 
         return when (sync.uploadAuto(appVersion())) {
             is SyncResult.Ok -> Result.success()
+            // 上传不会返回目录列表；真出现时按失败处理，不写假成功状态
+            is SyncResult.Listed -> Result.failure()
             is SyncResult.Err -> if (AutoSyncScheduler.shouldRetry(runAttemptCount)) {
                 Result.retry()
             } else {
