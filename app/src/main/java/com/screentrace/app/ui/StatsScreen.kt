@@ -299,7 +299,7 @@ private fun StatsScreenPreview() {
                             recorded = i != 5
                         )
                     },
-                    periods = listOf(300, 600, 420, 360),
+                    periods = listOf(120, 180, 95, 210), // CR-15 A1：Preview 也用日均量纲（原 300/600/420/360 是累计量纲）
                     extremes = ExtremesInfo(today.minusDays(2), 420, today.minusDays(4), 60, 1)
                 )
             ),

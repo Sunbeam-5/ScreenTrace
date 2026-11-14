@@ -4,6 +4,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.TemporalAdjusters
+import kotlin.math.roundToInt
 
 /**
  * §6：单日、区间、上一等长周期、记录覆盖数由统一领域计算器产生，
@@ -129,6 +130,21 @@ object UsageCalculator {
     @JvmName("nightMinutesOfAggregated")
     fun nightMinutes(buckets: List<HourBucket>): Int =
         buckets.filter { it.hour >= 22 || it.hour < 6 }.sumOf { it.minutes }
+
+    /**
+     * CR-15 A1 / §5.7 第 7 条：把「区间累计分钟」归一成「**有记录日日均分钟**」。
+     *
+     * `hourlyDistribution` 的 SQL 是 `SUM(minutes) GROUP BY hour`，7/30 天累计值直接
+     * 喂给标着「日均」的时段分布卡，会出现「06–12（时钟跨度只有 6 小时）显示
+     * 7小时25分」这种荒谬读数（真机反馈）。分母按 §5.6 AVG 口径只含有记录日，
+     * 四舍五入到分钟；无记录日时返回全 0（不渲染假数值）。
+     */
+    fun dailyAveragePeriods(cumulativeMinutes: List<Int>, recordedDays: Int): List<Int> {
+        if (recordedDays <= 0) return List(cumulativeMinutes.size) { 0 }
+        return cumulativeMinutes.map { minutes ->
+            (minutes.toDouble() / recordedDays).roundToInt().coerceAtLeast(0)
+        }
+    }
 
     /** §5.7 月视图三档：(0,2h) / [2h,4h) / ≥4h；0 分钟与无记录均不着色。 */
     fun monthLevel(minutes: Int, recorded: Boolean): Int = when {

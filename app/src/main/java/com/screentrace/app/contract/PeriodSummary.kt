@@ -188,7 +188,10 @@ object PeriodSummaryCalculator {
         val compare = UsageCalculator.compareAverage(summary, previousSummary, type.previousLabel)
         val longestShortest = UsageCalculator.longestShortest(inWindow)
         val appTotal = apps.sumOf { it.minutes }
-        val periods = UsageCalculator.periodBuckets(hours)
+        val periods = UsageCalculator.dailyAveragePeriods(
+            UsageCalculator.periodBuckets(hours),
+            summary.recordedDays
+        )
         val totalHourMinutes = periods.sum()
         val nightPercent =
             if (totalHourMinutes <= 0) 0 else periods[3] * 100 / totalHourMinutes

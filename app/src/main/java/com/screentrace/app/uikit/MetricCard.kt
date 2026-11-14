@@ -71,7 +71,9 @@ fun MetricCard(
     /** CR-07/§4.1：左上 34×34 白 55% 透明图标底块（可下钻卡：解锁挂锁 / 通知铃铛）。 */
     icon: ImageVector? = null,
     /** 统计型卡（最久/最少/低于阈值）：数字 28sp、最小高 104（§4.1）。 */
-    compact: Boolean = false
+    compact: Boolean = false,
+    /** CR-15 A1：切日期时数字逐位滚动（今日页双卡启用）。 */
+    rolling: Boolean = false
 ) {
     val palette = LocalFreshPalette.current
     val background = when (variant) {
@@ -164,7 +166,8 @@ fun MetricCard(
             value = value,
             numberColor = palette.onSurface,
             unitColor = palette.mutedOn(background),
-            numberFontSize = if (compact) 28 else 0
+            numberFontSize = if (compact) 28 else 0,
+            rolling = rolling
         )
         if (note != null) {
             if (noteAsCompare) {
@@ -220,7 +223,9 @@ fun MetricCardPair(
     leftIcon: ImageVector? = null,
     rightIcon: ImageVector? = null,
     /** CR-07 §5.2：统计页「最久/最少」双卡用 28sp 数字（tonal 卡常规 30sp）。 */
-    compact: Boolean = false
+    compact: Boolean = false,
+    /** CR-15 A1：切日期时两卡数字一起逐位滚动。 */
+    rolling: Boolean = false
 ) {
     Row(
         modifier = modifier
@@ -239,6 +244,7 @@ fun MetricCardPair(
             clickDescription = leftClickDescription,
             icon = leftIcon,
             compact = compact,
+            rolling = rolling,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
@@ -254,6 +260,7 @@ fun MetricCardPair(
             clickDescription = rightClickDescription,
             icon = rightIcon,
             compact = compact,
+            rolling = rolling,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()

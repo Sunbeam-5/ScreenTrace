@@ -56,8 +56,24 @@ fun MetricValueText(
     unitColor: Color,
     modifier: Modifier = Modifier,
     /** CR-07/§4.1：统计型卡数字 28sp 覆盖（>0 生效；默认走常规档 30sp）。 */
-    numberFontSize: Int = 0
+    numberFontSize: Int = 0,
+    /** CR-15 A1：今日页切日期时数字逐位滚动。仅纯数字卡启用；时长型仍走同 Text 排版。 */
+    rolling: Boolean = false
 ) {
+    // §5.3 红线是「数字与单位不得拆成两个 Text」；纯数字卡（解锁/通知次数）本来
+    // 就没有单位，直接换成 RollingNumberText 不违反排版纪律，也不会动到
+    // MetricText 的 intrinsic 测量策略（双卡在 Row(IntrinsicSize.Min) 里）。
+    if (rolling && value is MetricValue.Number) {
+        RollingNumberText(
+            text = value.text,
+            style = FreshType.metricNumber.copy(
+                fontSize = (if (numberFontSize > 0) numberFontSize else REGULAR_NUM).sp
+            ),
+            color = numberColor,
+            modifier = modifier
+        )
+        return
+    }
     val parts = when (value) {
         is MetricValue.Number -> listOf(MetricPart(value.text, isUnit = false))
         is MetricValue.Duration -> durationParts(value.minutes)

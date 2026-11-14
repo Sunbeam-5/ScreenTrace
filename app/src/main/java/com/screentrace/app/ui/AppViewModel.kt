@@ -1048,7 +1048,10 @@ class AppViewModel(
                             summary = summary,
                             compare = compare,
                             trend = repository.dailyTrend(selection),
-                            periods = UsageCalculator.periodBuckets(hours),
+                            periods = UsageCalculator.dailyAveragePeriods(
+                                UsageCalculator.periodBuckets(hours),
+                                summary.recordedDays
+                            ),
                             extremes = repository.extremes(selection, threshold),
                             topAppsPerDay = repository.topAppsPerDay(selection, limit = 3)
                         )

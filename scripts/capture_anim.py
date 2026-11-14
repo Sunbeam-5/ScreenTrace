@@ -22,13 +22,18 @@
     5x 慢放并不会增加过渡帧；观察原生动画请直接看正常速度的 enter.png / exit.png
     （分段窗口短、抽帧密度高，能连续拍到 4~5 帧缩放态）。
 
+【日期切换过渡】录「点顶栏日期 → 点『昨天』→ 今日页换值」的过渡帧：
+    python scripts/capture_anim.py --date-switch -s GAQOHMNFQWFUPBQO
+    产物 switch.png 是切换瞬间的逐帧联系表；脚本先预打开弹层定位 chip 再关掉，
+    录屏时重放同样的两步点击，不写死坐标、不按返回键。
+
 指定设备 / 输出目录 / 手动指定图标坐标：
     python scripts/capture_anim.py -s GAQOHMNFQWFUPBQO --name cr11_recheck
     python scripts/capture_anim.py --tap 1077,263
 
 产物（默认 C:/tmp/screentrace-capture/<时间戳>/）：
     full.png   全流程联系表（打开 → 全屏 → 缩回 → 首页，一图看全，无黑格）
-    enter.png  进入段逐帧        exit.png  返回段逐帧
+    enter.png  进入段逐帧（--date-switch 下为 switch.png）  exit.png  返回段逐帧
     clip.mp4   裁剪压缩后的完整视频        raw.mp4  原始录屏
 
 依赖：adb（PATH 内）、ffmpeg（优先 imageio_ffmpeg 自带，其次系统 ffmpeg）；
@@ -270,6 +275,8 @@ def main() -> int:
     p.add_argument("--slow-scale", type=float, default=5.0,
                    help="--launcher --slow 的系统动画缩放倍数，默认 5")
     p.add_argument("--back-key", type=int, help="返回用键码，默认 App 内 4(BACK) / 桌面 3(HOME)")
+    p.add_argument("--date-switch", action="store_true",
+                   help="录日期弹层点「昨天」后今日页切换的过渡（预定位 chip，不按返回键）")
     p.add_argument("--scale", type=int, default=300, help="联系表单帧宽度 px")
     args = p.parse_args()
 
@@ -326,7 +333,19 @@ def main() -> int:
             time.sleep(2.5)
 
         # ---- 定位入口按钮 ----
-        if args.tap:
+        date_switch_chip: tuple[int, int] | None = None
+        if args.date_switch:
+            # 「昨天」chip 只有弹层打开后才存在：先预打开 → dump 定位 → 关掉，
+            # 录屏时间线里再重放同样的两步点击（不写死坐标，跨机型可用）。
+            x, y = locate_button(serial, "选择日期", out_dir / "ui_date.xml")
+            sh(serial, f"input tap {x} {y}", check=False)
+            time.sleep(1.0)
+            cx, cy = locate_button(serial, "昨天", out_dir / "ui_yesterday.xml")
+            sh(serial, "input keyevent 4", check=False)  # 关弹层
+            time.sleep(0.6)
+            date_switch_chip = (cx, cy)
+            log(f"日期切换锚点：日期按钮 ({x},{y})｜昨天 chip ({cx},{cy})")
+        elif args.tap:
             x, y = (int(v) for v in args.tap.split(","))
         else:
             x, y = locate_button(serial, args.label, out_dir / "ui.xml")
@@ -334,12 +353,21 @@ def main() -> int:
 
         # ---- 录制时间线 ----
         sh(serial, f"rm -f {REMOTE_MP4}", check=False)
-        back = (f"input keyevent {back_key}; sleep {back_gap:.2f}"
-                if not args.no_back else f"sleep {back_gap:.2f}")
-        timeline = (
-            f"screenrecord --time-limit {limit} --bit-rate 4000000 {REMOTE_MP4} & "
-            f"sleep {args.lead:.2f}; input tap {x} {y}; sleep {hold:.2f}; {back}; wait"
-        )
+        if args.date_switch and date_switch_chip is not None:
+            cx, cy = date_switch_chip
+            sheet_wait, after_switch = 0.9, 1.4
+            timeline = (
+                f"screenrecord --time-limit {limit} --bit-rate 4000000 {REMOTE_MP4} & "
+                f"sleep {args.lead:.2f}; input tap {x} {y}; sleep {sheet_wait:.2f}; "
+                f"input tap {cx} {cy}; sleep {after_switch:.2f}; wait"
+            )
+        else:
+            back = (f"input keyevent {back_key}; sleep {back_gap:.2f}"
+                    if not args.no_back else f"sleep {back_gap:.2f}")
+            timeline = (
+                f"screenrecord --time-limit {limit} --bit-rate 4000000 {REMOTE_MP4} & "
+                f"sleep {args.lead:.2f}; input tap {x} {y}; sleep {hold:.2f}; {back}; wait"
+            )
         sh(serial, timeline, check=False)
         adb(serial, "pull", REMOTE_MP4, winpath(local_mp4), check=False)
         if not local_mp4.is_file() or local_mp4.stat().st_size < 10000:
@@ -360,17 +388,26 @@ def main() -> int:
             exit_start = args.lead + hold - 0.15
             exit_window = clamp_window(exit_start, exit_s + 0.6, duration)
             full_rows = 4 if args.slow else 3
+            if args.date_switch:
+                # 切换发生在第二步「点昨天」之后：full 覆盖两步点击，
+                # 密抽帧窗口贴着切换瞬间，避免拍到一堆静止帧（screenrecord 静止不写帧）。
+                full_start = max(0.0, args.lead - 0.2)
+                full_window = clamp_window(full_start, 0.9 + 1.4 + 0.4, duration)
+                enter_start = max(0.0, args.lead + 0.9 - 0.15)
+                enter_window = clamp_window(enter_start, 1.1, duration)
+                full_rows = 3
+            enter_name = "switch.png" if args.date_switch else "enter.png"
             made = {
                 "full.png": contact_sheet(
                     ff, local_mp4, full_start, full_window, 7, full_rows, args.scale,
                     out_dir / "full.png",
                 ),
-                "enter.png": contact_sheet(
+                enter_name: contact_sheet(
                     ff, local_mp4, enter_start, enter_window,
-                    6, 3, args.scale, out_dir / "enter.png",
+                    6, 3, args.scale, out_dir / enter_name,
                 ),
             }
-            if not args.no_back:
+            if not args.no_back and not args.date_switch:
                 made["exit.png"] = contact_sheet(
                     ff, local_mp4, exit_start, exit_window,
                     6, 3, args.scale, out_dir / "exit.png",

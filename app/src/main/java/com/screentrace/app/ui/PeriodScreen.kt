@@ -245,7 +245,7 @@ private fun PeriodContent(
 
     // ⑥ 时段占比
     FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(text = "时段分布", style = FreshType.sectionTitle, color = palette.onSurface)
+        Text(text = "时段分布 · 日均", style = FreshType.sectionTitle, color = palette.onSurface)
         val labels = listOf("06–12", "12–18", "18–22", "22–06")
         val colors = listOf(palette.chart1, palette.chart2, palette.chart3, palette.chart4)
         val segments = period.periods.mapIndexed { index, minutes ->
