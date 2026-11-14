@@ -165,10 +165,12 @@ fun ScrollablePage(
 }
 
 /**
- * §5.2（CR-10 终态）：左标题 + 日期副标题；右侧固定「日期 / 主题 / 设置」三枚圆按钮，
- * 视觉 40dp、点击区 ≥48dp。主题按钮居中，三色圆点自绘（不引 icons-extended）；
- * 两处主题入口（顶栏 / 设置页）共用 AppNav 全局 `showStyleSheet` 的同一个 `StyleSheet`。
- * 主页面无返回键；二级页传 onBack 显示「返回 + 标题」，且不传 `onStyleClick`（§5.2）。
+ * §5.2（CR-15 ③ 批 D）：左标题 + 日期副标题。
+ * - **主页面**（传 `onMenuClick`）：右侧只留一枚「设置」圆按钮，点开下拉四宫格；
+ *   四枚按钮的绘制与接线在 `QuickMenu.kt` / `AppNav`。
+ * - **二级页**（不传 `onMenuClick`）：保持「返回 + 标题 + 可选日期」的旧渲染，
+ *   参数全带默认值，因此二级页与 `@Preview` 调用点零改动。
+ * 视觉 40dp、点击区 ≥48dp；主题按钮三色圆点自绘（不引 icons-extended）。
  * 未传入的按钮不渲染——调用方只接线真实可用的动作，避免假按钮（§6）。
  *
  * 标题与副标题走 `Crossfade`：主页面之间横滑时标题是跟着换的，
@@ -182,7 +184,10 @@ fun AppHeader(
     onBack: (() -> Unit)? = null,
     onDateClick: (() -> Unit)? = null,
     onStyleClick: (() -> Unit)? = null,
-    onSettingsClick: (() -> Unit)? = null
+    onSettingsClick: (() -> Unit)? = null,
+    /** §5.2 批 D：传了就切「主页面单按钮 + 下拉面板」模式；不传走旧三按钮（二级页 / Preview）。 */
+    onMenuClick: (() -> Unit)? = null,
+    menuExpanded: Boolean = false
 ) {
     val palette = LocalFreshPalette.current
     Row(
@@ -224,29 +229,45 @@ fun AppHeader(
                 }
             }
         }
-        if (onDateClick != null) {
-            HeaderActionButton(contentDescription = "选择日期", onClick = onDateClick) {
-                Icon(
-                    imageVector = Icons.Default.DateRange,
-                    contentDescription = null,
-                    tint = palette.onSurface,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        }
-        if (onStyleClick != null) {
-            HeaderActionButton(contentDescription = "界面风格", onClick = onStyleClick) {
-                ThemeDotsIcon()
-            }
-        }
-        if (onSettingsClick != null) {
-            HeaderActionButton(contentDescription = "设置", onClick = onSettingsClick) {
+        if (onMenuClick != null) {
+            // §5.2 批 D：主页面只留一枚设置圆按钮。它同样接 HeaderActionButton（自带
+            // transformSource），面板内按钮被点时会用精确矩形覆盖这个兜底起点。
+            HeaderActionButton(
+                contentDescription = if (menuExpanded) "关闭快捷菜单" else "打开快捷菜单",
+                onClick = onMenuClick
+            ) {
                 Icon(
                     imageVector = Icons.Default.Settings,
                     contentDescription = null,
                     tint = palette.onSurface,
                     modifier = Modifier.size(22.dp)
                 )
+            }
+        } else {
+            if (onDateClick != null) {
+                HeaderActionButton(contentDescription = "选择日期", onClick = onDateClick) {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = null,
+                        tint = palette.onSurface,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+            if (onStyleClick != null) {
+                HeaderActionButton(contentDescription = "界面风格", onClick = onStyleClick) {
+                    ThemeDotsIcon()
+                }
+            }
+            if (onSettingsClick != null) {
+                HeaderActionButton(contentDescription = "设置", onClick = onSettingsClick) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = null,
+                        tint = palette.onSurface,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }
@@ -258,7 +279,7 @@ fun AppHeader(
  * 与「一个主色派生全套色阶」的既有原则一致。
  */
 @Composable
-private fun ThemeDotsIcon() {
+internal fun ThemeDotsIcon() {
     val palette = LocalFreshPalette.current
     Canvas(modifier = Modifier.size(22.dp)) {
         val radius = 3.4.dp.toPx()
@@ -273,7 +294,7 @@ private fun ThemeDotsIcon() {
 
 /** §5.2：视觉 40dp 圆形按钮、点击区 48dp；语义 token 无硬编码色。 */
 @Composable
-private fun HeaderActionButton(
+internal fun HeaderActionButton(
     contentDescription: String,
     onClick: () -> Unit,
     icon: @Composable () -> Unit

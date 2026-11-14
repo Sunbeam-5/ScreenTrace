@@ -30,6 +30,7 @@ import com.screentrace.app.data.sync.SyncFailure
 import com.screentrace.app.data.sync.SyncManager
 import com.screentrace.app.data.sync.SyncResult
 import com.screentrace.app.data.sync.WebDavProvider
+import com.screentrace.app.data.sync.deviceBackupSummary
 import com.screentrace.app.data.sync.userMessage
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
@@ -398,16 +399,8 @@ fun CloudSyncGroup(
                             devicesBusy = true
                             val downloaded = onInspectDevice(device.deviceId)
                             devicesBusy = false
-                            inspectText = downloaded.summary?.let { s ->
-                                "来源：${downloaded.deviceLabel ?: "未知设备"}\n" +
-                                    "导出：${s.exportedAt} · App ${s.appVersion} · v${s.schemaVersion}\n" +
-                                    "范围：${s.rangeText}\n" +
-                                    "记录：日 ${s.dayCount} / 应用 ${s.appRows} / 时段 ${s.hourRows} / 事件 ${s.unlockRows + s.notificationRows} 条\n" +
-                                    "只读查看，不会写入本机数据"
-                            } ?: "查看失败：${
-                                (downloaded.error as? SyncResult.Err)?.kind?.userMessage()
-                                    ?: "远端备份不可用"
-                            }"
+                            // §5.10 批 C / §5.2 批 D：云同步页卡片与顶栏设备面板共用一份只读摘要
+                            inspectText = deviceBackupSummary(downloaded)
                         }
                     }
                 )
