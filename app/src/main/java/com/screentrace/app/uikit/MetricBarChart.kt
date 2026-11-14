@@ -112,9 +112,15 @@ fun MetricBarChart(
     val staggerMs = (360 / totalBars).coerceAtMost(8).toFloat()
     val growMs = if (thick) 260f else 220f
     val totalMs = growMs + staggerMs * (totalBars - 1).coerceAtLeast(0)
-    val progress = remember(points, reduceMotion) { Animatable(if (reduceMotion) 1f else 0f) }
+    // CR-15 评审 P2-1 收口：progress **不随 points 重建**。原 `remember(points, ...)`
+    // 会让每次切区间把 Animatable 重置成 0、柱图从零重新长一遍（真机抽帧里表现为
+    // 中间几帧柱图几乎空白），与今日页 RingProgress 被整页淡变重播是同一类问题。
+    // 现在只有首次组合播入场动画；之后换区间柱高直接由旧值过渡到新值，
+    // 「换了区间」的反馈由日均数字逐位滚动与柱形变化承担。
+    val progress = remember { Animatable(if (reduceMotion) 1f else 0f) }
     LaunchedEffect(points, reduceMotion) {
-        if (!reduceMotion) progress.animateTo(1f, tween(totalMs.toInt(), easing = FastOutSlowInEasing))
+        if (reduceMotion) progress.snapTo(1f)
+        else progress.animateTo(1f, tween(totalMs.toInt(), easing = FastOutSlowInEasing))
     }
 
     // 手指按住的槽位（null = 无气泡）

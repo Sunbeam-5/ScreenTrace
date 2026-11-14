@@ -141,8 +141,15 @@ object UsageCalculator {
      */
     fun dailyAveragePeriods(cumulativeMinutes: List<Int>, recordedDays: Int): List<Int> {
         if (recordedDays <= 0) return List(cumulativeMinutes.size) { 0 }
-        return cumulativeMinutes.map { minutes ->
-            (minutes.toDouble() / recordedDays).roundToInt().coerceAtLeast(0)
+        // CR-15 评审 P2-2 / §5.7 第 7 条：分母来自 day_summary 的 recordedDays，
+        // 分子来自 hour_usage 的 SUM。降级通道与 Shizuku 混用、或历史迁移残留时，
+        // 某天可能只有 hour 行没有 day 行 → 分母偏小、日均被放大到超过时段时钟跨度
+        // （真机「06–12 显示 7小时25分」的同类形态）。按四段物理上限显式钳制，
+        // 宁可少算也不渲染「6 小时的时段用了 17 小时」这种荒谬读数。
+        val caps = listOf(360, 360, 240, 480) // 06–12 / 12–18 / 18–22 / 22–06
+        return cumulativeMinutes.mapIndexed { index, minutes ->
+            val average = (minutes.toDouble() / recordedDays).roundToInt().coerceAtLeast(0)
+            if (index < caps.size) average.coerceAtMost(caps[index]) else average
         }
     }
 

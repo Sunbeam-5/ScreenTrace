@@ -1,7 +1,7 @@
 # TODO · 当前待办（单一来源）
 
 > 本文件是**待办的唯一来源**；`docs/项目文档地图.md` 第 2 节只链接到这里，不再复制清单。
-> 最后核对：2026-11-14（**Step 9 深色 + 九套主题巡检通过**（54 截图 + §7.3 抽检，读屏缺口已补齐）；8b-2 自动同步接线完成；339 测全绿含变异验证；双机均已补装并完成 CR-14 冒烟；验收 37 迷你柱已撤销）。**CR-15 六条反馈方案已由负责人两轮裁定并于 11-14 调整（需求文档头部登记，按下方批次实施）**；**批 A0 闪退修复已完成（346 测全绿 + 变异验证 + Redmi 真机复现通过）；批 A1 时段分布真日均 + 今日页切日期过渡已完成（351 测全绿 + 变异验证 + Redmi 录屏抽帧复核）；批 B 日期状态拆分已完成（360 测全绿 + 变异验证 + Redmi 真机双状态互不影响复核）；**批 B 补丁 CR-16 二级页弹层收窄已完成（362 测全绿 + 两处变异验证 + Redmi 真机三路复核）****。README 冻结，仅 4 行路径例外。
+> 最后核对：2026-11-14（**Step 9 深色 + 九套主题巡检通过**（54 截图 + §7.3 抽检，读屏缺口已补齐）；8b-2 自动同步接线完成；339 测全绿含变异验证；双机均已补装并完成 CR-14 冒烟；验收 37 迷你柱已撤销）。**CR-15 六条反馈方案已由负责人两轮裁定并于 11-14 调整（需求文档头部登记，按下方批次实施）**；**批 A0 闪退修复已完成（346 测全绿 + 变异验证 + Redmi 真机复现通过）；批 A1 时段分布真日均 + 今日页切日期过渡已完成（351 测全绿 + 变异验证 + Redmi 录屏抽帧复核）；批 B 日期状态拆分已完成（360 测全绿 + 变异验证 + Redmi 真机双状态互不影响复核）；**批 B 补丁 CR-16 二级页弹层收窄已完成（362 测全绿 + 两处变异验证 + Redmi 真机三路复核）；**CR-15 评审遗留 P1-2 / P2-1~5 已修完（367 测全绿 + 变异验证 + Redmi 统计页录屏复核）****。README 冻结，仅 4 行路径例外。
 > 文档归类后的目录说明见 `docs/项目文档地图.md` §6；历史评审与交付档案分别在 `CODE_REVIEW.md`、`WRAPUP.md`。
 
 ## 已完成（截至 2026-11-14）
@@ -67,14 +67,14 @@
 
 > 来源：`docs/CODE_REVIEW.md` 末节「CR-15（A0 / A1 / B）代码评审」与 13:45 补记。
 > **13:53 复核更正**：补记末句称这些条目「仍挂在 `docs/TODO.md`」与事实不符——当时一条都没登记，本批补登。
-> 负责人 13:53 裁定「先补评审遗留」：P1-2 / P2-1~5 本批处理；P3 四条与两条待裁决登记不阻塞。
+> 负责人 13:53 裁定「先补评审遗留」：**P1-2 / P2-1~5 已于 14:25 修完**（证据见 `CODE_REVIEW.md` 文末补记）；P3 四条与两条待裁决仅登记、不阻塞。
 
-- [ ] **P1-2 时段日均两处接线零断言**：`DailyAveragePeriodsTest` 只打靶纯函数；把 `AppViewModel` / `PeriodSummaryCalculator` 的 `dailyAveragePeriods` 调用改回累计值，360 测仍全绿。且「四段不超时钟跨度」用例输入 = 期望 × 7，第二条断言恒真。→ 补两条接线测试 + 换掉恒真断言，变异必须变红。
-- [ ] **P2-1 统计页整页 Crossfade**：`StatsScreen` 的 `Crossfade(targetState = state.data, 200ms)` 重建内容分支，`MetricBarChart` 的 `remember(points){ Animatable(0f) }` 入场动画重播 —— 与今日页「闪一帧」同源。→ 去掉整页淡变，用 `scripts/capture_anim.py` 复录统计页切换抽帧。
-- [ ] **P2-2 日均分母与小时表不同源**：分母 `Summary.recordedDays`（day_summary）、分子 `hour_usage` SUM；某天只有 hour 行时日均被放大并超 6/6/4/8h。→ `dailyAveragePeriods` 按四段时钟跨度显式钳制并写明理由，补极端输入用例，§5.7 第 7 条同步。
-- [ ] **P2-3 日历 tab 副标题回落「今天」**：`calendarState.data == null`（加载中 / 无数据）时走 `selectionSubtitle(headerSelection)`，在「不参与筛选」的页面上出现「今天 · X月X日」。→ 日历分支独立文案，不显示日期。
-- [ ] **P2-4 `catch (e: Exception)` 吞 `CancellationException`**：`loadAll` / `loadPeriod` 快速连点日期时，被取消的加载会写入 error 状态。→ 先 `catch (e: CancellationException) { throw e }`。
-- [ ] **P2-5 `applySelection` 自己取消自己**：协程赋给 `loadJob` 后调 `loadAll()`，其首行 `loadJob?.cancel()` 取消的正是当前协程，目前靠「之后无挂起点」侥幸可用。→ `loadAll(cancelPrevious: Boolean)`，写入路径传 false。
+- [x] **P1-2 时段日均两处接线零断言**：`DailyAveragePeriodsTest` 只打靶纯函数；把 `AppViewModel` / `PeriodSummaryCalculator` 的 `dailyAveragePeriods` 调用改回累计值，360 测仍全绿。且「四段不超时钟跨度」用例输入 = 期望 × 7，第二条断言恒真。→ 补两条接线测试 + 换掉恒真断言，变异必须变红。
+- [x] **P2-1 统计页整页 Crossfade**：`StatsScreen` 的 `Crossfade(targetState = state.data, 200ms)` 重建内容分支，`MetricBarChart` 的 `remember(points){ Animatable(0f) }` 入场动画重播 —— 与今日页「闪一帧」同源。→ 去掉整页淡变，用 `scripts/capture_anim.py` 复录统计页切换抽帧。
+- [x] **P2-2 日均分母与小时表不同源**：分母 `Summary.recordedDays`（day_summary）、分子 `hour_usage` SUM；某天只有 hour 行时日均被放大并超 6/6/4/8h。→ `dailyAveragePeriods` 按四段时钟跨度显式钳制并写明理由，补极端输入用例，§5.7 第 7 条同步。
+- [x] **P2-3 日历 tab 副标题回落「今天」**：`calendarState.data == null`（加载中 / 无数据）时走 `selectionSubtitle(headerSelection)`，在「不参与筛选」的页面上出现「今天 · X月X日」。→ 日历分支独立文案，不显示日期。
+- [x] **P2-4 `catch (e: Exception)` 吞 `CancellationException`**：`loadAll` / `loadPeriod` 快速连点日期时，被取消的加载会写入 error 状态。→ 先 `catch (e: CancellationException) { throw e }`。
+- [x] **P2-5 `applySelection` 自己取消自己**：协程赋给 `loadJob` 后调 `loadAll()`，其首行 `loadJob?.cancel()` 取消的正是当前协程，目前靠「之后无挂起点」侥幸可用。→ `loadAll(cancelPrevious: Boolean)`，写入路径传 false。
 - [ ] **P3-1 读屏**：`RollingNumberText` 每位一个 `AnimatedContent` → 一个 `Text`，`MetricCardPair` 未 `clearAndSetSemantics`，TalkBack 可能把「87」读成两段；补语义并真机听一遍。
 - [ ] **P3-2 `DateInput.error` 格式错分支不可达**：字段文本恒为数字流，`按 年-月-日 输入` 永不触发且被测试固化；删分支或注明防御性。
 - [ ] **P3-3 `normalizeInput(raw, cursor)` 的 cursor 参数未使用**（永远置末尾），签名误导调用方。
@@ -119,6 +119,8 @@ python scripts/capture_anim.py --launcher --slow   # 5x 系统动画缩放，自
 # 产物 switch.png = 切换瞬间逐帧联系表（不写死坐标、不按返回键）
 # 产物 switch.png = 切换段联系表；switch_dense.png = 8×6 高密度诊断帧（逐帧约 21ms）
 python scripts/capture_anim.py --date-switch -s GAQOHMNFQWFUPBQO --name a1_date_switch
+# 统计页切区间（P2-1 复核）：先切 tab，再把 chip 换成「近 30 天」
+python scripts/capture_anim.py --date-switch --switch-tab 统计 --switch-label "近 30 天" -s GAQOHMNFQWFUPBQO --name p21_stats
 
 # 多台设备 / 手动指定入口坐标 / 只录进入
 python scripts/capture_anim.py -s GAQOHMNFQWFUPBQO --name cr11_recheck

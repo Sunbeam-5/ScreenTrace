@@ -1300,3 +1300,19 @@ P1-1 的探针与 P1-2 的变异都是临时改动，复现后已 `git checkout 
 - **口径更正**：本节 P1-1 原文的结论（静默无效）与实测一致；但评审当日口述给的「再进详情会变成 7 天」是错误的，`metricDetail` 恒喂 `todayEffective`，任何时候都不会显示区间。需求文档 CR-16 条目已按实测改正。
 - **新增待裁决**：排行页按 §5.7 排行-2 恒取锚点单日，从统计侧进排行选「近 30 天」只改锚点结束日（默认已是今天）→ 仍表现为无变化。属排行口径问题，不在 CR-16 范围。
 - P1-2 / P2-1 / P2-2 / P2-3 / P2-4 / P2-5 / P3 四条**尚未处理**；~~仍挂在 `docs/TODO.md`~~ **（13:53 复核更正：当时一条都未登记，原表述与事实不符）**。已按负责人裁定补登 `docs/TODO.md` 的「CR-15 评审遗留」章节，修复结果见文末后续补记。
+
+---
+
+## 【补记】CR-15 评审遗留补登与修复（2026-11-14 14:25）
+
+> 负责人 13:53 裁定「先补评审遗留」。本节记录 P1-2 / P2-1~5 的落地证据；P3 四条与两条待裁决**只登记、未改**。
+> 本节为新补记，不改写上文评审原文。
+
+- **补登与更正**：`docs/TODO.md` 新增「CR-15 评审遗留」章节共 12 条（P1-2 / P2-1~5 / P3 四条 / 排行口径待裁决 / 统计侧详情页残留）；修正 13:45 补记末句「仍挂在 `docs/TODO.md`」的不实表述（当时一条都没登记）；需求文档 §5.7 第 7 条补写 P2-2 钳制口径。
+- **P1-2（验收物）**：新增 `StatsPeriodsWiringTest`（真 Room 入库 7 天 → 真 `AppViewModel.loadAll` → 断言 `statsState.periods[0] == 60`，若接线退回累计值则为 420）与 `PeriodPeriodsWiringTest`（直接打靶 `PeriodSummaryCalculator.build` 的 `period.periods[0] == 60`）。`DailyAveragePeriodsTest` 的恒真断言换成评审给的危险构造（7 天 hour 表 / 3 天 day 表），并补「恰好达上限不被误伤」用例。**四处变异**（两处接线退回累计值 / 去钳制 / 去除法）8 项中 **5 项变红**。
+- **P2-1**：`StatsScreen` 去掉整页 `Crossfade`（`ScrollablePage` 内层 Column 本就是 12dp 间距，多根节点不需要额外包 Column）；**额外收口** `MetricBarChart` 的 `remember(points, reduceMotion) { Animatable(0f) }` → `remember { Animatable(...) }`，消除切区间时柱图从 0 重播（评审只建议「去掉 Crossfade」后仍残留的同源问题）。`scripts/capture_anim.py` 新增 `--switch-tab` / `--switch-label`，两次录屏抽帧对照 `p21_stats_switch` vs `p21_stats_noreplay`：修复前中间帧柱图几乎空白，修复后柱图全程完整、无半透明交叠、四张卡始终独立。
+- **P2-2**：`dailyAveragePeriods` 按四段 6/6/4/8 小时上限显式钳制并写明理由（分母 day_summary、分子 hour_usage 不同源时防荒谬读数）。
+- **P2-3**：日历 tab 副标题抽成纯函数 `calendarSubtitle(recordedDays)`，加载中 / 无数据显示「全量历史」而非回落「今天」；`CalendarSubtitleTest` 2 测，变异（兜底改回「今天」）1 例变红。
+- **P2-4 / P2-5**：`loadAll` / `loadPeriod` / `loadMonthLevels` 三处 `catch` 前置 `CancellationException → throw e`；`loadAll(cancelPrevious: Boolean = true)`，`applySelection` 传 `false`，消除「自己取消自己」。
+- **验证**：`--rerun-tasks` 后 **367 测全绿 / 0 失败**；Redmi 真机（vivo 另有测试未动）——统计页切「近 30 天」副标题 `10月16日 – 11月14日`、日历 tab 副标题「已记录 5 天」且顶栏无日期按钮、crash 缓冲区 0 条 FATAL。APK `a8d33320`。
+- **仍未处理**：P3 四条、排行页口径待裁决、统计侧详情页「选区间当前页不变」残留，均已在 `docs/TODO.md` 登记。

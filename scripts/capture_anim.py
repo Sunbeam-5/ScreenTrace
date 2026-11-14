@@ -22,10 +22,12 @@
     5x 慢放并不会增加过渡帧；观察原生动画请直接看正常速度的 enter.png / exit.png
     （分段窗口短、抽帧密度高，能连续拍到 4~5 帧缩放态）。
 
-【日期切换过渡】录「点顶栏日期 → 点『昨天』→ 今日页换值」的过渡帧：
+【日期切换过渡】录「点顶栏日期 → 点某快捷项 → 页面换值」的过渡帧：
     python scripts/capture_anim.py --date-switch -s GAQOHMNFQWFUPBQO
-    产物 switch.png 是切换瞬间的逐帧联系表；脚本先预打开弹层定位 chip 再关掉，
-    录屏时重放同样的两步点击，不写死坐标、不按返回键。
+    python scripts/capture_anim.py --date-switch --switch-tab 统计 --switch-label "近 30 天" -s GAQOHMNFQWFUPBQO
+    默认在今日页点「昨天」；--switch-tab 先切到指定 tab，--switch-label 换 chip 文本
+    （统计页复核 P2-1 用后者）。产物 switch.png / switch_dense.png 是切换瞬间逐帧
+    联系表；脚本先预打开弹层定位 chip 再关掉，录屏时重放两步点击，不写死坐标、不按返回键。
 
 指定设备 / 输出目录 / 手动指定图标坐标：
     python scripts/capture_anim.py -s GAQOHMNFQWFUPBQO --name cr11_recheck
@@ -276,7 +278,11 @@ def main() -> int:
                    help="--launcher --slow 的系统动画缩放倍数，默认 5")
     p.add_argument("--back-key", type=int, help="返回用键码，默认 App 内 4(BACK) / 桌面 3(HOME)")
     p.add_argument("--date-switch", action="store_true",
-                   help="录日期弹层点「昨天」后今日页切换的过渡（预定位 chip，不按返回键）")
+                   help="录日期弹层点快捷项后页面切换的过渡（预定位 chip，不按返回键）")
+    p.add_argument("--switch-label", default="昨天",
+                   help="--date-switch 第二步点的 chip 文本，默认「昨天」，统计页可用「近 30 天」")
+    p.add_argument("--switch-tab",
+                   help="--date-switch 录屏前先切到该 tab（content-desc，如「统计」）")
     p.add_argument("--scale", type=int, default=300, help="联系表单帧宽度 px")
     args = p.parse_args()
 
@@ -335,16 +341,21 @@ def main() -> int:
         # ---- 定位入口按钮 ----
         date_switch_chip: tuple[int, int] | None = None
         if args.date_switch:
-            # 「昨天」chip 只有弹层打开后才存在：先预打开 → dump 定位 → 关掉，
+            # 快捷 chip 只有弹层打开后才存在：先预打开 → dump 定位 → 关掉，
             # 录屏时间线里再重放同样的两步点击（不写死坐标，跨机型可用）。
+            if args.switch_tab:
+                tx, ty = locate_button(serial, args.switch_tab, out_dir / "ui_switch_tab.xml")
+                sh(serial, f"input tap {tx} {ty}", check=False)
+                time.sleep(1.0)
+                log(f"已切到「{args.switch_tab}」tab ({tx},{ty})")
             x, y = locate_button(serial, "选择日期", out_dir / "ui_date.xml")
             sh(serial, f"input tap {x} {y}", check=False)
             time.sleep(1.0)
-            cx, cy = locate_button(serial, "昨天", out_dir / "ui_yesterday.xml")
+            cx, cy = locate_button(serial, args.switch_label, out_dir / "ui_switch_chip.xml")
             sh(serial, "input keyevent 4", check=False)  # 关弹层
             time.sleep(0.6)
             date_switch_chip = (cx, cy)
-            log(f"日期切换锚点：日期按钮 ({x},{y})｜昨天 chip ({cx},{cy})")
+            log(f"日期切换锚点：日期按钮 ({x},{y})｜「{args.switch_label}」chip ({cx},{cy})")
         elif args.tap:
             x, y = (int(v) for v in args.tap.split(","))
         else:

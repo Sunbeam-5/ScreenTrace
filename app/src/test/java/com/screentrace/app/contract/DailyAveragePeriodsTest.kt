@@ -19,16 +19,22 @@ class DailyAveragePeriodsTest {
     }
 
     @Test
-    fun `四段日均不超过各自时钟跨度`() {
-        // 06–12 / 12–18 / 18–22 / 22–06 = 6h / 6h / 4h / 8h
+    fun `小时表比日聚合多时按时钟跨度钳制`() {
+        // 评审 P2-2 的真实危险场景：7 天都有 hour_usage，但只有 3 天写了
+        // day_summary（降级通道与 Shizuku 混用）。分母 3、分子是 7 天累计：
+        // 06–12 段 445×7 = 3115 分钟 ÷ 3 = 1038 分钟，远超该段 6 小时上限。
+        // 旧版「输入 = 上限 × 7、除以 7」的用例是恒真的（输出必然等于输入/7），
+        // 证明不了任何东西；这里改用不可能的输入，断言结果被显式钳制。
         val caps = listOf(360, 360, 240, 480)
-        val cumulative = caps.map { it * 7 }
-        assertEquals(caps, UsageCalculator.dailyAveragePeriods(cumulative, 7))
-        assertEquals(
-            true,
-            UsageCalculator.dailyAveragePeriods(cumulative, 7)
-                .zip(caps).all { (actual, cap) -> actual <= cap }
-        )
+        val cumulative = listOf(445, 600, 300, 900).map { it * 7 }
+        assertEquals(caps, UsageCalculator.dailyAveragePeriods(cumulative, 3))
+    }
+
+    @Test
+    fun `恰好达到时钟跨度的单日数据不被钳制误伤`() {
+        // 单日区间、四段都刚好用满：钳制不得把合法值改小
+        val caps = listOf(360, 360, 240, 480)
+        assertEquals(caps, UsageCalculator.dailyAveragePeriods(caps, 1))
     }
 
     @Test

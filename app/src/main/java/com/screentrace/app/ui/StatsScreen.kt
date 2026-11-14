@@ -1,7 +1,5 @@
 package com.screentrace.app.ui
 
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -64,32 +62,23 @@ fun StatsScreen(
     /** 切主页面时变化，用于收起柱图浮层（Pager 常驻，组合不销毁）。 */
     resetKey: Any? = null
 ) {
-    // 「有数据就画数据」（批 6g，理由见 TodayScreen）：切「近 7/30 天」不闪骨架。
-    // 换区间时整卡内容（柱图几何/大数字/时段分布）一帧内替换会被看成「闪」，
-    // 用 200ms 交叉淡入淡出把这次替换软化（Crossfade 只在 data 引用真正变化时触发，
-    // stale-while-revalidate 期间 data 引用不变，不会白白重播）。
+    // 分支顺序 = 「有数据就画数据」（批 6g）：切「近 7/30 天」时 ViewModel 带着旧
+    // data 进入 loading，这里必须先渲染旧内容，等新数据落地直接换值，不闪骨架。
+    //
+    // CR-15 评审 P2-1：**不套 Crossfade / AnimatedContent**。真机已证实整页淡变会
+    // 重建内容分支，MetricBarChart 的 `remember(points) { Animatable(0f) }` 跟着
+    // 重建、柱图入场动画从 0 重播，叠加交叉帧半透明就是「闪一帧」——与今日页
+    // RingProgress 是同一个成因（见 TodayScreen 的 A1-④ 修订）。去掉后组件不重建，
+    // 柱图由自身 Animatable 从旧值平滑变到新值，数字由 RollingNumberText 逐位滚动。
+    // ScrollablePage 内层 Column 已是 spacedBy(12.dp)，多根节点间距不需要额外包 Column。
     when {
-        state.data != null -> Crossfade(
-            targetState = state.data,
-            animationSpec = tween(200),
-            label = "statsDataSwap",
-            modifier = Modifier.fillMaxWidth()
-        ) { data ->
-            // Crossfade 的内容 lambda 是**单插槽**（内部一个 Box，多个并列子节点全部
-            // 叠在 top-start）——StatsContent 有 4 个并列根节点（趋势卡/时段卡/双卡/
-            // 洞察），直接放进去四张卡会全部叠在一起（批 6g 真机「统计页被修坏」，
-            // 与 6f 时 TodayContent 包 AnimatedContent 是同一个坑）。
-            // 这里包一层 Column 复刻 ScrollablePage 的 12dp 卡片间距。
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatsContent(
-                    data = data,
-                    selection = selection,
-                    onApplySelection = onApplySelection,
-                    onOpenPeriod = onOpenPeriod,
-                    resetKey = resetKey
-                )
-            }
-        }
+        state.data != null -> StatsContent(
+            data = state.data,
+            selection = selection,
+            onApplySelection = onApplySelection,
+            onOpenPeriod = onOpenPeriod,
+            resetKey = resetKey
+        )
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
         else -> DataEmptyState(

@@ -358,16 +358,19 @@ fun AppNav() {
                         title = titleOf(mainPage),
                         // 今日页（CR-09 验收 40）：单日筛选时副标题跟随该单日（如「昨天 · 11月12日」），
                         // 区间筛选时首页回落到今天。
-                        subtitle = calendarState.data
-                            ?.takeIf { mainPage == AppPage.Calendar }
-                            ?.let { data -> "已记录 ${data.yearLevels.count { lv -> lv.recorded }} 天" }
-                            ?: selectionSubtitle(
+                        subtitle = if (mainPage == AppPage.Calendar) {
+                            // CR-15 评审 P2-3：日历页不参与日期筛选，加载中 / 无数据时
+                            // 不回落成「今天」（那是今日状态，与该页无关）。
+                            calendarSubtitle(calendarState.data?.yearLevels?.count { lv -> lv.recorded })
+                        } else {
+                            selectionSubtitle(
                                 if (mainPage == AppPage.Today && headerSelection is DateSelection.Range) {
                                     DateSelection.today()
                                 } else {
                                     headerSelection
                                 }
-                            ),
+                            )
+                        },
                         // CR-15 B：日历 tab 不参与日期筛选 → 不渲染日期按钮
                         onDateClick = if (dateScopeFor(mainPage) == null) null else {
                             {
@@ -801,6 +804,14 @@ private fun detailOf(page: AppPage): AppPage? = when (page) {
     is AppPage.CloudSync -> page
     else -> null
 }
+
+/**
+ * 日历 tab 专属副标题：CR-15 评审 P2-3。`null` = 加载中 / 无数据，用「全量历史」
+ * 占位而不是回落到 `selectionSubtitle(todaySelection)`（那样会在一个不参与筛选的
+ * 页面上显示「今天 · X月X日」）。
+ */
+internal fun calendarSubtitle(recordedDays: Int?): String =
+    recordedDays?.let { "已记录 $it 天" } ?: "全量历史"
 
 /** §5.2 AppHeader 副标题：今天 / 指定单日 / 区间。 */
 private fun selectionSubtitle(selection: DateSelection): String = when (selection) {

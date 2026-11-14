@@ -28,6 +28,7 @@ import com.screentrace.app.data.pull.PullCoordinator
 import com.screentrace.app.data.pull.PullOutcome
 import com.screentrace.app.data.pull.ProviderStatus
 import com.screentrace.app.theme.ThemeVariant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
@@ -655,7 +656,8 @@ class AppViewModel(
                     DateScope.STATS -> _statsSelection.value = newSelection
                 }
                 _notice.value = null
-                loadAll()
+                // 已经在外面 cancel 过旧 job，这里别再取消当前协程
+                loadAll(cancelPrevious = false)
             }
         }
     }
@@ -926,8 +928,12 @@ class AppViewModel(
 
     // ---- 数据加载 ----
 
-    private fun loadAll() {
-        loadJob?.cancel()
+    /**
+     * [cancelPrevious] = false 供 [applySelection] 使用：它自己就是这个 job，
+     * 若在这里再 cancel 一次就是「自己取消自己」（CR-15 评审 P2-5）。
+     */
+    private fun loadAll(cancelPrevious: Boolean = true) {
+        if (cancelPrevious) loadJob?.cancel()
         loadJob = viewModelScope.launch {
             // CR-15 B：三份互不干扰的窗口。今日/统计各自记忆，日历固定今天 + 全量历史。
             val todaySel = _todaySelection.value
@@ -1091,6 +1097,8 @@ class AppViewModel(
                 // §5.11：周期总结页已经打开过 → 跟随本次刷新重算（首次进入由 openPeriod 触发）。
                 // 不加这个，改完日期/拉完新数据再回周期页看到的还是旧数字。
                 if (_periodState.value.data != null) loadPeriod()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val message = e.message ?: "数据加载失败"
                 // 失败同样保留旧数据（§5.8）：页面分支是 data 优先，旧内容还在就继续展示，
@@ -1142,6 +1150,8 @@ class AppViewModel(
                 } else {
                     LoadState(data = period)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 LoadState(
                     error = e.message ?: "数据加载失败",
@@ -1170,6 +1180,8 @@ class AppViewModel(
                 LoadState(loading = true, data = _monthLevelsState.value.data)
             _monthLevelsState.value = try {
                 LoadState(data = repository.monthLevels(yearMonth))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 LoadState(error = e.message ?: "数据加载失败", data = _monthLevelsState.value.data)
             }
