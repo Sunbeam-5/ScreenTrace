@@ -82,20 +82,30 @@ import java.time.temporal.ChronoUnit
 private val DAY_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日")
 
 /**
- * CR-14：日期弹层按入口页面裁剪选项。
- * - [DAY]：今天 / 昨天 / 指定单日（今日页——单日页不给区间入口；日历页自 CR-15 B 起无日期按钮，映射保留但不渲染）；
- * - [RANGE]：近 7 天 / 近 30 天 / 本周 / 本月 / 自定义区间（统计页）；
- * - [FULL]：完整集合（排行、解锁详情、通知详情三个二级页）。
+ * CR-14：日期弹层按入口页面裁剪选项；**CR-16：裁剪判据统一为「归属状态」**。
+ * - [DAY]：今天 / 昨天 / 指定单日（今日页、日历页，以及**从今日页进入**的排行 / 解锁详情 / 通知详情）；
+ * - [RANGE]：近 7 天 / 近 30 天 / 本周 / 本月 / 自定义区间（统计页，以及**从统计页进入**的上述二级页）；
+ * - [FULL]：无归属页面的兜底集合，正常不会被渲染（设置等页没有日期按钮）。
  * 所有选项按入口页归属写入 `todaySelection` 或 `statsSelection`（CR-15 B，§5.6）。
  */
 enum class DateSheetMode { DAY, RANGE, FULL }
 
-/** 主页面入口 → 弹层模式；二级页（传 null 或非主页面）用完整集合。 */
-fun dateSheetModeFor(page: AppPage?): DateSheetMode = when (page) {
-    AppPage.Today, AppPage.Calendar -> DateSheetMode.DAY
-    AppPage.Stats -> DateSheetMode.RANGE
-    else -> DateSheetMode.FULL
-}
+/**
+ * 主页面/二级页入口 → 弹层模式。
+ *
+ * CR-16（负责人裁决评审 P1-1）：**与写回目标用同一条判据** `AppPage.mainOf(page)`
+ * （即二级页的 `returnTo`）——归属今日的一律 DAY、归属统计的一律 RANGE。
+ * 之前二级页统一给 FULL，与写回判据不一致，两个方向都能写出不同量纲的状态：
+ * 从今日页进详情选「近 7 天」→ 区间写进 `todaySelection`（今日页回落今天、无任何
+ * 可见标记）；从统计页进详情选「今天」→ 单日写进 `statsSelection`（趋势只剩一根柱）。
+ * 收窄后二级页只能写同量纲选择，这两条路径在结构上不存在。
+ */
+fun dateSheetModeFor(page: AppPage?): DateSheetMode =
+    when (page?.let { AppPage.mainOf(it) }) {
+        AppPage.Today, AppPage.Calendar -> DateSheetMode.DAY
+        AppPage.Stats -> DateSheetMode.RANGE
+        else -> DateSheetMode.FULL
+    }
 
 /** M3 DatePicker 以 UTC 日界存取 millis（与设备本地自然日的换算集中在此）。 */
 private fun utcMillis(date: LocalDate): Long =
@@ -107,7 +117,7 @@ private fun localDate(millis: Long): LocalDate =
 /**
  * §5.5/§5.6 日期 Modal Bottom Sheet：28dp 顶圆角、拖动条、点内部不误关（M3 默认行为）。
  * CR-14：快捷项按 [mode] 裁剪——DAY 只留今天/昨天/指定单日（今日、日历页），
- * RANGE 留近 7 天/近 30 天/本周/本月/自定义区间（统计页），FULL 为完整集合（二级页）。
+ * RANGE 留近 7 天/近 30 天/本周/本月/自定义区间（统计页），FULL 为无归属页面的兜底集合（CR-16 起正常不可达）。
  * 快捷项点击即应用并关闭；指定单日 DatePicker、自定义区间 DateRangePicker
  * （366 天上限拦截后禁用应用按钮）。
  * ModalBottomSheet / DatePicker / DateRangePicker 在 BOM 2024.06.00 下为实验 API，
@@ -119,7 +129,7 @@ fun DateSheet(
     current: DateSelection,
     onApply: (DateSelection) -> Unit,
     onDismiss: () -> Unit,
-    /** CR-14：按入口页裁剪的选项集，默认完整集合（二级页调用方不感知）。 */
+    /** CR-14：按入口页裁剪的选项集；CR-16 起二级页也走 [dateSheetModeFor]，FULL 仅剩兜底语义。 */
     mode: DateSheetMode = DateSheetMode.FULL
 ) {
     val palette = LocalFreshPalette.current

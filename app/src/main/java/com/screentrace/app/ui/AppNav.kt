@@ -533,8 +533,10 @@ fun AppNav() {
                                     subtitle = rankingState.data?.summary?.selection
                                         ?.let { selectionSubtitle(it) },
                                     onBack = viewModel::goBack,
+                                    // CR-16：弹层选项跟随 returnTo（今日→DAY / 统计→RANGE），
+                                    // 与 applySelection 的写回判据同源
                                     onDateClick = {
-                                        dateSheetMode = DateSheetMode.FULL.name
+                                        dateSheetMode = dateSheetModeFor(detail).name
                                         showDateSheet = true
                                     }
                                 )
@@ -558,7 +560,7 @@ fun AppNav() {
                                     subtitle = null,
                                     onBack = viewModel::goBack,
                                     onDateClick = {
-                                        dateSheetMode = DateSheetMode.FULL.name
+                                        dateSheetMode = dateSheetModeFor(detail).name
                                         showDateSheet = true
                                     }
                                 )
@@ -573,7 +575,7 @@ fun AppNav() {
                                     subtitle = null,
                                     onBack = viewModel::goBack,
                                     onDateClick = {
-                                        dateSheetMode = DateSheetMode.FULL.name
+                                        dateSheetMode = dateSheetModeFor(detail).name
                                         showDateSheet = true
                                     }
                                 )
@@ -739,7 +741,9 @@ fun AppNav() {
 
         if (showDateSheet) {
             DateSheet(
-                // 二级页弹层显示的是「进入它的主页面」那份状态，applySelection 同口径写回
+                // 二级页弹层显示的是「进入它的主页面」那份状态，applySelection 同口径写回；
+                // CR-16 起 mode 也由同一条 returnTo 判据得出（今日→DAY / 统计→RANGE），
+                // 弹层可以给出的选项与写回目标永远同量纲。
                 current = activeSelection,
                 mode = DateSheetMode.valueOf(dateSheetMode),
                 onApply = {
