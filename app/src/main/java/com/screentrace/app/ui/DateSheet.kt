@@ -55,7 +55,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
@@ -330,8 +332,10 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
     // §7-25 手输与日历点选**双向同步**。lastSynced* 用来区分「文本是日历回填的」
     // 还是「用户自己敲的」：只有前者允许日历变化覆盖正在编辑的内容，否则用户敲到
     // 一半（例如 "2026-11-"）时日历一动就会被冲掉。
-    var startText by remember { mutableStateOf("") }
-    var endText by remember { mutableStateOf("") }
+    // CR-15 A0：用 TextFieldValue 同时承载文本与光标。自动补 0 会改真实文本，
+    // 必须显式把光标置末尾，否则下一次输入会插到补出来的 0 前面。
+    var startText by remember { mutableStateOf(TextFieldValue("")) }
+    var endText by remember { mutableStateOf(TextFieldValue("")) }
     var lastSyncedStart by remember { mutableStateOf<String?>(null) }
     var lastSyncedEnd by remember { mutableStateOf<String?>(null) }
 
@@ -339,25 +343,31 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
     val end = state.selectedEndDateMillis?.let { localDate(it) }
     LaunchedEffect(start) {
         val text = start?.let { DateInput.format(it) }
-        if (text != null && (startText.isBlank() || startText == lastSyncedStart)) {
-            startText = text
+        if (text != null && (startText.text.isBlank() || startText.text == lastSyncedStart)) {
+            startText = TextFieldValue(text, TextRange(text.length))
             lastSyncedStart = text
         }
     }
     LaunchedEffect(end) {
         val text = end?.let { DateInput.format(it) }
-        if (text != null && (endText.isBlank() || endText == lastSyncedEnd)) {
-            endText = text
+        if (text != null && (endText.text.isBlank() || endText.text == lastSyncedEnd)) {
+            endText = TextFieldValue(text, TextRange(text.length))
             lastSyncedEnd = text
         }
     }
 
-    // 两端都合法才回写日历高亮；半截输入不打断日历现状
+    // 两端都合法才回写日历高亮；半截输入不打断日历现状。
+    // CR-15 A0：M3 DateRangePicker 只接受 1900..2100，早先手输 1234 年会在
+    // setSelection 抛 IllegalArgumentException 直接闪退（vivo 10:13:08）。
+    // parse 已守年份，这里再守一次 + runCatching：任何非法输入都不该炸 UI。
     fun syncCalendar() {
-        val s = DateInput.parse(startText)
-        val e = DateInput.parse(endText)
-        if (s != null && e != null && !e.isBefore(s)) {
-            state.setSelection(utcMillis(s), utcMillis(e))
+        val s = DateInput.parse(startText.text)
+        val e = DateInput.parse(endText.text)
+        if (s != null && e != null && !e.isBefore(s) &&
+            s.year in DateInput.MIN_YEAR..DateInput.MAX_YEAR &&
+            e.year in DateInput.MIN_YEAR..DateInput.MAX_YEAR
+        ) {
+            runCatching { state.setSelection(utcMillis(s), utcMillis(e)) }
         }
     }
 
@@ -368,16 +378,24 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
         DateInputField(
             label = "开始日期",
             value = startText,
-            error = DateInput.error(startText),
+            error = DateInput.error(startText.text),
             modifier = Modifier.weight(1f),
-            onValueChange = { startText = it; syncCalendar() }
+            onValueChange = { input ->
+                val (text, caret) = DateInput.normalizeInput(input.text, input.selection.start)
+                startText = TextFieldValue(text, TextRange(caret))
+                syncCalendar()
+            }
         )
         DateInputField(
             label = "结束日期",
             value = endText,
-            error = DateInput.error(endText),
+            error = DateInput.error(endText.text),
             modifier = Modifier.weight(1f),
-            onValueChange = { endText = it; syncCalendar() }
+            onValueChange = { input ->
+                val (text, caret) = DateInput.normalizeInput(input.text, input.selection.start)
+                endText = TextFieldValue(text, TextRange(caret))
+                syncCalendar()
+            }
         )
     }
 
@@ -394,8 +412,8 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
     )
 
     // 手输两端都合法时优先用手输值（日历可能还没同步到位）；否则退回日历选择
-    val manualStart = DateInput.parse(startText)
-    val manualEnd = DateInput.parse(endText)
+    val manualStart = DateInput.parse(startText.text)
+    val manualEnd = DateInput.parse(endText.text)
     val useManual = manualStart != null && manualEnd != null
     val effectiveStart = if (useManual) manualStart else start
     val effectiveEnd = if (useManual) manualEnd else end
@@ -432,14 +450,14 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
     )
 }
 
-/** 单个日期输入框：即时校验文案、数字键盘、单行。 */
+/** 单个日期输入框：即时校验文案、数字键盘、单行。CR-15 A0 起用 TextFieldValue 管光标。 */
 @Composable
 private fun DateInputField(
     label: String,
-    value: String,
+    value: TextFieldValue,
     error: String,
     modifier: Modifier = Modifier,
-    onValueChange: (String) -> Unit
+    onValueChange: (TextFieldValue) -> Unit
 ) {
     val palette = LocalFreshPalette.current
     Column(modifier = modifier) {
@@ -451,7 +469,8 @@ private fun DateInputField(
         singleLine = true,
         isError = error.isNotEmpty(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        // CR-09 验收 41：显示层自动补 `-`，真实文本保持数字流（改字段文本会光标错位）
+        // CR-15 A0：显示层补 `-`（月输满即给第二个分隔符），真实文本是
+        // 规范化后的 4-2-2 数字流，光标由 TextFieldValue 显式控制。
         visualTransformation = DateInput.mask,
         modifier = Modifier.fillMaxWidth()
     )
