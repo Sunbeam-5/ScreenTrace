@@ -29,6 +29,12 @@
     （统计页复核 P2-1 用后者）。产物 switch.png / switch_dense.png 是切换瞬间逐帧
     联系表；脚本先预打开弹层定位 chip 再关掉，录屏时重放两步点击，不写死坐标、不按返回键。
 
+【四宫格顶栏转场】录「点顶栏设置 → 下拉面板展开 → 点面板里的设置 → 容器变换」：
+    python scripts/capture_anim.py --quick-menu --slow -s GAQOHMNFQWFUPBQO --name cr_d_quick_menu
+    批 D 验证「转场起点重登记为面板里被点的圆按钮」用：预展开面板 → 定位 --label
+    （默认「设置」）→ 按返回收起 → 录屏里重放两步点击。enter.png 看放大起点、
+    exit.png 看缩回位置；--slow 自动临时改常量构建并在 finally 还原代码与重装正式包。
+
 指定设备 / 输出目录 / 手动指定图标坐标：
     python scripts/capture_anim.py -s GAQOHMNFQWFUPBQO --name cr11_recheck
     python scripts/capture_anim.py --tap 1077,263
@@ -284,6 +290,9 @@ def main() -> int:
                    help="--date-switch 第二步点的 chip 文本，默认「昨天」，统计页可用「近 30 天」")
     p.add_argument("--switch-tab",
                    help="--date-switch 录屏前先切到该 tab（content-desc，如「统计」）")
+    p.add_argument("--quick-menu", action="store_true",
+                   help="批 D：先点「打开快捷菜单」再点下拉面板里的 --label（默认「设置」），"
+                        "用于验证容器变换起点是否落在面板里被点的那枚圆按钮")
     p.add_argument("--scale", type=int, default=300, help="联系表单帧宽度 px")
     args = p.parse_args()
 
@@ -341,6 +350,8 @@ def main() -> int:
 
         # ---- 定位入口按钮 ----
         date_switch_chip: tuple[int, int] | None = None
+        quick_menu_anchor: tuple[int, int] | None = None
+        menu_wait = 0.7  # 下拉面板展开到可点的时间
         if args.swipe:
             x, y = 0, 0  # 手势模式不需要入口按钮
         elif args.date_switch:
@@ -359,6 +370,17 @@ def main() -> int:
             time.sleep(0.6)
             date_switch_chip = (cx, cy)
             log(f"日期切换锚点：日期按钮 ({x},{y})｜「{args.switch_label}」chip ({cx},{cy})")
+        elif args.quick_menu:
+            # 面板里的按钮只有展开后才存在：先预展开 → 定位 → 收起，
+            # 录屏时间线里再重放同样的两步点击（不写死坐标，跨机型可用）。
+            mx, my = locate_button(serial, "打开快捷菜单", out_dir / "ui_menu_toggle.xml")
+            sh(serial, f"input tap {mx} {my}", check=False)
+            time.sleep(1.0)
+            x, y = locate_button(serial, args.label, out_dir / "ui_menu_action.xml")
+            sh(serial, "input keyevent 4", check=False)  # 收起面板（BackHandler）
+            time.sleep(0.6)
+            quick_menu_anchor = (mx, my)
+            log(f"快捷菜单锚点：菜单按钮 ({mx},{my})｜「{args.label}」({x},{y})")
         elif args.tap:
             x, y = (int(v) for v in args.tap.split(","))
         else:
@@ -382,6 +404,15 @@ def main() -> int:
                 f"screenrecord --time-limit {limit} --bit-rate 4000000 {REMOTE_MP4} & "
                 f"sleep {args.lead:.2f}; input tap {x} {y}; sleep {sheet_wait:.2f}; "
                 f"input tap {cx} {cy}; sleep {after_switch:.2f}; wait"
+            )
+        elif args.quick_menu and quick_menu_anchor is not None:
+            mx, my = quick_menu_anchor
+            back = (f"input keyevent {back_key}; sleep {back_gap:.2f}"
+                    if not args.no_back else f"sleep {back_gap:.2f}")
+            timeline = (
+                f"screenrecord --time-limit {limit} --bit-rate 4000000 {REMOTE_MP4} & "
+                f"sleep {args.lead:.2f}; input tap {mx} {my}; sleep {menu_wait:.2f}; "
+                f"input tap {x} {y}; sleep {hold:.2f}; {back}; wait"
             )
         else:
             back = (f"input keyevent {back_key}; sleep {back_gap:.2f}"
@@ -407,7 +438,7 @@ def main() -> int:
             full_window = clamp_window(full_start, hold + exit_s + 0.8, duration)
             enter_start = max(0.0, args.lead - 0.15)
             enter_window = clamp_window(enter_start, enter_s + 0.5, duration)
-            exit_start = args.lead + hold - 0.15
+            exit_start = args.lead + (menu_wait if args.quick_menu else 0.0) + hold - 0.15
             exit_window = clamp_window(exit_start, exit_s + 0.6, duration)
             full_rows = 4 if args.slow else 3
             if args.date_switch:
@@ -417,6 +448,13 @@ def main() -> int:
                 full_window = clamp_window(full_start, 0.9 + 1.4 + 0.4, duration)
                 enter_start = max(0.0, args.lead + 0.9 - 0.15)
                 enter_window = clamp_window(enter_start, 1.1, duration)
+                full_rows = 3
+            if args.quick_menu:
+                # 进入动画发生在「第二步点面板里设置」之后，抽帧窗口整体后移 menu_wait
+                full_start = max(0.0, args.lead - 0.2)
+                full_window = clamp_window(full_start, menu_wait + enter_s + 0.8, duration)
+                enter_start = max(0.0, args.lead + menu_wait - 0.15)
+                enter_window = clamp_window(enter_start, enter_s + 0.5, duration)
                 full_rows = 3
             enter_name = "switch.png" if args.date_switch else "enter.png"
             made = {

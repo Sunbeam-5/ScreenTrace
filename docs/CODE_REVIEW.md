@@ -1356,3 +1356,15 @@ P1-1 的探针与 P1-2 的变异都是临时改动，复现后已 `git checkout 
 - **真机发现**：暗化 58% 时有效亮度恰好落在 128 阈值附近，深色状态栏图标压在变暗的壁纸上对比度不足；阈值改为 140（更保守，背景不够亮就切浅色图标），补回归用例，变异（退回 128）该用例变红。另修复「选图取消判断在取 `wallpaperStore` 之后」导致的覆盖盲点，把 `uri == null` 提前。
 - **验证**：变异验证 **11 处全部变红**（纯函数 6 / 存储 1 / ViewModel 3 / 状态栏阈值 1）；`--rerun-tasks` **418 测全绿 / 0 skip**。Redmi `GAQOHMNFQWFUPBQO` 真机（vivo 在跑自动化，全程禁用）APK `6e1321ca`：Photo Picker 选图后主页面与二级页均显示壁纸、暗化 58% / 模糊 5dp 生效、切深色主题遮罩与状态栏自动跟随、恢复默认后参数复位且 `run-as` 确认 `no_backup/wallpaper/` 为空、crash 缓冲区 0 条 FATAL。截图 `C:/tmp/cr_e/{final_home,dark_theme,restored}.png`。
 - **边界复核**：壁纸图片与参数均不进 `BackupSettings` / 备份 JSON；`Modifier.blur` 在 API < 31 由 `effectiveBlurDp` 显式归零并在 UI 禁用滑杆；恢复默认不残留私有文件。
+
+---
+
+## 【补记】CR-15 ③ 批 D 四宫格顶栏落地证据（2026-11-14 20:40）
+
+> 本节由评审人补记，不改写上文任何评审原文；记录批 D 的裁定、落地与真机证据。
+
+- **三项裁定（负责人 20:05 均按推荐）**：① 下拉面板四枚圆按钮一行横排右对齐（日历 tab 三枚不缺角）；②「切换设备」＝下拉内轻量设备列表面板（接批 C 只读 API、内联展开摘要、可返回四宫格，不跳云同步页）；③ 点面板「设置」进设置页时容器变换起点重登记为被点那枚圆按钮。
+- **落地两笔**：`187aa47`（需求 §5.2 / §5.5 / §5.6 / §6 / §7-36 口径，代码零改动）；`5dc3291`（`AppHeader` 带默认值菜单参数 / `quickMenuActionsFor` + `quickMenuTransitionFor` 纯函数 / `QuickMenuOverlay` 最上层浮层 / `QuickMenuPanel` 一行四枚 / `DeviceQuickMenuPanel` 设备第二层 / `deviceBackupSummary` 统一只读文案，428 测）。**放弃 CR-10 三按钮终态**；`StyleSheet` / `DateSheet` 零改动；二级页与 `@Preview` 调用点零改动。
+- **起点重登记**：`QuickMenuOverlay` 下发 `LocalContainerTransformState`，四枚按钮复用带 `transformSource` 的 `HeaderActionButton`。`capture_anim.py` 新增 `--quick-menu`（预展开 → 定位 → 收起 → 录屏重放两步点击），`--slow` 抽帧确认 `enter.png` 首帧圆角底板 + 齿轮出现在面板「设置」按钮 (498,465) 附近而非顶栏右上 (1077,263)，`exit.png` 缩回同处；齿轮保持圆形不拉长、无闪白叠影。产物 `C:/tmp/screentrace-capture/cr_d_quick_menu/`。
+- **验证**：新增 10 测（QuickMenuActions 6 / DeviceSummary 4）；变异 **9 处全部变红**（D8 首轮脚本锚点把带闭合引号的片段当子串，修正后单跑变红）；`--rerun-tasks` **428 测全绿 / 0 skip**。Redmi `GAQOHMNFQWFUPBQO` 真机（vivo 全程禁用）APK `61aaaaef`：四枚 / 日历三枚、主题与日期弹层复用、设备面板「MyRedmi · 本机 1 份 / 未知设备（旧备份）2 份」且摘要 `v4 · 3 天`、返回键收起面板、快速连点 5 次 tab 无错位、crash 缓冲区 0 条 FATAL。
+- **仍未处理**：P3 三条、排行页口径待裁决、统计侧详情页残留、日期弹层标题与状态栏略重叠。本地提交因环境权限规则拒绝读 `~/.ssh/` 未推送，由负责人手动 `git push origin main`。
