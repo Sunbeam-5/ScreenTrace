@@ -1,10 +1,12 @@
 # CODE_REVIEW · 历史评审与返修复核
 
-> 归档合并：2026-11-13。本文由 7 份历史文件合并而成，每个 `## 【来源】` 节即一份原文。
-> **正文内容一字未改**；仅把原文内部的 markdown 标题整体下移两级（代码块内不动），以免与分节标题撞级。
+> 归档合并：2026-11-13 由 7 份历史文件合并；**2026-11-14 起按负责人要求，评审不再单独建档，一律追加到本文末尾**（CR-15 那份为第一份直接并入的，合并前未入库、无 git 历史）。每个 `## 【来源】` 节即一份原文。
+> **正文内容一字未改**；仅把原文内部的 markdown 标题整体下移两级（代码块内不动），以免与分节标题撞级。评审人事后补的裁决/落地结果写在独立的 `## 【补记】` 节里，明确标注「不属于上节原文」。
 > 文中的测试数、验收条数、提交号、文档路径均为**成文时点快照**，不代表现状；现状以 `docs/项目文档地图.md` 第 2 节为准（见其 §6 快照约定）。
 
-> 覆盖批 1 / 2-5 / 6a / 6b-6d / 6g / 8a 的 AI 评审、返修复核与裁决记录；含当时的 BUGS、FIX_PLAN 结论。
+> 覆盖批 1 / 2-5 / 6a / 6b-6d / 6g / 8a / CR-15（A0·A1·B）的 AI 评审、返修复核与裁决记录；含当时的 BUGS、FIX_PLAN 结论。
+>
+> **写评审的规矩（2026-11-14 负责人定）**：评审只负责「看 + 判」，不新建文档、不顺手改代码；结论一律追加到本文件末尾（`## 【来源】…` + 下移两级的正文），需要裁决的事项在正文里列成表，负责人裁决后的落地结果由评审人补 `## 【补记】` 节闭环。
 
 
 ---
@@ -1100,3 +1102,201 @@ M docs/实施任务批次计划-v2.md                                      R9-9/
 ```
 
 ---
+
+## 【来源】批次CR-15评审-DeepSeek V4.1 Flash.md
+
+> 原路径 `docs/批次CR-15评审-DeepSeek V4.1 Flash.md`（2026-11-14 按负责人「评审不单独建档」要求合并，原文件已移除；合并前为未入库文件，无 git 历史可回溯）
+> 归档说明：正文一字未改，仅把原 `#`/`##`/`###` 标题整体下移两级，以免与分节标题撞级。
+
+### CR-15（A0 / A1 / B）代码评审 — DeepSeek V4.1 Flash
+
+> 评审时间：2026-11-14 12:30 · 基线 `bab3a3f`（工作区干净）
+> 评审范围：CR-15 三批（A0 日期输入、A1 时段日均 + 切日期过渡、B 日期双状态）+ 与它们直接相邻的今日/统计/详情/顶栏接线；同时复核自上次评审（8a 返修）以来的静态红线。
+> 未覆盖：CR-06～CR-13 的视觉/转场逐项重审（本轮只查与 CR-15 交界处）、批 8b-2 网络层单测细节、批 10b/11-14b 未开工项。
+
+---
+
+#### 0. 结论速览
+
+| 批次 | 判定 | 依据 |
+|---|---|---|
+| A0 日期输入（分段智能输入 + 两次闪退修复） | **通过** | 掩码/映射/规范化三个纯函数都打靶生产实现；两处崩溃的回归用例真实命中；`STRICT` 解析拒绝 `2026-02-30` |
+| A1 ⑥ 时段分布真日均 | **实现通过，验收物不通过** | 口径正确（`hour_usage` 累计 ÷ `recordedDays`，两处同源）；但**两处接线零断言**——把接线改回累计值，360 测仍全绿（见 P1-2，已实测） |
+| A1 ④ 切日期过渡 | **今日页通过 / 统计页未同步** | 今日页去 Crossfade 的做法正确且真机抽帧有据；统计页仍是整页 `Crossfade`（P2-1） |
+| B 日期双状态 | **基本通过** | 9 测实跑、按 `returnTo` 归属正确、日历 tab 真无日期按钮；但详情页区间选择静默无效（P1-1，探针实证） |
+
+**放行意见**：A0 可以结案；A1-⑥ 补 2 条接线测试、B 修 P1-1 后可结案。P1-1 需要产品口径裁决（见 §4）。**不建议**在 P1-2 修复前把 CR-15 标为「验收完成」——它和之前两轮「声称覆盖、实际没覆盖」是同一种失守方式。
+
+---
+
+#### 1. 实测证据
+
+| 项 | 结果 |
+|---|---|
+| `:app:testDebugUnitTest --rerun-tasks` | **360 tests / 0 fail / 0 skip**（真跑，非 up-to-date） |
+| 工作区 | `git status` 干净，三批均已提交 |
+| 硬编码色（`ui/`、`uikit/`，排除 `theme/`） | 0 处 |
+| 运行时依赖 | `git diff 77f024c..HEAD -- app/build.gradle.kts` 为空，红线未破 |
+| 临时探针（Robolectric + 真 Room + 真 `AppViewModel`） | 见 §3 P1-1 |
+| 变异实验 | 见 §3 P1-2 |
+
+---
+
+#### 2. 做得对的地方（不必再动）
+
+1. **A0 的测试是打靶生产代码，不是复刻公式**。`DateInput.mapToTransformed / mapToOriginal / maskDigits / normalizeInput` 都被直接调用，注释里也写明「不再复刻测试自己的公式（防假绿）」——这正是前两轮缺的东西。
+2. **两个崩溃的防线是结构性的**，不是加 `try/catch`：8 位硬截 + 双向钳制解决 `9 -> 11 is not in range`，`parse` 与 `MIN_YEAR/MAX_YEAR` 守卫解决 `year (1234)`。钳制写在映射函数内部（`coerceIn`），任何调用方都不会再越界。
+3. **B 的 `dateScopeFor(page)` 用纯函数表达归属**，二级页靠 `AppPage.mainOf` 的 `returnTo` 推导，而不是在 UI 里散落 `if (page is UnlockDetail)`。`DateScopeTest` 把「三个主页面 + 五个二级页 + null」都钉住了。
+4. **`AppViewModelDateScopeTest` 断言打在两个层面**（状态本身 + `summary.selection`），所以「`applySelection` 又写回同一个全局状态」这种退化会变红——这是这批测试真正的价值所在。
+5. **日历不再被筛选污染**：`historySelection()`（今天起往前 20 年）+ `extremes/streak/yearLevels` 三条查询各自独立，测试里「统计页切到今天，日历极值不变」的断言直接把这条钉住。
+6. **`dailyAveragePeriods` 的边界处理干净**：`recordedDays <= 0` 返回全 0（不渲染假数值）、四舍五入、`coerceAtLeast(0)`；两处消费点（统计页 / 周期页）都走了同一个函数，标题也补了「日均」。
+7. 今日页去掉整页 `Crossfade` 的判断是对的：`MetricBarChart` 是 `remember(points){ Animatable(0f) }`，任何重建内容分支的容器都会让柱图/圆环重播入场动画——这与「减少动画」和「不闪一帧」是同一件事的两面。
+
+---
+
+#### 3. P1（两条，建议本批内解决）
+
+##### P1-1　详情页可以选区间，但数据窗口恒为单日 → 选择静默无效
+
+**复现路径（真机可复现）**：今日页 → 解锁次数卡 → 右上「选择日期」→ 选「近 7 天」→ 页面没有任何变化，也没有提示。
+
+**根因**：`DateSheetMode.FULL` 给详情页保留了完整集合（CR-14），但 `loadAll` 取详情数据时用的是 `todayEffective`（区间回落今天）：
+
+```kotlin
+// AppViewModel.kt:938-939
+val todayEffective = if (todaySel is DateSelection.Day) todaySel else DateSelection.today()
+// AppViewModel.kt:1047-1048
+repository.metricDetail(MetricKind.NOTIFICATION, todayEffective)
+repository.metricDetail(MetricKind.UNLOCK, todayEffective)
+```
+
+写回也照常发生（写进 `todaySelection`），所以「状态变了、数据没变、提示为空」，三者拼起来就是一个**没有反馈的控件**。
+
+**探针实证**（3 天数据：今天 1 次解锁、昨天 2 次、前天 1 次；进入解锁详情后选近 7 天）：
+
+```
+before:  unlock.selection = Day(2026-11-14)   total = 1
+applySelection(lastDays(7)) →
+after :  todaySelection = Range(2026-11-08..2026-11-14)
+         unlock.selection = Day(2026-11-14)   total = 1   ← 未变
+         notice = null                                     ← 也没有提示
+```
+
+近 7 天真实是 4 次，页面仍显示 1 次。
+
+**注意**：这不是「实现偏离文档」，而是**文档自身矛盾**——§5.6 一边规定「详情页显示单日 / 区间时锚定今天」，一边（CR-14）让详情页弹层保留「近 7 天 / 近 30 天 / 本月 / 自定义区间」。按现文档逐条执行，结果必然是现在这样。需要按 R9-7 的方式登记一条裁决（见 §4）。
+
+**另外**：`MetricDetailPage` 本身**支持**区间（`val single = detail.selection is DateSelection.Day` 分支齐全、表格/图表都按 selection 渲染），也就是说能力已经在了，只是没喂进去。
+
+---
+
+##### P1-2　时段日均的两处接线零断言（360 测全绿仍可退化）
+
+**做了什么**：把两个调用点都改回累计值（正是 A1 要修的那个 bug）：
+
+```diff
+- periods = UsageCalculator.dailyAveragePeriods(UsageCalculator.periodBuckets(statsHours), statsSummary.recordedDays)
++ periods = UsageCalculator.periodBuckets(statsHours)              // AppViewModel
+- val periods = UsageCalculator.dailyAveragePeriods(periodBuckets(hours), summary.recordedDays)
++ val periods = periodBuckets(hours)                                // PeriodSummaryCalculator
+```
+
+**结果**：`--rerun-tasks` → **BUILD SUCCESSFUL，360 tests / 0 fail**。
+
+也就是说：真机反馈的那个「06–12 显示 7 小时 25 分」如果哪天被改回来，现有测试**一条都不会红**。`DailyAveragePeriodsTest` 的 5 条只覆盖纯函数本身，没有任何一条断言「统计页 / 周期页的 `periods` 是日均」。提交信息里的「5 测变异验证」对这个退化模式无效。
+
+**顺带一条恒真断言**（同文件，`四段日均不超过各自时钟跨度`）：
+
+```kotlin
+val caps = listOf(360, 360, 240, 480)
+val cumulative = caps.map { it * 7 }
+assertEquals(caps, dailyAveragePeriods(cumulative, 7))
+assertEquals(true, dailyAveragePeriods(cumulative, 7).zip(caps).all { (a, c) -> a <= c })
+```
+
+输入就是 `caps × 7`，输出必然等于 `caps`，第二条断言只是在复述第一条。它证明不了「真机数据下不超时钟跨度」（真正的危险场景是 `hour_usage` 里有记录日多于 `day_summary` 时，分母偏小、日均被放大——见 P2-2）。
+
+**建议补的测试**（各 1 条，成本很低）：
+- `AppViewModel`：入库 7 天、`hour_usage` 每天同一小时 +N 分钟 → 断言 `statsState.data!!.periods` ＝ 日均而非累计（变异：去掉除法则红）。
+- `PeriodSummaryCalculator`：断言 `summary.periods.sum() == 日均合计`，不是区间累计。
+- 把恒真断言换成「按 `recordedDays` 归一后 ≤ 时钟跨度」的构造：给一个**不可能**的输入（如 06–12 段累计 445×7 但 `recordedDays=3`），断言结果不会被静默截断（要么承认会超跨度、要么加显式钳制并写明理由）。
+
+---
+
+#### 4. 需要裁决（一条）
+
+| 议题 | 现文档 | 现状 | 选项 |
+|---|---|---|---|
+| 详情页日期弹层是否保留区间 | §5.6「详情页显示单日，区间回落今天」／CR-14「详情页弹层保持完整集合」 | 保留区间但选了没用（P1-1） | **① 弹层收窄为 DAY 模式**（今日页同款：今天/昨天/指定单日），改动 3 行、与 §5.6 一致、零歧义；**② 详情页支持区间**（把 `metricDetail` 改喂 `todaySelection`），但会撞 §7-16「卡与详情同源」——卡上永远是单日数字，详情变区间合计，两处对不上。**建议 ①**，同时把 CR-14 里「排行/解锁详情/通知详情保持完整集合」改成「排行保持完整集合，两个详情页与今日页一致」。 |
+
+---
+
+#### 5. P2（五条，不阻塞但建议本批或下一批处理）
+
+##### P2-1　统计页仍用整页 `Crossfade`，与今日页刚推翻的口径冲突
+`StatsScreen.kt:75` `Crossfade(targetState = state.data, tween(200))`，而 `MetricBarChart.kt:115` 是 `remember(points) { Animatable(0f) }`——切 7→30 天时：出栈分支还画着旧柱、入栈分支柱子从 0 重新长，两帧半透明交叠。**这与负责人在今日页反馈「闪一帧」的成因是同一个**，只是发生在统计页。今日页的注释已经写明「整页淡变会重建内容分支」，统计页没跟着改。
+**建议**：去掉 Crossfade（柱图生长 + 日均数字已足够表达「换了区间」），或至少 `--date-switch` 抽帧复核统计页再决定。
+
+##### P2-2　日均分母与小时表可能不同源（降级通道混用场景）
+`dailyAveragePeriods` 的分母是 `Summary.recordedDays`（来自 `day_summary`），分子是 `hour_usage` 的 SUM。文档明确「不另按 `hour_usage` 有无单独计数」，所以口径是合规的——但**如果某天只有 `hour_usage` 没有 `day_summary`**（降级通道 + Shizuku 混用、或历史迁移残留），分子会含这一天、分母不含，日均被放大，四段之和可超 6/6/4/8 小时。建议在 `IngestSanity` 或读取层保证「有 hour 行必有 day 行」，或在 `dailyAveragePeriods` 加一次性钳制并写明理由。
+
+##### P2-3　日历 tab 的副标题会回落成「今天」
+`AppNav.kt:361-370`：日历副标题取 `calendarState.data`，取不到时走 `selectionSubtitle(headerSelection)`，而 `headerSelection` 对日历页是 `todaySelection`。于是**无数据 / 加载中**时，一个「不参与日期筛选」的页面上会出现「今天 · 11月14日」。建议日历分支单独给文案（`"已记录 0 天"` 或空）。
+
+##### P2-4　`catch (e: Exception)` 会吞掉 `CancellationException`
+`AppViewModel.loadAll` / `loadPeriod` 的 `try` 里全是可取消的 Room suspend 查询，而 `catch (e: Exception)` 把 `CancellationException` 一并接住，然后**把六个页面状态写成 error**。快速连点日期/连续切换区间时，被取消的那次加载可能在新的加载之后落笔，把 error 标志留在状态里（`data` 非空时不可见，首次加载被取消时就会看到整页「数据加载失败: StandaloneCoroutine was cancelled」）。
+**修法**：`catch (e: CancellationException) { throw e } catch (e: Exception) { ... }`。
+
+##### P2-5　`applySelection` 里存在「自己取消自己」
+`applySelection` 把协程赋给 `loadJob`，协程体里又调用 `loadAll()`，后者第一行 `loadJob?.cancel()` 取消的就是**当前正在跑的协程**。现在能工作，只是因为 `loadAll()` 之后没有挂起点（挂起点会抛 `CancellationException`）。这是随时会被下一次改动踩爆的结构，建议 `loadAll` 增加 `cancelPrevious: Boolean` 参数，或把「写入状态 + 触发重算」拆成两步。
+
+---
+
+#### 6. P3（四条，登记即可）
+
+1. **`RollingNumberText` 逐字 Text 的读屏副作用**：每个字符一个 `AnimatedContent`→一个 `Text`，`MetricCardPair` 没有 `clearAndSetSemantics`，TalkBack 可能把「87」读成两段（圆环已用 `clearAndSetSemantics` 规避）。建议在 `RollingNumberText` 内部加一层 `clearAndSetSemantics { contentDescription = text }`，再在真机上听一遍。
+2. **`DateInput.error` 的「格式错」分支不可达**：字段文本永远是 `normalizeInput` 出来的数字流，`SHAPE` 那条 `按 年-月-日 输入` 永远不会触发（测试用 `error("abc") == ""` 把这个现状固化下来了）。要么删分支，要么保留但注释「防御性」。
+3. **`normalizeInput(raw, cursor)` 的 `cursor` 参数未使用**（永远置末尾），签名会误导调用方。
+4. **`SyncManager.uploadManual/downloadManual` 直接引用 `WebDavProvider.MANUAL_FILE`**：`provider` 已是抽象，但手动文件名绑在 WebDAV 常量上；下一步接 Google Drive（8b-2 余项）时容易被复制成「两个 provider 抢同一个远端名」。另外自动备份文件名精确到分钟，同一分钟两次上传互相覆盖（批 C 加 `deviceId` 会顺带解决）。
+
+---
+
+#### 7. 建议修复顺序
+
+1. **P1-1**：按裁决结果改（① 收窄详情页弹层为 DAY，改 `dateSheetModeFor` 一处 + 同步 CR-14 措辞；② 或改 `metricDetail` 数据源并接受 §7-16 需要同步修订）。
+2. **P1-2**：补 2 条接线测试 + 替换恒真断言；顺便把 P2-2 的口径写进测试注释。
+3. **P2-1**：去掉统计页整页 `Crossfade`，用 `--date-switch` 复录一次统计页。
+4. **P2-3 / P2-4 / P2-5**：三处都是十几行以内的小改，一起做。
+5. P3 四条随下一批顺手。
+
+---
+
+#### 8. 复现命令
+
+```bash
+cd E:/project/ScreenTrace
+JAVA_HOME="C:/Users/Administrator/.jdks/jbr-21.0.11" ./gradlew.bat :app:testDebugUnitTest --rerun-tasks --console=plain
+# 统计
+python - <<'EOF'
+import glob, xml.etree.ElementTree as ET
+t=f=0
+for x in glob.glob('app/build/test-results/testDebugUnitTest/*.xml'):
+    r=ET.parse(x).getroot(); t+=int(r.get('tests')); f+=int(r.get('failures'))+int(r.get('errors'))
+print('TOTAL',t,'FAIL',f)
+EOF
+```
+
+P1-1 的探针与 P1-2 的变异都是临时改动，复现后已 `git checkout --` 还原，工作区保持干净。
+
+---
+
+## 【补记】CR-15 评审裁决与落地结果（2026-11-14 13:45）
+
+> 本节由评审人补记，不属于上节原文；记录 P1-1 的裁决与落地证据，便于后续追溯。
+
+- **P1-1 裁决：方案 ①**（负责人 2026-11-14 13:33 选定）——两个指标详情页不再能选区间。落地为 **CR-16**：`dateSheetModeFor(page)` 改按 `AppPage.mainOf(page)`（即 `returnTo`）判模式，与 `dateScopeFor` 的写回判据同源；归属今日 → DAY、归属统计 → RANGE，`FULL` 只剩传 `null` 的兜底。`AppNav` 三处二级页顶栏不再硬写 `DateSheetMode.FULL`。
+- **落地后果复核**：P1-1 描述的「选了没反应、还偷偷改掉一份隐藏状态」入口已消失（今日页侧只剩单日选项）；同时反向漏洞（从统计页进详情点「今天」把单日写进 `statsSelection`，统计页趋势只剩一根柱）一并关闭。
+- **测试**：`DateSheetModeTest` 3 → 5 测（新增「二级页跟随 returnTo」「弹层模式与写回归属同源」）；变异两处——还原成按页判断红 2 例、统计页误回 DAY 红 3 例；**362 测全绿**。真机三路复核：解锁详情、排行（从今日进）只剩单日集合；统计页仍为区间集合。
+- **口径更正**：本节 P1-1 原文的结论（静默无效）与实测一致；但评审当日口述给的「再进详情会变成 7 天」是错误的，`metricDetail` 恒喂 `todayEffective`，任何时候都不会显示区间。需求文档 CR-16 条目已按实测改正。
+- **新增待裁决**：排行页按 §5.7 排行-2 恒取锚点单日，从统计侧进排行选「近 30 天」只改锚点结束日（默认已是今天）→ 仍表现为无变化。属排行口径问题，不在 CR-16 范围。
+- P1-2 / P2-1 / P2-2 / P2-3 / P2-4 / P2-5 / P3 四条**尚未处理**，仍挂在 `docs/TODO.md`。
