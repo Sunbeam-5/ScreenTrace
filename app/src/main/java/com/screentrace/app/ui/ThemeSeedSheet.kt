@@ -36,6 +36,7 @@ import com.screentrace.app.theme.FreshPalette
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.PaletteEngine
+import com.screentrace.app.theme.ThemeVariant
 import com.screentrace.app.theme.hslColor
 import com.screentrace.app.theme.toHsl
 import com.screentrace.app.uikit.PrimaryButton
@@ -62,7 +63,7 @@ fun ThemeSeedSheet(
     val palette = LocalFreshPalette.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val initial = currentSeed?.let { Color(it) } ?: Color(0xFF1B6B5A)
+    val initial = currentSeed?.let { Color(it) } ?: ThemeVariant.MINT.seed
     val initialHsl = remember(initial) { initial.toHsl() }
     var hue by remember { mutableFloatStateOf(initialHsl.first) }
     var saturation by remember { mutableFloatStateOf((initialHsl.second).coerceIn(0.18f, 0.92f)) }
@@ -203,40 +204,46 @@ private fun PalettePreview(seed: Color, preview: FreshPalette) {
     }
 }
 
-/** 常用色相快捷点（省得每次都拖滑杆）。 */
+/**
+ * 常用色相快捷点（省得每次都拖滑杆）。
+ *
+ * 色值直接取九套预设的种子（[ThemeVariant]）：原来这里手写八个十六进制色，
+ * ① 违反「页面代码不写十六进制颜色」（§7.3）；② 已经漂移——漏了石墨蓝。
+ * 九个一行太挤（320dp 里每格不到 29dp 会被压成椭圆），按 5+4 两行排，与
+ * StyleSheet 的色板布局一致。
+ */
 @Composable
 private fun ColorChipRow(seed: Color, onPick: (Color) -> Unit) {
     val palette = LocalFreshPalette.current
-    val quick = listOf(
-        Color(0xFF1B6B5A), Color(0xFF2C576D), Color(0xFF302E6B), Color(0xFF542F6A),
-        Color(0xFF6D2C4F), Color(0xFF703529), Color(0xFF705829), Color(0xFF466732)
-    )
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        quick.forEach { color ->
-            val selected = (seed.toHsl().first - color.toHsl().first).let { delta ->
-                val d = Math.abs(delta) % 360f
-                d < 6f
+    ThemeVariant.values().toList().chunked(5).forEach { rowItems ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            rowItems.forEach { variant ->
+                val color = variant.seed
+                val selected = (seed.toHsl().first - color.toHsl().first).let { delta ->
+                    val d = Math.abs(delta) % 360f
+                    d < 6f
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                        .border(
+                            width = if (selected) 3.dp else 0.dp,
+                            color = if (selected) palette.onSurface else Color.Transparent,
+                            shape = CircleShape
+                        )
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = "快捷色 ${color.value.toString(16)}"
+                        }
+                        .clickable { onPick(color) }
+                )
             }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .clip(CircleShape)
-                    .background(color)
-                    .border(
-                        width = if (selected) 3.dp else 0.dp,
-                        color = if (selected) palette.onSurface else Color.Transparent,
-                        shape = CircleShape
-                    )
-                    .semantics {
-                        role = Role.Button
-                        contentDescription = "快捷色 ${color.value.toString(16)}"
-                    }
-                    .clickable { onPick(color) }
-            )
         }
     }
 }
