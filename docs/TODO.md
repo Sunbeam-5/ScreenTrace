@@ -63,6 +63,15 @@
 **依赖与纪律**：A0 / A1 / B 已完成；D 依赖 C（不放假按钮），E 独立；C / E 可并行；每批一个提交，文档先行 + 变异验证 + 真机复核；不新增 §7 验收条目；README 仍冻结。
 
 
+
+## CR-17 三条真机改进（2026-11-14，方案已裁定待实施）
+
+> 全文见需求文档头部 CR-17 登记。三项均按负责人选的推荐方案；真机**只用 Redmi**（vivo 在跑自动化，禁止操作）。
+
+- [ ] **① 提示分流**：`showNotice` 按白名单前缀分流到常驻 `NoticeBar` / 2.5s 自绘短时条；5 处系统 Toast 改走 `onNotice`；短时条放在 AppHeader 下方 108dp 最上层覆盖层。
+- [ ] **② tab 跟手**：点 tab 只滚 Pager、`snapshotFlow { currentPage }` 单向回写 + `selectMain` 去重；`FreshNavBar` 扩 `progress: State<Float>` 连续插值跟手。
+- [ ] **③ 统计页局部过渡**：`MetricValueText` 支持时长数值平滑（同一 Text）、`CapsuleBarChart` 柱高平滑、`PeriodDistribution` 色带权重与图例数值平滑、文字轻淡入；不包整页容器。
+
 ## CR-15 评审遗留（DeepSeek V4.1 Flash，2026-11-14 12:30；13:53 补登）
 
 > 来源：`docs/CODE_REVIEW.md` 末节「CR-15（A0 / A1 / B）代码评审」与 13:45 补记。
