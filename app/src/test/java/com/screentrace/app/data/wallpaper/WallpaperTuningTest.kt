@@ -77,7 +77,9 @@ class WallpaperTuningTest {
     @Test
     fun `状态栏图标在亮背景用深色 暗背景用浅色`() {
         assertFalse(WallpaperTuning.lightStatusIcons(127))
-        assertTrue(WallpaperTuning.lightStatusIcons(128))
+        assertFalse(WallpaperTuning.lightStatusIcons(128)) // 暗化后刚好落在这里，也不该用深色图标
+        assertFalse(WallpaperTuning.lightStatusIcons(139))
+        assertTrue(WallpaperTuning.lightStatusIcons(140))
         assertTrue(WallpaperTuning.lightStatusIcons(255))
     }
 

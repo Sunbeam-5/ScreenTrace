@@ -86,9 +86,13 @@ object WallpaperTuning {
         return (dimmed * (1f - alpha) + scrim * alpha).toInt().coerceIn(0, 255)
     }
 
-    /** true = 深色状态栏图标（亮背景）；阈值 128 与 Android 的亮度判据一致。 */
+    /**
+     * true = 深色状态栏图标（亮背景）。阈值取 140 而非 128：真机复核发现暗化 58%
+     * 时有效亮度恰好落在 128 附近，深色图标压在变暗的壁纸上对比度不足；
+     * 稍微保守一点，背景不够亮就切浅色图标。
+     */
     fun lightStatusIcons(effectiveBrightness: Int): Boolean =
-        clampBrightness(effectiveBrightness) >= 128
+        clampBrightness(effectiveBrightness) >= 140
 
     fun blurSupported(sdkInt: Int): Boolean = sdkInt >= MIN_API_FOR_BLUR
 

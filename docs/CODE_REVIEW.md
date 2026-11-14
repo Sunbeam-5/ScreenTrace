@@ -1344,3 +1344,15 @@ P1-1 的探针与 P1-2 的变异都是临时改动，复现后已 `git checkout 
 - **真机新发现（不属原评审范围）**：坚果云 PROPFIND 返回 `<d:response>` / `<d:href>` / `<d:collection>` 带命名空间前缀，而 `parsePropfindNames` 在 `FEATURE_PROCESS_NAMESPACES=false` 下只比对裸标签名，导致真机上**一条文件都解析不到**——设备列表永远空、根目录旧备份归不了「未知设备」，且批 8b 自动备份的「仅保留 5 份」清理一直空转。此前只有无前缀单测覆盖，属典型假绿。修复为取 `substringAfterLast(':')` 的本地名，补带 `d:` 前缀回归用例；变异（退回只认裸标签）该用例变红。
 - **验证**：数据层变异 9 处（M3 首版未真正改坏实现，换成「deviceId 不落盘」后 4 例红）、UI 层 4 处、命名空间 1 处，共 **14 处全部变红**；`--rerun-tasks` **404 测全绿 / 0 skip**。Redmi `GAQOHMNFQWFUPBQO` 真机（vivo 在跑自动化，全程禁用）：本机 1 份 / 未知设备（旧备份）2 份、旧备份摘要 `v4 · 3 天`、本机摘要 `v5 · 5 天 · 来源 MyRedmi`、昵称改名落盘并刷新生效、只读查看不弹恢复流程、crash 缓冲区 0 条 FATAL；APK `6962b183`，截图 `C:/tmp/cr_c/final.png`。
 - **仍未处理**：P3-1（`RollingNumberText` 读屏）、P3-2（`DateInput.error` 格式错分支不可达）、P3-3（`normalizeInput` 的 cursor 未使用）、排行页口径待裁决、统计侧详情页残留、日期弹层标题与状态栏略重叠。
+
+---
+
+## 【补记】CR-15 ⑤ 批 E 自定义壁纸落地证据（2026-11-14 17:50）
+
+> 本节由评审人补记，不改写上文任何评审原文；记录批 E 的裁定、落地与真机证据。
+
+- **三项裁定（负责人 16:59 均按推荐）**：入口＝设置页「外观」组内卡片（不新增页面 / 不并入 `StyleSheet` / 不动顶栏）；暗化 0–60% + 模糊 0–16dp 两条滑杆，API < 31 禁用并提示；遮罩只存一份参数，浅/深主题自动叠底色并按壁纸亮度微调，状态栏仅启用壁纸时按遮罩后实际亮度重判。
+- **落地两笔**：`d291c44`（需求 §5.4 新增「自定义壁纸」小节 + §6 工程红线，代码零改动）；`62f4682`（`WallpaperTuning` 纯函数 / `WallpaperStore` / `SettingsStore` 持久化 / `LocalWallpaper` 单份位图 / `PageScaffold` 三层绘制 / 设置页卡片，418 测）。
+- **真机发现**：暗化 58% 时有效亮度恰好落在 128 阈值附近，深色状态栏图标压在变暗的壁纸上对比度不足；阈值改为 140（更保守，背景不够亮就切浅色图标），补回归用例，变异（退回 128）该用例变红。另修复「选图取消判断在取 `wallpaperStore` 之后」导致的覆盖盲点，把 `uri == null` 提前。
+- **验证**：变异验证 **11 处全部变红**（纯函数 6 / 存储 1 / ViewModel 3 / 状态栏阈值 1）；`--rerun-tasks` **418 测全绿 / 0 skip**。Redmi `GAQOHMNFQWFUPBQO` 真机（vivo 在跑自动化，全程禁用）APK `6e1321ca`：Photo Picker 选图后主页面与二级页均显示壁纸、暗化 58% / 模糊 5dp 生效、切深色主题遮罩与状态栏自动跟随、恢复默认后参数复位且 `run-as` 确认 `no_backup/wallpaper/` 为空、crash 缓冲区 0 条 FATAL。截图 `C:/tmp/cr_e/{final_home,dark_theme,restored}.png`。
+- **边界复核**：壁纸图片与参数均不进 `BackupSettings` / 备份 JSON；`Modifier.blur` 在 API < 31 由 `effectiveBlurDp` 显式归零并在 UI 禁用滑杆；恢复默认不残留私有文件。
