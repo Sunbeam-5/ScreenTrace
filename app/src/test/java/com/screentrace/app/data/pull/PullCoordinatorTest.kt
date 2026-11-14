@@ -237,12 +237,44 @@ class PullCoordinatorTest {
         assertEquals("失败原因必须原样透出，不能被包装成模糊文案", "Shizuku 未授权", failure.message)
     }
 
-    private fun coordinator(vararg providers: FakeProvider) = PullCoordinator(
+    // ---------- 自动同步钩子（批 8b-2 §5.10 链式触发） ----------
+
+    @Test
+    fun `成功拉取后触发同步钩子 失败与空 dump 不触发`() = runBlocking {
+        val fired = mutableListOf<Int>()
+        val provider = FakeProvider(PullChannel.SHIZUKU, parsed())
+        val c = coordinator(provider) { fired += it.days }
+
+        val ok = c.pull()
+        assertTrue(ok is PullOutcome.Success)
+        assertEquals("一次成功拉取触发一次钩子", listOf(1), fired)
+
+        // 空 dump / 失败都不算「成功拉取」，不触发（§7-15「在成功拉取后」）
+        provider.loaded = LoadedUsage.Parsed(emptyResult(), baseMs)
+        c.pull()
+        provider.loaded = LoadedUsage.Failed(ProviderStatus.TEMPORARILY_UNAVAILABLE, "读取超时")
+        c.pull()
+        assertEquals("空 dump 与失败不得触发自动同步", listOf(1), fired)
+    }
+
+    @Test
+    fun `同步钩子抛异常不影响拉取成功`() = runBlocking {
+        val provider = FakeProvider(PullChannel.SHIZUKU, parsed())
+        val c = coordinator(provider) { error("云端炸了") }
+        val outcome = c.pull()
+        assertTrue("钩子失败不得把拉取成功降级成失败（§5.10）", outcome is PullOutcome.Success)
+    }
+
+    private fun coordinator(
+        vararg providers: FakeProvider,
+        onSuccess: suspend (PullOutcome.Success) -> Unit = {}
+    ) = PullCoordinator(
         db = db,
         pipeline = pipeline,
         providers = providers.toList(),
         clock = { now },
-        zone = zone
+        zone = zone,
+        onSuccess = onSuccess
     )
 
     private suspend fun snapshot(): List<String> = listOf(

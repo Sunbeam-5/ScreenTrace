@@ -386,7 +386,8 @@ class AppViewModel(
      * 冷却以**上次成功拉取**为准，失败不计时（失败后应该允许立刻重试）。
      *
      * 声明为 suspend：调用方（下拉指示器）等它结束再收起转圈，指示器不会一闪就没。
-     * 批 8 的云同步「每次成功拉取后」分支后续在此函数成功路径上接线。
+     * 自动同步联动（批 8b-2）不在这接——所有拉取成功路径共用 PullCoordinator.onSuccess
+     * 钩子（AppContainer 接线），下拉成功触发上传（CR-04）由那里统一覆盖。
      */
     suspend fun refreshFromPull() {
         val coordinator = pulls ?: return

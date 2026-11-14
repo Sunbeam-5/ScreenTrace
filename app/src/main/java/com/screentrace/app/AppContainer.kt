@@ -60,7 +60,17 @@ class AppContainer(context: Context) {
         providers = listOf(
             ShizukuUsageProvider(context = appContext),
             UsageStatsUsageProvider(appContext)
-        )
+        ),
+        // 批 8b-2 自动同步生产接线（§5.10/§7-15）：任何拉取成功（下拉 / 手动重试 /
+        // 打开节流拉取 / 每日 Worker）都走这一个钩子，按频率窗口排一次自动上传。
+        // 钩子失败被 PullCoordinator.runCatching 吞掉，不影响拉取结果。
+        onSuccess = {
+            com.screentrace.app.data.sync.AutoSyncScheduler.onPullSuccess(
+                context = appContext,
+                sync = syncManager,
+                settings = settings
+            )
+        }
     )
 
     /** 批 8：本地备份导出 / 恢复（JSON、CSV）。 */
