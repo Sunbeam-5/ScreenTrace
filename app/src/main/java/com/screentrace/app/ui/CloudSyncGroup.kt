@@ -311,7 +311,7 @@ fun CloudSyncGroup(
                     color = palette.onSurface
                 )
                 Text(
-                    text = "ID ${deviceIdShort.ifBlank { "—" }} · 备份写入 devices/<本机ID>/",
+                    text = "ID ${deviceIdShort.ifBlank { "—" }} · 独立备份目录",
                     style = FreshType.label,
                     color = palette.onSurfaceVariant
                 )
@@ -379,9 +379,8 @@ fun CloudSyncGroup(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = device.label +
-                            (if (device.isLocal) " · 本机" else "") +
-                            (if (device.isLegacy) " · 旧备份" else ""),
+                        // LEGACY_LABEL 已含「旧备份」，这里不再重复追加后缀
+                        text = device.label + (if (device.isLocal) " · 本机" else ""),
                         style = FreshType.body,
                         color = palette.onSurface
                     )

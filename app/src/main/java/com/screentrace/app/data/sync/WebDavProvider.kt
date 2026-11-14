@@ -175,17 +175,25 @@ class WebDavProvider(
             var length = 0L
             var event = parser.eventType
             while (event != XmlPullParser.END_DOCUMENT) {
+                // 真机（坚果云）返回的是 <d:response>/<d:href>/<d:collection>：
+                // 关掉命名空间处理后 parser.name 会保留 "d:" 前缀，只比裸标签名会一条都解析不到
+                // （2026-11-14 批 C 真机复核发现：设备列表永远为空、旧备份也归不了「未知设备」）。
+                val tag = when (event) {
+                    XmlPullParser.START_TAG, XmlPullParser.END_TAG ->
+                        parser.name?.substringAfterLast(':') ?: ""
+                    else -> ""
+                }
                 when {
-                    event == XmlPullParser.START_TAG && parser.name == "response" -> {
+                    event == XmlPullParser.START_TAG && tag == "response" -> {
                         inResponse = true; href = null; isCollection = false; length = 0L
                     }
-                    inResponse && event == XmlPullParser.START_TAG && parser.name == "href" ->
+                    inResponse && event == XmlPullParser.START_TAG && tag == "href" ->
                         href = parser.nextText()
-                    inResponse && event == XmlPullParser.START_TAG && parser.name == "collection" ->
+                    inResponse && event == XmlPullParser.START_TAG && tag == "collection" ->
                         isCollection = true
-                    inResponse && event == XmlPullParser.START_TAG && parser.name == "getcontentlength" ->
+                    inResponse && event == XmlPullParser.START_TAG && tag == "getcontentlength" ->
                         length = parser.nextText().toLongOrNull() ?: 0L
-                    event == XmlPullParser.END_TAG && parser.name == "response" -> {
+                    event == XmlPullParser.END_TAG && tag == "response" -> {
                         // 目录的 href 常以 / 结尾，先 trimEnd 才能拿到目录名本身
                         val name = href?.trimEnd('/')?.substringAfterLast('/')
                             ?.let { java.net.URLDecoder.decode(it, "UTF-8") }

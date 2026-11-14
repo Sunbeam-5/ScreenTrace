@@ -48,4 +48,30 @@ class WebDavPropfindTest {
         assertEquals("screen-time-backup.json", names[0].name)
         assertEquals(1234L, names[0].sizeBytes)
     }
+
+    /** 真机复核回归：坚果云的 Multi-Status 带 `d:` 前缀，只认裸标签会一条都解析不到。 */
+    private val prefixedXml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <d:multistatus xmlns:d="DAV:">
+          <d:response>
+            <d:href>/dav/screen-time/devices/</d:href>
+            <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+          </d:response>
+          <d:response>
+            <d:href>/dav/screen-time/screen-time-backup.json</d:href>
+            <d:propstat><d:prop><d:getcontentlength>4321</d:getcontentlength></d:prop></d:propstat>
+          </d:response>
+        </d:multistatus>
+    """.trimIndent()
+
+    @Test
+    fun `坚果云带 d 命名空间前缀的响应能解析出目录与文件`() {
+        val entries = WebDavProvider.parsePropfindEntries(prefixedXml)
+        assertEquals(2, entries.size)
+        assertTrue(entries.any { it.name == "devices" && it.isCollection })
+        val names = WebDavProvider.parsePropfindNames(prefixedXml)
+        assertEquals(1, names.size)
+        assertEquals("screen-time-backup.json", names[0].name)
+        assertEquals(4321L, names[0].sizeBytes)
+    }
 }
