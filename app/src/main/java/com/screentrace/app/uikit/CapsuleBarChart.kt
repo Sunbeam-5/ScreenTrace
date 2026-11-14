@@ -40,6 +40,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
@@ -212,6 +214,10 @@ fun CapsuleBarChart(
                                         modifier = Modifier
                                             .width(slotDp)
                                             .fillMaxHeight()
+                                            // §7.3 读屏：逐柱播报日期与状态（无记录 ≠ 0）
+                                            .semantics {
+                                                contentDescription = TrendChartMath.barDescription(point)
+                                            }
                                             .clickable(
                                                 interactionSource = remember { MutableInteractionSource() },
                                                 indication = null

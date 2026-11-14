@@ -24,7 +24,7 @@ from pathlib import Path
 OUT = Path("C:/tmp/screentrace-patrol/step9")
 VARIANTS = ["薄荷青绿", "雾蓝", "靛青", "鸢尾紫", "樱粉", "珊瑚橘", "琥珀黄", "森绿", "石墨蓝"]
 PAGES = ["today", "stats", "calendar"]
-RESTORE_VARIANT = "樱粉"
+RESTORE_VARIANT = "雾蓝"  # 运行前先确认设备原主题，--restore-variant 可改
 
 
 def adb(serial, *args, binary_out=None):
@@ -81,8 +81,22 @@ def tap(serial, x, y):
     time.sleep(0.8)
 
 
+def ensure_main_page(serial):
+    """回到主页面（今日）：二级页/弹层的节点会混进 uiautomator 树（转场源页保留在树里），
+    不先归位就会点到错误层上——真机踩过（2026-11-14 巡检把设置页当成主页面）。"""
+    for _ in range(4):
+        root = dump_ui(serial)
+        descs = {n.get("content-desc", "") for n in root.iter("node")}
+        if "选择日期" in descs and "返回" not in descs:
+            return
+        adb(serial, "shell", "input", "keyevent", "4")
+        time.sleep(1.0)
+    sys.exit("无法回到主页面")
+
+
 def select_variant(serial, label: str):
     """打开「界面风格」弹层 → 点主题格 → 关弹层。"""
+    ensure_main_page(serial)
     root = dump_ui(serial)
     node = find_desc(root, "界面风格")
     if node is None:
@@ -102,7 +116,11 @@ def select_variant(serial, label: str):
 def set_dark(serial, on: bool):
     """设置页「深色模式」开关。"""
     root = dump_ui(serial)
-    node = find_desc(root, "设置") or find_text(root, "设置")
+    node = find_desc(root, "设置")
+    if node is None:
+        node = find_text(root, "设置")  # 注意：ElementTree 叶子节点布尔值为 False，不能用 or 串
+    if node is None:
+        sys.exit("找不到「设置」入口")
     tap(serial, *bounds_center(node))
     time.sleep(1.2)
     for _ in range(6):  # 向下滚找「深色模式」行
@@ -167,6 +185,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("-s", "--serial")
     ap.add_argument("--tile-only", action="store_true")
+    ap.add_argument("--restore-variant", default=RESTORE_VARIANT, help="巡检结束复位到的主题名")
+    ap.add_argument("--modes", default="light,dark", help="跑哪几轮，如 dark 补跑深色轮")
     args = ap.parse_args()
 
     if args.tile_only:
@@ -176,7 +196,7 @@ def main():
     serial = args.serial or pick_device()
     print("设备:", serial)
 
-    for mode in ("light", "dark"):
+    for mode in [m.strip() for m in args.modes.split(",") if m.strip()]:
         if mode == "dark":
             set_dark(serial, on=True)
         for i, label in enumerate(VARIANTS):
@@ -188,9 +208,9 @@ def main():
             back_to_today(serial)
             print(f"[{mode}] {label} 完成")
 
-    # 复位：浅色 + 樱粉
+    # 复位：浅色 + 原主题
     set_dark(serial, on=False)
-    select_variant(serial, RESTORE_VARIANT)
+    select_variant(serial, args.restore_variant)
     tile_sheets()
     print("巡检完成，产物在", OUT)
 

@@ -72,4 +72,16 @@ object TrendChartMath {
     /** 第 [index] 根柱的中心横坐标（dp），供浮层定位。 */
     fun slotCenterDp(index: Int, count: Int, availableDp: Float): Float =
         if (count <= 0) 0f else availableDp / count * (index + 0.5f)
+
+    /**
+     * §7.3 读屏：逐柱播报「日期，时长/无记录」（与热力格的 heatmapCellDescription
+     * 同格式）。**无记录与真实 0 必须可区分**——「不伪造数值」的红线在读屏侧同样成立：
+     * recorded=false 一律报「无记录」，即使 minutes 有脏值。
+     */
+    fun barDescription(point: DailyPoint): String {
+        val dateText = "${point.date.year}年${point.date.monthValue}月${point.date.dayOfMonth}日"
+        val state = if (!point.recorded) "无记录"
+        else com.screentrace.app.contract.UsageCalculator.formatDuration(point.minutes)
+        return "$dateText，$state"
+    }
 }

@@ -44,4 +44,38 @@ class RingMathTest {
         assertEquals(0f, RingMath.firstSweep(-1f), 1e-6f)
         assertFalse(RingMath.shouldShowSecond(-1f))
     }
+
+    // ---------- 读屏描述（§7.3：TalkBack 能朗读圆环） ----------
+
+    @Test
+    fun `圆环读屏 未超目标报完成百分比`() {
+        assertEquals(
+            "今日亮屏 1小时56分钟，目标 6小时，完成 32%",
+            RingMath.description("今日亮屏", usageMinutes = 116, goalMinutes = 360)
+        )
+    }
+
+    @Test
+    fun `圆环读屏 超目标报超出多少 不报百分比`() {
+        assertEquals(
+            "今日亮屏 5小时42分钟，超目标 1小时42分钟",
+            RingMath.description("今日亮屏", usageMinutes = 342, goalMinutes = 240)
+        )
+    }
+
+    @Test
+    fun `圆环读屏 无目标如实说明 不编造百分比`() {
+        assertEquals(
+            "日均亮屏 2小时2分钟，未设置目标",
+            RingMath.description("日均亮屏", usageMinutes = 122, goalMinutes = 0)
+        )
+    }
+
+    @Test
+    fun `圆环读屏 真实零使用报 0分钟`() {
+        assertEquals(
+            "今日亮屏 0分钟，目标 4小时，完成 0%",
+            RingMath.description("今日亮屏", usageMinutes = 0, goalMinutes = 240)
+        )
+    }
 }

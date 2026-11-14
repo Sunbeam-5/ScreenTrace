@@ -21,6 +21,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.screentrace.app.contract.UsageCalculator
@@ -62,7 +64,12 @@ fun RingProgress(
     }
 
     Box(
-        modifier = modifier.size(184.dp),
+        modifier = modifier
+            .size(184.dp)
+            // §7.3 读屏：圆环整体一句话（替换内部三行逐条朗读），文案见 [RingMath.description]
+            .clearAndSetSemantics {
+                contentDescription = RingMath.description(caption, usageMinutes, goalMinutes)
+            },
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(184.dp)) {

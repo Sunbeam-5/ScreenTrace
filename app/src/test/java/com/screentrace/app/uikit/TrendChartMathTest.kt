@@ -125,4 +125,30 @@ class TrendChartMathTest {
         assertEquals(14.4f, TrendChartMath.slotCenterDp(1, 30, 288f), 0.01f)
         assertEquals(0f, TrendChartMath.slotCenterDp(0, 0, 288f), 0.01f)
     }
+
+    // ---------- 读屏描述（§7.3：TalkBack 能朗读柱子，无记录 ≠ 0） ----------
+
+    @Test
+    fun `柱读屏 报日期与时长`() {
+        assertEquals(
+            "2026年11月9日，8小时20分钟",
+            TrendChartMath.barDescription(DailyPoint(base.plusDays(4), 500, recorded = true))
+        )
+    }
+
+    @Test
+    fun `柱读屏 真实零使用报 0分钟`() {
+        assertEquals(
+            "2026年11月5日，0分钟",
+            TrendChartMath.barDescription(DailyPoint(base, 0, recorded = true))
+        )
+    }
+
+    @Test
+    fun `柱读屏 无记录日报 无记录 即使有脏值`() {
+        assertEquals(
+            "2026年11月6日，无记录",
+            TrendChartMath.barDescription(DailyPoint(base.plusDays(1), 999, recorded = false))
+        )
+    }
 }
