@@ -432,7 +432,10 @@ fun CloudSyncGroup(
                         onNotice(message)
                     }
                 },
-                onMerge = { mergeTarget = device }
+                onMerge = { mergeTarget = device },
+                // 与顶栏设备面板同口径：卡片窄，并排时「合并到本机 / 切换到此设备」会折行
+                // （真机实测），纵向一行一个才不折
+                stacked = true
             )
         }
         inspectText?.let {
