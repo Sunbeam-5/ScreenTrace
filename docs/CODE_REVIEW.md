@@ -1419,3 +1419,15 @@ P1-1 的探针与 P1-2 的变异都是临时改动，复现后已 `git checkout 
   4. 今日 → 解锁卡 → 解锁详情弹层三档 → 选「昨天」页面**立即变化**（11月15日 → 11月14日）。
   crash 缓冲区 0 条 FATAL。注意：批 D 后主页面日期入口在「打开快捷菜单」下拉四宫格内，二级页顶栏直出（驱动脚本按此导航）。
 - **仍未处理**：日期弹层标题与状态栏略重叠（CR-15 评审旧观察，未立项）。
+
+---
+
+## 【补记】CR-19 顶栏竖排 + 壁纸可见性/裁切落地证据（2026-11-16 08:50）
+
+> 本节由评审人补记，不改写上文任何评审原文。
+
+- **三项裁定（负责人 2026-11-16 08:15）**：① 下拉面板一行横排 → **纵向一列**（反馈「现在是横着的」）+ **展开过渡**（反馈纯淡入 120ms「看不到动画」）；② 壁纸模式全 App surface 类卡片半透明（浅 92% / 深 88%）+ 遮罩自动加深（反馈「壁纸卡片不透明，壁纸快被挡完」）；③ 壁纸**全屏裁切编辑**（拖动平移 + 双指捏合，参数归一化落 DataStore，不进备份）。
+- **落地两笔**：`9a802ad`（文档先行：§5.2 / §5.4 / §6 / §7-36，代码零改动）；`cff7cbd`（`QuickMenuPanel` 纵排 / `QuickMenuOverlay` 拆独立 `AnimatedVisibility` + `expandVertically(200ms)+fadeIn`，点击层独立无动画 / `WallpaperTuning.cardAlpha + translucentCardBoost + themeScrimAlpha(cardTranslucent)` / `ScreenTimeTheme` 壁纸模式降 surface 类卡片 alpha / `WallpaperCropMath` 纯函数（盖满抬升、平移钳制、围绕焦点缩放 `t' = f − (f − t)·z'/z`）/ `PageScaffold` 改 Fit + graphicsLayer（旧数据自动抬到盖满，观感与原 Crop 一致）/ `WallpaperEditorScreen` 全屏浮层 / 设置页壁纸卡片缩略预览 + 「调整裁切」入口 / `AppViewModel` 挂起 `setWallpaperCrop` / `resetWallpaperCrop`）。
+- **验证**：新增 9 测（`WallpaperCropTest` 8 / `AppViewModelWallpaperTest` 裁切落盘 1）；**9 处变异全部变红**（遮罩补偿失效 / 卡片 alpha 对调 / 缩放与偏移夹取放开 / zoom 盖满下限失效 / 平移钳制失效 / 焦点公式比例写反 / minZoom 取 min / 裁切不落盘）；`--rerun-tasks` **445 测全绿 / 0 skip**。
+- **真机**（Redmi `GAQOHMNFQWFUPBQO`，vivo 全程禁用，APK `4f5dfbbb`）：下拉四枚纵向一列右对齐（y=387/569/751/933）；`capture_anim --quick-menu --slow` 抽帧确认面板**从上往下纵向展开**、容器变换从面板按钮放大（`C:/tmp/screentrace-capture/cr19_menu_anim/enter.png`）；设置页壁纸卡片显示缩略预览与「调整裁切」；编辑浮层全屏 Fit 预览、单指拖动生效、保存后**重启壁纸偏移持久**；半透明卡片透出壁纸且文字清晰；crash 缓冲区 0 条 FATAL。捏合缩放由 8 例几何单测覆盖（adb 无法模拟双指手势）。
+- **边界**：裁切参数按相对屏幕宽高归一化存储、不进备份 JSON；无壁纸时卡片透明度与遮罩完全不变；`PageScaffold` 对 `cropScale=1` 的旧数据自动抬升到盖满，升级观感无跳变。
