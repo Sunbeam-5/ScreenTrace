@@ -116,11 +116,12 @@
   - [x] **纯函数 + 变异验证**：`TabMotion.alphaFor / scaleFor / titleShiftDp / scrollSpec` 均为纯函数，`TabMotionTest` 14 例；**4 处变异全部变红**（alpha 恒 1 / scale 恒 1 / shift 恒 0 / dampingRatio 退回 1.0）；`--rerun-tasks` **527 测全绿 / 0 skip**。
   - [x] **真机复核**：`scripts/capture_anim.py --label 日历 --no-back` 复拍点 tab 转场逐帧对比（景深生效、标题位移可见）；`--swipe` 复拍横滑不受影响；`dumpsys gfxinfo` 50th=8ms / 真 jank 0.5% 无新增掉帧。证据见 `CODE_REVIEW.md` 文末补记。
   - [x] **vivo 复核（2026-11-16 17:00）**：已接入并用 dumpsys gfxinfo framestats 逐帧拆段排查。**结论：CR-23 无罪**（景深 GPU 5.13ms vs 关掉 5.31ms、标题位移 0.07ms，都在噪声内）；vivo 每帧成本「录制绘制 5.67ms + GPU 5.1ms」，唯一确定可归本 App 的是**壁纸模糊约 1ms GPU/帧**；200~350ms 尖峰来自后台进程 GC（gallery.aiservice/QQ 等），非本 App。测量方法学记账：**vivo 不触摸自动降到 60Hz、\input tap\ 不触发高刷**，脚本测量必须按帧自己的 vsync 分档或用真实触摸。CR-23 三项在 vivo 上视觉正常。
-- [ ] **CR-24 · 壁纸模糊一次性位图缓存（2026-11-16 17:05 负责人同意）**：
+- [x] **CR-24 · 壁纸模糊一次性位图缓存（2026-11-16 17:05 负责人同意）**：
   - [x] **文档先行**：头部登记 CR-24（含排查记账与「API<31 静默不模糊」的诚实性缺口）；§5.4 新增「模糊走一次性位图缓存」条；§7 追加 51 条验收（50 → 51 条）。代码零改动、单独提交。
-  - [ ] **① 纯函数模糊**：\WallpaperTuning.blurArgb(width, height, pixels, radius)\——只吃整数像素与半径，盒式模糊，JVM 单测覆盖「半径 0 原样」「越大越平滑」「边界不越界」。
-  - [ ] **② 一次性缓存**：只在壁纸位图或 \lurDp\ 变化时算一次（降采样长边 ≤800px，1px ≈ 1dp，\lurDp\ 即半径像素数）；绘制端只贴已模糊位图，去掉 \Modifier.blur\；**API < 31 一并生效**（原静默不模糊）。
-  - [ ] **③ 变异验证 + 真机复核**：改坏模糊必须变红；vivo 拆段复测 GPU 段应下降；真机截图核对模糊观感与裁切不变形。
+  - [x] **① 纯函数模糊**：`WallpaperTuning.blurArgb(width, height, pixels, radius)`——只吃整数像素与半径，三趟可分离盒式模糊 + 前缀和 O(像素数)；`WallpaperBlurTest` 10 例覆盖「半径 0 原样」「越大越平滑」「三趟过渡带比一趟宽」「均值守恒」「边缘不发黑边」「四通道不串色」「纯函数且不改写输入」。
+  - [x] **② 一次性缓存**：`WallpaperBlur.blurredImage` 按 density 降采样（1px ≈ 1dp，长边钳 800）后模糊；`WallpaperState` 增 `blurred`，`AppNav` 组装时一次性算好，`PageScaffold` 只贴它、**删掉每帧 `Modifier.blur`**；**API < 31 一并生效**（`blurSupported()` 恒真、`effectiveBlurDp` 只做越界夹取）。
+  - [x] **③ 变异验证**：5 处变异**全部变红**（半径 0 返回空数组 / 不复制输入 / 只模糊一趟 / 边界不 clamp / 低版本又钳成 0）；首轮 2 处未变红已复查修正（M1 是非行为变异、M3 是真弱项补了「过渡带」用例）。`--rerun-tasks` **537 测全绿 / 0 skip**。
+  - [ ] **④ 真机 GPU 复测（设备掉线）**：vivo 拆段复测「GPU 段 5.13ms → ~4.3ms」+ 壁纸模糊观感与裁切核对，**待 vivo 重新接入后补做**。
 
 
 
