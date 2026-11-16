@@ -140,6 +140,7 @@
 
 ## 验证补齐
 
+- [ ] **Pager 跨页跳转偶发卡在两页之间**（vivo `10CEB40M5G001DK` 2026-11-16 复核发现，**负责人裁定本轮只记账不修**）：从「日历」点「今日」（跨两页）后，标题与路由已是「今日」，但 Pager 滚动偏移停在两页中间——今日页只占屏幕左侧约 58%、统计页露在右侧、底部导航胶囊停在两图标之间；再点一次「今日」即归位，同样路径第二次复跑正常（偶发）。根因在 CR-17 的 Pager 回写环路：点 tab 发起 `animateScrollToPage` → 动画中途 `snapshotFlow { currentPage }` 回写路由 → `LaunchedEffect(mainPage)` 再发起一次滚动 → 两次动画互相打断。**修时注意**：CLAUDE.md / §5.2 定的是「点 tab 只滚动、`snapshotFlow` 单向回写、禁止双向写」，修法不能改成点 tab 直接写路由；可考虑在 `LaunchedEffect(mainPage)` 的纠正逻辑里等 `isScrollInProgress` 为 false 再动 Pager（或用 `settledPage` 兜底）。**归批 10b 一起做**（那是下一个动 Pager/数据链的批次），届时补文档 + 变异验证 + 双机复跑。
 - [x] ~~**CR-09 ③ 转场**~~：已由 CR-11 三层方案取代并录屏验证（`screenrecord` + ffmpeg 抽帧）：打开「图标放大到一半变页面再放大到全屏」、关闭「缩成带齿轮的小块再收回右上角」、退场中点屏不飘、无闪帧。
 
 ## 工程状态
