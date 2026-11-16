@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -195,6 +197,18 @@ fun AppHeader(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    /**
+     * §5.2 CR-23：标题块的横向位移（dp），按「目标页 − 连续进度」算。
+     *
+     * **签名是 `(progress: Float) -> Float` 而不是 `() -> Float`**：位移必须每帧更新，
+     * 而 Header 里的 `Crossfade` 是靠它自己的 `Animatable` 驱动的，**并不逐帧重组**；
+     * 只把 lambda 写进 `graphicsLayer {}` 也不行——那个块只在本节点重绘时才跑。
+     * 所以进度由调用方以 [tabProgress] 传入、在**本组合**里 `it.value` 读一次
+     * （与 `FreshNavBar` 的 `progress` 同一套路），才拿得到逐帧更新。
+     * 默认 null = 不位移（二级页 / Preview 一律零改动）。
+     */
+    tabProgress: State<Float>? = null,
+    titleShiftDp: (progress: Float) -> Float = { 0f },
     onBack: (() -> Unit)? = null,
     /** §5.2 CR-20 ①：主页面「切换设备」——打开设备列表面板浮层。 */
     onDevicesClick: (() -> Unit)? = null,
@@ -203,6 +217,17 @@ fun AppHeader(
     onSettingsClick: (() -> Unit)? = null
 ) {
     val palette = LocalFreshPalette.current
+    // CR-23：标题位移按连续进度**每帧求值**。不能只写进 `graphicsLayer {}` 就算数——
+    // 那个块只在本节点重绘时才跑，而 Header 不随 Pager 滚动重绘，位移会一直停在首帧的 0
+    // （真机 PTS 抽帧实测：标题左边缘全程齐平，36dp≈122px 完全没动）。
+    // 改成与 `FreshNavBar` 的 `progress` 同一套路：在**组合期**读 `State<Float>`，
+    // 于是每帧重组 AppHeader 一小段（不惊动整棵 `AppNav`），`graphicsLayer` 再把值画出去。
+    val titleShiftPx = with(LocalDensity.current) {
+        (tabProgress?.let { titleShiftDp(it.value) } ?: 0f).dp.toPx()
+    }
+    if (kotlin.math.abs(titleShiftPx) > 2f) {
+        android.util.Log.d("TabNav", "titleShiftPx=${titleShiftPx}")
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -224,6 +249,9 @@ fun AppHeader(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = if (onBack != null) 4.dp else 0.dp)
+                // CR-23：标题块随连续进度轻微位移（落定归 0）。值在上面组合期算好，
+                // 这里只负责画出去（每帧重组时块里的捕获值随之更新）。
+                .graphicsLayer { translationX = titleShiftPx }
         ) {
             Crossfade(
                 targetState = title,

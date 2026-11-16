@@ -89,6 +89,7 @@ import com.screentrace.app.uikit.NavIconKind
 import com.screentrace.app.uikit.NavItem
 import com.screentrace.app.uikit.PageScaffold
 import com.screentrace.app.uikit.ScrollablePage
+import com.screentrace.app.uikit.TabMotion
 import com.screentrace.app.uikit.recordTransformOrigin
 import com.screentrace.app.uikit.rememberReduceMotion
 import java.time.LocalDate
@@ -396,7 +397,7 @@ fun AppNav() {
                 tabGuard.begin(target)
                 try {
                     if (reduceMotion) pagerState.scrollToPage(target)
-                    else pagerState.animateScrollToPage(target)
+                    else pagerState.animateScrollToPage(target, animationSpec = TabMotion.scrollSpec)
                 } finally {
                     if (tabGuard.end(target)) alignRouteToPager(pagerState.currentPage)
                 }
@@ -486,6 +487,24 @@ fun AppNav() {
                                 }
                             )
                         },
+                        // CR-23 ② 标题跟随运动：位移按「程序化滚动的目标页 − 连续进度」算，
+                        // 落定自然归 0，于是标题不再「内容到位后才翻」。只在**程序化滚动**
+                        // （点 tab / 二级页返回的回滚）期间生效——横滑时路由是过半即翻的，
+                        // 套同一条式子会让位移在翻页瞬间跳变（§5.2 CR-23 ②）。
+                        // 「目标页」取 `tabGuard.target`（点 tab 当下就知道）而不是路由当前值：
+                        // 路由要到七成才翻（CR-22），用它会算出反方向的位移。
+                        // lambda 在绘制期求值、读 `navProgress.value`，不引起整棵 AppNav 重组。
+                        tabProgress = navProgress,
+                        titleShiftDp = { progress ->
+                            if (reduceMotion || !tabGuard.programmatic) {
+                                0f
+                            } else {
+                                TabMotion.titleShiftDp(
+                                    target = tabGuard.target.toFloat(),
+                                    progress = progress
+                                )
+                            }
+                        },
                         // §5.2 CR-20 ①：四枚动作**拆回顶栏直出**，各接一个真实动作。
                         // 「选择日期」按 dateScopeFor 判据给（CR-15 B：日历 tab 不参与日期筛选，
                         // 就不给这枚按钮），与 headerActionsFor 同源。
@@ -544,7 +563,23 @@ fun AppNav() {
                         // 二级页盖在上面时禁止横滑，避免在覆盖层底下偷偷翻页
                         userScrollEnabled = detailPage == null
                     ) { index ->
-                        ScrollablePage {
+                        ScrollablePage(
+                            // CR-23 ① 页面景深：按偏移给整页内容轻微缩放 + 淡化，
+                            // 居中页完全清晰、滑出页渐暗渐小——横滑与点 tab 一视同仁，
+                            // 消除「一整块刚性平面」的机械感。
+                            // 红线例外（需求 CR-23 登记）：`graphicsLayer` 是绘制期变换，
+                            // 不重建子树、不重播 `remember { Animatable(0f) }`，不触发
+                            // CR-15 A1-④ / CR-17 ③ 的「闪一帧」立论。
+                            // 进度在绘制期读取，不引起整棵 AppNav 每帧重组。
+                            modifier = Modifier.graphicsLayer {
+                                val offset =
+                                    pagerState.currentPage + pagerState.currentPageOffsetFraction - index
+                                alpha = TabMotion.alphaFor(offset)
+                                val s = TabMotion.scaleFor(offset)
+                                scaleX = s
+                                scaleY = s
+                            }
+                        ) {
                             when (MAIN_PAGES[index]) {
                                 AppPage.Today -> TodayScreen(
                                     state = todayState,
@@ -893,7 +928,7 @@ fun AppNav() {
                         tabScope.launch {
                             try {
                                 if (reduceMotion) pagerState.scrollToPage(index)
-                                else pagerState.animateScrollToPage(index)
+                                else pagerState.animateScrollToPage(index, animationSpec = TabMotion.scrollSpec)
                             } finally {
                                 if (tabGuard.end(index)) alignRouteToPager(pagerState.currentPage)
                             }
