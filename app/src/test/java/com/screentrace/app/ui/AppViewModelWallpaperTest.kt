@@ -90,6 +90,35 @@ class AppViewModelWallpaperTest {
     }
 
     @Test
+    fun `裁切参数夹取落盘并可还原默认`() = runTest(dispatcher) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsFile = File(context.cacheDir, "vm-crop-${System.nanoTime()}.preferences_pb")
+        val prefs = PreferenceDataStoreFactory.create { prefsFile }
+        val store = SettingsStore(prefs, "测试机型")
+        store.setWallpaper(WallpaperConfig())
+        try {
+            val vm = AppViewModel(repository = EmptyUsageRepository(), settings = store)
+            advanceUntilIdle()
+
+            // 越界值被夹取后落盘（CR-19 ③）
+            vm.setWallpaperCrop(9f, -3f, 0.4f)
+            val saved = store.wallpaper.first()
+            assertEquals(4f, saved.cropScale, 1e-4f)
+            assertEquals(-1f, saved.cropOffsetX, 1e-4f)
+            assertEquals(0.4f, saved.cropOffsetY, 1e-4f)
+            assertEquals(4f, vm.wallpaperConfig.value.cropScale, 1e-4f)
+
+            vm.resetWallpaperCrop()
+            val reset = store.wallpaper.first()
+            assertEquals(1f, reset.cropScale, 1e-4f)
+            assertEquals(0f, reset.cropOffsetX, 1e-4f)
+            assertEquals(0f, reset.cropOffsetY, 1e-4f)
+        } finally {
+            prefsFile.delete()
+        }
+    }
+
+    @Test
     fun `取消选图不改状态也不提示`() = runTest(dispatcher) {
         val vm = AppViewModel(repository = EmptyUsageRepository())
         advanceUntilIdle()

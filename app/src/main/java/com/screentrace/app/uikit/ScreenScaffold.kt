@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
@@ -42,6 +43,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.screentrace.app.theme.FreshType
+import com.screentrace.app.data.wallpaper.WallpaperCropMath
 import com.screentrace.app.theme.LocalFreshPalette
 import com.screentrace.app.theme.LocalWallpaper
 import com.screentrace.app.theme.ScreenTimeTheme
@@ -86,14 +88,26 @@ fun PageScaffold(
             )
     ) {
         if (wallpaper != null) {
+            // §5.4 CR-19 ③：壁纸改「完整显示 + graphicsLayer 变换」支持裁切；
+            // 旧数据（cropScale=1f）在绘制时自动抬到恰好盖满，观感与原 Crop 一致。
+            val bmpW = wallpaper.bitmap.width.toFloat()
+            val bmpH = wallpaper.bitmap.height.toFloat()
             Image(
                 bitmap = wallpaper.bitmap,
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
                     // API < 31 时 effectiveBlurDp 已钳成 0，这里不会调用 blur（不静默假装生效）
                     .then(if (wallpaper.blurDp > 0f) Modifier.blur(wallpaper.blurDp.dp) else Modifier)
+                    .graphicsLayer {
+                        val geo = WallpaperCropMath.geometry(bmpW, bmpH, size.width, size.height)
+                        val zoom = if (geo != null) maxOf(wallpaper.cropScale, geo.minZoom) else wallpaper.cropScale
+                        scaleX = zoom
+                        scaleY = zoom
+                        translationX = wallpaper.cropOffsetX * size.width
+                        translationY = wallpaper.cropOffsetY * size.height
+                    }
             )
             if (wallpaper.dimAlpha > 0f) {
                 Box(

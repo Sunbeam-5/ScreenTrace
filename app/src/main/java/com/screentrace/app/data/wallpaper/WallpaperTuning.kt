@@ -10,7 +10,12 @@ data class WallpaperConfig(
     val enabled: Boolean = false,
     val dimPercent: Int = DEFAULT_DIM,
     val blurDp: Int = 0,
-    val brightness: Int = 128
+    val brightness: Int = 128,
+    /** CR-19 ③：裁切缩放（相对「完整显示」的倍数）；1.0 时绘制端自动抬到恰好盖满。 */
+    val cropScale: Float = 1f,
+    /** CR-19 ③：归一化平移（相对屏幕宽高），旧数据缺省即等比盖满居中。 */
+    val cropOffsetX: Float = 0f,
+    val cropOffsetY: Float = 0f
 ) {
     companion object {
         const val DEFAULT_DIM = 30
@@ -30,6 +35,20 @@ object WallpaperTuning {
     fun clampDim(value: Int): Int = value.coerceIn(DIM_MIN, DIM_MAX)
     fun clampBlur(value: Int): Int = value.coerceIn(BLUR_MIN, BLUR_MAX)
     fun clampBrightness(value: Int): Int = value.coerceIn(0, 255)
+
+    // ---- CR-19 ②/③：半透明与裁切 ----
+
+    /** 卡片底色保留的不透明度：浅色 92%、深色 88%（§5.4 卡片半透明条款）。 */
+    fun cardAlpha(darkTheme: Boolean): Float = if (darkTheme) 0.88f else 0.92f
+
+    /** 半透明卡片对应的遮罩加深量，保住文字对比度。 */
+    fun translucentCardBoost(darkTheme: Boolean): Float = if (darkTheme) 0.10f else 0.12f
+
+    fun clampCropScale(value: Float): Float =
+        if (value.isNaN()) 1f else value.coerceIn(1f, WallpaperCropMath.ZOOM_MAX)
+
+    fun clampCropOffset(value: Float): Float =
+        if (value.isNaN()) 0f else value.coerceIn(-1f, 1f)
 
     /**
      * `BitmapFactory.Options.inSampleSize`：取 2 的幂，保证解码后长边 ≤ [MAX_EDGE]。
@@ -63,14 +82,24 @@ object WallpaperTuning {
      * 主题底色不透明度：浅色主题遇到暗壁纸要多叠白，深色主题遇到亮壁纸要多叠黑，
      * 始终保留一层 0.15 的兜底，保证 §5.4 正文 ≥4.5:1 的对比度红线。
      */
-    fun themeScrimAlpha(brightness: Int, darkTheme: Boolean): Float {
+    fun themeScrimAlpha(
+        brightness: Int,
+        darkTheme: Boolean,
+        /** CR-19 ②：卡片半透明时自动加深，把文字压回对比度红线之上。 */
+        cardTranslucent: Boolean = false
+    ): Float {
         val b = clampBrightness(brightness)
         val auto = if (darkTheme) {
             (b - 96).coerceAtLeast(0) / 159f
         } else {
             (128 - b).coerceAtLeast(0) / 128f
         }
-        return (0.15f + auto * 0.40f).coerceIn(0.15f, 0.55f)
+        val base = (0.15f + auto * 0.40f).coerceIn(0.15f, 0.55f)
+        return if (cardTranslucent) {
+            (base + translucentCardBoost(darkTheme)).coerceIn(0.15f, 0.75f)
+        } else {
+            base
+        }
     }
 
     /** 遮罩后实际背景亮度（0–255）：先给壁纸压暗，再与主题底色混合。 */

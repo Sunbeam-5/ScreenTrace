@@ -7,6 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -104,6 +106,8 @@ fun SettingsScreen(
     dynamicColor: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
     /** §5.4 批 E：自定义壁纸（全部给默认值，Preview / 单测零改动）。 */
+    /** 当前壁纸位图（预览缩略图用；null = 未设置）。 */
+    wallpaperBitmap: androidx.compose.ui.graphics.ImageBitmap? = null,
     wallpaperConfig: WallpaperConfig = WallpaperConfig(),
     wallpaperMessage: String? = null,
     blurSupported: Boolean = false,
@@ -112,6 +116,7 @@ fun SettingsScreen(
     onWallpaperBlurChange: suspend (Int) -> Unit = {},
     onClearWallpaper: () -> Unit = {},
     onConsumeWallpaperMessage: () -> Unit = {},
+    onOpenWallpaperEditor: () -> Unit = {},
     lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN,
     onLowThresholdChange: (Int) -> Unit = {},
     appVersion: String,
@@ -207,7 +212,9 @@ fun SettingsScreen(
         onWallpaperDimChange = onWallpaperDimChange,
         onWallpaperBlurChange = onWallpaperBlurChange,
         onClearWallpaper = onClearWallpaper,
-        onConsumeWallpaperMessage = onConsumeWallpaperMessage
+        onConsumeWallpaperMessage = onConsumeWallpaperMessage,
+        wallpaperBitmap = wallpaperBitmap,
+        onOpenWallpaperEditor = onOpenWallpaperEditor
     )
 
     AboutGroup(coverage = coverage, appVersion = appVersion)
@@ -588,6 +595,7 @@ private fun AppearanceGroup(
     onDarkThemeChange: (Boolean) -> Unit,
     dynamicColor: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
+    wallpaperBitmap: androidx.compose.ui.graphics.ImageBitmap?,
     wallpaperConfig: WallpaperConfig,
     wallpaperMessage: String?,
     blurSupported: Boolean,
@@ -595,7 +603,8 @@ private fun AppearanceGroup(
     onWallpaperDimChange: suspend (Int) -> Unit,
     onWallpaperBlurChange: suspend (Int) -> Unit,
     onClearWallpaper: () -> Unit,
-    onConsumeWallpaperMessage: () -> Unit
+    onConsumeWallpaperMessage: () -> Unit,
+    onOpenWallpaperEditor: () -> Unit
 ) {
     val palette = LocalFreshPalette.current
     val scope = rememberCoroutineScope()
@@ -657,6 +666,24 @@ private fun AppearanceGroup(
                 enabled = wallpaperConfig.enabled,
                 onClick = onClearWallpaper,
                 modifier = Modifier.weight(1f)
+            )
+        }
+        // §5.4 CR-19 ②：当前壁纸缩略预览（启用时才显示）
+        if (wallpaperBitmap != null && wallpaperConfig.enabled) {
+            Image(
+                bitmap = wallpaperBitmap,
+                contentDescription = "当前壁纸预览",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(72.dp)
+                    .clip(RoundedCornerShape(18.dp))
+            )
+            SecondaryButton(
+                text = "调整裁切",
+                enabled = wallpaperConfig.enabled,
+                onClick = onOpenWallpaperEditor,
+                modifier = Modifier.fillMaxWidth()
             )
         }
         Text(

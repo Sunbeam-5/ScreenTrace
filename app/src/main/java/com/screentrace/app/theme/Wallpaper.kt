@@ -14,7 +14,11 @@ data class WallpaperState(
     val bitmap: ImageBitmap,
     val dimAlpha: Float,
     val themeScrimAlpha: Float,
-    val blurDp: Float
+    val blurDp: Float,
+    /** CR-19 ③：裁切变换（相对「完整显示」的缩放与归一化平移）。 */
+    val cropScale: Float = 1f,
+    val cropOffsetX: Float = 0f,
+    val cropOffsetY: Float = 0f
 )
 
 val LocalWallpaper = staticCompositionLocalOf<WallpaperState?> { null }

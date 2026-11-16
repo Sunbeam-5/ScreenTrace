@@ -32,6 +32,7 @@ import com.screentrace.app.data.pull.PullCoordinator
 import com.screentrace.app.data.pull.PullOutcome
 import com.screentrace.app.data.pull.ProviderStatus
 import com.screentrace.app.data.wallpaper.WallpaperConfig
+import com.screentrace.app.data.wallpaper.WallpaperTuning
 import com.screentrace.app.data.wallpaper.WallpaperStore
 import com.screentrace.app.theme.ThemeVariant
 import kotlinx.coroutines.CancellationException
@@ -993,6 +994,24 @@ class AppViewModel(
             runCatching { wallpaperStore?.clear() } // 只是删一个私有小文件，同步即可
             runCatching { settings?.clearWallpaper() }
         }
+    }
+
+    /** §5.4 CR-19 ③：保存裁切（归一化偏移），挂起写盘。 */
+    suspend fun setWallpaperCrop(scale: Float, offsetX: Float, offsetY: Float) {
+        val next = _wallpaperConfig.value.copy(
+            cropScale = WallpaperTuning.clampCropScale(scale),
+            cropOffsetX = WallpaperTuning.clampCropOffset(offsetX),
+            cropOffsetY = WallpaperTuning.clampCropOffset(offsetY)
+        )
+        _wallpaperConfig.value = next
+        runCatching { settings?.setWallpaper(next) }
+    }
+
+    /** 还原默认裁切：等比盖满居中（绘制端对 1.0 自动抬升，与旧数据观感一致）。 */
+    suspend fun resetWallpaperCrop() {
+        val next = _wallpaperConfig.value.copy(cropScale = 1f, cropOffsetX = 0f, cropOffsetY = 0f)
+        _wallpaperConfig.value = next
+        runCatching { settings?.setWallpaper(next) }
     }
 
     /** §5.10 批 C：昵称只存本机 DataStore；空串回落机型默认值。挂起写盘，调用方等得到结果。 */

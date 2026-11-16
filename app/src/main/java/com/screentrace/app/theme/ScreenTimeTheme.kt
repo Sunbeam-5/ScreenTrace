@@ -1,5 +1,6 @@
 package com.screentrace.app.theme
 
+import com.screentrace.app.data.wallpaper.WallpaperTuning
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -202,15 +203,28 @@ fun ScreenTimeTheme(
     val palette = customSeed
         ?.let { seed -> remember(seed, darkTheme) { PaletteEngine.paletteFromSeed(seed, darkTheme) } }
         ?: variant.palette(darkTheme)
+    // §5.4 CR-19 ②：启用壁纸时把 surface 类卡底降不透明度，让壁纸透出来；
+    // 文字对比度由 WallpaperTuning.themeScrimAlpha 的半透明补偿兼顾。无壁纸时完全不变。
+    val effectivePalette = if (wallpaper != null) {
+        val cardAlpha = WallpaperTuning.cardAlpha(darkTheme)
+        palette.copy(
+            surface = palette.surface.copy(alpha = cardAlpha),
+            surfaceVariant = palette.surfaceVariant.copy(alpha = cardAlpha),
+            secondaryContainer = palette.secondaryContainer.copy(alpha = cardAlpha),
+            primaryContainer = palette.primaryContainer.copy(alpha = cardAlpha)
+        )
+    } else {
+        palette
+    }
     val useDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme = when {
         useDynamic && darkTheme -> dynamicDarkColorScheme(context)
         useDynamic -> dynamicLightColorScheme(context)
-        else -> palette.toColorScheme(darkTheme)
+        else -> effectivePalette.toColorScheme(darkTheme)
     }
 
     CompositionLocalProvider(
-        LocalFreshPalette provides palette,
+        LocalFreshPalette provides effectivePalette,
         LocalWallpaper provides wallpaper
     ) {
         MaterialTheme(

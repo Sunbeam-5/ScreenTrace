@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -159,7 +160,10 @@ class SettingsStore(
                 prefs[WALLPAPER_DIM] ?: WallpaperConfig.DEFAULT_DIM
             ),
             blurDp = WallpaperTuning.clampBlur(prefs[WALLPAPER_BLUR] ?: 0),
-            brightness = WallpaperTuning.clampBrightness(prefs[WALLPAPER_BRIGHTNESS] ?: 128)
+            brightness = WallpaperTuning.clampBrightness(prefs[WALLPAPER_BRIGHTNESS] ?: 128),
+            cropScale = WallpaperTuning.clampCropScale(prefs[WALLPAPER_CROP_SCALE] ?: 1f),
+            cropOffsetX = WallpaperTuning.clampCropOffset(prefs[WALLPAPER_CROP_TX] ?: 0f),
+            cropOffsetY = WallpaperTuning.clampCropOffset(prefs[WALLPAPER_CROP_TY] ?: 0f)
         )
     }
 
@@ -168,6 +172,9 @@ class SettingsStore(
         prefs[WALLPAPER_DIM] = WallpaperTuning.clampDim(config.dimPercent)
         prefs[WALLPAPER_BLUR] = WallpaperTuning.clampBlur(config.blurDp)
         prefs[WALLPAPER_BRIGHTNESS] = WallpaperTuning.clampBrightness(config.brightness)
+        prefs[WALLPAPER_CROP_SCALE] = WallpaperTuning.clampCropScale(config.cropScale)
+        prefs[WALLPAPER_CROP_TX] = WallpaperTuning.clampCropOffset(config.cropOffsetX)
+        prefs[WALLPAPER_CROP_TY] = WallpaperTuning.clampCropOffset(config.cropOffsetY)
     }
 
     /** 恢复默认：清参数；图片文件由 WallpaperStore.clear() 单独删。 */
@@ -176,6 +183,9 @@ class SettingsStore(
         prefs.remove(WALLPAPER_DIM)
         prefs.remove(WALLPAPER_BLUR)
         prefs.remove(WALLPAPER_BRIGHTNESS)
+        prefs.remove(WALLPAPER_CROP_SCALE)
+        prefs.remove(WALLPAPER_CROP_TX)
+        prefs.remove(WALLPAPER_CROP_TY)
     }
 
     // ---- 批 8b：云同步非机密配置与状态（§5.10；密码/令牌在 SyncCredentials）----
@@ -236,6 +246,9 @@ class SettingsStore(
         private val WALLPAPER_DIM = intPreferencesKey("wallpaper_dim")
         private val WALLPAPER_BLUR = intPreferencesKey("wallpaper_blur")
         private val WALLPAPER_BRIGHTNESS = intPreferencesKey("wallpaper_brightness")
+        private val WALLPAPER_CROP_SCALE = floatPreferencesKey("wallpaper_crop_scale")
+        private val WALLPAPER_CROP_TX = floatPreferencesKey("wallpaper_crop_tx")
+        private val WALLPAPER_CROP_TY = floatPreferencesKey("wallpaper_crop_ty")
     }
 }
 

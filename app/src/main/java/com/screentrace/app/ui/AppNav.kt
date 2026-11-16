@@ -163,10 +163,14 @@ fun AppNav() {
             WallpaperState(
                 bitmap = bmp,
                 dimAlpha = WallpaperTuning.dimAlpha(wallpaperConfig.dimPercent),
+                // CR-19 ②：壁纸启用即卡片半透明，遮罩按 cardTranslucent 加深
                 themeScrimAlpha = WallpaperTuning.themeScrimAlpha(
-                    wallpaperConfig.brightness, darkTheme
+                    wallpaperConfig.brightness, darkTheme, cardTranslucent = true
                 ),
-                blurDp = WallpaperTuning.effectiveBlurDp(wallpaperConfig.blurDp, Build.VERSION.SDK_INT)
+                blurDp = WallpaperTuning.effectiveBlurDp(wallpaperConfig.blurDp, Build.VERSION.SDK_INT),
+                cropScale = wallpaperConfig.cropScale,
+                cropOffsetX = wallpaperConfig.cropOffsetX,
+                cropOffsetY = wallpaperConfig.cropOffsetY
             )
         }
     }
@@ -255,6 +259,8 @@ fun AppNav() {
     var showQuickMenuDevices by rememberSaveable { mutableStateOf(false) }
     /** 主页面 AppHeader 底边的窗口 y，用来把面板贴在设置按钮正下方。 */
     var headerBottomPx by remember { mutableStateOf(0f) }
+    // §5.4 CR-19 ②：壁纸裁切编辑浮层（从设置页壁纸卡片进入）
+    var showWallpaperEditor by rememberSaveable { mutableStateOf(false) }
 
     // §5.5 / §7-22：二级页容器变换的起点（最近一次在主页面层按下的位置）。
     // 进入与退出共用同一起点，所以「返回手势」和「返回按钮」缩回的是同一个地方。
@@ -402,7 +408,7 @@ fun AppNav() {
                         WallpaperTuning.effectiveBrightness(
                             wallpaperConfig.brightness,
                             WallpaperTuning.dimAlpha(wallpaperConfig.dimPercent),
-                            WallpaperTuning.themeScrimAlpha(wallpaperConfig.brightness, darkTheme),
+                            WallpaperTuning.themeScrimAlpha(wallpaperConfig.brightness, darkTheme, cardTranslucent = true),
                             darkTheme
                         )
                     )
@@ -419,6 +425,7 @@ fun AppNav() {
         BackHandler(enabled = showQuickMenu) {
             if (showQuickMenuDevices) showQuickMenuDevices = false else showQuickMenu = false
         }
+        BackHandler(enabled = showWallpaperEditor) { showWallpaperEditor = false }
 
         Box(
             Modifier
@@ -693,8 +700,10 @@ fun AppNav() {
                                     onDarkThemeChange = viewModel::setDarkTheme,
                                     dynamicColor = dynamicColor,
                                     onDynamicColorChange = viewModel::setDynamicColor,
+                                    wallpaperBitmap = wallpaperBitmap,
                                     wallpaperConfig = wallpaperConfig,
                                     wallpaperMessage = wallpaperMessage,
+                                    onOpenWallpaperEditor = { showWallpaperEditor = true },
                                     blurSupported = WallpaperTuning.blurSupported(Build.VERSION.SDK_INT),
                                     onWallpaperPicked = viewModel::onWallpaperPicked,
                                     onWallpaperDimChange = { v -> viewModel.setWallpaperDim(v) },
@@ -883,6 +892,25 @@ fun AppNav() {
                 onListDevices = { viewModel.listCloudDevices() },
                 onInspectDevice = { id -> viewModel.inspectCloudDevice(id) }
             )
+
+            // ---- §5.4 CR-19 ②：壁纸裁切编辑（全屏，盖住一切含下拉面板）----
+            if (showWallpaperEditor && wallpaperState != null) {
+                WallpaperEditorScreen(
+                    bitmap = wallpaperState.bitmap,
+                    initialScale = wallpaperConfig.cropScale,
+                    initialOffsetX = wallpaperConfig.cropOffsetX,
+                    initialOffsetY = wallpaperConfig.cropOffsetY,
+                    onApply = { zoom, tx, ty ->
+                        tabScope.launch { viewModel.setWallpaperCrop(zoom, tx, ty) }
+                        showWallpaperEditor = false
+                    },
+                    onReset = {
+                        tabScope.launch { viewModel.resetWallpaperCrop() }
+                        showWallpaperEditor = false
+                    },
+                    onDismiss = { showWallpaperEditor = false }
+                )
+            }
         }
 
         if (showDateSheet) {
@@ -1076,13 +1104,9 @@ private fun QuickMenuOverlay(
     onListDevices: suspend () -> SyncManager.DevicesResult,
     onInspectDevice: suspend (String) -> SyncManager.DownloadedBackup
 ) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = if (reduceMotion) EnterTransition.None else fadeIn(tween(120)),
-        exit = if (reduceMotion) ExitTransition.None else fadeOut(tween(100))
-    ) {
-        Box(Modifier.fillMaxSize()) {
-            // 点外部收起：不加 ripple，避免整屏出现按压水波
+    Box(Modifier.fillMaxSize()) {
+        // 点外部收起：不加 ripple，避免整屏出现按压水波；透明层无动画，随 visible 立即出现/消失
+        if (visible) {
             Box(
                 Modifier
                     .fillMaxSize()
@@ -1092,23 +1116,31 @@ private fun QuickMenuOverlay(
                         onClick = onDismiss
                     )
             )
-            if (headerBottomPx > 0f) {
-                CompositionLocalProvider(LocalContainerTransformState provides transformState) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .offset { IntOffset(0, (headerBottomPx - 4.dp.toPx()).toInt()) }
-                            .padding(horizontal = 20.dp)
-                    ) {
-                        if (showDevices) {
-                            DeviceQuickMenuPanel(
-                                onBack = onBackToActions,
-                                onListDevices = onListDevices,
-                                onInspectDevice = onInspectDevice
-                            )
-                        } else {
-                            QuickMenuPanel(actions = actions, onAction = onAction)
-                        }
+        }
+        // CR-19 ①：面板纵向展开 + 淡入（负责人反馈纯淡入太快「看不到过渡」）。
+        // 展开动画只作用在面板自身；收起动画期间点击层已移除，不再拦截点击。
+        AnimatedVisibility(
+            visible = visible && headerBottomPx > 0f,
+            enter = if (reduceMotion) EnterTransition.None
+            else expandVertically(tween(200), expandFrom = Alignment.Top) + fadeIn(tween(200)),
+            exit = if (reduceMotion) ExitTransition.None
+            else shrinkVertically(tween(160), shrinkTowards = Alignment.Top) + fadeOut(tween(120)),
+            modifier = Modifier.align(Alignment.TopEnd)
+        ) {
+            CompositionLocalProvider(LocalContainerTransformState provides transformState) {
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset(0, (headerBottomPx - 4.dp.toPx()).toInt()) }
+                        .padding(horizontal = 20.dp)
+                ) {
+                    if (showDevices) {
+                        DeviceQuickMenuPanel(
+                            onBack = onBackToActions,
+                            onListDevices = onListDevices,
+                            onInspectDevice = onInspectDevice
+                        )
+                    } else {
+                        QuickMenuPanel(actions = actions, onAction = onAction)
                     }
                 }
             }

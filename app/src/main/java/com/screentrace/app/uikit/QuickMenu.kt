@@ -3,7 +3,7 @@ package com.screentrace.app.uikit
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,7 +37,8 @@ enum class QuickMenuAction(val description: String) {
 }
 
 /**
- * 一行横排、无文字的圆按钮面板（负责人 20:05 裁定）。
+ * 纵向一列、无文字的圆按钮面板（负责人 CR-19 ①：从批 D 的一行横排改为竖排，
+ * 原因是「现在是横着的」）。
  *
  * 四枚按钮复用 [HeaderActionButton]：同一套 40dp 圆 / 48dp 点击区 / contentDescription，
  * 并自带 `transformSource`——调用方给本面板下发 `LocalContainerTransformState` 后，
@@ -50,7 +51,7 @@ fun QuickMenuPanel(
     modifier: Modifier = Modifier
 ) {
     val palette = LocalFreshPalette.current
-    Row(
+    Column(
         modifier = modifier
             .shadow(
                 elevation = if (palette.darkTheme) 0.dp else 8.dp,
@@ -61,8 +62,8 @@ fun QuickMenuPanel(
             .clip(RoundedCornerShape(28.dp))
             .background(palette.surface)
             .padding(horizontal = 10.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         actions.forEach { action ->
             HeaderActionButton(
