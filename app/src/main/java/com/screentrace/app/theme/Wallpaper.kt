@@ -2,6 +2,7 @@ package com.screentrace.app.theme
 
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.ImageBitmap
+import com.screentrace.app.data.wallpaper.WallpaperColorScope
 
 /**
  * §5.4 批 E：全 App 单份壁纸位图 + 已经算好的遮罩参数。
@@ -18,7 +19,11 @@ data class WallpaperState(
     /** CR-19 ③：裁切变换（相对「完整显示」的缩放与归一化平移）。 */
     val cropScale: Float = 1f,
     val cropOffsetX: Float = 0f,
-    val cropOffsetY: Float = 0f
+    val cropOffsetY: Float = 0f,
+    /** CR-20 ②：壁纸主色（ARGB），卡片底色按它派生；0 = 未取色（退化成中性灰）。 */
+    val seedColor: Int = 0,
+    /** CR-20 ②：哪些颜色跟随壁纸——两套方案。 */
+    val colorScope: WallpaperColorScope = WallpaperColorScope.CARDS_ONLY
 )
 
 val LocalWallpaper = staticCompositionLocalOf<WallpaperState?> { null }

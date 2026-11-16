@@ -76,7 +76,8 @@ fun ThemeSeedSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = palette.surface
+        // CR-20 ③：弹层底色不透明（壁纸模式下卡片会变透明，弹层跟着透明会叠字）
+        containerColor = palette.panelSurface
     ) {
         Column(
             modifier = Modifier

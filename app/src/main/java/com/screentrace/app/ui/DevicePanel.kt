@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,15 +40,19 @@ import com.screentrace.app.theme.LocalFreshPalette
 import kotlinx.coroutines.launch
 
 /**
- * §5.2 批 D：下拉面板内的「切换设备」轻量面板（负责人 20:05 裁定）。
+ * §5.2 CR-20 ①：顶栏「切换设备」点开的**设备列表面板**浮层。
  *
- * 不是新页面、不写路由：只是同一浮层里把四枚按钮换成设备列表，带返回回四宫格。
+ * 不是新页面、不写路由：只是顶栏下方浮出一块面板，列出各设备并按需展开只读摘要。
  * 数据来源是批 C 的两个只读 API——**只在面板被点开时**发一次网络请求（`LaunchedEffect(Unit)`），
  * 之后点设备才下载摘要；不写本机采集库、不自动合并、不提供跨设备恢复入口。
+ *
+ * 批 D 时期它是下拉面板里的第二层（带「返回快捷菜单」箭头）；CR-20 把动作拆回顶栏后
+ * 面板升为顶层浮层，**不再有上一层可返回**，改为标题行右侧的关闭按钮；
+ * 点面板外部或系统返回键同样收起。
  */
 @Composable
-fun DeviceQuickMenuPanel(
-    onBack: () -> Unit,
+fun DevicePanel(
+    onClose: () -> Unit,
     onListDevices: suspend () -> SyncManager.DevicesResult,
     onInspectDevice: suspend (String) -> SyncManager.DownloadedBackup,
     modifier: Modifier = Modifier
@@ -83,35 +87,39 @@ fun DeviceQuickMenuPanel(
                 spotColor = palette.shadow
             )
             .clip(RoundedCornerShape(28.dp))
-            .background(palette.surface)
+            // CR-20 ③：浮层底色用不透明的 panelSurface（否则壁纸透上来会与文字叠字）
+            .background(palette.panelSurface)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "切换设备",
+                style = FreshType.body,
+                color = palette.onSurface,
+                modifier = Modifier.weight(1f)
+            )
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
                     .semantics {
-                        contentDescription = "返回快捷菜单"
+                        contentDescription = "关闭设备面板"
                         role = Role.Button
                     }
-                    .clickable(onClick = onBack),
+                    .clickable(onClick = onClose),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    imageVector = Icons.Default.Close,
                     contentDescription = null,
                     tint = palette.onSurface,
                     modifier = Modifier.size(20.dp)
                 )
             }
-            Text(
-                text = "切换设备",
-                style = FreshType.body,
-                color = palette.onSurface,
-                modifier = Modifier.padding(start = 4.dp)
-            )
         }
 
         when {

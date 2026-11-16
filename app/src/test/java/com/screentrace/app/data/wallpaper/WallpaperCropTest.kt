@@ -86,7 +86,8 @@ class WallpaperCropTest {
         val baseD = WallpaperTuning.themeScrimAlpha(128, darkTheme = true)
         val boostD = WallpaperTuning.themeScrimAlpha(128, darkTheme = true, cardTranslucent = true)
         assertTrue(boostD > baseD)
-        assertEquals(0.92f, WallpaperTuning.cardAlpha(false), 1e-4f)
-        assertEquals(0.88f, WallpaperTuning.cardAlpha(true), 1e-4f)
+        // CR-20 ②：卡片透明度大幅下调（CR-19 ② 的 92%/88% 几乎不透，壁纸被挡完）
+        assertEquals(0.60f, WallpaperTuning.cardAlpha(false), 1e-4f)
+        assertEquals(0.55f, WallpaperTuning.cardAlpha(true), 1e-4f)
     }
 }

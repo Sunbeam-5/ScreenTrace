@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.screentrace.app.contract.AppCategory
 import com.screentrace.app.contract.DEFAULT_LOW_THRESHOLD_MIN
+import com.screentrace.app.data.wallpaper.WallpaperColorScope
 import com.screentrace.app.data.wallpaper.WallpaperConfig
 import com.screentrace.app.data.wallpaper.WallpaperTuning
 import com.screentrace.app.theme.ThemeVariant
@@ -163,9 +164,16 @@ class SettingsStore(
             brightness = WallpaperTuning.clampBrightness(prefs[WALLPAPER_BRIGHTNESS] ?: 128),
             cropScale = WallpaperTuning.clampCropScale(prefs[WALLPAPER_CROP_SCALE] ?: 1f),
             cropOffsetX = WallpaperTuning.clampCropOffset(prefs[WALLPAPER_CROP_TX] ?: 0f),
-            cropOffsetY = WallpaperTuning.clampCropOffset(prefs[WALLPAPER_CROP_TY] ?: 0f)
+            cropOffsetY = WallpaperTuning.clampCropOffset(prefs[WALLPAPER_CROP_TY] ?: 0f),
+            // CR-20 ②：壁纸主色与配色范围（都不进备份）
+            seedColor = prefs[WALLPAPER_SEED] ?: 0,
+            colorScope = wallpaperScope(prefs[WALLPAPER_COLOR_SCOPE])
         )
     }
+
+    /** 配色范围的持久化字符串 → 枚举；不认识的值回落「仅卡片」。 */
+    private fun wallpaperScope(raw: String?): WallpaperColorScope =
+        WallpaperColorScope.values().firstOrNull { it.name == raw } ?: WallpaperColorScope.CARDS_ONLY
 
     suspend fun setWallpaper(config: WallpaperConfig) = dataStore.edit { prefs ->
         prefs[WALLPAPER_ENABLED] = config.enabled
@@ -175,6 +183,9 @@ class SettingsStore(
         prefs[WALLPAPER_CROP_SCALE] = WallpaperTuning.clampCropScale(config.cropScale)
         prefs[WALLPAPER_CROP_TX] = WallpaperTuning.clampCropOffset(config.cropOffsetX)
         prefs[WALLPAPER_CROP_TY] = WallpaperTuning.clampCropOffset(config.cropOffsetY)
+        // CR-20 ②
+        prefs[WALLPAPER_SEED] = config.seedColor
+        prefs[WALLPAPER_COLOR_SCOPE] = config.colorScope.name
     }
 
     /** 恢复默认：清参数；图片文件由 WallpaperStore.clear() 单独删。 */
@@ -186,6 +197,9 @@ class SettingsStore(
         prefs.remove(WALLPAPER_CROP_SCALE)
         prefs.remove(WALLPAPER_CROP_TX)
         prefs.remove(WALLPAPER_CROP_TY)
+        // CR-20 ②
+        prefs.remove(WALLPAPER_SEED)
+        prefs.remove(WALLPAPER_COLOR_SCOPE)
     }
 
     // ---- 批 8b：云同步非机密配置与状态（§5.10；密码/令牌在 SyncCredentials）----
@@ -249,6 +263,9 @@ class SettingsStore(
         private val WALLPAPER_CROP_SCALE = floatPreferencesKey("wallpaper_crop_scale")
         private val WALLPAPER_CROP_TX = floatPreferencesKey("wallpaper_crop_tx")
         private val WALLPAPER_CROP_TY = floatPreferencesKey("wallpaper_crop_ty")
+        // CR-20 ②：壁纸主色与配色范围（不 JSON 备份）
+        private val WALLPAPER_SEED = intPreferencesKey("wallpaper_seed")
+        private val WALLPAPER_COLOR_SCOPE = stringPreferencesKey("wallpaper_color_scope")
     }
 }
 

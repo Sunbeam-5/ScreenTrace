@@ -31,6 +31,7 @@ import com.screentrace.app.data.pull.PullChannel
 import com.screentrace.app.data.pull.PullCoordinator
 import com.screentrace.app.data.pull.PullOutcome
 import com.screentrace.app.data.pull.ProviderStatus
+import com.screentrace.app.data.wallpaper.WallpaperColorScope
 import com.screentrace.app.data.wallpaper.WallpaperConfig
 import com.screentrace.app.data.wallpaper.WallpaperTuning
 import com.screentrace.app.data.wallpaper.WallpaperStore
@@ -949,6 +950,19 @@ class AppViewModel(
                 if (store.exists()) store.loadBitmap()?.asImageBitmap() else null
             }
             _wallpaperBitmap.value = bitmap
+            // CR-20 ②：旧数据没有壁纸主色（选图时才算），这里按当前位图补算一次并落盘，
+            // 免得升级用户的卡片色永远是中性灰。补算只做一次，之后读 DataStore 即可。
+            val current = _wallpaperConfig.value
+            if (bitmap != null && current.enabled && current.seedColor == 0) {
+                val seed = withContext(Dispatchers.IO) {
+                    store.loadBitmap()?.let { store.analyze(it).seedColor }
+                }
+                if (seed != null && seed != 0) {
+                    val next = current.copy(seedColor = seed)
+                    _wallpaperConfig.value = next
+                    runCatching { settings?.setWallpaper(next) }
+                }
+            }
         }
     }
 
@@ -958,15 +972,20 @@ class AppViewModel(
         if (uri == null) return
         val store = wallpaperStore ?: return
         viewModelScope.launch {
-            val brightness = withContext(Dispatchers.IO) { store.save(uri) }
-            if (brightness == null) {
+            val analysis = withContext(Dispatchers.IO) { store.save(uri) }
+            if (analysis == null) {
                 _wallpaperMessage.value = "图片读取失败，已保留原壁纸"
                 return@launch
             }
             _wallpaperBitmap.value = withContext(Dispatchers.IO) {
                 store.loadBitmap()?.asImageBitmap()
             }
-            val next = _wallpaperConfig.value.copy(enabled = true, brightness = brightness)
+            // CR-20 ②：主色与亮度一起落盘（主色决定卡片配色跟着壁纸走）
+            val next = _wallpaperConfig.value.copy(
+                enabled = true,
+                brightness = analysis.brightness,
+                seedColor = analysis.seedColor
+            )
             _wallpaperConfig.value = next
             runCatching { settings?.setWallpaper(next) }
             _wallpaperMessage.value = "壁纸已应用"
@@ -977,6 +996,13 @@ class AppViewModel(
     suspend fun setWallpaperDim(value: Int) = updateWallpaper { it.copy(dimPercent = value) }
 
     suspend fun setWallpaperBlur(value: Int) = updateWallpaper { it.copy(blurDp = value) }
+
+    /**
+     * §5.4 CR-20 ②：壁纸配色范围两套方案（仅卡片 / 整套主题）。
+     * 切这个只换色板，不重新拉取数据、不改筛选、不重置滚动位置。
+     */
+    suspend fun setWallpaperColorScope(scope: WallpaperColorScope) =
+        updateWallpaper { it.copy(colorScope = scope) }
 
     private suspend fun updateWallpaper(change: (WallpaperConfig) -> WallpaperConfig) {
         val next = change(_wallpaperConfig.value)

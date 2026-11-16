@@ -55,6 +55,7 @@ import com.screentrace.app.data.pull.HistoryCoverage
 import com.screentrace.app.data.pull.PullChannel
 import com.screentrace.app.data.pull.ProviderStatus
 import com.screentrace.app.data.pull.ShizukuAuth
+import com.screentrace.app.data.wallpaper.WallpaperColorScope
 import com.screentrace.app.data.wallpaper.WallpaperConfig
 import com.screentrace.app.data.wallpaper.WallpaperTuning
 import com.screentrace.app.theme.FreshType
@@ -63,6 +64,7 @@ import com.screentrace.app.theme.ThemeVariant
 import com.screentrace.app.uikit.NumberWheelSheet
 import com.screentrace.app.uikit.PrimaryButton
 import com.screentrace.app.uikit.SecondaryButton
+import com.screentrace.app.uikit.SegmentedControl
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -114,6 +116,8 @@ fun SettingsScreen(
     onWallpaperPicked: (Uri?) -> Unit = {},
     onWallpaperDimChange: suspend (Int) -> Unit = {},
     onWallpaperBlurChange: suspend (Int) -> Unit = {},
+    /** §5.4 CR-20 ②：壁纸配色范围两套方案（仅卡片 / 整套主题）。 */
+    onWallpaperColorScopeChange: suspend (WallpaperColorScope) -> Unit = {},
     onClearWallpaper: () -> Unit = {},
     onConsumeWallpaperMessage: () -> Unit = {},
     onOpenWallpaperEditor: () -> Unit = {},
@@ -211,6 +215,7 @@ fun SettingsScreen(
         onWallpaperPicked = onWallpaperPicked,
         onWallpaperDimChange = onWallpaperDimChange,
         onWallpaperBlurChange = onWallpaperBlurChange,
+        onWallpaperColorScopeChange = onWallpaperColorScopeChange,
         onClearWallpaper = onClearWallpaper,
         onConsumeWallpaperMessage = onConsumeWallpaperMessage,
         wallpaperBitmap = wallpaperBitmap,
@@ -602,6 +607,7 @@ private fun AppearanceGroup(
     onWallpaperPicked: (Uri?) -> Unit,
     onWallpaperDimChange: suspend (Int) -> Unit,
     onWallpaperBlurChange: suspend (Int) -> Unit,
+    onWallpaperColorScopeChange: suspend (WallpaperColorScope) -> Unit,
     onClearWallpaper: () -> Unit,
     onConsumeWallpaperMessage: () -> Unit,
     onOpenWallpaperEditor: () -> Unit
@@ -716,6 +722,27 @@ private fun AppearanceGroup(
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )
+        // §5.4 CR-20 ②：壁纸配色范围两套方案——负责人要看真机对比，所以做成可切换。
+        // 只在启用壁纸时出现（没壁纸时卡片走原主题色，这个开关没有意义）。
+        if (wallpaperConfig.enabled) {
+            Text(text = "卡片配色", style = FreshType.body, color = palette.onSurface)
+            SegmentedControl(
+                items = WallpaperColorScope.values().map { it.label },
+                selectedIndex = WallpaperColorScope.values().indexOf(wallpaperConfig.colorScope),
+                onSelect = { index ->
+                    scope.launch {
+                        onWallpaperColorScopeChange(WallpaperColorScope.values()[index])
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "「仅卡片」只有卡片底色跟着壁纸走，强调色与图表色仍用当前主题；" +
+                    "「整套主题」连主色、图表色、月历色阶一起跟着壁纸走，风格更统一但图表色更容易和壁纸撞色。",
+                style = FreshType.label,
+                color = palette.onSurfaceVariant
+            )
+        }
         wallpaperMessage?.let { message ->
             Text(text = message, style = FreshType.label, color = palette.primary)
             LaunchedEffect(message) {

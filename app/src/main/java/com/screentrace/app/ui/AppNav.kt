@@ -88,8 +88,6 @@ import com.screentrace.app.uikit.LocalContainerTransformState
 import com.screentrace.app.uikit.NavIconKind
 import com.screentrace.app.uikit.NavItem
 import com.screentrace.app.uikit.PageScaffold
-import com.screentrace.app.uikit.QuickMenuAction
-import com.screentrace.app.uikit.QuickMenuPanel
 import com.screentrace.app.uikit.ScrollablePage
 import com.screentrace.app.uikit.recordTransformOrigin
 import com.screentrace.app.uikit.rememberReduceMotion
@@ -170,7 +168,10 @@ fun AppNav() {
                 blurDp = WallpaperTuning.effectiveBlurDp(wallpaperConfig.blurDp, Build.VERSION.SDK_INT),
                 cropScale = wallpaperConfig.cropScale,
                 cropOffsetX = wallpaperConfig.cropOffsetX,
-                cropOffsetY = wallpaperConfig.cropOffsetY
+                cropOffsetY = wallpaperConfig.cropOffsetY,
+                // CR-20 ②：壁纸主色（卡片配色派生）与配色范围两套方案
+                seedColor = wallpaperConfig.seedColor,
+                colorScope = wallpaperConfig.colorScope
             )
         }
     }
@@ -254,10 +255,9 @@ fun AppNav() {
     var showStyleSheet by rememberSaveable { mutableStateOf(false) }
     // 自定义主题取色器不存实例状态：进程重建后滑杆位置无所谓，种子本身已落 DataStore
     var showCustomThemeSheet by remember { mutableStateOf(false) }
-    // §5.2 批 D：顶栏快捷面板是 AppNav 的局部状态，不写路由 / ViewModel / Pager。
-    var showQuickMenu by rememberSaveable { mutableStateOf(false) }
-    var showQuickMenuDevices by rememberSaveable { mutableStateOf(false) }
-    /** 主页面 AppHeader 底边的窗口 y，用来把面板贴在设置按钮正下方。 */
+    // §5.2 CR-20 ①：设备列表面板是 AppNav 的局部状态，不写路由 / ViewModel / Pager。
+    var showDevicePanel by rememberSaveable { mutableStateOf(false) }
+    /** 主页面 AppHeader 底边的窗口 y，用来把面板贴在顶栏正下方。 */
     var headerBottomPx by remember { mutableStateOf(0f) }
     // §5.4 CR-19 ②：壁纸裁切编辑浮层（从设置页壁纸卡片进入）
     var showWallpaperEditor by rememberSaveable { mutableStateOf(false) }
@@ -371,9 +371,8 @@ fun AppNav() {
             // 页面都换了还挂着一张旧弹层只会让人困惑。返回二级页不受影响（mainPage 未变）。
             showDateSheet = false
             showStyleSheet = false
-            // 批 D：切 tab 时下拉面板属于旧页面上下文，必须先收起（含设备子面板）。
-            showQuickMenu = false
-            showQuickMenuDevices = false
+            // CR-20 ①：切 tab 时设备面板属于旧页面上下文，必须先收起。
+            showDevicePanel = false
             val target = MAIN_PAGES.indexOf(mainPage)
             if (target !in MAIN_PAGES.indices) return@LaunchedEffect
             if (pagerState.currentPage != target) {
@@ -421,10 +420,8 @@ fun AppNav() {
         // 系统返回键 / 全面屏返回手势：二级页必须回到上一层，而不是直接退到桌面。
         // 主页面（今日/统计/日历）不拦截，保持系统默认的「退出应用」。
         BackHandler(enabled = !isRootPage(page)) { viewModel.goBack() }
-        // 批 D：面板打开时系统返回先收面板（设备子面板则先退回四宫格），不直接退到桌面。
-        BackHandler(enabled = showQuickMenu) {
-            if (showQuickMenuDevices) showQuickMenuDevices = false else showQuickMenu = false
-        }
+        // CR-20 ①：设备面板打开时系统返回先收面板，不直接退到桌面。
+        BackHandler(enabled = showDevicePanel) { showDevicePanel = false }
         BackHandler(enabled = showWallpaperEditor) { showWallpaperEditor = false }
 
         Box(
@@ -463,13 +460,21 @@ fun AppNav() {
                                 }
                             )
                         },
-                        // §5.2 批 D：主页面只留一枚设置圆按钮，四枚动作移入下拉面板。
-                        // 日历 tab 的按钮集合由 quickMenuActionsFor 去掉「选择日期」（CR-15 B 同源）。
-                        onMenuClick = {
-                            showQuickMenuDevices = false
-                            showQuickMenu = !showQuickMenu
+                        // §5.2 CR-20 ①：四枚动作**拆回顶栏直出**，各接一个真实动作。
+                        // 「选择日期」按 dateScopeFor 判据给（CR-15 B：日历 tab 不参与日期筛选，
+                        // 就不给这枚按钮），与 headerActionsFor 同源。
+                        onDevicesClick = { showDevicePanel = !showDevicePanel },
+                        onDateClick = if (dateScopeFor(mainPage) != null) {
+                            {
+                                dateSheetMode = dateSheetModeFor(mainPage).name
+                                showDateSheet = true
+                            }
+                        } else {
+                            null
                         },
-                        menuExpanded = showQuickMenu
+                        onStyleClick = { showStyleSheet = true },
+                        // 设置页走容器变换：这枚按钮自身的 transformSource 就是起点（§5.5）
+                        onSettingsClick = { viewModel.openSettings() }
                     )
                 }
             ) {
@@ -708,6 +713,7 @@ fun AppNav() {
                                     onWallpaperPicked = viewModel::onWallpaperPicked,
                                     onWallpaperDimChange = { v -> viewModel.setWallpaperDim(v) },
                                     onWallpaperBlurChange = { v -> viewModel.setWallpaperBlur(v) },
+                                    onWallpaperColorScopeChange = { s -> viewModel.setWallpaperColorScope(s) },
                                     onClearWallpaper = viewModel::clearWallpaper,
                                     onConsumeWallpaperMessage = viewModel::consumeWallpaperMessage,
                                     lowThresholdMin = lowThresholdMin,
@@ -860,35 +866,12 @@ fun AppNav() {
                 )
             }
 
-            // ---- §5.2 批 D：顶栏快捷面板（最上层，盖住导航胶囊与提示条）----
-            QuickMenuOverlay(
-                visible = showQuickMenu,
+            // ---- §5.2 CR-20 ①：设备列表面板浮层（最上层，盖住导航胶囊与提示条）----
+            DevicePanelOverlay(
+                visible = showDevicePanel,
                 headerBottomPx = headerBottomPx,
                 reduceMotion = reduceMotion,
-                transformState = transformState,
-                actions = quickMenuActionsFor(mainPage),
-                showDevices = showQuickMenuDevices,
-                onDismiss = {
-                    showQuickMenu = false
-                    showQuickMenuDevices = false
-                },
-                onAction = { action ->
-                    // 面板按钮的 transformSource 已在 Initial pass 记下精确矩形，收起面板后
-                    // 容器变换就从它放大（§5.5 批 D 起点重登记）。状态变更由纯函数给出。
-                    val transition = quickMenuTransitionFor(action)
-                    if (transition.closeMenu) {
-                        showQuickMenu = false
-                        showQuickMenuDevices = false
-                    }
-                    if (transition.showDevices) showQuickMenuDevices = true
-                    if (transition.openSettings) viewModel.openSettings()
-                    if (transition.openStyleSheet) showStyleSheet = true
-                    if (transition.openDateSheet) {
-                        dateSheetMode = dateSheetModeFor(mainPage).name
-                        showDateSheet = true
-                    }
-                },
-                onBackToActions = { showQuickMenuDevices = false },
+                onDismiss = { showDevicePanel = false },
                 onListDevices = { viewModel.listCloudDevices() },
                 onInspectDevice = { id -> viewModel.inspectCloudDevice(id) }
             )
@@ -1012,7 +995,8 @@ private fun NoticeBar(
         modifier = Modifier
             .fillMaxWidth()
             .clip(CircleShape)
-            .background(palette.surfaceVariant)
+            // CR-20 ③：提示条叠在内容之上，底色保持不透明
+            .background(palette.panelSurface)
             .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1066,7 +1050,8 @@ private fun PullingBar() {
         modifier = Modifier
             .fillMaxWidth()
             .clip(CircleShape)
-            .background(palette.surfaceVariant)
+            // CR-20 ③：提示条叠在内容之上，底色保持不透明
+            .background(palette.panelSurface)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1079,28 +1064,22 @@ private fun PullingBar() {
 }
 
 /**
- * §5.2 批 D：主页面顶栏的下拉快捷面板。
+ * §5.2 CR-20 ①：顶栏「切换设备」点开的**设备列表面板浮层**。
  *
  * 作为最上层浮层渲染：全屏透明点击层负责「点外部收起」，面板右对齐贴在
  * [headerBottomPx]（AppHeader 底边窗口坐标）下方 4dp，不推挤任何内容。
  *
- * **起点重登记**：面板用 `CompositionLocalProvider` 下发 [ContainerTransformState]，
- * 四枚 `HeaderActionButton` 自带 `transformSource`，于是点「设置」时记下的是面板里
- * 那枚圆按钮的精确矩形，而不是根容器兜底的「按下点 72dp」。
+ * **不下发 `LocalContainerTransformState`**：批 D 时期面板内按钮要登记容器变换起点，
+ * CR-20 把动作拆回顶栏后不再需要——面板里的控件不得被记成转场起点。
  *
  * `headerBottomPx == 0f`（首帧尚未布局）时不画面板，避免闪到屏幕顶部。
  */
 @Composable
-private fun QuickMenuOverlay(
+private fun DevicePanelOverlay(
     visible: Boolean,
     headerBottomPx: Float,
     reduceMotion: Boolean,
-    transformState: ContainerTransformState,
-    actions: List<QuickMenuAction>,
-    showDevices: Boolean,
     onDismiss: () -> Unit,
-    onAction: (QuickMenuAction) -> Unit,
-    onBackToActions: () -> Unit,
     onListDevices: suspend () -> SyncManager.DevicesResult,
     onInspectDevice: suspend (String) -> SyncManager.DownloadedBackup
 ) {
@@ -1127,22 +1106,16 @@ private fun QuickMenuOverlay(
             else shrinkVertically(tween(160), shrinkTowards = Alignment.Top) + fadeOut(tween(120)),
             modifier = Modifier.align(Alignment.TopEnd)
         ) {
-            CompositionLocalProvider(LocalContainerTransformState provides transformState) {
-                Box(
-                    modifier = Modifier
-                        .offset { IntOffset(0, (headerBottomPx - 4.dp.toPx()).toInt()) }
-                        .padding(horizontal = 20.dp)
-                ) {
-                    if (showDevices) {
-                        DeviceQuickMenuPanel(
-                            onBack = onBackToActions,
-                            onListDevices = onListDevices,
-                            onInspectDevice = onInspectDevice
-                        )
-                    } else {
-                        QuickMenuPanel(actions = actions, onAction = onAction)
-                    }
-                }
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(0, (headerBottomPx - 4.dp.toPx()).toInt()) }
+                    .padding(horizontal = 20.dp)
+            ) {
+                DevicePanel(
+                    onClose = onDismiss,
+                    onListDevices = onListDevices,
+                    onInspectDevice = onInspectDevice
+                )
             }
         }
     }

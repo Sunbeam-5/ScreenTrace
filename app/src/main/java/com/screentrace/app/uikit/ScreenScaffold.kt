@@ -179,10 +179,10 @@ fun ScrollablePage(
 }
 
 /**
- * §5.2（CR-15 ③ 批 D）：左标题 + 日期副标题。
- * - **主页面**（传 `onMenuClick`）：右侧只留一枚「设置」圆按钮，点开下拉四宫格；
- *   四枚按钮的绘制与接线在 `QuickMenu.kt` / `AppNav`。
- * - **二级页**（不传 `onMenuClick`）：保持「返回 + 标题 + 可选日期」的旧渲染，
+ * §5.2（CR-15 ③ 批 D → **CR-20 ① 拆回直出**）：左标题 + 日期副标题 + 右侧动作按钮。
+ * - **主页面**：右侧横排**四枚独立圆按钮**（切换设备 / 日期 / 主题 / 设置），
+ *   各接一个真实动作；**日历 tab 三枚**（不渲染「选择日期」，§5.6）。
+ * - **二级页**（排行 / 解锁详情 / 通知详情）：只渲染「返回 + 标题 + 可选日期」，
  *   参数全带默认值，因此二级页与 `@Preview` 调用点零改动。
  * 视觉 40dp、点击区 ≥48dp；主题按钮三色圆点自绘（不引 icons-extended）。
  * 未传入的按钮不渲染——调用方只接线真实可用的动作，避免假按钮（§6）。
@@ -196,12 +196,11 @@ fun AppHeader(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
+    /** §5.2 CR-20 ①：主页面「切换设备」——打开设备列表面板浮层。 */
+    onDevicesClick: (() -> Unit)? = null,
     onDateClick: (() -> Unit)? = null,
     onStyleClick: (() -> Unit)? = null,
-    onSettingsClick: (() -> Unit)? = null,
-    /** §5.2 批 D：传了就切「主页面单按钮 + 下拉面板」模式；不传走旧三按钮（二级页 / Preview）。 */
-    onMenuClick: (() -> Unit)? = null,
-    menuExpanded: Boolean = false
+    onSettingsClick: (() -> Unit)? = null
 ) {
     val palette = LocalFreshPalette.current
     Row(
@@ -243,45 +242,30 @@ fun AppHeader(
                 }
             }
         }
-        if (onMenuClick != null) {
-            // §5.2 批 D：主页面只留一枚设置圆按钮。它同样接 HeaderActionButton（自带
-            // transformSource），面板内按钮被点时会用精确矩形覆盖这个兜底起点。
+        if (onDevicesClick != null) {
+            // §5.2 CR-20 ①：「切换设备」打开的是**浮层**（设备列表面板），不是容器变换页面，
+            // 所以不登记 transformSource——免得这枚按钮把自己记成转场起点。
             HeaderActionButton(
-                contentDescription = if (menuExpanded) "关闭快捷菜单" else "打开快捷菜单",
-                onClick = onMenuClick
+                contentDescription = "切换设备",
+                onClick = onDevicesClick,
+                registerTransform = false
             ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = null,
-                    tint = palette.onSurface,
-                    modifier = Modifier.size(22.dp)
-                )
+                HeaderActionIcon(HeaderAction.Devices)
             }
-        } else {
-            if (onDateClick != null) {
-                HeaderActionButton(contentDescription = "选择日期", onClick = onDateClick) {
-                    Icon(
-                        imageVector = Icons.Default.DateRange,
-                        contentDescription = null,
-                        tint = palette.onSurface,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+        }
+        if (onDateClick != null) {
+            HeaderActionButton(contentDescription = "选择日期", onClick = onDateClick) {
+                HeaderActionIcon(HeaderAction.Date)
             }
-            if (onStyleClick != null) {
-                HeaderActionButton(contentDescription = "界面风格", onClick = onStyleClick) {
-                    ThemeDotsIcon()
-                }
+        }
+        if (onStyleClick != null) {
+            HeaderActionButton(contentDescription = "界面风格", onClick = onStyleClick) {
+                HeaderActionIcon(HeaderAction.Theme)
             }
-            if (onSettingsClick != null) {
-                HeaderActionButton(contentDescription = "设置", onClick = onSettingsClick) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = null,
-                        tint = palette.onSurface,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+        }
+        if (onSettingsClick != null) {
+            HeaderActionButton(contentDescription = "设置", onClick = onSettingsClick) {
+                HeaderActionIcon(HeaderAction.Settings)
             }
         }
     }
@@ -311,6 +295,12 @@ internal fun ThemeDotsIcon() {
 internal fun HeaderActionButton(
     contentDescription: String,
     onClick: () -> Unit,
+    /**
+     * §5.2 CR-20 ①：是否把本按钮登记为容器变换起点。
+     * 只有**会打开容器变换页面**的按钮才需要（「设置」）；开浮层的按钮
+     * （「切换设备」）传 false，免得它把自己记成起点、把设置页的放大位置带偏。
+     */
+    registerTransform: Boolean = true,
     icon: @Composable () -> Unit
 ) {
     val palette = LocalFreshPalette.current
@@ -321,12 +311,18 @@ internal fun HeaderActionButton(
             // 读不到 Provider（为 null），因此不会把自己登记成新起点。
             // 登记的是 40dp 可见圆（点击区每边多 4dp），底色与图标一并上报，
             // 覆盖层才能放大「这个按钮本身」而不是一块同色空板。
-            .transformSource(
-                cornerRadius = 20.dp,
-                containerColor = palette.buttonSurface,
-                inset = 4.dp,
-                icon = {
-                    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { icon() }
+            .then(
+                if (registerTransform) {
+                    Modifier.transformSource(
+                        cornerRadius = 20.dp,
+                        containerColor = palette.buttonSurface,
+                        inset = 4.dp,
+                        icon = {
+                            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { icon() }
+                        }
+                    )
+                } else {
+                    Modifier
                 }
             )
             .clip(CircleShape) // ripple 与点击区同为圆形

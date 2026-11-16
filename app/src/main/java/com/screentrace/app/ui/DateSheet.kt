@@ -149,7 +149,7 @@ fun DateSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = palette.surface,
+        containerColor = palette.panelSurface,
         // 系统栏 inset 由我们自己处理（内容末尾的 navigationBarsPadding）。
         // 用默认值（BottomSheetDefaults.windowInsets）时，sheet 的 surface 会在
         // 导航栏上方就结束，而窗口已经 edge-to-edge → 底部露出一条背景色的缝，

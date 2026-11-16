@@ -66,7 +66,16 @@ data class FreshPalette(
     /** §5.4：「数字 + 小单位」排版的单位色（白卡取值）；tonal 卡用 [mutedOn] 同规则派生。 */
     val onSurfaceMuted: Color,
     /** 派生用：是否深色调色板（决定单位色混合上限 30% / 46%，§5.4）。 */
-    val darkTheme: Boolean
+    val darkTheme: Boolean,
+    /**
+     * §5.4 CR-20 ③：**浮层底色**（Modal Bottom Sheet / 设备面板 / 提示条）——
+     * 壁纸模式下页面卡片底会降到 60% 不透明，但浮层是**叠在内容之上**的，
+     * 跟着变透明会让底下的数字/文字与浮层文字叠在一起（真机复核实测）。
+     * 所以浮层单独用这个**不透明**的底色；页内卡片仍走半透明的 `surface`。
+     *
+     * 默认等于 `surface`（无壁纸时两者相同）。
+     */
+    val panelSurface: Color = surface
 ) {
     /**
      * §5.3/§5.4 单位色推导（2026-11-10 增补）：前景向所在卡片背景混合，

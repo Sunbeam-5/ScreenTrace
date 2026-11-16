@@ -98,7 +98,7 @@ fun NumberWheelSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = palette.surface,
+        containerColor = palette.panelSurface,
         dragHandle = {
             Box(
                 Modifier

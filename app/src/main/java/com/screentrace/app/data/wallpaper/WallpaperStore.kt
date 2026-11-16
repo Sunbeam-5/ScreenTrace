@@ -10,6 +10,14 @@ import java.io.FileOutputStream
 import java.io.InputStream
 
 /**
+ * 壁纸分析结果：平均亮度（状态栏图标明暗用）+ **主色**（CR-20 ② 卡片配色派生用）。
+ */
+data class WallpaperAnalysis(
+    val brightness: Int,
+    val seedColor: Int
+)
+
+/**
  * §5.4 批 E：壁纸图片的唯一读写口。
  *
  * 红线：只写 `context.noBackupFilesDir`（随卸载/清数据消失，**不进 JSON 备份**）；
@@ -22,7 +30,6 @@ class WallpaperStore(
     private val context: Context,
     private val open: (Uri) -> InputStream? = { context.contentResolver.openInputStream(it) }
 ) {
-
     private val dir: File
         get() = File(context.noBackupFilesDir ?: context.filesDir, "wallpaper")
 
@@ -37,10 +44,10 @@ class WallpaperStore(
     }.getOrNull()
 
     /**
-     * 选图落盘，返回平均亮度（0–255）；任何一步失败返回 null。
-     * 顺序：读 bounds → inSampleSize 解码 → 精确缩到 ≤1920 → EXIF 旋转 → 采样亮度 → JPEG 写盘。
+     * 选图落盘，返回壁纸分析结果（平均亮度 + 主色）；任何一步失败返回 null。
+     * 顺序：读 bounds → inSampleSize 解码 → 精确缩到 ≤1920 → EXIF 旋转 → 采样分析 → JPEG 写盘。
      */
-    fun save(uri: Uri): Int? {
+    fun save(uri: Uri): WallpaperAnalysis? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         // 注意：inJustDecodeBounds=true 时 decodeStream 本来就返回 null，
         // 不能用返回值判断成败，只看 bounds 有没有被填上。
@@ -58,7 +65,7 @@ class WallpaperStore(
 
         val scaled = scaleToMaxEdge(decoded)
         val rotated = rotateByExif(uri, scaled)
-        val brightness = WallpaperTuning.brightnessOf(samplePixels(rotated))
+        val analysis = analyze(rotated)
         val ok = runCatching {
             dir.mkdirs()
             FileOutputStream(file).use { out ->
@@ -69,7 +76,20 @@ class WallpaperStore(
             true
         }.getOrDefault(false)
         rotated.recycle()
-        return if (ok) brightness else null
+        return if (ok) analysis else null
+    }
+
+    /**
+     * 采样分析：平均亮度（状态栏图标明暗用）+ **壁纸主色**（CR-20 ② 卡片配色派生用）。
+     *
+     * 与选图路径共用同一份 32×32 采样，只吃整数像素，JVM 单测可打靶。
+     */
+    fun analyze(bitmap: Bitmap): WallpaperAnalysis {
+        val pixels = samplePixels(bitmap)
+        return WallpaperAnalysis(
+            brightness = WallpaperTuning.brightnessOf(pixels),
+            seedColor = WallpaperTuning.dominantSeedOf(pixels)
+        )
     }
 
     /** 恢复默认：删私有 JPEG；文件不存在也算成功（目标状态已达成）。 */

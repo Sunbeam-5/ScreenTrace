@@ -1,5 +1,6 @@
 package com.screentrace.app.theme
 
+import com.screentrace.app.data.wallpaper.WallpaperColorScope
 import com.screentrace.app.data.wallpaper.WallpaperTuning
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -15,6 +16,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -203,19 +205,26 @@ fun ScreenTimeTheme(
     val palette = customSeed
         ?.let { seed -> remember(seed, darkTheme) { PaletteEngine.paletteFromSeed(seed, darkTheme) } }
         ?: variant.palette(darkTheme)
-    // §5.4 CR-19 ②：启用壁纸时把 surface 类卡底降不透明度，让壁纸透出来；
-    // 文字对比度由 WallpaperTuning.themeScrimAlpha 的半透明补偿兼顾。无壁纸时完全不变。
-    val effectivePalette = if (wallpaper != null) {
-        val cardAlpha = WallpaperTuning.cardAlpha(darkTheme)
-        palette.copy(
-            surface = palette.surface.copy(alpha = cardAlpha),
-            surfaceVariant = palette.surfaceVariant.copy(alpha = cardAlpha),
-            secondaryContainer = palette.secondaryContainer.copy(alpha = cardAlpha),
-            primaryContainer = palette.primaryContainer.copy(alpha = cardAlpha)
-        )
-    } else {
-        palette
+    // §5.4 CR-20 ②：启用壁纸时，卡片底色按**壁纸主色**派生并大幅降不透明度，
+    // 强调色 / 图表色是否跟随壁纸由 wallpaper.colorScope 决定（两套方案可切换对比）。
+    // 无壁纸时完全走原色板，一行不改。
+    val wallpaperSeedColor = remember(wallpaper?.seedColor) {
+        val raw = wallpaper?.seedColor ?: 0
+        if (raw == 0) WallpaperTuning.DEFAULT_SEED else raw
     }
+    val wallpaperPalette = remember(wallpaperSeedColor, darkTheme, wallpaper != null) {
+        if (wallpaper == null) null else PaletteEngine.paletteFromSeed(Color(wallpaperSeedColor), darkTheme)
+    }
+    val effectivePalette = WallpaperPalette.paletteFor(
+        themePalette = palette,
+        // 没有壁纸（wallpaperPalette == null）时原样返回主题色板，一行不改
+        wallpaperPalette = wallpaperPalette,
+        scope = wallpaper?.colorScope ?: WallpaperColorScope.CARDS_ONLY,
+        dark = darkTheme,
+        wallpaperSeed = Color(wallpaperSeedColor),
+        dimAlpha = wallpaper?.dimAlpha ?: 0f,
+        themeScrimAlpha = wallpaper?.themeScrimAlpha ?: 0f
+    )
     val useDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme = when {
         useDynamic && darkTheme -> dynamicDarkColorScheme(context)

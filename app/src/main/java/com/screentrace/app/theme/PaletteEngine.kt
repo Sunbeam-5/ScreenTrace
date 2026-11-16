@@ -199,6 +199,18 @@ object PaletteEngine {
         return start
     }
 
+    /**
+     * 对比度兜底：把 [fg] 推到与 [bg] 对比度 ≥ [target] 的位置（±2% 明度步进）。
+     *
+     * 壁纸半透明模式下（§5.4 CR-20 ②），卡片的**实际底色**是「卡片色按不透明度叠在
+     * 壁纸 + 遮罩之后」的结果，和不透明卡片不是一个色——必须按合成后的底色重新兜底一次。
+     * 这里复用派生时同一套步进逻辑，不另写第二套颜色算法。
+     *
+     * [dark] 决定往哪个方向推：浅色主题往深走（压深文字），深色主题往浅走（提亮文字）。
+     */
+    fun ensureContrast(fg: Color, bg: Color, dark: Boolean, target: Double = 4.5): Color =
+        fit(fg, darkenFirst = !dark) { candidate -> contrastRatio(candidate, bg) >= target }
+
     /** chart 与 month 的色相旋转量（等距 24°，§5.4「色轮上等距旋转」）。 */
     const val CHART_HUE_STEP = 24f
 }
