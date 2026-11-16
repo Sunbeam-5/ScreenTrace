@@ -110,11 +110,12 @@
   - [x] **收口（2026-11-16 13:30）**：`88aeb89` 文档先行 → `8502b13` 文档补记 → `370411d` 实现 → 真机收口笔；新增 20 测、**513 测全绿 / 0 skip**、**5 处变异全部变红**（守卫不忽略中间页 / `ownsTarget` 反 / 旧协程抢对齐 / 指纹不判同一台 / 合并不剔重）、Redmi APK `374f277d`，证据见 `CODE_REVIEW.md` 文末补记。
 - [ ] **CR-23 · 点 tab 转场自然化：页面景深 + 标题跟随运动 + 软着陆曲线（2026-11-16 13:50 负责人反馈「点击 tab 切换好僵硬，滑动就很丝滑，fushi 点击 tab 很流畅、过渡动画很自然」+ 三档方案裁定「再加上页面景深」）**：
   - [x] **文档先行**：头部登记 CR-23（含**红线修订**：「过渡只做叶子节点」只针对数据过渡，tab 切换的页面景深用 `graphicsLayer` 绘制期变换、不重建子树不重播动画，负责人裁定放开）；§5.2 新增「tab 转场运动」条（景深 / 标题跟随 / 运动曲线三者同源一条连续进度）；§5.7 补红线例外指向；§7 追加 **49~50** 两条验收（48 → 50 条）。代码零改动、单独提交。
-  - [ ] **① 页面景深**：每页内容按 `|offset|` 轻微缩放与淡化（`alpha = 1 − 0.55·|offset|`、`scale = 1 − 0.05·|offset|`），`Modifier.graphicsLayer` 绘制期套用；点 tab 与横滑**一视同仁**，消除纯平移的机械感。
-  - [ ] **② 标题跟随运动**：标题块按 `目标页 − 连续进度` 轻微位移（每步 18dp，落定归 0）+ `Crossfade` 交叉淡化，**不再「内容到位后才翻」**；位移只在程序化滚动期间生效（横滑维持原样，避免过半即翻时跳变）。
-  - [ ] **③ 软着陆曲线**：`animateScrollToPage` 从默认 `spring(DampingRatioNoBouncy)` 换成 `spring(dampingRatio = 0.85, stiffness = StiffnessMediumLow)`（轻微回弹，落定有生命感）；横滑仍由手指驱动不受影响；减少动画仍走 `scrollToPage`。
-  - [ ] **纯函数 + 变异验证**：`TabMotion.alphaFor / scaleFor / titleShiftDp` 均为纯函数，JVM 单测覆盖；改坏映射必须变红。
-  - [ ] **真机复核**：`scripts/capture_anim.py --label 日历 --no-back` 复拍点 tab 转场逐帧对比（景深生效、标题不再滞后）；`--swipe` 复拍横滑不受影响；`dumpsys gfxinfo` 无新增掉帧。
+  - [x] **① 页面景深**：每页内容按 `|offset|` 轻微缩放与淡化（`alpha = 1 − 0.55·|offset|`、`scale = 1 − 0.05·|offset|`），`Modifier.graphicsLayer` 绘制期套用；点 tab 与横滑**一视同仁**，消除纯平移的机械感。真机联系表已见转场中段每页变淡变小。
+  - [x] **② 标题跟随运动**：标题块按 `目标页 − 连续进度` 轻微位移（每步 18dp，落定归 0）+ `Crossfade` 交叉淡化；位移只在程序化滚动期间生效（横滑维持原样，避免过半即翻时跳变）。真机 logcat 逐帧 `115.6px → 18px → 0`、PTS 抽帧见标题从 x≈165 滑到 x≈75 落位。**实现修正**：位移必须在 `AppHeader` 组合期读 `State<Float>`（`graphicsLayer` 的块不会自己重跑）；**诊断更正**：「标题滞后于内容」是联系表的 PTS 假象，logcat 证实标题在 20% 时间点就翻、本就不滞后。
+  - [x] **③ 软着陆曲线**：`animateScrollToPage` 从默认 `spring(DampingRatioNoBouncy)` 换成 `spring(dampingRatio = 0.85, stiffness = StiffnessMediumLow)`（轻微回弹，落定有生命感）；横滑仍由手指驱动不受影响；减少动画仍走 `scrollToPage`。真机落定 774~779ms、曲线收在 `TabMotion.scrollSpec` 单一出处。
+  - [x] **纯函数 + 变异验证**：`TabMotion.alphaFor / scaleFor / titleShiftDp / scrollSpec` 均为纯函数，`TabMotionTest` 14 例；**4 处变异全部变红**（alpha 恒 1 / scale 恒 1 / shift 恒 0 / dampingRatio 退回 1.0）；`--rerun-tasks` **527 测全绿 / 0 skip**。
+  - [x] **真机复核**：`scripts/capture_anim.py --label 日历 --no-back` 复拍点 tab 转场逐帧对比（景深生效、标题位移可见）；`--swipe` 复拍横滑不受影响；`dumpsys gfxinfo` 50th=8ms / 真 jank 0.5% 无新增掉帧。证据见 `CODE_REVIEW.md` 文末补记。
+  - [ ] **vivo 复核**：负责人指出「vivo 才是真的卡的要死」（疑与 CR-20 记账的「Pager 偶发卡在两页之间」同源）；**该机当前未连接 adb**，待接入后排查并复核 CR-23 三项。
 
 
 
