@@ -26,15 +26,20 @@ class DeviceSummaryTest {
     )
 
     @Test
-    fun `正常摘要带来源 版本 范围 记录数与只读声明`() {
+    fun `正常摘要带来源 机型 版本 范围 记录数与只读声明`() {
         val text = deviceBackupSummary(
-            SyncManager.DownloadedBackup(summary = sampleSummary(), deviceLabel = "MyRedmi")
+            SyncManager.DownloadedBackup(
+                summary = sampleSummary(),
+                deviceLabel = "MyRedmi",
+                deviceModel = "Redmi Note 12"
+            )
         )
         assertTrue(text.contains("来源：MyRedmi"))
+        assertTrue(text.contains("机型：Redmi Note 12"))
         assertTrue(text.contains("导出：2026-11-14 18:00 · App 1.0 · v5"))
         assertTrue(text.contains("范围："))
         assertTrue(text.contains("日 5 / 应用 12 / 时段 24 / 事件 70 条"))
-        assertTrue(text.contains("只读查看，不会写入本机数据"))
+        assertTrue(text.contains("摘要只读"))
     }
 
     @Test
@@ -46,6 +51,14 @@ class DeviceSummaryTest {
     }
 
     @Test
+    fun `CR-21 拿不到机型时明说未知机型 不假装知道`() {
+        val text = deviceBackupSummary(
+            SyncManager.DownloadedBackup(summary = sampleSummary(), deviceLabel = "旧机", deviceModel = null)
+        )
+        assertTrue(text.contains("机型：未知机型"))
+    }
+
+    @Test
     fun `下载失败时给失败提示且不伪装成摘要`() {
         val text = deviceBackupSummary(
             SyncManager.DownloadedBackup(
@@ -53,16 +66,22 @@ class DeviceSummaryTest {
             )
         )
         assertTrue(text.startsWith("查看失败："))
-        assertFalse(text.contains("只读查看，不会写入本机数据"))
+        assertFalse(text.contains("摘要只读"))
         assertFalse(text.contains("导出："))
     }
 
+    /**
+     * CR-21 ②③：摘要本身**不提供**恢复 / 合并入口——那两枚动作按钮在设备列表行里，
+     * 且合并要二次确认。摘要只负责把话说清楚。
+     */
     @Test
-    fun `只读摘要不提供任何恢复入口文案`() {
+    fun `摘要不给恢复入口 只声明切换与合并需显式点击`() {
         val text = deviceBackupSummary(
             SyncManager.DownloadedBackup(summary = sampleSummary(), deviceLabel = "其它手机")
         )
-        assertFalse(text.contains("恢复"))
-        assertFalse(text.contains("合并"))
+        assertFalse("摘要不得声称自己写入本机数据", text.contains("不会写入本机数据"))
+        assertTrue(text.contains("切换与合并需显式点击并确认"))
+        assertFalse(text.contains("覆盖本地"))
+        assertFalse(text.contains("导入"))
     }
 }

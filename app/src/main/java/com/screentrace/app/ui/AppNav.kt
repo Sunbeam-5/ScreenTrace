@@ -137,6 +137,8 @@ fun AppNav() {
                     settings = container.settings,
                     backups = container.backup,
                     sync = container.syncManager,
+                    // CR-21 ②③：切换设备 / 跨设备合并（两处 UI 入口共用同一份逻辑）
+                    deviceOperations = container.deviceOperations,
                     syncCredentials = container.syncCredentials,
                     wallpaperStore = container.wallpaperStore,
                     // 改拉取频率后立即重排后台任务（§5.8）：等下次冷启动才生效
@@ -212,6 +214,8 @@ fun AppNav() {
     // CR-15 ③ 批 C：云同步页设备卡片
     val deviceNickname by viewModel.deviceNickname
     val deviceIdShort by viewModel.deviceIdShort
+    // CR-21 ③：当前正在查看哪台设备（设备列表标「· 当前」）
+    val currentDeviceId by viewModel.currentDeviceId
     val syncLastOk by viewModel.syncLastOk
     val syncLastMessage by viewModel.syncLastMessage
 
@@ -762,6 +766,10 @@ fun AppNav() {
                                     onDeviceNicknameChange = { name -> viewModel.setDeviceNickname(name) },
                                     onListDevices = { viewModel.listCloudDevices() },
                                     onInspectDevice = { id -> viewModel.inspectCloudDevice(id) },
+                                    // CR-21 ②③：切换设备 / 合并到本机
+                                    currentDeviceId = currentDeviceId,
+                                    onSwitchDevice = { id -> viewModel.switchToDevice(id) },
+                                    onMergeDevice = { id -> viewModel.mergeDeviceIntoLocal(id) },
                                     onNotice = viewModel::showNotice
                                 )
                                 is AppPage.AppCategories -> AppCategoryScreen(
@@ -873,7 +881,11 @@ fun AppNav() {
                 reduceMotion = reduceMotion,
                 onDismiss = { showDevicePanel = false },
                 onListDevices = { viewModel.listCloudDevices() },
-                onInspectDevice = { id -> viewModel.inspectCloudDevice(id) }
+                onInspectDevice = { id -> viewModel.inspectCloudDevice(id) },
+                // CR-21 ②③：切换设备 / 合并到本机（与云同步页同一套逻辑）
+                currentDeviceId = currentDeviceId,
+                onSwitchDevice = { id -> viewModel.switchToDevice(id) },
+                onMergeDevice = { id -> viewModel.mergeDeviceIntoLocal(id) }
             )
 
             // ---- §5.4 CR-19 ②：壁纸裁切编辑（全屏，盖住一切含下拉面板）----
@@ -1081,7 +1093,11 @@ private fun DevicePanelOverlay(
     reduceMotion: Boolean,
     onDismiss: () -> Unit,
     onListDevices: suspend () -> SyncManager.DevicesResult,
-    onInspectDevice: suspend (String) -> SyncManager.DownloadedBackup
+    onInspectDevice: suspend (String) -> SyncManager.DownloadedBackup,
+    // CR-21 ②③
+    currentDeviceId: String,
+    onSwitchDevice: suspend (String) -> String,
+    onMergeDevice: suspend (String) -> String
 ) {
     Box(Modifier.fillMaxSize()) {
         // 点外部收起：不加 ripple，避免整屏出现按压水波；透明层无动画，随 visible 立即出现/消失
@@ -1114,7 +1130,10 @@ private fun DevicePanelOverlay(
                 DevicePanel(
                     onClose = onDismiss,
                     onListDevices = onListDevices,
-                    onInspectDevice = onInspectDevice
+                    onInspectDevice = onInspectDevice,
+                    currentDeviceId = currentDeviceId,
+                    onSwitchDevice = onSwitchDevice,
+                    onMergeDevice = onMergeDevice
                 )
             }
         }

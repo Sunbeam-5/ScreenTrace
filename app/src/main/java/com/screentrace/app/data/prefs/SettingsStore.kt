@@ -152,6 +152,78 @@ class SettingsStore(
         model = defaultDeviceName
     )
 
+    // ---- CR-21 ③：当前查看哪台设备（指针）----
+
+    /**
+     * 当前正在查看哪台设备的数据。空串 = 本机（尚未切换过）。
+     *
+     * 只存 DataStore、不进备份 JSON——它描述的是「本机现在在看谁的库」，
+     * 跟着备份走会让换机后的新机莫名其妙地停在别人的数据上。
+     */
+    val currentDeviceId: Flow<String> = dataStore.data.map { it[CURRENT_DEVICE_ID] ?: "" }
+
+    suspend fun setCurrentDeviceId(value: String) = dataStore.edit { prefs ->
+        prefs[CURRENT_DEVICE_ID] = value.trim()
+    }
+
+    // ---- CR-21 ②：跨设备合并的防重复记账 ----
+
+    /**
+     * 「来源设备 ID → 已合并的日期集合」。
+     *
+     * 累加口径下重复导入同一天会翻倍，所以必须记账：合并过一次的日子不再并入。
+     * 编码成**多条** `"<deviceId>|<date>"` 字符串存进 DataStore（**不进备份 JSON**），
+     * 同一设备的多个日期各占一条；解码时同键**取并集**（见 [decodeLedger]）。
+     */
+    val mergeLedger: Flow<Map<String, Set<String>>> = dataStore.data.map { prefs ->
+        decodeLedger(prefs[MERGE_LEDGER])
+    }
+
+    /** 某台来源设备已合并过的日期（空集合 = 还没合过）。 */
+    suspend fun mergedDatesOf(deviceId: String): Set<String> =
+        decodeLedger(dataStore.data.first()[MERGE_LEDGER])[deviceId].orEmpty()
+
+    /** 合并成功后记账；已记过的日期不会丢。 */
+    suspend fun recordMergedDates(deviceId: String, dates: Set<String>) {
+        if (dates.isEmpty()) return
+        dataStore.edit { prefs ->
+            val current = decodeLedger(prefs[MERGE_LEDGER])
+            val merged = current[deviceId].orEmpty() + dates
+            val next = current.toMutableMap()
+            next[deviceId] = merged
+            prefs[MERGE_LEDGER] = encodeLedger(next)
+        }
+    }
+
+    /**
+     * 解码记账条目。
+     *
+     * CR-21 补记：**同键必须取并集**。记账编码成多条「来源设备 ID|日期」条目，
+     * 早期实现用 `.toMap()` 收尾——同键条目互相**覆盖**，只剩最后一个日期，
+     * 于是第二次合并时其余已合并日期被当成「新日期」再并一遍，当天数据翻倍
+     * （Redmi 真机实测：11-10 由 1530 分钟变 2295 分钟）。
+     */
+    private fun decodeLedger(raw: Set<String>?): Map<String, Set<String>> {
+        val out = mutableMapOf<String, MutableSet<String>>()
+        (raw ?: emptySet()).forEach { entry ->
+            val idx = entry.indexOf('|')
+            if (idx <= 0) return@forEach
+            val id = entry.substring(0, idx)
+            // 兼容早期可能出现的「同一条目内逗号分隔多个日期」写法
+            entry.substring(idx + 1)
+                .split(',')
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .forEach { date ->
+                    out.getOrPut(id) { mutableSetOf() }.add(date)
+                }
+        }
+        return out
+    }
+
+    private fun encodeLedger(ledger: Map<String, Set<String>>): Set<String> =
+        ledger.entries.flatMap { (id, dates) -> dates.map { "$id|$it" } }.toSet()
+
     // ---- CR-15 ⑤ 批 E：自定义壁纸参数（§5.4；不进 BackupSettings / JSON 备份）----
 
     val wallpaper: Flow<WallpaperConfig> = dataStore.data.map { prefs ->
@@ -256,6 +328,9 @@ class SettingsStore(
         private val SYNC_LAST_MESSAGE = stringPreferencesKey("sync_last_message")
         private val DEVICE_ID = stringPreferencesKey("device_id")
         private val DEVICE_NICKNAME = stringPreferencesKey("device_nickname")
+        // CR-21 ②③：当前设备指针 + 跨设备合并记账（都不进备份 JSON）
+        private val CURRENT_DEVICE_ID = stringPreferencesKey("current_device_id")
+        private val MERGE_LEDGER = stringSetPreferencesKey("merge_ledger")
         private val WALLPAPER_ENABLED = booleanPreferencesKey("wallpaper_enabled")
         private val WALLPAPER_DIM = intPreferencesKey("wallpaper_dim")
         private val WALLPAPER_BLUR = intPreferencesKey("wallpaper_blur")

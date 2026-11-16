@@ -36,7 +36,12 @@ import java.time.temporal.TemporalAdjusters
  * 「当前环境不支持拉取」而不是假的「成功」——§6 红线：不许有假按钮/假结果。
  */
 class RoomUsageRepository(
-    private val db: ScreenTraceDatabase,
+    /**
+     * §4 CR-21 ③：**当前库**的取法。切换设备后必须读到那台设备自己的库，
+     * 所以这里存的是「取当前库」的函数而不是某个库的实例——
+     * 持有实例的写法切换后会继续读旧设备的数据（页面看着没变，其实库没换）。
+     */
+    private val dbProvider: () -> ScreenTraceDatabase,
     private val settings: com.screentrace.app.data.prefs.SettingsStore? = null,
     /** 手动拉取入口（设置页「立即拉取」）：由 AppContainer 接到 PullCoordinator。 */
     private val pull: (suspend () -> PullResult)? = null,
@@ -51,6 +56,21 @@ class RoomUsageRepository(
     private val labelResolver: ((String) -> String?)? = null
 ) : UsageRepository {
 
+    /** 当前库（每次取都重新解析，切换设备后立即生效）。 */
+    private val db: ScreenTraceDatabase get() = dbProvider()
+
+    /**
+     * 兼容写法：直接绑定一个固定的库（单测与「只读本机库」的调用点用）。
+     *
+     * 生产路径请用 [dbProvider] —— 绑定实例的写法在切换设备后会继续读旧设备的数据。
+     */
+    constructor(
+        db: ScreenTraceDatabase,
+        settings: com.screentrace.app.data.prefs.SettingsStore? = null,
+        pull: (suspend () -> PullResult)? = null,
+        labelResolver: ((String) -> String?)? = null
+    ) : this({ db }, settings, pull, labelResolver)
+
     private suspend fun recordsBetween(start: LocalDate, end: LocalDate): List<DaySummary> =
         db.daySummaryDao().getBetween(start.toString(), end.toString()).map { it.toDomain() }
 
@@ -58,19 +78,23 @@ class RoomUsageRepository(
      * 评审 P0-1：三表任一非空。**不能只看 `day_summary`**——降级通道按设计只写
      * `app_usage` / `hour_usage`，只看日聚合会把「有排行数据」误判成「完全无数据」。
      */
-    override suspend fun hasAnyData(): Boolean =
-        db.daySummaryDao().count() > 0 ||
-            db.appUsageDao().count() > 0 ||
-            db.hourUsageDao().count() > 0
+    override suspend fun hasAnyData(): Boolean {
+        // 一次查询里只认**一个**库：中途切换设备也不能一半读旧库一半读新库
+        val database = db
+        return database.daySummaryDao().count() > 0 ||
+            database.appUsageDao().count() > 0 ||
+            database.hourUsageDao().count() > 0
+    }
 
     override suspend fun hasDataIn(selection: DateSelection): Boolean {
         val start = selection.startDate.toString()
         val end = selection.endDate.toString()
+        val database = db
         // 评审 P2-2：按「行数」判会把 0 分钟行也算有记录（假 0 口径）——
         // hour_usage 用分钟合计判，0 行只说明「建过表结构」不说明「有使用」
-        return db.daySummaryDao().countBetween(start, end) > 0 ||
-            db.appUsageDao().countBetween(start, end) > 0 ||
-            db.hourUsageDao().sumMinutesBetween(start, end) > 0
+        return database.daySummaryDao().countBetween(start, end) > 0 ||
+            database.appUsageDao().countBetween(start, end) > 0 ||
+            database.hourUsageDao().sumMinutesBetween(start, end) > 0
     }
 
     override suspend fun summary(selection: DateSelection): Summary =
@@ -181,36 +205,38 @@ class RoomUsageRepository(
      * 覆盖三态不再退化）。
      */
     override suspend fun metricDetail(metric: MetricKind, selection: DateSelection): MetricDetail {
+        // 同一次详情查询固定用一个库（中途切换设备会读出半新半旧的两套数字）
+        val database = db
         val zone = ZoneId.systemDefault()
         val startMs = selection.startDate.atStartOfDay(zone).toInstant().toEpochMilli()
         val endMs = selection.endDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
         // 只读本指标要用的那张事件表（评审 P2-2）：解锁详情以前顺手把区间内全部通知
         // 也读出来，5k 行白读一次；两个分支各自只查自己那张表，结果与之前等价。
         val unlockMs = if (metric == MetricKind.UNLOCK) {
-            db.unlockEventDao().msBetween(startMs, endMs)
+            database.unlockEventDao().msBetween(startMs, endMs)
         } else {
             emptyList()
         }
         val notifs = if (metric == MetricKind.NOTIFICATION) {
-            db.notificationEventDao().between(startMs, endMs)
+            database.notificationEventDao().between(startMs, endMs)
         } else {
             emptyList()
         }
         val windowStartMs = when (metric) {
-            MetricKind.UNLOCK -> db.unlockEventDao().minMs()
-            MetricKind.NOTIFICATION -> db.notificationEventDao().minMs()
+            MetricKind.UNLOCK -> database.unlockEventDao().minMs()
+            MetricKind.NOTIFICATION -> database.notificationEventDao().minMs()
         }
         val windowStart = windowStartMs?.let {
             java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate()
         }
-        val gapDays = computeGapDays(zone)
+        val gapDays = computeGapDays(zone, database)
         // 「不灭屏日」判定（真机反馈：开了不灭屏的设备本来就不会有 KEYGUARD 事件，
         // 0 解锁是真实值，不能因为「从没见过解锁事件」就一直画「—」）：
         // 不灭屏日 = 整日亮屏只有**一条连续会话**（longestSessionMin >= screenUnlockMin）
         // 且 0 解锁。区间内所有有亮屏的日子都满足 → 窗口内的 0 解锁可信。
         // 反例：屏幕每 UnlockEvent 天开关几十次却 0 解锁事件（ROM 不上报），此时仍画「—」。
         val neverSleepsWindow = if (metric == MetricKind.UNLOCK) {
-            val days = db.daySummaryDao()
+            val days = database.daySummaryDao()
                 .getBetween(selection.startDate.toString(), selection.endDate.toString())
                 .filter { it.screenUnlockMin > 0 }
             days.isNotEmpty() && days.all {
@@ -224,7 +250,7 @@ class RoomUsageRepository(
         // 从不进入应用使用排行。不补这一层，通知详情就会显示成一串 com.xxx 包名
         // ——真机上正是这么看到的（bug 8）。
         val appLabels = buildMap {
-            db.appUsageDao().allNames().forEach { put(it.pkg, displayName(it.pkg, it.name)) }
+            database.appUsageDao().allNames().forEach { put(it.pkg, displayName(it.pkg, it.name)) }
             notifs.map { it.pkg }.distinct().forEach { pkg ->
                 if (pkg !in this) put(pkg, displayName(pkg, pkg))
             }
@@ -249,10 +275,13 @@ class RoomUsageRepository(
     }
 
     /** 覆盖三态的 GAP 日（§4）：拉取失败且当天没有成功拉取的日期。 */
-    private suspend fun computeGapDays(zone: ZoneId): Set<LocalDate> {
+    private suspend fun computeGapDays(
+        zone: ZoneId,
+        database: ScreenTraceDatabase = db
+    ): Set<LocalDate> {
         val toDay: (Long) -> LocalDate = { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
-        val failed = db.pullLogDao().failedMs().map(toDay).toSet()
-        val ok = db.pullLogDao().okMs().map(toDay).toSet()
+        val failed = database.pullLogDao().failedMs().map(toDay).toSet()
+        val ok = database.pullLogDao().okMs().map(toDay).toSet()
         return failed - ok
     }
 

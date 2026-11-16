@@ -47,6 +47,10 @@ fun CloudSyncScreen(
     onDeviceNicknameChange: suspend (String) -> Unit,
     onListDevices: suspend () -> SyncManager.DevicesResult,
     onInspectDevice: suspend (String) -> SyncManager.DownloadedBackup,
+    // CR-21 ②③：切换设备 / 合并到本机（与顶栏设备面板共用同一套逻辑）
+    currentDeviceId: String,
+    onSwitchDevice: suspend (String) -> String,
+    onMergeDevice: suspend (String) -> String,
     onNotice: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -75,6 +79,9 @@ fun CloudSyncScreen(
         onDeviceNicknameChange = onDeviceNicknameChange,
         onListDevices = onListDevices,
         onInspectDevice = onInspectDevice,
+        currentDeviceId = currentDeviceId,
+        onSwitchDevice = onSwitchDevice,
+        onMergeDevice = onMergeDevice,
         onNotice = onNotice
     )
 

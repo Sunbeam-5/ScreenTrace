@@ -22,9 +22,19 @@ object SyncPaths {
     const val LEGACY_DEVICE_ID = "unknown"
     const val LEGACY_LABEL = "未知设备（旧备份）"
 
+    /**
+     * CR-21 ①：设备目录里的机型元数据文件。
+     *
+     * 设备列表要显示机型，但不能为了一个机型把每台设备的整份备份都拉下来，
+     * 所以上传时额外写一份很小的 `device.json`（见 [DeviceMeta]）。
+     */
+    const val DEVICE_META_FILE = "device.json"
+
     fun deviceDir(id: String): String = "$DEVICES_DIR/${DeviceIds.safe(id)}/"
 
     fun manualPath(id: String): String = deviceDir(id) + MANUAL_FILE
+
+    fun deviceMetaPath(id: String): String = deviceDir(id) + DEVICE_META_FILE
 
     fun autoFileName(id: String, stamp: String): String =
         "$AUTO_PREFIX${DeviceIds.short(id)}-$stamp.json"

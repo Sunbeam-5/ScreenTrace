@@ -320,6 +320,123 @@ class BackupRepository(
     }
 
     /**
+     * §4 CR-21：**跨设备累加合并**（与 [merge] 的「同日取较大」是**两套口径**）。
+     *
+     * [merge] 服务于「同一台设备的重拉 / 恢复」——同一份事实反复导入不能翻倍；
+     * 本方法服务于「两台不同设备的数据汇合」——两台设备当天的使用量本来就应该相加。
+     * 两套口径的差别是语义而不是参数，因此必须是两套明确实现（§6 红线）：
+     * 复用「取大」会把旧机数据整段丢掉（用户看到的是"合并不起作用"），
+     * 复用「累加」到同设备恢复上则会让重复导入翻倍。
+     *
+     * @param allowedDates 只并入这些日期（防重复记账给出的「尚未合并过的新日期」）。
+     *                    事件与会话按本地时区换算日期后同样受它约束。
+     * @return 合并结果摘要；`skipped` 含被自洽校验丢弃的行。
+     */
+    suspend fun mergeAccumulate(
+        file: BackupFile,
+        allowedDates: Set<String>
+    ): RestoreResult = db.withTransaction {
+        var report = BackupMerge.Report()
+
+        // ① 日聚合：累加（screen / unlock / launches 相加，longest 取大）
+        val dayPlan = CrossDeviceMerge.daySummaries(
+            db.daySummaryDao().getAll().map {
+                DaySummaryDto(it.date, it.screenMin, it.screenUnlockMin, it.unlocks, it.launches, it.longestSessionMin, it.pulledAt)
+            },
+            file.daySummary.filter { it.date in allowedDates }
+        )
+        insertDaySummaries(dayPlan.rows)
+        report += dayPlan.report
+
+        // ② 应用 / 时段：先过自洽校验（与同设备合并同一道闸），再累加。
+        // 参照物是**合并后的**日聚合（累加值），所以旧机那几天的应用时长有更宽的上限。
+        val sanityDays = dayPlan.rows.associate {
+            LocalDate.parse(it.date) to DayMetrics(
+                screenMin = it.screenMin,
+                screenUnlockMin = it.screenUnlockMin,
+                unlocks = it.unlocks,
+                launches = it.launches,
+                longestSessionMin = it.longestSessionMin
+            )
+        }
+        val incomingApp = file.appUsage.filter { it.date in allowedDates }
+        val incomingHour = file.hourUsage.filter { it.date in allowedDates }
+        val sanityVerdict = IngestSanity.check(
+            days = sanityDays,
+            appUsage = incomingApp.map {
+                AppUsageRow(LocalDate.parse(it.date), it.pkg, it.minutes * 60_000L, it.launches)
+            },
+            hourMinutes = incomingHour
+                .groupBy { it.date }
+                .mapKeys { LocalDate.parse(it.key) }
+                .mapValues { (_, rows) -> (0..23).map { h -> rows.firstOrNull { it.hour == h }?.minutes ?: 0 } }
+        )
+        val badDates = sanityVerdict.droppedDates.toSet()
+        val safeApp = incomingApp.filterNot { LocalDate.parse(it.date) in badDates }
+        val safeHour = incomingHour.filterNot { LocalDate.parse(it.date) in badDates }
+        if (sanityVerdict.hasDrops) {
+            report += BackupMerge.Report(
+                skipped = (incomingApp.size - safeApp.size) + (incomingHour.size - safeHour.size)
+            )
+        }
+
+        val appPlan = CrossDeviceMerge.appUsage(
+            db.appUsageDao().getAll().map {
+                AppUsageDto(it.date, it.pkg, it.name, it.minutes, it.launches, it.category)
+            },
+            safeApp
+        )
+        insertAppUsage(appPlan.rows)
+        report += appPlan.report
+
+        val hourPlan = CrossDeviceMerge.hourUsage(
+            db.hourUsageDao().getAll().map { HourUsageDto(it.date, it.hour, it.minutes) },
+            safeHour
+        )
+        insertHourUsage(hourPlan.rows)
+        report += hourPlan.report
+
+        // ③ 拉取日志：仅追加，按 (pulledAt, source) 去重（与同设备合并同一口径）
+        val existingPullKeys = db.pullLogDao().getAll().map { it.pulledAt to it.source }.toSet()
+        val pullRows = file.pullLog
+            .filterNot { (it.pulledAt to it.source) in existingPullKeys }
+            .map { PullLogEntity(pulledAt = it.pulledAt, source = it.source, ok = it.ok, note = it.note) }
+        pullRows.forEach { db.pullLogDao().insert(it) }
+        report += BackupMerge.Report(added = pullRows.size)
+
+        // ④ 事件：主键去重。两机时间戳不同故各自保留、计数自然累加，同刻同包才去重。
+        val unlockRows = file.unlockEvent.filter {
+            CrossDeviceMerge.dateOf(it.occurredAtMs, zone) in allowedDates
+        }
+        db.unlockEventDao().insertIgnore(unlockRows.map { UnlockEventEntity(it.occurredAtMs) })
+        report += BackupMerge.Report(added = unlockRows.size)
+
+        val notificationRows = file.notificationEvent.filter {
+            CrossDeviceMerge.dateOf(it.occurredAtMs, zone) in allowedDates
+        }
+        db.notificationEventDao().insertIgnore(
+            notificationRows.map {
+                NotificationEventEntity(it.occurredAtMs, it.type, it.pkg, it.channelId)
+            }
+        )
+        report += BackupMerge.Report(added = notificationRows.size)
+
+        // ⑤ 会话区间：并集（**不累加**——区间是时序表示，累加会把同一段时长计两次）。
+        // 重算时与旧值取大，所以第 ① 步写进去的累加值不会被重算改小。
+        // 备份里没有会话时不做并集（重写整张表再重算全部日期，纯属白干）。
+        val sessionRows = file.screenSession.filter { session ->
+            CrossDeviceMerge.datesOfSession(session.startMs, session.endMs, zone)
+                .any { it in allowedDates }
+        }
+        if (sessionRows.isNotEmpty()) {
+            report += mergeSessions(sessionRows)
+        }
+
+        // ⑥ 应用限额：**完全不写**——限额是本机用户意图，跨设备合并不搬运（§4）。
+        RestoreResult(report.added, report.updated, report.skipped, settingsRestored = false)
+    }
+
+    /**
      * §4 / §5.10：会话区间按扫线并集合并，再**重算受影响日期**的日聚合与小时矩阵。
      *
      * 不重算的话会出现「区间表里有 16 小时、day_summary 还是 11 小时」的两套数字，

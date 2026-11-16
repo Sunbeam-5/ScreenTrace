@@ -1,45 +1,57 @@
 package com.screentrace.app
 
 import android.content.Context
-import androidx.room.Room
 import com.screentrace.app.contract.UsageRepository
 import com.screentrace.app.data.AppLabelResolver
 import com.screentrace.app.data.IngestPipeline
 import com.screentrace.app.data.RoomUsageRepository
+import com.screentrace.app.data.backup.BackupRepository
+import com.screentrace.app.data.db.DeviceDatabases
 import com.screentrace.app.data.db.ScreenTraceDatabase
+import com.screentrace.app.data.prefs.DeviceIds
 import com.screentrace.app.data.prefs.SettingsStore
 import com.screentrace.app.data.pull.PullCoordinator
 import com.screentrace.app.data.pull.ShizukuUsageProvider
 import com.screentrace.app.data.pull.UsageStatsUsageProvider
 import com.screentrace.app.data.pull.asPullResult
+import com.screentrace.app.data.sync.DeviceOperations
+import com.screentrace.app.data.sync.SyncResult
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * 手工依赖容器（§6 依赖白名单不含 Hilt/Dagger，一个 Application 级单例足够）。
  *
  * 批 6b 的接线点：`repository` 从 `EmptyUsageRepository` 换成 [RoomUsageRepository]，
  * 页面不用改一行（UI 只依赖 `contract/UsageRepository`）。
+ *
+ * CR-21 ③：仓库层多了一根「**当前库**」指针——本机采集库与各远端设备副本库物理隔离，
+ * 读哪台设备的数据由 [currentDb] 决定；切换设备时改指针 + 重新加载四页。
  */
 class AppContainer(context: Context) {
 
     private val appContext = context.applicationContext
 
-    val db: ScreenTraceDatabase = Room.databaseBuilder(
-        appContext,
-        ScreenTraceDatabase::class.java,
-        "screentrace.db"
-    )
-        // v2：+ screen_session（会话区间真并集，批 6g 三轮）
-        .addMigrations(
-            com.screentrace.app.data.db.MIGRATION_1_2,
-            com.screentrace.app.data.db.MIGRATION_2_3,
-            com.screentrace.app.data.db.MIGRATION_3_4,
-            // v5（批 8）：+ app_limit
-            com.screentrace.app.data.db.MIGRATION_4_5
-        )
-        .build()
-
     val settings = SettingsStore(appContext)
+
+    /** CR-21 ③：每台设备一个独立 Room 库（本机采集库 + 远端设备副本库）。 */
+    val databases = DeviceDatabases(appContext)
+
+    /** 本机采集库：UsageStats 拉取**只写它**。 */
+    val db: ScreenTraceDatabase get() = databases.local
+
+    /** 本机 deviceId（首启生成，DataStore 持久化）。 */
+    @Volatile
+    var localDeviceId: String = ""
+        private set
+
+    /** 当前正在查看哪台设备；空串 = 本机。 */
+    @Volatile
+    var currentDeviceId: String = ""
+        private set
 
     /** §5.4 批 E：自定义壁纸（私有 no_backup 目录，不进 Room / 备份 JSON）。 */
     val wallpaperStore = com.screentrace.app.data.wallpaper.WallpaperStore(appContext)
@@ -77,8 +89,8 @@ class AppContainer(context: Context) {
     )
 
     /** 批 8：本地备份导出 / 恢复（JSON、CSV）；批 C：导出顶层带本机 `device`。 */
-    val backup = com.screentrace.app.data.backup.BackupRepository(
-        db = db,
+    val backup: BackupRepository = BackupRepository(
+        db = databases.local,
         settings = settings,
         device = { settings.currentDevice() }
     )
@@ -105,12 +117,85 @@ class AppContainer(context: Context) {
         )
     }
 
+    /**
+     * CR-21 ②③：切换设备与跨设备合并的编排（两处 UI 入口共用这一份逻辑）。
+     */
+    val deviceOperations: DeviceOperations by lazy {
+        DeviceOperations(
+            sync = syncManager,
+            localBackups = backup,
+            deviceBackups = { id ->
+                BackupRepository(
+                    db = databases.forDevice(id),
+                    settings = settings,
+                    device = { settings.currentDevice() }
+                )
+            },
+            copyHasData = { id -> copyHasData(id) },
+            settings = settings,
+            onSwitch = { id -> setCurrentDevice(id) },
+            uploadAfterMerge = { uploadAfterMerge() }
+        )
+    }
+
     val repository: UsageRepository = RoomUsageRepository(
-        db = db,
+        // CR-21 ③：按「当前库」逐次解析——切换设备后读到的是那台设备自己的库
+        dbProvider = { currentDb() },
         settings = settings,
         // 设置页「立即拉取」（批 7 接 UI）：走同一条协调器，不另建通道
         pull = { pullCoordinator.pull().asPullResult() },
         // 读取层兜底：只在库里没存到名字时才真正去查
         labelResolver = labels
     )
+
+    init {
+        // 指针落 DataStore：进程重启后仍停在上次查看的那台设备。
+        // 读盘是异步的，期间一律按「本机」处理——先显示本机数据比空库更诚实。
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { settings.getOrCreateDeviceId() }.getOrNull()?.let { localDeviceId = it }
+            val saved = runCatching { settings.currentDeviceId.first() }.getOrDefault("")
+            if (saved.isNotEmpty()) currentDeviceId = saved
+        }
+    }
+
+    /** 当前库：本机采集库，或当前查看的那台远端设备的副本库。 */
+    fun currentDb(): ScreenTraceDatabase {
+        val current = currentDeviceId
+        if (current.isEmpty()) return databases.local
+        val local = localDeviceId
+        // 本机 ID 还没读到时宁可显示本机，也不要凭空开一个副本库（那会让页面显示错的库）
+        if (local.isEmpty()) return databases.local
+        if (DeviceIds.safe(current) == DeviceIds.safe(local)) return databases.local
+        return databases.forDevice(current)
+    }
+
+    /**
+     * 切到某台设备：改内存指针 + 落 DataStore。
+     *
+     * 切回本机时指针存**空串**（「空 = 本机」），避免以后本机 ID 变了还停在自己身上。
+     */
+    suspend fun setCurrentDevice(deviceId: String) {
+        val local = runCatching { settings.getOrCreateDeviceId() }.getOrDefault(localDeviceId)
+        if (local.isNotEmpty()) localDeviceId = local
+        val isLocal = local.isNotEmpty() && DeviceIds.safe(deviceId) == DeviceIds.safe(local)
+        currentDeviceId = if (isLocal) "" else deviceId
+        runCatching { settings.setCurrentDeviceId(currentDeviceId) }
+    }
+
+    /** 某台设备的本地副本库里是否已经有数据（决定切换时要不要联网下载）。 */
+    private suspend fun copyHasData(deviceId: String): Boolean {
+        val copy = databases.forDevice(deviceId)
+        return copy.daySummaryDao().count() > 0 ||
+            copy.appUsageDao().count() > 0 ||
+            copy.hourUsageDao().count() > 0
+    }
+
+    /**
+     * CR-21 ②：合并成功后自动上传一次，让新机的云端备份立刻含旧数据。
+     *
+     * 上传内容源恒为**本机采集库**（与当前显示哪台设备无关）；失败只提示，
+     * 不回滚已完成的本地合并（§5.10）。
+     */
+    private suspend fun uploadAfterMerge(): Boolean =
+        syncManager.uploadManual(appVersion = "app") is SyncResult.Ok
 }

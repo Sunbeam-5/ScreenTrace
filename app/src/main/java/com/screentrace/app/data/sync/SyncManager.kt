@@ -57,6 +57,9 @@ class SyncManager(
                 )
             }
             .getOrElse { SyncResult.Err(SyncFailure.UNKNOWN, it.message ?: "导出失败") }
+        // CR-21 ①：顺手写一份机型元数据，让设备列表能显示「什么机型」而不是短 ID。
+        // 元数据失败**不影响**备份上传的结果（备份已经传上去了）。
+        if (result is SyncResult.Ok) writeDeviceMeta(id)
         record(result)
         return result
     }
@@ -74,10 +77,27 @@ class SyncManager(
             }
             .getOrElse { SyncResult.Err(SyncFailure.UNKNOWN, it.message ?: "导出失败") }
         if (result is SyncResult.Ok) {
+            writeDeviceMeta(id)
             runCatching { pruneAutoBackups(id) }
         }
         record(result)
         return result
+    }
+
+    /**
+     * CR-21 ①：把本机机型写进设备目录的 `device.json`（小型、幂等覆盖）。
+     *
+     * 只为让设备列表显示机型；写失败不影响上传结果，也不影响备份本身。
+     */
+    private suspend fun writeDeviceMeta(id: String) {
+        val info = runCatching { device() }.getOrNull() ?: return
+        val meta = DeviceMeta(id = info.id, nickname = info.nickname, model = info.model)
+        runCatching {
+            provider.upload(
+                SyncPaths.deviceMetaPath(id),
+                DeviceMetaCodec.encode(meta).toByteArray(Charsets.UTF_8)
+            )
+        }
     }
 
     /** 仅保留最近 [AUTO_KEEP] 份自动备份；只清本设备目录，手动固定文件与其它设备一律不动。 */
@@ -103,6 +123,9 @@ class SyncManager(
     /**
      * §5.10 批 C「切换查看只读」：下载指定设备的最新备份并解析摘要，**不写库、不恢复、不合并**。
      * 手动固定文件优先，缺失时退到该设备最新的自动备份；根目录旧备份走 [SyncPaths.LEGACY_DEVICE_ID]。
+     *
+     * CR-21：这个下载动作也被「切换设备」与「合并到本机」复用（[fetchDeviceBackup]）——
+     * 下载与解码仍在这里，**写库**由 [BackupRepository.restore] 统一入口负责。
      */
     suspend fun inspectDevice(deviceId: String): DownloadedBackup {
         val isLegacy = deviceId == SyncPaths.LEGACY_DEVICE_ID
@@ -116,7 +139,15 @@ class SyncManager(
         return decode(result)
     }
 
-    /** 列出本机 + 所有远端设备目录 + 根目录旧备份，供云同步页只读展示。 */
+    /**
+     * CR-21：取某台设备**最新的一份备份**（下载 + 解码，**不写库**）。
+     *
+     * 「切换到此设备」与「合并到本机」都从这里拿数据源；写库分别走
+     * [BackupRepository.restore]（远端副本库）与 [BackupRepository.mergeAccumulate]（本机采集库）。
+     */
+    suspend fun fetchDeviceBackup(deviceId: String): DownloadedBackup = inspectDevice(deviceId)
+
+    /** 列出本机 + 所有远端设备目录 + 根目录旧备份，供云同步页与顶栏设备面板展示。 */
     suspend fun listDevices(): DevicesResult {
         val local = runCatching { device() }.getOrDefault(
             DeviceInfo(SyncPaths.LEGACY_DEVICE_ID, "未知设备", "")
@@ -134,10 +165,18 @@ class SyncManager(
                 .distinct()
                 .sorted()
                 .forEach { id ->
-                    val names = filesIn(SyncPaths.deviceDir(id)).filter { SyncPaths.isBackup(it) }
+                    val allNames = filesIn(SyncPaths.deviceDir(id))
+                    val names = allNames.filter { SyncPaths.isBackup(it) }
+                    // CR-21 ①：机型走 device.json 小文件；老设备目录里没有这个文件，
+                    // 不去白跑一次 404，更**不**为了拿机型下载整份备份。
+                    val meta = if (SyncPaths.DEVICE_META_FILE in allNames) fetchDeviceMeta(id) else null
+                    val model = meta?.displayModel
+                        ?: if (id == localId) local.model.takeIf { it.isNotBlank() } else null
                     out += DeviceBackup(
                         deviceId = id,
-                        label = if (id == localId) local.nickname else "设备 ${DeviceIds.short(id)}",
+                        label = model
+                            ?: if (id == localId) local.nickname else "设备 ${DeviceIds.short(id)}",
+                        model = model,
                         isLocal = id == localId,
                         isLegacy = false,
                         fileCount = names.size,
@@ -149,7 +188,19 @@ class SyncManager(
 
         // 本机还没上传过也要有一条，让用户看得到自己的 deviceId 与昵称
         if (out.none { it.isLocal }) {
-            out.add(0, DeviceBackup(localId, local.nickname, true, false, 0, null))
+            val model = local.model.takeIf { it.isNotBlank() }
+            out.add(
+                0,
+                DeviceBackup(
+                    deviceId = localId,
+                    label = model ?: local.nickname,
+                    model = model,
+                    isLocal = true,
+                    isLegacy = false,
+                    fileCount = 0,
+                    latestName = null
+                )
+            )
         }
 
         val legacy = rootBackupNames().filter { SyncPaths.isBackup(it) }
@@ -157,6 +208,7 @@ class SyncManager(
             out += DeviceBackup(
                 deviceId = SyncPaths.LEGACY_DEVICE_ID,
                 label = SyncPaths.LEGACY_LABEL,
+                model = null,
                 isLocal = false,
                 isLegacy = true,
                 fileCount = legacy.size,
@@ -164,6 +216,14 @@ class SyncManager(
             )
         }
         return DevicesResult(out)
+    }
+
+    /** CR-21 ①：读某台设备的机型元数据；没有 / 损坏都返回 null（列表回落短 ID）。 */
+    private suspend fun fetchDeviceMeta(deviceId: String): DeviceMeta? {
+        val result = provider.download(SyncPaths.deviceMetaPath(deviceId))
+        if (result !is SyncResult.Ok) return null
+        val content = result.content ?: return null
+        return DeviceMetaCodec.decode(content.decodeToString())
     }
 
     private fun decode(result: SyncResult): DownloadedBackup = when (result) {
@@ -184,7 +244,9 @@ class SyncManager(
                             d.nickname.takeIf { it.isNotBlank() }
                                 ?: d.model.takeIf { it.isNotBlank() }
                                 ?: "设备 ${DeviceIds.short(d.id)}"
-                        }
+                        },
+                        // CR-21 ①：老设备目录里没有 device.json 时，机型从这里补出来
+                        deviceModel = decoded.file.device?.model?.takeIf { it.isNotBlank() }
                     )
                     is BackupCodec.DecodeResult.Invalid -> DownloadedBackup(
                         error = SyncResult.Err(SyncFailure.FORMAT, decoded.reason)
@@ -237,11 +299,14 @@ class SyncManager(
     /** 设备列表里的一行；[latestName] 为 null 表示该设备还没有任何备份。 */
     data class DeviceBackup(
         val deviceId: String,
+        /** 显示名：CR-21 ① 起**机型优先**，拿不到机型才回落昵称 / 短 ID。 */
         val label: String,
         val isLocal: Boolean,
         val isLegacy: Boolean,
         val fileCount: Int,
-        val latestName: String?
+        val latestName: String?,
+        /** 机型（device.json 或本机 Build.MODEL）；null = 未知机型。 */
+        val model: String? = null
     )
 
     data class DevicesResult(
@@ -254,7 +319,9 @@ class SyncManager(
         val summary: BackupSummary? = null,
         val error: SyncResult? = null,
         /** v5 备份的来源昵称；旧备份为 null，UI 显示「未知设备」。 */
-        val deviceLabel: String? = null
+        val deviceLabel: String? = null,
+        /** CR-21 ①：来源设备的机型；老备份没有该字段时为 null。 */
+        val deviceModel: String? = null
     )
 
     companion object {

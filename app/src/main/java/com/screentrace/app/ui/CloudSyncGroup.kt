@@ -75,6 +75,10 @@ fun CloudSyncGroup(
     onDeviceNicknameChange: suspend (String) -> Unit,
     onListDevices: suspend () -> SyncManager.DevicesResult,
     onInspectDevice: suspend (String) -> SyncManager.DownloadedBackup,
+    // CR-21 ①③：机型显示 + 当前设备标记；②③：两处入口共用的切换 / 合并逻辑
+    currentDeviceId: String,
+    onSwitchDevice: suspend (String) -> String,
+    onMergeDevice: suspend (String) -> String,
     onNotice: (String) -> Unit
 ) {
     val palette = LocalFreshPalette.current
@@ -90,6 +94,8 @@ fun CloudSyncGroup(
     var devicesBusy by remember { mutableStateOf(false) }
     var deviceError by remember { mutableStateOf<String?>(null) }
     var inspectText by remember { mutableStateOf<String?>(null) }
+    // CR-21 ②：合并确认弹层（与顶栏设备面板共用同一个）
+    var mergeTarget by remember { mutableStateOf<SyncManager.DeviceBackup?>(null) }
 
     // 配置草稿：改动后需点「保存配置」落盘（避免每敲一个字符写 DataStore）
     var url by remember(webdavUrl) { mutableStateOf(webdavUrl) }
@@ -380,13 +386,21 @@ fun CloudSyncGroup(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        // LEGACY_LABEL 已含「旧备份」，这里不再重复追加后缀
-                        text = device.label + (if (device.isLocal) " · 本机" else ""),
+                        // CR-21 ①：label 已是「机型优先」的显示名；LEGACY_LABEL 已含「旧备份」，
+                        // 不再重复追加后缀
+                        text = buildString {
+                            append(device.label)
+                            if (device.isLocal) append(" · 本机")
+                            if (device.deviceId == currentDeviceId) append(" · 当前")
+                        },
                         style = FreshType.body,
                         color = palette.onSurface
                     )
                     Text(
-                        text = "${device.fileCount} 份备份 · ${device.latestName ?: "尚未上传"}",
+                        text = buildString {
+                            if (!device.isLegacy && device.model == null) append("机型未知 · ")
+                            append("${device.fileCount} 份备份 · ${device.latestName ?: "尚未上传"}")
+                        },
                         style = FreshType.label,
                         color = palette.onSurfaceVariant
                     )
@@ -405,14 +419,46 @@ fun CloudSyncGroup(
                     }
                 )
             }
+            // CR-21 ②③：与顶栏设备面板同一套动作（切换 / 合并，二次确认共用同一个弹层）
+            DeviceActionRow(
+                switchText = if (device.isLocal) "切回本机" else "切换到此设备",
+                switchEnabled = !devicesBusy && (device.isLocal || device.fileCount > 0),
+                mergeEnabled = !devicesBusy && !device.isLocal && device.fileCount > 0,
+                onSwitch = {
+                    scope.launch {
+                        devicesBusy = true
+                        val message = onSwitchDevice(device.deviceId)
+                        devicesBusy = false
+                        onNotice(message)
+                    }
+                },
+                onMerge = { mergeTarget = device }
+            )
         }
         inspectText?.let {
             Text(text = it, style = FreshType.label, color = palette.onSurfaceVariant)
         }
         Text(
-            text = "升级前的旧备份归「未知设备」，原地保留不迁移；其它设备的备份只可查看，不会合并进本机数据。",
+            text = "升级前的旧备份归「未知设备」，原地保留不迁移；「切换到此设备」把它的数据拉到本地并整页切换，「合并到本机」按累加口径并入本机数据（旧设备数据单独保留）。",
             style = FreshType.label,
             color = palette.onSurfaceVariant
+        )
+    }
+
+    // CR-21 ②：合并二次确认（与顶栏设备面板共用同一个弹层）
+    mergeTarget?.let { target ->
+        MergeConfirmSheet(
+            deviceLabel = target.label,
+            onDismiss = { mergeTarget = null },
+            onConfirm = {
+                mergeTarget = null
+                scope.launch {
+                    devicesBusy = true
+                    val message = onMergeDevice(target.deviceId)
+                    devicesBusy = false
+                    onNotice(message)
+                }
+            }
         )
     }
 }

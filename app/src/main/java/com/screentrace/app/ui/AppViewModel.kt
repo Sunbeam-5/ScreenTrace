@@ -194,6 +194,8 @@ class AppViewModel(
     private val backups: com.screentrace.app.data.backup.BackupRepository? = null,
     /** 批 8b：云同步编排（WebDAV）。 */
     private val sync: com.screentrace.app.data.sync.SyncManager? = null,
+    /** CR-21 ②③：切换设备 / 跨设备合并的编排（两处 UI 入口共用同一份逻辑）。 */
+    private val deviceOperations: com.screentrace.app.data.sync.DeviceOperations? = null,
     /** 批 8b：机密凭据（WebDAV 授权密码等，EncryptedSharedPreferences）。 */
     private val syncCredentials: com.screentrace.app.data.sync.SyncCredentials? = null,
     /** §5.4 批 E：壁纸文件读写；单测/预览不传，只走内存态。 */
@@ -394,6 +396,13 @@ class AppViewModel(
     init {
         observeSettings()
         loadWallpaper()
+        // CR-21 ③：恢复上次查看的设备（指针在 DataStore），设备列表据此标「· 当前」
+        viewModelScope.launch {
+            val store = settings
+            val localId = runCatching { store?.getOrCreateDeviceId() }.getOrNull().orEmpty()
+            val saved = runCatching { store?.currentDeviceId?.first() }.getOrNull().orEmpty()
+            _currentDeviceId.value = saved.ifEmpty { localId }
+        }
         loadAll()
         // 拉取**不放在 init**：由 AppNav 挂在 ON_RESUME 上（§2.1「App 打开时拉取」），
         // 否则「退到后台再回来」与「去 Shizuku 授权完切回来」都不会触发拉取。
@@ -1067,6 +1076,59 @@ class AppViewModel(
             )
         )
         return manager.inspectDevice(deviceId)
+    }
+
+    // ---- CR-21：切换设备 / 跨设备合并 ----
+
+    /**
+     * 当前正在查看哪台设备（空串 = 本机）。设备列表用它标「· 当前」。
+     */
+    private val _currentDeviceId = mutableStateOf("")
+    val currentDeviceId: State<String> = _currentDeviceId
+
+    /**
+     * CR-21 ③：切到某台设备。
+     *
+     * 成功后**四页全部重载**——数据源换了，界面必须跟着换；不重载就会出现
+     * 「提示已切换、页面还是上一台设备的数据」。
+     */
+    suspend fun switchToDevice(deviceId: String): String {
+        val ops = deviceOperations ?: return "切换设备功能未装配"
+        return when (val result = ops.switchToDevice(deviceId)) {
+            is com.screentrace.app.data.sync.DeviceOperations.SwitchResult.Ok -> {
+                _currentDeviceId.value = result.deviceId
+                loadAll()
+                result.message
+            }
+            is com.screentrace.app.data.sync.DeviceOperations.SwitchResult.Failed -> result.message
+        }
+    }
+
+    /**
+     * CR-21 ②：把某台设备的数据**累加**并入本机采集库。
+     *
+     * 成功后重载四页（本机数据变了；如果当前正看着别的设备，那台设备的数据没变，
+     * 重载也无害）。
+     */
+    suspend fun mergeDeviceIntoLocal(deviceId: String): String {
+        val ops = deviceOperations ?: return "合并功能未装配"
+        return when (val result = ops.mergeIntoLocal(deviceId)) {
+            is com.screentrace.app.data.sync.DeviceOperations.MergeResult.Ok -> {
+                loadAll()
+                // 诚实提示：合并写的是**本机采集库**；当前若正看着别的设备，屏幕不会变
+                val localId = runCatching { settings?.getOrCreateDeviceId() }.getOrNull()
+                val viewingRemote = localId != null &&
+                    _currentDeviceId.value.isNotEmpty() &&
+                    _currentDeviceId.value != localId
+                result.message + if (viewingRemote) {
+                    "（当前显示的是另一台设备的数据；本机数据已更新）"
+                } else {
+                    ""
+                }
+            }
+            is com.screentrace.app.data.sync.DeviceOperations.MergeResult.Skipped -> result.message
+            is com.screentrace.app.data.sync.DeviceOperations.MergeResult.Failed -> result.message
+        }
     }
 
     private suspend fun refreshSyncStatus() {
