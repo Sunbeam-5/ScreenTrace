@@ -115,7 +115,12 @@
   - [x] **③ 软着陆曲线**：`animateScrollToPage` 从默认 `spring(DampingRatioNoBouncy)` 换成 `spring(dampingRatio = 0.85, stiffness = StiffnessMediumLow)`（轻微回弹，落定有生命感）；横滑仍由手指驱动不受影响；减少动画仍走 `scrollToPage`。真机落定 774~779ms、曲线收在 `TabMotion.scrollSpec` 单一出处。
   - [x] **纯函数 + 变异验证**：`TabMotion.alphaFor / scaleFor / titleShiftDp / scrollSpec` 均为纯函数，`TabMotionTest` 14 例；**4 处变异全部变红**（alpha 恒 1 / scale 恒 1 / shift 恒 0 / dampingRatio 退回 1.0）；`--rerun-tasks` **527 测全绿 / 0 skip**。
   - [x] **真机复核**：`scripts/capture_anim.py --label 日历 --no-back` 复拍点 tab 转场逐帧对比（景深生效、标题位移可见）；`--swipe` 复拍横滑不受影响；`dumpsys gfxinfo` 50th=8ms / 真 jank 0.5% 无新增掉帧。证据见 `CODE_REVIEW.md` 文末补记。
-  - [ ] **vivo 复核**：负责人指出「vivo 才是真的卡的要死」（疑与 CR-20 记账的「Pager 偶发卡在两页之间」同源）；**该机当前未连接 adb**，待接入后排查并复核 CR-23 三项。
+  - [x] **vivo 复核（2026-11-16 17:00）**：已接入并用 dumpsys gfxinfo framestats 逐帧拆段排查。**结论：CR-23 无罪**（景深 GPU 5.13ms vs 关掉 5.31ms、标题位移 0.07ms，都在噪声内）；vivo 每帧成本「录制绘制 5.67ms + GPU 5.1ms」，唯一确定可归本 App 的是**壁纸模糊约 1ms GPU/帧**；200~350ms 尖峰来自后台进程 GC（gallery.aiservice/QQ 等），非本 App。测量方法学记账：**vivo 不触摸自动降到 60Hz、\input tap\ 不触发高刷**，脚本测量必须按帧自己的 vsync 分档或用真实触摸。CR-23 三项在 vivo 上视觉正常。
+- [ ] **CR-24 · 壁纸模糊一次性位图缓存（2026-11-16 17:05 负责人同意）**：
+  - [x] **文档先行**：头部登记 CR-24（含排查记账与「API<31 静默不模糊」的诚实性缺口）；§5.4 新增「模糊走一次性位图缓存」条；§7 追加 51 条验收（50 → 51 条）。代码零改动、单独提交。
+  - [ ] **① 纯函数模糊**：\WallpaperTuning.blurArgb(width, height, pixels, radius)\——只吃整数像素与半径，盒式模糊，JVM 单测覆盖「半径 0 原样」「越大越平滑」「边界不越界」。
+  - [ ] **② 一次性缓存**：只在壁纸位图或 \lurDp\ 变化时算一次（降采样长边 ≤800px，1px ≈ 1dp，\lurDp\ 即半径像素数）；绘制端只贴已模糊位图，去掉 \Modifier.blur\；**API < 31 一并生效**（原静默不模糊）。
+  - [ ] **③ 变异验证 + 真机复核**：改坏模糊必须变红；vivo 拆段复测 GPU 段应下降；真机截图核对模糊观感与裁切不变形。
 
 
 
