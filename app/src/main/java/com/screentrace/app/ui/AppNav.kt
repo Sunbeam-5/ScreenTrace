@@ -364,6 +364,17 @@ fun AppNav() {
             derivedStateOf { pagerState.currentPage + pagerState.currentPageOffsetFraction }
         }
         val tabScope = rememberCoroutineScope()
+        // CR-22 ①：程序化滚动守卫（点 tab 触发的滚动期间不接受 Pager 的中间页回写）
+        val tabGuard = remember { TabScrollGuard() }
+
+        // CR-22 ①：按 **Pager 的实际停留页**对齐路由。
+        // 写的是 Pager 此刻的位置（不是「用户点的页」），所以 Pager 仍是唯一真相源，
+        // 点 tab 不直接写路由的红线不变。这里必须读 `viewModel.page.value`：
+        // 局部函数捕获的是组合时的值，早 Started 的协程里那个值已经过时。
+        fun alignRouteToPager(landed: Int) {
+            val page = MAIN_PAGES.getOrNull(landed) ?: return
+            if (AppPage.mainOf(viewModel.page.value) != page) viewModel.selectMain(page)
+        }
 
         // ① 路由 → Pager：只在「路由变化不是 Pager 回写引起」时才滚（二级页返回、
         //    goBack 回到另一主页面）。CR-17 起点 tab 直接在这里之外发滚动、不写路由，
@@ -380,8 +391,15 @@ fun AppNav() {
             val target = MAIN_PAGES.indexOf(mainPage)
             if (target !in MAIN_PAGES.indices) return@LaunchedEffect
             if (pagerState.currentPage != target) {
-                if (reduceMotion) pagerState.scrollToPage(target)
-                else pagerState.animateScrollToPage(target)
+                // CR-22 ①：这也是一次程序化滚动（二级页返回时的回滚），中途的中间页
+                // 同样不能回写路由，否则标题会闪一下中间页。
+                tabGuard.begin(target)
+                try {
+                    if (reduceMotion) pagerState.scrollToPage(target)
+                    else pagerState.animateScrollToPage(target)
+                } finally {
+                    if (tabGuard.end(target)) alignRouteToPager(pagerState.currentPage)
+                }
             }
         }
         // ② Pager → 路由（单向）：`currentPage` 过半即翻，比 `settledPage`（落定才发值）
@@ -392,6 +410,10 @@ fun AppNav() {
         LaunchedEffect(pagerState) {
             snapshotFlow { pagerState.currentPage }.distinctUntilChanged().collect { index ->
                 val target = MAIN_PAGES.getOrNull(index) ?: return@collect
+                // CR-22 ①：程序化滚动期间**只忽略中间页**的回写（目标页照常回写，
+                // 动画走到七成时切标题最自然）——否则跨两页时路由会经过中间页，
+                // 标题与胶囊先跳到中间页再跳回（观感＝卡一下）。
+                if (tabGuard.ignoresWrite(index)) return@collect
                 if (AppPage.mainOf(viewModel.page.value) != target) viewModel.selectMain(target)
             }
         }
@@ -865,9 +887,16 @@ fun AppNav() {
                     selectedIndex = MAIN_PAGES.indexOf(mainPage).coerceAtLeast(0),
                     onSelect = { index ->
                         // CR-17 ②：点 tab 只滚 Pager，不直接写路由；route 由 ② 单向回写
+                        // CR-22 ①：标记为程序化滚动——滚动途中 Pager 的回写一律忽略，
+                        // 结束后按 Pager 的停留页对齐一次（跨页时不经过中间页）。
+                        tabGuard.begin(index)
                         tabScope.launch {
-                            if (reduceMotion) pagerState.scrollToPage(index)
-                            else pagerState.animateScrollToPage(index)
+                            try {
+                                if (reduceMotion) pagerState.scrollToPage(index)
+                                else pagerState.animateScrollToPage(index)
+                            } finally {
+                                if (tabGuard.end(index)) alignRouteToPager(pagerState.currentPage)
+                            }
                         }
                     },
                     progress = navProgress

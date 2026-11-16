@@ -2,6 +2,7 @@ package com.screentrace.app.data.sync
 
 import com.screentrace.app.data.backup.BackupRepository
 import com.screentrace.app.data.backup.CrossDeviceMerge
+import com.screentrace.app.data.backup.SameDeviceFingerprint
 import com.screentrace.app.data.prefs.DeviceIds
 import com.screentrace.app.data.prefs.SettingsStore
 import java.time.ZoneId
@@ -95,7 +96,8 @@ class DeviceOperations(
     /**
      * CR-21 ②：把某台远端设备的最新备份**累加**并入本机采集库。
      *
-     * 流程：下载 → 按「尚未合并过的日期」累加并入本机采集库（单事务，失败整体回滚）
+     * 流程：下载 → 判定来源是否本机自己（CR-22 ②，重叠日期以本机为准、不累加）
+     * → 按「尚未合并过的日期」累加并入本机采集库（单事务，失败整体回滚）
      * → 记账 → 自动上传一次（上传失败只提示，不回滚本地合并）。
      */
     suspend fun mergeIntoLocal(deviceId: String): MergeResult {
@@ -104,9 +106,29 @@ class DeviceOperations(
             ?: return MergeResult.Failed("下载失败：${remote.errorText()}")
 
         val already = settings.mergedDatesOf(deviceId)
-        val allowed = CrossDeviceMerge.allowedDatesOf(file, already, zone)
-        if (allowed.isEmpty()) {
+        val candidates = CrossDeviceMerge.allowedDatesOf(file, already, zone)
+        if (candidates.isEmpty()) {
             return MergeResult.Skipped(deviceId, "该设备的数据已全部合并过，没有新日期可并入")
+        }
+
+        // CR-22 ②：来源若是**本机自己**的旧备份，重叠日期不能累加（会翻倍）。
+        val localId = runCatching { settings.getOrCreateDeviceId() }.getOrDefault("")
+        val localDays = localBackups.dayFingerprints(candidates)
+        val localEvents = localBackups.dayEventKeys(candidates, zone)
+        val verdict = SameDeviceFingerprint.detect(
+            file = file,
+            localDays = localDays,
+            localDeviceId = localId,
+            localEvents = localEvents,
+            zone = zone
+        )
+        val skipDates = verdict.sameDeviceDates
+        val allowed = candidates - skipDates
+        if (allowed.isEmpty()) {
+            return MergeResult.Skipped(
+                deviceId,
+                "判定为同一台机器的旧备份（${verdict.reason}），重叠的 ${skipDates.size} 天以本机为准，没有新日期可并入"
+            )
         }
 
         val merged = runCatching { localBackups.mergeAccumulate(file, allowed) }
@@ -119,11 +141,16 @@ class DeviceOperations(
 
         val uploaded = runCatching { uploadAfterMerge() }.getOrDefault(false)
         val uploadNote = if (uploaded) "，已自动上传一次" else "，自动上传失败（本机合并已保留）"
+        val skipNote = if (skipDates.isEmpty()) {
+            ""
+        } else {
+            "（判定为同一台机器，${skipDates.size} 天以本机为准、未累加）"
+        }
         return MergeResult.Ok(
             deviceId = deviceId,
             mergedDates = allowed.size,
             uploaded = uploaded,
-            message = "已并入 ${allowed.size} 天的数据$uploadNote"
+            message = "已并入 ${allowed.size} 天的数据$skipNote$uploadNote"
         )
     }
 

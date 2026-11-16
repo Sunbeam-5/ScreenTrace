@@ -116,7 +116,8 @@ class CR21DeviceTest {
             copyHasData = { copyDb.daySummaryDao().count() > 0 },
             settings = settings,
             onSwitch = { settings.setCurrentDeviceId(it) },
-            uploadAfterMerge = { manager.uploadManual("1.0") is SyncResult.Ok }
+            uploadAfterMerge = { manager.uploadManual("1.0") is SyncResult.Ok },
+            zone = zone
         )
     }
 
@@ -162,6 +163,25 @@ class CR21DeviceTest {
              "screen_session":[],"app_limit":[]}
         """.trimIndent().toByteArray()
     }
+
+    /**
+     * 远端备份 + 一条通知事件（CR-22 ② 信号③：事件主键子集 = 同机更早快照）。
+     *
+     * @param eventMs 事件时间戳（落在 2026-11-01）
+     */
+    private fun remoteBackupJsonWithEvent(
+        eventMs: Long,
+        date: String = "2026-11-01"
+    ): ByteArray = """
+        {"schemaVersion":5,"exportedAt":"2026-11-16 10:00","appVersion":"1.0",
+         "device":{"id":"$remoteId","nickname":"旧手机","model":"Redmi Note 12"},
+         "day_summary":[{"date":"$date","screenMin":60,"screenUnlockMin":50,
+                         "unlocks":5,"launches":8,"longestSessionMin":25,"pulledAt":1700000000000}],
+         "app_usage":[],"hour_usage":[],"pull_log":[],"unlock_event":[],
+         "notification_event":[{"occurredAtMs":$eventMs,"type":"NOTIFICATION_SEEN",
+                                "pkg":"com.a","channelId":"ch1"}],
+         "screen_session":[],"app_limit":[]}
+    """.trimIndent().toByteArray()
 
     // ---------------------------------------------------------- 机型显示（§7-43）
 
@@ -355,6 +375,94 @@ class CR21DeviceTest {
         dates.forEach { date ->
             assertEquals("已合并的日期不能再翻倍", 460, localDb.daySummaryDao().get(date)!!.screenMin)
         }
+    }
+
+    @Test
+    fun `来源是本机自己的旧备份时 重叠日期以本机为准 不累加`() = runBlocking {
+        // 备份与本机同一天的数据**逐项完全一致**（同一台机器的两份快照）
+        provider.remote[SyncPaths.manualPath(remoteId)] = remoteBackupJson(screenMin = 60, unlockMin = 50)
+        localDb.daySummaryDao().insert(
+            com.screentrace.app.data.db.DaySummaryEntity(
+                "2026-11-01", 60, 50, 5, 8, 25, 1_700_000_000_000
+            )
+        )
+
+        val result = operations.mergeIntoLocal(remoteId)
+        assertTrue("应识别为同一台机器并跳过", result is DeviceOperations.MergeResult.Skipped)
+        assertTrue(
+            "提示要写明判定结果",
+            (result as DeviceOperations.MergeResult.Skipped).message.contains("同一台机器")
+        )
+        assertEquals("同一天不能翻倍", 60, localDb.daySummaryDao().get("2026-11-01")!!.screenMin)
+    }
+
+    @Test
+    fun `部分日期与本机一致时 只并入不一致的那天`() = runBlocking {
+        provider.remote[SyncPaths.manualPath(remoteId)] =
+            remoteBackupJsonMulti(listOf("2026-11-01", "2026-11-02"), screenMin = 60)
+        localDb.daySummaryDao().insert(
+            com.screentrace.app.data.db.DaySummaryEntity(
+                "2026-11-01", 60, 60, 5, 8, 25, 1_700_000_000_000
+            )
+        )
+        localDb.daySummaryDao().insert(
+            com.screentrace.app.data.db.DaySummaryEntity(
+                "2026-11-02", 400, 360, 40, 60, 90, 1_700_000_000_000
+            )
+        )
+
+        val result = operations.mergeIntoLocal(remoteId)
+        assertTrue(result is DeviceOperations.MergeResult.Ok)
+        val ok = result as DeviceOperations.MergeResult.Ok
+        assertEquals("只并入不一致的那天", 1, ok.mergedDates)
+        assertTrue(
+            "提示要写明跳过了几天",
+            ok.message.contains("同一台机器") && ok.message.contains("1 天")
+        )
+        assertEquals(
+            "一致的那天以本机为准、不累加",
+            60,
+            localDb.daySummaryDao().get("2026-11-01")!!.screenMin
+        )
+        assertEquals(
+            "不一致的那天照常累加",
+            460,
+            localDb.daySummaryDao().get("2026-11-02")!!.screenMin
+        )
+    }
+
+    @Test
+    fun `备份事件是本机事件子集时 判为同一台机器 不累加`() = runBlocking {
+        // 2026-11-01T00:00:00Z（测试固定用 UTC，事件归属日不受宿主时区影响）
+        val eventMs = 1_793_491_200_000L
+        provider.remote[SyncPaths.manualPath(remoteId)] = remoteBackupJsonWithEvent(eventMs)
+        // 本机同一天有**更多**事件（备份是本机更早的快照）
+        localDb.daySummaryDao().insert(
+            com.screentrace.app.data.db.DaySummaryEntity(
+                "2026-11-01", 400, 360, 40, 60, 90, 1_700_000_000_000
+            )
+        )
+        localDb.notificationEventDao().insertIgnore(
+            com.screentrace.app.data.db.NotificationEventEntity(
+                eventMs, "NOTIFICATION_SEEN", "com.a", "ch1"
+            )
+        )
+        localDb.notificationEventDao().insertIgnore(
+            com.screentrace.app.data.db.NotificationEventEntity(
+                eventMs + 60_000, "NOTIFICATION_SEEN", "com.b", "ch2"
+            )
+        )
+
+        val result = operations.mergeIntoLocal(remoteId)
+        assertTrue("事件子集应判为同一台机器", result is DeviceOperations.MergeResult.Skipped)
+        assertTrue(
+            (result as DeviceOperations.MergeResult.Skipped).message.contains("同一台机器")
+        )
+        assertEquals(
+            "当天不能翻倍",
+            400,
+            localDb.daySummaryDao().get("2026-11-01")!!.screenMin
+        )
     }
 
     @Test

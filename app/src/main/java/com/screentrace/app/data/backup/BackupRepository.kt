@@ -320,6 +320,54 @@ class BackupRepository(
     }
 
     /**
+     * §4 CR-22 ②：本机库这些日期的日聚合**指纹**（供「是不是同一台机器」判定用）。
+     *
+     * 只读、不写库；`day_summary` 至多十几天，取全表也不贵。
+     */
+    suspend fun dayFingerprints(
+        dates: Set<String>
+    ): Map<String, SameDeviceFingerprint.DayFingerprint> {
+        if (dates.isEmpty()) return emptyMap()
+        return db.daySummaryDao().getAll()
+            .filter { it.date in dates }
+            .associate { it.date to SameDeviceFingerprint.DayFingerprint.of(
+                DaySummaryDto(
+                    it.date, it.screenMin, it.screenUnlockMin, it.unlocks,
+                    it.launches, it.longestSessionMin, it.pulledAt
+                )
+            ) }
+    }
+
+    /**
+     * §4 CR-22 ②：本机库这些日期的**事件主键集合**（供「是不是同一台机器」判定用）。
+     *
+     * 同一台机器的事件时间戳到毫秒一致，所以「备份该日事件 ⊆ 本机该日事件」是同机
+     * 更早快照的强证据；两台不同手机的事件时间戳不可能重合。
+     */
+    suspend fun dayEventKeys(
+        dates: Set<String>,
+        zone: ZoneId
+    ): Map<String, SameDeviceFingerprint.DayEventKeys> {
+        if (dates.isEmpty()) return emptyMap()
+        val out = mutableMapOf<String, MutableSet<String>>()
+        db.notificationEventDao().getAll().forEach {
+            val date = CrossDeviceMerge.dateOf(it.occurredAtMs, zone)
+            if (date in dates) {
+                out.getOrPut(date) { mutableSetOf() } += SameDeviceFingerprint.DayEventKeys
+                    .ofNotification(it.occurredAtMs, it.type, it.pkg)
+            }
+        }
+        db.unlockEventDao().getAll().forEach {
+            val date = CrossDeviceMerge.dateOf(it.occurredAtMs, zone)
+            if (date in dates) {
+                out.getOrPut(date) { mutableSetOf() } += SameDeviceFingerprint.DayEventKeys
+                    .ofUnlock(it.occurredAtMs)
+            }
+        }
+        return out.mapValues { (_, keys) -> SameDeviceFingerprint.DayEventKeys(keys) }
+    }
+
+    /**
      * §4 CR-21：**跨设备累加合并**（与 [merge] 的「同日取较大」是**两套口径**）。
      *
      * [merge] 服务于「同一台设备的重拉 / 恢复」——同一份事实反复导入不能翻倍；
