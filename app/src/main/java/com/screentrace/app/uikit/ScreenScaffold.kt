@@ -32,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -92,16 +91,17 @@ fun PageScaffold(
         if (wallpaper != null) {
             // §5.4 CR-19 ③：壁纸改「完整显示 + graphicsLayer 变换」支持裁切；
             // 旧数据（cropScale=1f）在绘制时自动抬到恰好盖满，观感与原 Crop 一致。
-            val bmpW = wallpaper.bitmap.width.toFloat()
-            val bmpH = wallpaper.bitmap.height.toFloat()
+            // §5.4 CR-24：贴**已经模糊好**的位图（WallpaperBlur 一次性算好），
+            // 不再挂 `Modifier.blur`——那是每帧 RenderEffect，三页常驻时被乘以 3。
+            // 裁切几何跟着这张图的尺寸走（与原图同宽高比，结果一致）。
+            val bmpW = wallpaper.blurred.width.toFloat()
+            val bmpH = wallpaper.blurred.height.toFloat()
             Image(
-                bitmap = wallpaper.bitmap,
+                bitmap = wallpaper.blurred,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
-                    // API < 31 时 effectiveBlurDp 已钳成 0，这里不会调用 blur（不静默假装生效）
-                    .then(if (wallpaper.blurDp > 0f) Modifier.blur(wallpaper.blurDp.dp) else Modifier)
                     .graphicsLayer {
                         val geo = WallpaperCropMath.geometry(bmpW, bmpH, size.width, size.height)
                         val zoom = if (geo != null) maxOf(wallpaper.cropScale, geo.minZoom) else wallpaper.cropScale

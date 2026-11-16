@@ -84,11 +84,13 @@ class WallpaperTuningTest {
     }
 
     @Test
-    fun `模糊在 Android 12 以下显式归零`() {
-        assertFalse(WallpaperTuning.blurSupported(30))
-        assertTrue(WallpaperTuning.blurSupported(31))
-        assertEquals(0f, WallpaperTuning.effectiveBlurDp(12, 30), 0.0001f)
-        assertEquals(12f, WallpaperTuning.effectiveBlurDp(12, 33), 0.0001f)
-        assertEquals(16f, WallpaperTuning.effectiveBlurDp(99, 33), 0.0001f) // 越界值夹到上限
+    fun `CR-24 模糊全版本生效 只做越界夹取`() {
+        // 旧口径：Modifier.blur 依赖 RenderEffect，Android 12 以下显式归零。
+        // CR-24 改成 CPU 一次性模糊后全版本生效——这条断言记录该口径变更。
+        assertTrue(WallpaperTuning.blurSupported())
+        assertEquals(0f, WallpaperTuning.effectiveBlurDp(0), 0.0001f)
+        assertEquals(12f, WallpaperTuning.effectiveBlurDp(12), 0.0001f)
+        assertEquals(16f, WallpaperTuning.effectiveBlurDp(99), 0.0001f) // 越界值夹到上限
+        assertEquals(0f, WallpaperTuning.effectiveBlurDp(-5), 0.0001f) // 负值夹到下限
     }
 }

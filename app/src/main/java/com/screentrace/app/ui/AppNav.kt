@@ -50,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
@@ -75,6 +76,7 @@ import android.os.Build
 import com.screentrace.app.data.pull.PullScheduler
 import com.screentrace.app.data.sync.SyncManager
 import com.screentrace.app.data.wallpaper.WallpaperTuning
+import com.screentrace.app.data.wallpaper.WallpaperBlur
 import com.screentrace.app.ui.onboarding.OnboardingScreen
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
@@ -159,8 +161,12 @@ fun AppNav() {
     val wallpaperBitmap by viewModel.wallpaperBitmap
     val wallpaperConfig by viewModel.wallpaperConfig
     val wallpaperMessage by viewModel.wallpaperMessage
-    val wallpaperState = remember(wallpaperBitmap, wallpaperConfig, darkTheme) {
+    // CR-24：模糊按「1px ≈ 1dp」降采样，需要屏幕 density
+    val wallpaperDensity = LocalDensity.current.density
+    val wallpaperState = remember(wallpaperBitmap, wallpaperConfig, darkTheme, wallpaperDensity) {
         wallpaperBitmap?.takeIf { wallpaperConfig.enabled }?.let { bmp ->
+            // CR-24：全版本生效（原 Modifier.blur 依赖 RenderEffect、低版本静默不模糊）
+            val blurDp = WallpaperTuning.effectiveBlurDp(wallpaperConfig.blurDp)
             WallpaperState(
                 bitmap = bmp,
                 dimAlpha = WallpaperTuning.dimAlpha(wallpaperConfig.dimPercent),
@@ -168,7 +174,10 @@ fun AppNav() {
                 themeScrimAlpha = WallpaperTuning.themeScrimAlpha(
                     wallpaperConfig.brightness, darkTheme, cardTranslucent = true
                 ),
-                blurDp = WallpaperTuning.effectiveBlurDp(wallpaperConfig.blurDp, Build.VERSION.SDK_INT),
+                blurDp = blurDp,
+                // CR-24：**一次性**算好模糊位图（只在壁纸/blurDp 变化时重算），
+                // 绘制端只贴它、不再每帧跑 RenderEffect。
+                blurred = WallpaperBlur.blurredImage(bmp, blurDp.toInt(), wallpaperDensity),
                 cropScale = wallpaperConfig.cropScale,
                 cropOffsetX = wallpaperConfig.cropOffsetX,
                 cropOffsetY = wallpaperConfig.cropOffsetY,
@@ -770,7 +779,7 @@ fun AppNav() {
                                     wallpaperConfig = wallpaperConfig,
                                     wallpaperMessage = wallpaperMessage,
                                     onOpenWallpaperEditor = { showWallpaperEditor = true },
-                                    blurSupported = WallpaperTuning.blurSupported(Build.VERSION.SDK_INT),
+                                    blurSupported = WallpaperTuning.blurSupported(),
                                     onWallpaperPicked = viewModel::onWallpaperPicked,
                                     onWallpaperDimChange = { v -> viewModel.setWallpaperDim(v) },
                                     onWallpaperBlurChange = { v -> viewModel.setWallpaperBlur(v) },

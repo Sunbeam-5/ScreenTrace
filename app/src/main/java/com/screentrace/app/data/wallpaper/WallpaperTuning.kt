@@ -45,8 +45,6 @@ object WallpaperTuning {
     const val DIM_MAX = 60
     const val BLUR_MIN = 0
     const val BLUR_MAX = 16
-    /** `Modifier.blur` 依赖 RenderEffect，只有 Android 12+ 生效。 */
-    const val MIN_API_FOR_BLUR = 31
 
     /**
      * CR-20 ②：没取到主色时的兜底种子（中性灰）。
@@ -237,9 +235,90 @@ object WallpaperTuning {
     fun lightStatusIcons(effectiveBrightness: Int): Boolean =
         clampBrightness(effectiveBrightness) >= 140
 
-    fun blurSupported(sdkInt: Int): Boolean = sdkInt >= MIN_API_FOR_BLUR
+    // ---- CR-24：壁纸模糊改「一次性位图缓存」（CPU 模糊，全版本生效）----
 
-    /** 低版本一律返回 0，UI 同时把滑杆禁用并给出提示，不静默假装生效。 */
-    fun effectiveBlurDp(blurDp: Int, sdkInt: Int): Float =
-        if (blurSupported(sdkInt)) clampBlur(blurDp).toFloat() else 0f
+    /** 模糊位图长边上限（CR-24）。降采样后 1px ≈ 1dp，`blurDp` 直接当半径像素数。 */
+    const val BLUR_BITMAP_MAX_EDGE = 800
+
+    /**
+     * 盒式模糊（**纯函数**，只吃整数像素与半径，不依赖 Compose 状态）。
+     *
+     * CR-24：`Modifier.blur` 是**每帧** RenderEffect，三页常驻时被乘以 3，是壁纸模式下
+     * 唯一确定的 GPU 开销；改成「只在壁纸或 `blurDp` 变化时算一次」，绘制端只贴结果。
+     *
+     * 三趟可分离盒式模糊近似高斯；边缘按 clamp 取样（不越界、不发黑边）。
+     * ARGB 四通道各自累加，不拆预乘 alpha——壁纸整图模糊，边缘光晕可接受。
+     *
+     * @param radius 半径像素数；`<= 0` 直接原样返回（不模糊）。
+     * @return 新数组（半径为 0 时也是新数组，调用方无需区分）。
+     */
+    fun blurArgb(width: Int, height: Int, pixels: IntArray, radius: Int): IntArray {
+        require(width > 0 && height > 0) { "尺寸必须为正：${width}x$height" }
+        require(pixels.size == width * height) { "像素数 ${pixels.size} 与尺寸 ${width}x$height 不符" }
+        if (radius <= 0) return pixels.copyOf()
+        // **先复制**：下面的 src/dst 交替会往 src 里写，若直接别名到 pixels
+        // 就会改写调用方的输入数组并把它返回（不是纯函数；单测「不该还是原图」咬住过一次）
+        var src = pixels.copyOf()
+        val dst = IntArray(pixels.size)
+        // 三趟：每趟先横后竖；src/dst 交替，结束时结果落在 src
+        repeat(3) {
+            boxBlur(width, height, src, dst, radius, horizontal = true)
+            boxBlur(width, height, dst, src, radius, horizontal = false)
+        }
+        return src
+    }
+
+    /**
+     * 一趟盒式模糊。用**前缀和**把每像素的求和摊成 O(1)，整趟 O(像素数)，
+     * 不随半径变慢（半径 16 在 800×450 上也是一次线性扫描）。
+     */
+    private fun boxBlur(
+        width: Int,
+        height: Int,
+        src: IntArray,
+        dst: IntArray,
+        radius: Int,
+        horizontal: Boolean
+    ) {
+        val outer = if (horizontal) height else width
+        val inner = if (horizontal) width else height
+        // 每行/列一条通道前缀和（长度 inner+1，避免越界判断）
+        val preA = LongArray(inner + 1)
+        val preR = LongArray(inner + 1)
+        val preG = LongArray(inner + 1)
+        val preB = LongArray(inner + 1)
+        for (o in 0 until outer) {
+            for (i in 0 until inner) {
+                val px = src[if (horizontal) o * width + i else i * width + o]
+                preA[i + 1] = preA[i] + (px ushr 24 and 0xFF)
+                preR[i + 1] = preR[i] + (px shr 16 and 0xFF)
+                preG[i + 1] = preG[i] + (px shr 8 and 0xFF)
+                preB[i + 1] = preB[i] + (px and 0xFF)
+            }
+            for (i in 0 until inner) {
+                // clamp 边缘：窗口 [i-radius, i+radius] 截到 [0, inner-1]
+                val lo = (i - radius).coerceAtLeast(0)
+                val hi = (i + radius).coerceAtMost(inner - 1)
+                val n = (hi - lo + 1).toLong()
+                val a = ((preA[hi + 1] - preA[lo]) / n).toInt()
+                val r = ((preR[hi + 1] - preR[lo]) / n).toInt()
+                val g = ((preG[hi + 1] - preG[lo]) / n).toInt()
+                val b = ((preB[hi + 1] - preB[lo]) / n).toInt()
+                dst[if (horizontal) o * width + i else i * width + o] =
+                    (a shl 24) or (r shl 16) or (g shl 8) or b
+            }
+        }
+    }
+
+    /**
+     * CR-24：模糊改 CPU 一次性位图缓存后**全版本生效**。
+     *
+     * 旧口径是 `Modifier.blur` 依赖 RenderEffect、只有 Android 12+ 生效，低版本把
+     * `effectiveBlurDp` 钳成 0 并禁用滑杆——**UI 提示了不支持**（不算静默），
+     * 但观感确实与高版本不一致。现在 CPU 模糊不挑版本，两处口径统一。
+     */
+    fun blurSupported(): Boolean = true
+
+    /** CR-24：全版本生效，只做越界夹取（半径 0..16）。 */
+    fun effectiveBlurDp(blurDp: Int): Float = clampBlur(blurDp).toFloat()
 }

@@ -16,6 +16,14 @@ data class WallpaperState(
     val dimAlpha: Float,
     val themeScrimAlpha: Float,
     val blurDp: Float,
+    /**
+     * §5.4 CR-24：**已经模糊好的**壁纸位图（降采样，1px ≈ 1dp）。
+     *
+     * 只在壁纸位图或 `blurDp` 变化时算一次（`WallpaperBlur`），绘制端直接贴它、
+     * **不再挂 `Modifier.blur`**——那玩意儿是每帧 RenderEffect，三页常驻时被乘以 3。
+     * `blurDp <= 0` 时它就是 [bitmap] 本身。
+     */
+    val blurred: ImageBitmap,
     /** CR-19 ③：裁切变换（相对「完整显示」的缩放与归一化平移）。 */
     val cropScale: Float = 1f,
     val cropOffsetX: Float = 0f,
