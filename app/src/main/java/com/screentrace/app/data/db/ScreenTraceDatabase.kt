@@ -11,6 +11,9 @@ import androidx.room.RoomDatabase
  * 版本 4（批 6g 四轮）：清空 hour_usage（旧时段算法与并集后口径不一致，见 MIGRATION_3_4）。
  * 版本 5（批 8 第一步）：+ app_limit（应用限额；备份 schemaVersion=4 要包含它）。
  * 版本 6（CR-27）：+ device_merge_ledger（跨设备合并的防重复记账，与数据同事务）。
+ * 版本 7（CR-28）：六表加 sourceDeviceId（来源维度），事件表主键加 seq（同毫秒多条
+ *   不丢 + 重复拉取幂等）；旧值 sourceDeviceId 置 ''（未归档），首启由 SourceArchive
+ *   按「合并账本内 → '__legacy__'、纯本机日 → 本机 ID」归档。
  */
 @Database(
     entities = [
@@ -24,7 +27,7 @@ import androidx.room.RoomDatabase
         AppLimitEntity::class,
         DeviceMergeLedgerEntity::class
     ],
-    version = 6,
+    version = 7,
     // P2-1（6a 评审）：导出 schema JSON 到 app/schemas，供批 6b+ 的迁移与批 8 备份校验使用。
     // 注意区分：这里的 version 是**数据库结构版本**，备份文件的 schemaVersion（§5.10 C07）是另一套。
     exportSchema = true

@@ -62,8 +62,8 @@ class AppContainer(context: Context) {
      */
     private val labels = AppLabelResolver(appContext.packageManager)
 
-    /** 入库时写库（之后列表/搜索/详情都用真实名字）。 */
-    val pipeline = IngestPipeline(db, labels)
+    /** 入库时写库（之后列表/搜索/详情都用真实名字）。CR-28：写行携带本机来源 ID。 */
+    val pipeline = IngestPipeline(db, localDeviceId = { settings.getOrCreateDeviceId() }, labelOf = labels)
 
     /**
      * 通道优先级＝降级顺序（§2.1）：Shizuku 能拿事件流；拿不到（未装/未授权/临时故障）
@@ -92,7 +92,9 @@ class AppContainer(context: Context) {
     val backup: BackupRepository = BackupRepository(
         db = databases.local,
         settings = settings,
-        device = { settings.currentDevice() }
+        device = { settings.currentDevice() },
+        // CR-28：本机库的恢复/合并行归属本机来源
+        sourceDeviceId = { settings.getOrCreateDeviceId() }
     )
 
     /** 批 8b：云同步机密凭据（EncryptedSharedPreferences，§5.10 禁明文）。
@@ -128,7 +130,9 @@ class AppContainer(context: Context) {
                 BackupRepository(
                     db = databases.forDevice(id),
                     settings = settings,
-                    device = { settings.currentDevice() }
+                    device = { settings.currentDevice() },
+                    // CR-28：副本库的行归属该副本所属设备（不是本机）
+                    sourceDeviceId = { id }
                 )
             },
             copyHasData = { id -> copyHasData(id) },
@@ -155,6 +159,16 @@ class AppContainer(context: Context) {
             runCatching { settings.getOrCreateDeviceId() }.getOrNull()?.let { localDeviceId = it }
             val saved = runCatching { settings.currentDeviceId.first() }.getOrDefault("")
             if (saved.isNotEmpty()) currentDeviceId = saved
+
+            // CR-28 首启归档（幂等，只处理未归档行）：MIGRATION_6_7 留下的 '' 行按
+            // 「合并账本内 → '__legacy__'（历史混合、只读）、纯本机日 → 本机 ID」归档；
+            // 账本取 Room ⊕ 旧 DataStore 并集（CR-27 口径，不丢老账）。
+            runCatching {
+                val localId = localDeviceId.ifEmpty { settings.getOrCreateDeviceId() }
+                val legacyDates = db.deviceMergeLedgerDao().allDates().toSet() +
+                    settings.mergeLedger.first().values.flatten()
+                com.screentrace.app.data.SourceArchive.archive(db, localId, legacyDates)
+            }
         }
     }
 

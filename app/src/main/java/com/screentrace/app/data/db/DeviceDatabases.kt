@@ -73,7 +73,9 @@ class DeviceDatabases(context: Context) {
                     MIGRATION_3_4,
                     // v5（批 8）：+ app_limit
                     MIGRATION_4_5,
-                    MIGRATION_5_6
+                    MIGRATION_5_6,
+                    // v7（CR-28）：六表加来源维度 + 事件 seq
+                    MIGRATION_6_7
                 )
                 .build()
     }

@@ -97,3 +97,176 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         )
     }
 }
+
+/**
+ * v6 → v7（CR-28，2026-11-17）：六表加来源维度 `sourceDeviceId`，事件表主键再加
+ * 确定性 `seq`（同毫秒多条不丢 + 重复拉取幂等）。
+ *
+ * SQLite 不能 `ALTER TABLE` 改主键，走「建新表 + 搬行 + 换名」（需求 §4 CR-28）：
+ * - **旧数据一行不丢**（铁律）：每张表的行原样搬入，只补新列；
+ * - `sourceDeviceId` 全置 `''`（**未归档**）——迁移是纯 SQL、读不到 DataStore 的
+ *   deviceId 与合并账本，归属判定留给首启的 [com.screentrace.app.data.SourceArchive]
+ *   （账本内日期 → `'__legacy__'`，纯本机日 → 本机 ID）；
+ * - 事件 `seq` 置 0（旧行同毫秒早已被旧 PK 折叠成一行，0 即该组第 0 条）；
+ * - 新索引名必须与 Room 生成名逐字一致（`index_<表>_<列>`），否则 schema 校验不过。
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // ---------------- day_summary：PK (date, sourceDeviceId)
+        db.execSQL(
+            """
+            CREATE TABLE `day_summary_v7` (
+                `date` TEXT NOT NULL,
+                `screenMin` INTEGER NOT NULL,
+                `screenUnlockMin` INTEGER NOT NULL,
+                `unlocks` INTEGER NOT NULL,
+                `launches` INTEGER NOT NULL,
+                `longestSessionMin` INTEGER NOT NULL,
+                `pulledAt` INTEGER NOT NULL,
+                `sourceDeviceId` TEXT NOT NULL,
+                PRIMARY KEY(`date`, `sourceDeviceId`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `day_summary_v7`
+                (`date`, `screenMin`, `screenUnlockMin`, `unlocks`, `launches`, `longestSessionMin`, `pulledAt`, `sourceDeviceId`)
+            SELECT `date`, `screenMin`, `screenUnlockMin`, `unlocks`, `launches`, `longestSessionMin`, `pulledAt`, ''
+            FROM `day_summary`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `day_summary`")
+        db.execSQL("ALTER TABLE `day_summary_v7` RENAME TO `day_summary`")
+        db.execSQL(
+            "CREATE INDEX `index_day_summary_sourceDeviceId` ON `day_summary` (`sourceDeviceId`)"
+        )
+
+        // ---------------- app_usage：PK (date, pkg, sourceDeviceId)
+        db.execSQL(
+            """
+            CREATE TABLE `app_usage_v7` (
+                `date` TEXT NOT NULL,
+                `pkg` TEXT NOT NULL,
+                `name` TEXT NOT NULL,
+                `minutes` INTEGER NOT NULL,
+                `launches` INTEGER NOT NULL,
+                `category` TEXT NOT NULL,
+                `sourceDeviceId` TEXT NOT NULL,
+                PRIMARY KEY(`date`, `pkg`, `sourceDeviceId`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `app_usage_v7`
+                (`date`, `pkg`, `name`, `minutes`, `launches`, `category`, `sourceDeviceId`)
+            SELECT `date`, `pkg`, `name`, `minutes`, `launches`, `category`, ''
+            FROM `app_usage`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `app_usage`")
+        db.execSQL("ALTER TABLE `app_usage_v7` RENAME TO `app_usage`")
+        db.execSQL("CREATE INDEX `index_app_usage_pkg` ON `app_usage` (`pkg`)")
+        db.execSQL(
+            "CREATE INDEX `index_app_usage_sourceDeviceId` ON `app_usage` (`sourceDeviceId`)"
+        )
+
+        // ---------------- hour_usage：PK (date, hour, sourceDeviceId)
+        db.execSQL(
+            """
+            CREATE TABLE `hour_usage_v7` (
+                `date` TEXT NOT NULL,
+                `hour` INTEGER NOT NULL,
+                `minutes` INTEGER NOT NULL,
+                `sourceDeviceId` TEXT NOT NULL,
+                PRIMARY KEY(`date`, `hour`, `sourceDeviceId`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `hour_usage_v7` (`date`, `hour`, `minutes`, `sourceDeviceId`)
+            SELECT `date`, `hour`, `minutes`, '' FROM `hour_usage`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `hour_usage`")
+        db.execSQL("ALTER TABLE `hour_usage_v7` RENAME TO `hour_usage`")
+        db.execSQL(
+            "CREATE INDEX `index_hour_usage_sourceDeviceId` ON `hour_usage` (`sourceDeviceId`)"
+        )
+
+        // ---------------- screen_session：PK (startMs, kind, sourceDeviceId)
+        db.execSQL(
+            """
+            CREATE TABLE `screen_session_v7` (
+                `startMs` INTEGER NOT NULL,
+                `endMs` INTEGER NOT NULL,
+                `kind` TEXT NOT NULL,
+                `sourceDeviceId` TEXT NOT NULL,
+                PRIMARY KEY(`startMs`, `kind`, `sourceDeviceId`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `screen_session_v7` (`startMs`, `endMs`, `kind`, `sourceDeviceId`)
+            SELECT `startMs`, `endMs`, `kind`, '' FROM `screen_session`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `screen_session`")
+        db.execSQL("ALTER TABLE `screen_session_v7` RENAME TO `screen_session`")
+        db.execSQL("CREATE INDEX `index_screen_session_endMs` ON `screen_session` (`endMs`)")
+        db.execSQL(
+            "CREATE INDEX `index_screen_session_sourceDeviceId` ON `screen_session` (`sourceDeviceId`)"
+        )
+
+        // ---------------- unlock_event：PK (occurredAtMs, sourceDeviceId, seq)
+        db.execSQL(
+            """
+            CREATE TABLE `unlock_event_v7` (
+                `occurredAtMs` INTEGER NOT NULL,
+                `sourceDeviceId` TEXT NOT NULL,
+                `seq` INTEGER NOT NULL,
+                PRIMARY KEY(`occurredAtMs`, `sourceDeviceId`, `seq`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `unlock_event_v7` (`occurredAtMs`, `sourceDeviceId`, `seq`)
+            SELECT `occurredAtMs`, '', 0 FROM `unlock_event`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `unlock_event`")
+        db.execSQL("ALTER TABLE `unlock_event_v7` RENAME TO `unlock_event`")
+
+        // ---------------- notification_event：PK (occurredAtMs, type, pkg, sourceDeviceId, seq)
+        db.execSQL(
+            """
+            CREATE TABLE `notification_event_v7` (
+                `occurredAtMs` INTEGER NOT NULL,
+                `type` TEXT NOT NULL,
+                `pkg` TEXT NOT NULL,
+                `channelId` TEXT,
+                `sourceDeviceId` TEXT NOT NULL,
+                `seq` INTEGER NOT NULL,
+                PRIMARY KEY(`occurredAtMs`, `type`, `pkg`, `sourceDeviceId`, `seq`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `notification_event_v7`
+                (`occurredAtMs`, `type`, `pkg`, `channelId`, `sourceDeviceId`, `seq`)
+            SELECT `occurredAtMs`, `type`, `pkg`, `channelId`, '', 0 FROM `notification_event`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `notification_event`")
+        db.execSQL("ALTER TABLE `notification_event_v7` RENAME TO `notification_event`")
+        db.execSQL("CREATE INDEX `index_notification_event_pkg` ON `notification_event` (`pkg`)")
+        db.execSQL(
+            "CREATE INDEX `index_notification_event_occurredAtMs` ON `notification_event` (`occurredAtMs`)"
+        )
+    }
+}

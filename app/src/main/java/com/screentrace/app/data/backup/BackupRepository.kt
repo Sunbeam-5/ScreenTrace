@@ -10,6 +10,7 @@ import com.screentrace.app.data.db.AppLimitEntity
 import com.screentrace.app.data.db.AppUsageEntity
 import com.screentrace.app.data.db.DeviceMergeLedgerEntity
 import com.screentrace.app.data.db.DaySummaryEntity
+import com.screentrace.app.data.db.EventSeq
 import com.screentrace.app.data.db.HourUsageEntity
 import com.screentrace.app.data.db.NotificationEventEntity
 import com.screentrace.app.data.db.PullLogEntity
@@ -37,7 +38,14 @@ class BackupRepository(
     private val settings: SettingsStore? = null,
     private val zone: ZoneId = ZoneId.systemDefault(),
     /** §5.10 批 C：导出 JSON 顶层 `device` 的来源；null = 不带设备标识（旧行为）。 */
-    private val device: suspend () -> com.screentrace.app.data.prefs.DeviceInfo? = { null }
+    private val device: suspend () -> com.screentrace.app.data.prefs.DeviceInfo? = { null },
+    /**
+     * CR-28：恢复/合并写行的来源标识。默认 [SourceIds.UNSPECIFIED]（与测试预置行、
+     * 旧调用点同锅——行为与 CR-28 之前完全一致）；**生产构造必须显式传真实 ID**
+     * （AppContainer：本机库传本机 `deviceId`、副本库传该副本所属设备 ID）。
+     * 备份 schema 6 的「来源＝导出设备」身份规则在批次 C 落地。
+     */
+    private val sourceDeviceId: suspend () -> String = { com.screentrace.app.data.db.SourceIds.UNSPECIFIED }
 ) {
 
     enum class Strategy { OVERWRITE, MERGE }
@@ -199,14 +207,19 @@ class BackupRepository(
         insertAppUsage(file.appUsage)
         insertHourUsage(file.hourUsage)
         insertPullLog(file.pullLog)
-        db.unlockEventDao().insertIgnore(file.unlockEvent.map { UnlockEventEntity(it.occurredAtMs) })
+        val src = sourceDeviceId()
+        db.unlockEventDao().insertIgnore(
+            EventSeq.assign(file.unlockEvent) { listOf(it.occurredAtMs) }
+                .map { (e, seq) -> UnlockEventEntity(e.occurredAtMs, src, seq) }
+        )
         db.notificationEventDao().insertIgnore(
-            file.notificationEvent.map {
-                NotificationEventEntity(it.occurredAtMs, it.type, it.pkg, it.channelId)
-            }
+            EventSeq.assign(file.notificationEvent) { listOf(it.occurredAtMs, it.type, it.pkg) }
+                .map { (e, seq) ->
+                    NotificationEventEntity(e.occurredAtMs, e.type, e.pkg, e.channelId, src, seq)
+                }
         )
         db.screenSessionDao().insert(
-            file.screenSession.map { ScreenSessionEntity(it.startMs, it.endMs, it.kind) }
+            file.screenSession.map { ScreenSessionEntity(it.startMs, it.endMs, it.kind, src) }
         )
         db.appLimitDao().upsert(
             file.appLimit.map { AppLimitEntity(it.pkg, it.limitMin, it.enabled) }
@@ -291,7 +304,11 @@ class BackupRepository(
             localMs = db.unlockEventDao().getAll().map { it.occurredAtMs }.toSet(),
             backup = file.unlockEvent
         )
-        db.unlockEventDao().insertIgnore(unlockPlan.rows.map { UnlockEventEntity(it.occurredAtMs) })
+        val mergeSrc = sourceDeviceId()
+        db.unlockEventDao().insertIgnore(
+            EventSeq.assign(unlockPlan.rows) { listOf(it.occurredAtMs) }
+                .map { (e, seq) -> UnlockEventEntity(e.occurredAtMs, mergeSrc, seq) }
+        )
         report += unlockPlan.report
 
         val notificationPlan = BackupMerge.notificationEvents(
@@ -301,9 +318,10 @@ class BackupRepository(
             backup = file.notificationEvent
         )
         db.notificationEventDao().insertIgnore(
-            notificationPlan.rows.map {
-                NotificationEventEntity(it.occurredAtMs, it.type, it.pkg, it.channelId)
-            }
+            EventSeq.assign(notificationPlan.rows) { listOf(it.occurredAtMs, it.type, it.pkg) }
+                .map { (e, seq) ->
+                    NotificationEventEntity(e.occurredAtMs, e.type, e.pkg, e.channelId, mergeSrc, seq)
+                }
         )
         report += notificationPlan.report
 
@@ -468,19 +486,24 @@ class BackupRepository(
         report += BackupMerge.Report(added = pullRows.size)
 
         // ④ 事件：主键去重。两机时间戳不同故各自保留、计数自然累加，同刻同包才去重。
+        val accSrc = sourceDeviceId()
         val unlockRows = file.unlockEvent.filter {
             CrossDeviceMerge.dateOf(it.occurredAtMs, zone) in allowedDates
         }
-        db.unlockEventDao().insertIgnore(unlockRows.map { UnlockEventEntity(it.occurredAtMs) })
+        db.unlockEventDao().insertIgnore(
+            EventSeq.assign(unlockRows) { listOf(it.occurredAtMs) }
+                .map { (e, seq) -> UnlockEventEntity(e.occurredAtMs, accSrc, seq) }
+        )
         report += BackupMerge.Report(added = unlockRows.size)
 
         val notificationRows = file.notificationEvent.filter {
             CrossDeviceMerge.dateOf(it.occurredAtMs, zone) in allowedDates
         }
         db.notificationEventDao().insertIgnore(
-            notificationRows.map {
-                NotificationEventEntity(it.occurredAtMs, it.type, it.pkg, it.channelId)
-            }
+            EventSeq.assign(notificationRows) { listOf(it.occurredAtMs, it.type, it.pkg) }
+                .map { (e, seq) ->
+                    NotificationEventEntity(e.occurredAtMs, e.type, e.pkg, e.channelId, accSrc, seq)
+                }
         )
         report += BackupMerge.Report(added = notificationRows.size)
 
@@ -516,77 +539,97 @@ class BackupRepository(
      * 保证「合并」不会让任何一天变少。
      */
     private suspend fun mergeSessions(backup: List<ScreenSessionDto>): BackupMerge.Report {
-        val local = db.screenSessionDao().getAll()
-        val allRows = local.map { ScreenSessionEntity(it.startMs, it.endMs, it.kind) } +
-            backup.map { ScreenSessionEntity(it.startMs, it.endMs, it.kind) }
-        if (allRows.isEmpty()) return BackupMerge.Report()
+        val src = sourceDeviceId()
+        val incoming = backup.map { ScreenSessionEntity(it.startMs, it.endMs, it.kind, src) }
+        val grouped = (db.screenSessionDao().getAll() + incoming).groupBy { it.sourceDeviceId }
+        if (grouped.isEmpty()) return BackupMerge.Report()
 
-        val screen = SessionUnion.unionEntities(allRows, ScreenSessionEntity.KIND_SCREEN)
-        val keyguard = SessionUnion.unionEntities(allRows, ScreenSessionEntity.KIND_KEYGUARD)
-
-        // 全表重写：并集结果已经是「所有区间的最小无重叠表示」，先删后插不会丢信息
-        db.screenSessionDao().deleteAll()
-        db.screenSessionDao().insert(screen + keyguard)
-
-        val slices = SessionUnion.daySlices(screen, keyguard, zone)
-        if (slices.isEmpty()) return BackupMerge.Report(added = screen.size + keyguard.size)
-
-        val existingDays = db.daySummaryDao()
-            .getBetween("0000-00-00", "9999-99-99")
-            .associateBy { it.date }
         var added = 0
         var updated = 0
-        slices.forEach { (date, slice) ->
-            val current = existingDays[date.toString()]
-            val existingUnlock = current?.screenUnlockMin ?: -1
-            val existingHours = db.hourUsageDao().getForDate(date.toString()).associate { it.hour to it.minutes }
-            val mergedHours = (0..23).map { hour ->
-                maxOf(slice.hours.getOrElse(hour) { 0 }, existingHours[hour] ?: 0)
+        val out = mutableListOf<ScreenSessionEntity>()
+        for ((groupSource, rows) in grouped) {
+            // CR-28：同来源扫线并集（跨来源区间永不合并），输出行保留各自来源
+            val screen = SessionUnion.unionEntities(rows, ScreenSessionEntity.KIND_SCREEN)
+                .map { it.copy(sourceDeviceId = groupSource) }
+            val keyguard = SessionUnion.unionEntities(rows, ScreenSessionEntity.KIND_KEYGUARD)
+                .map { it.copy(sourceDeviceId = groupSource) }
+            out += screen + keyguard
+
+            // CR-28 legacy 只读保护：'__legacy__' 行不参与重算、不被改写
+            if (groupSource == com.screentrace.app.data.db.SourceIds.LEGACY) continue
+
+            val slices = SessionUnion.daySlices(screen, keyguard, zone)
+            if (slices.isEmpty()) {
+                added += screen.size + keyguard.size
+                continue
             }
-            if (current == null) added++ else if (slice.unlockMin > existingUnlock) updated++
-            db.daySummaryDao().upsert(
-                DaySummaryEntity(
-                    date = date.toString(),
-                    screenMin = maxOf(slice.screenMin, current?.screenMin ?: 0),
-                    screenUnlockMin = maxOf(slice.unlockMin, current?.screenUnlockMin ?: 0),
-                    unlocks = current?.unlocks ?: 0, // 解锁次数以事件表为准，不从会话推导
-                    launches = current?.launches ?: 0,
-                    longestSessionMin = maxOf(slice.longestMin, current?.longestSessionMin ?: 0),
-                    pulledAt = current?.pulledAt ?: System.currentTimeMillis()
+
+            val existingDays = db.daySummaryDao()
+                .getBetween("0000-00-00", "9999-99-99")
+                .filter { it.sourceDeviceId == groupSource }
+                .associateBy { it.date }
+            slices.forEach { (date, slice) ->
+                val current = existingDays[date.toString()]
+                val existingUnlock = current?.screenUnlockMin ?: -1
+                val existingHours = db.hourUsageDao().getForDate(date.toString(), groupSource)
+                    .associate { it.hour to it.minutes }
+                val mergedHours = (0..23).map { hour ->
+                    maxOf(slice.hours.getOrElse(hour) { 0 }, existingHours[hour] ?: 0)
+                }
+                if (current == null) added++ else if (slice.unlockMin > existingUnlock) updated++
+                db.daySummaryDao().upsert(
+                    DaySummaryEntity(
+                        date = date.toString(),
+                        screenMin = maxOf(slice.screenMin, current?.screenMin ?: 0),
+                        screenUnlockMin = maxOf(slice.unlockMin, current?.screenUnlockMin ?: 0),
+                        unlocks = current?.unlocks ?: 0, // 解锁次数以事件表为准，不从会话推导
+                        launches = current?.launches ?: 0,
+                        longestSessionMin = maxOf(slice.longestMin, current?.longestSessionMin ?: 0),
+                        pulledAt = current?.pulledAt ?: System.currentTimeMillis(),
+                        sourceDeviceId = groupSource
+                    )
                 )
-            )
-            mergedHours.forEachIndexed { hour, minutes ->
-                // 评审 P2-2：0 分钟不写行——「有行」即「有记录」（hasDataIn 按行判断），
-                // 写 0 行会把「只恢复了会话、无事件」的日子误判成有记录（假 0 口径相抵）
-                if (minutes > 0) {
-                    db.hourUsageDao().insert(HourUsageEntity(date.toString(), hour, minutes))
+                mergedHours.forEachIndexed { hour, minutes ->
+                    // 评审 P2-2：0 分钟不写行——「有行」即「有记录」（hasDataIn 按行判断），
+                    // 写 0 行会把「只恢复了会话、无事件」的日子误判成有记录（假 0 口径相抵）
+                    if (minutes > 0) {
+                        db.hourUsageDao().insert(HourUsageEntity(date.toString(), hour, minutes, groupSource))
+                    }
                 }
             }
         }
+
+        // 全表重写：并集结果已经是「所有区间的最小无重叠表示」，先删后插不会丢信息
+        db.screenSessionDao().deleteAll()
+        db.screenSessionDao().insert(out)
+
         return BackupMerge.Report(added = added, updated = updated, skipped = 0)
     }
 
     private suspend fun insertDaySummaries(rows: List<DaySummaryDto>) {
+        val src = sourceDeviceId()
         rows.forEach {
             db.daySummaryDao().upsert(
                 DaySummaryEntity(
                     it.date, it.screenMin, it.screenUnlockMin, it.unlocks,
-                    it.launches, it.longestSessionMin, it.pulledAt
+                    it.launches, it.longestSessionMin, it.pulledAt, src
                 )
             )
         }
     }
 
     private suspend fun insertAppUsage(rows: List<AppUsageDto>) {
+        val src = sourceDeviceId()
         rows.forEach {
             db.appUsageDao().insert(
-                AppUsageEntity(it.date, it.pkg, it.name, it.minutes, it.launches, it.category)
+                AppUsageEntity(it.date, it.pkg, it.name, it.minutes, it.launches, it.category, src)
             )
         }
     }
 
     private suspend fun insertHourUsage(rows: List<HourUsageDto>) {
-        rows.forEach { db.hourUsageDao().insert(HourUsageEntity(it.date, it.hour, it.minutes)) }
+        val src = sourceDeviceId()
+        rows.forEach { db.hourUsageDao().insert(HourUsageEntity(it.date, it.hour, it.minutes, src)) }
     }
 
     private suspend fun insertPullLog(rows: List<PullLogDto>) {

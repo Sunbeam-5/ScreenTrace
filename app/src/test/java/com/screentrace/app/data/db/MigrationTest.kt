@@ -2,9 +2,15 @@ package com.screentrace.app.data.db
 
 import android.content.Context
 import androidx.room.Database
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.test.core.app.ApplicationProvider
+import com.screentrace.app.data.SourceArchive
+import java.time.LocalDate
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,21 +18,78 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+// ---------------------------------------------------------------- v4 形态实体
+//
+// CR-28 后主实体带 `sourceDeviceId` / `seq`，直接拿来生成「v4 建表 DDL」会把迁移
+// 测试变成「v7 形状拷贝到 v7 形状」的假绿。这里按真实 v4 schema（与
+// `app/schemas/.../4.json` 同源）复刻**旧形态**实体，仅供 [MigrationTestV4Database]
+// 生成建表 SQL；迁移本身仍走真实的 [MIGRATION_4_5] → [MIGRATION_6_7]。
+
+@Entity(tableName = "day_summary")
+data class V4DaySummaryEntity(
+    @PrimaryKey val date: String,
+    val screenMin: Int,
+    val screenUnlockMin: Int,
+    val unlocks: Int,
+    val launches: Int,
+    val longestSessionMin: Int,
+    val pulledAt: Long
+)
+
+@Entity(tableName = "app_usage", primaryKeys = ["date", "pkg"])
+data class V4AppUsageEntity(
+    val date: String,
+    val pkg: String,
+    val name: String,
+    val minutes: Int,
+    val launches: Int,
+    val category: String
+)
+
+@Entity(tableName = "hour_usage", primaryKeys = ["date", "hour"])
+data class V4HourUsageEntity(
+    val date: String,
+    val hour: Int,
+    val minutes: Int
+)
+
+@Entity(tableName = "unlock_event")
+data class V4UnlockEventEntity(
+    @PrimaryKey val occurredAtMs: Long
+)
+
+@Entity(
+    tableName = "notification_event",
+    primaryKeys = ["occurredAtMs", "type", "pkg"],
+    indices = [Index("pkg"), Index("occurredAtMs")]
+)
+data class V4NotificationEventEntity(
+    val occurredAtMs: Long,
+    val type: String,
+    val pkg: String,
+    val channelId: String?
+)
+
+@Entity(tableName = "screen_session", primaryKeys = ["startMs", "kind"], indices = [Index("endMs")])
+data class V4ScreenSessionEntity(
+    val startMs: Long,
+    val endMs: Long,
+    val kind: String
+)
+
 /**
- * v4 结构的测试专用 Database（= 批 8 之前的七张表，无 `app_limit`）。
- *
- * 不手写 DDL：由 Room 按 Entity 生成建表 SQL，与真实 v4 schema（`app/schemas/.../4.json`
- * 同源导出）零漂移。`exportSchema = false` 避免测试类污染 schema 导出目录。
+ * v4 结构的测试专用 Database（= 批 8 之前的七张表，无 `app_limit` / `device_merge_ledger`，
+ * 六表均为 CR-28 之前的旧形态：无 `sourceDeviceId` / `seq`）。
  */
 @Database(
     entities = [
-        DaySummaryEntity::class,
-        AppUsageEntity::class,
-        HourUsageEntity::class,
+        V4DaySummaryEntity::class,
+        V4AppUsageEntity::class,
+        V4HourUsageEntity::class,
         PullLogEntity::class,
-        UnlockEventEntity::class,
-        NotificationEventEntity::class,
-        ScreenSessionEntity::class
+        V4UnlockEventEntity::class,
+        V4NotificationEventEntity::class,
+        V4ScreenSessionEntity::class
     ],
     version = 4,
     exportSchema = false
@@ -38,18 +101,18 @@ abstract class MigrationTestV4Database : RoomDatabase()
  * 首次打开数据库就抛 `IllegalStateException`，App 直接起不来。
  *
  * 方式：先用 [MigrationTestV4Database] 建 v4 库并写入数据，再用
- * [ScreenTraceDatabase]（version 6）+ [MIGRATION_4_5] + [MIGRATION_5_6] 打开同一文件——
- * Room 执行迁移后会做**完整 schema 校验**（与 5.json 期望比对表/列/索引），
+ * [ScreenTraceDatabase]（version 7）+ [MIGRATION_4_5]…[MIGRATION_6_7] 打开同一文件——
+ * Room 执行迁移后会做**完整 schema 校验**（与 7.json 期望比对表/列/索引），
  * 迁移 SQL 差一个索引名都会在这里抛异常。
- *
- * CR-27：DB 升到 v6（+`device_merge_ledger`），这里必须补 [MIGRATION_5_6]，
- * 否则 Room 报「A migration from 4 to 6 was required but not found」。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class MigrationTest {
 
     private val dbName = "migration-test.db"
+
+    private fun msOf(date: LocalDate, hour: Int): Long =
+        date.atTime(hour, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
     @Test
     fun `MIGRATION_4_5 建 app_limit 表且旧数据完好`() = kotlinx.coroutines.runBlocking {
@@ -68,9 +131,9 @@ class MigrationTest {
         )
         v4.close()
 
-        // ② v5 打开触发 MIGRATION_4_5；Room 同时校验迁移后结构与 5.json 一致
+        // ② v5 打开触发 MIGRATION_4_5；Room 同时校验迁移后结构与 7.json 一致
         val v5 = Room.databaseBuilder(context, ScreenTraceDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
             .allowMainThreadQueries()
             .build()
 
@@ -103,5 +166,111 @@ class MigrationTest {
         assertEquals(listOf("2026-11-10", "2026-11-11"), v5.deviceMergeLedgerDao().datesOf("dev-1").sorted())
 
         v5.close()
+    }
+
+    /**
+     * CR-28 T7：迁移保真——v4 → v7 **旧行一行不丢**，全部先落「未归档」（`''`），
+     * 再由 [SourceArchive] 按「合并账本内 → `'__legacy__'`、纯本机日 → 本机 ID」归档；
+     * 归档后逐来源合计 == 迁移前总量（不凭空增减）。
+     */
+    @Test
+    fun `MIGRATION_6_7 旧数据一行不丢且归档正确`() = kotlinx.coroutines.runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getDatabasePath(dbName).delete()
+
+        val dMerged = "2026-11-10"   // 历史混合日（合并账本内）
+        val dPure = "2026-11-11"     // 纯本机日
+
+        // ① v4 库：六表各写数据（含跨两日的事件/会话）
+        val v4 = Room.databaseBuilder(context, MigrationTestV4Database::class.java, dbName)
+            .allowMainThreadQueries()
+            .build()
+        val sql = v4.openHelper.writableDatabase
+        sql.execSQL(
+            "INSERT INTO day_summary (date, screenMin, screenUnlockMin, unlocks, launches, longestSessionMin, pulledAt) VALUES " +
+                "('$dMerged', 240, 200, 10, 20, 60, 1700000000000), " +
+                "('$dPure', 120, 110, 6, 12, 40, 1700001000000)"
+        )
+        sql.execSQL(
+            "INSERT INTO app_usage (date, pkg, name, minutes, launches, category) VALUES " +
+                "('$dMerged', 'com.a', 'A', 100, 5, 'OTHER'), " +
+                "('$dPure', 'com.a', 'A', 50, 3, 'OTHER')"
+        )
+        sql.execSQL(
+            "INSERT INTO hour_usage (date, hour, minutes) VALUES " +
+                "('$dMerged', 9, 30), ('$dPure', 21, 25)"
+        )
+        sql.execSQL(
+            "INSERT INTO unlock_event (occurredAtMs) VALUES " +
+                "(${msOf(LocalDate.parse(dMerged), 9)}), (${msOf(LocalDate.parse(dPure), 21)})"
+        )
+        sql.execSQL(
+            "INSERT INTO notification_event (occurredAtMs, type, pkg, channelId) VALUES " +
+                "(${msOf(LocalDate.parse(dMerged), 10)}, 'INTERRUPTION', 'com.a', 'ch'), " +
+                "(${msOf(LocalDate.parse(dPure), 22)}, 'SEEN', 'com.a', 'ch')"
+        )
+        sql.execSQL(
+            "INSERT INTO screen_session (startMs, endMs, kind) VALUES " +
+                "(${msOf(LocalDate.parse(dMerged), 8)}, ${msOf(LocalDate.parse(dMerged), 9)}, 'SCREEN'), " +
+                "(${msOf(LocalDate.parse(dPure), 20)}, ${msOf(LocalDate.parse(dPure), 21)}, 'SCREEN')"
+        )
+        v4.close()
+
+        // ② v7 打开：触发 4_5 / 5_6 / 6_7，Room 对照 7.json 完整 schema 校验
+        val v7 = Room.databaseBuilder(context, ScreenTraceDatabase::class.java, dbName)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .allowMainThreadQueries()
+            .build()
+
+        // ③ 一行不丢 + 全部「未归档」（迁移是纯 SQL，归属判定留给首启归档）
+        assertEquals(2, v7.daySummaryDao().getAll().size)
+        assertEquals(2, v7.appUsageDao().getAll().size)
+        assertEquals(2, v7.hourUsageDao().getAll().size)
+        assertEquals(2, v7.unlockEventDao().getAll().size)
+        assertEquals(2, v7.notificationEventDao().getAll().size)
+        assertEquals(2, v7.screenSessionDao().getAll().size)
+        v7.daySummaryDao().getAll().forEach { assertEquals(SourceIds.UNARCHIVED, it.sourceDeviceId) }
+        v7.unlockEventDao().getAll().forEach {
+            assertEquals(SourceIds.UNARCHIVED, it.sourceDeviceId)
+            assertEquals(0, it.seq)
+        }
+        v7.notificationEventDao().getAll().forEach { assertEquals(SourceIds.UNARCHIVED, it.sourceDeviceId) }
+        v7.screenSessionDao().getAll().forEach { assertEquals(SourceIds.UNARCHIVED, it.sourceDeviceId) }
+
+        // ④ 归档：2026-11-10 在合并账本（历史混合）→ '__legacy__'；2026-11-11 → 本机 dev-1
+        v7.deviceMergeLedgerDao().insert(listOf(DeviceMergeLedgerEntity("dev-x", dMerged)))
+        val moved = SourceArchive.archive(v7, "dev-1", setOf(dMerged))
+        assertTrue("应有行被归档", moved >= 12)
+
+        val daysBySource = v7.daySummaryDao().getAll().associate { it.date to it.sourceDeviceId }
+        assertEquals(SourceIds.LEGACY, daysBySource[dMerged])
+        assertEquals("dev-1", daysBySource[dPure])
+
+        val pureStart = msOf(LocalDate.parse(dPure), 0)
+        v7.unlockEventDao().getAll().forEach { row ->
+            assertEquals(
+                if (row.occurredAtMs >= pureStart) "dev-1" else SourceIds.LEGACY,
+                row.sourceDeviceId
+            )
+        }
+        v7.notificationEventDao().getAll().forEach { row ->
+            assertEquals(
+                if (row.occurredAtMs >= pureStart) "dev-1" else SourceIds.LEGACY,
+                row.sourceDeviceId
+            )
+        }
+        v7.screenSessionDao().getAll().forEach { row ->
+            assertEquals(
+                if (row.startMs >= pureStart) "dev-1" else SourceIds.LEGACY,
+                row.sourceDeviceId
+            )
+        }
+
+        // ⑤ 总量保真：逐来源合计 == 迁移前总量（不凭空增减、不丢行）
+        assertEquals(360, v7.daySummaryDao().getAll().sumOf { it.screenMin })
+        assertEquals(150, v7.appUsageDao().getAll().sumOf { it.minutes })
+        assertEquals(55, v7.hourUsageDao().getAll().sumOf { it.minutes })
+
+        v7.close()
     }
 }

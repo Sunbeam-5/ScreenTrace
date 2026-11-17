@@ -4,11 +4,13 @@ import androidx.room.withTransaction
 import com.screentrace.app.contract.PullResult
 import com.screentrace.app.data.db.AppUsageEntity
 import com.screentrace.app.data.db.DaySummaryEntity
+import com.screentrace.app.data.db.EventSeq
 import com.screentrace.app.data.db.HourUsageEntity
 import com.screentrace.app.data.db.NotificationEventEntity
 import com.screentrace.app.data.db.PullLogEntity
 import com.screentrace.app.data.db.ScreenSessionEntity
 import com.screentrace.app.data.db.ScreenTraceDatabase
+import com.screentrace.app.data.db.SourceIds
 import com.screentrace.app.data.db.UnlockEventEntity
 import java.time.ZoneId
 import com.screentrace.app.data.parse.AppNames
@@ -17,12 +19,20 @@ import com.screentrace.app.data.parse.ParseResult
 /**
  * 解析入库管道（批 6a）：ParseResult（日聚合 + 事件流）→ 合并入 Room + pull_log。
  * 全部写库在**单事务**中完成，失败整体回滚（§6）；连续拉取不重复计数
- * （day/app/hour 取大合并、unlock 主键去重、notification 秒级分组取大——
- * 策略集中在 [MergePolicy]，管道级行为由 `IngestPipelineTest` 覆盖）。
- * Shizuku 拉取通道（把 dump 文本变成 ParseResult）在批 6b 接入。
+ * （day/app/hour 同来源取大合并、unlock/notification 主键去重 + 确定性 seq、
+ * notification 秒级分组取大——策略集中在 [MergePolicy]，管道级行为由
+ * `IngestPipelineTest` 覆盖）。Shizuku 拉取通道（把 dump 文本变成 ParseResult）在批 6b 接入。
+ *
+ * CR-28：本机拉取的行全部带 `sourceDeviceId = localDeviceId`，同来源取大合并
+ * （跨来源求和在读侧聚合）；窗口删改只动本来源行（legacy 只读保护）。
  */
 class IngestPipeline(
     private val db: ScreenTraceDatabase,
+    /**
+     * CR-28：本机 `deviceId`（写路径的来源标识）。默认 [SourceIds.UNSPECIFIED]
+     * 仅供测试与旧调用点；生产由 AppContainer 传真实 ID。
+     */
+    private val localDeviceId: suspend () -> String = { SourceIds.UNSPECIFIED },
     /**
      * §3-8 展示名来源（批 6b 接线）：返回 null 表示拿不到，回退 [AppNames] 再回退包名。
      * 不直接依赖 PackageManager，JVM 单测可以注入假实现。
@@ -53,6 +63,7 @@ class IngestPipeline(
             } else {
                 note
             }
+            val src = localDeviceId()
             db.withTransaction {
                 val dayDao = db.daySummaryDao()
                 for ((date, metrics) in result.days) {
@@ -64,9 +75,10 @@ class IngestPipeline(
                         unlocks = metrics.unlocks,
                         launches = metrics.launches,
                         longestSessionMin = metrics.longestSessionMin,
-                        pulledAt = pulledAtMs
+                        pulledAt = pulledAtMs,
+                        sourceDeviceId = src
                     )
-                    val existing = dayDao.get(key)
+                    val existing = dayDao.get(key, src)
                     val merged = MergePolicy.mergeDay(existing, incoming)
                     // P2-7：命中「保留旧值」时不写回，避免无意义的 REPLACE
                     if (merged != existing) dayDao.insert(merged)
@@ -88,9 +100,10 @@ class IngestPipeline(
                         minutes = minutes,
                         launches = row.launches,
                         // P1-1：内置分类映射写库，用户覆盖在仓库读取层叠加
-                        category = AppNames.categoryOf(row.pkg).name
+                        category = AppNames.categoryOf(row.pkg).name,
+                        sourceDeviceId = src
                     )
-                    val existing = appDao.get(key, row.pkg)
+                    val existing = appDao.get(key, row.pkg, src)
                     val merged = MergePolicy.mergeApp(existing, incoming)
                     if (merged != existing) appDao.insert(merged)
                 }
@@ -98,31 +111,37 @@ class IngestPipeline(
                 val hourDao = db.hourUsageDao()
                 for ((date, buckets) in verdict.hourMinutes) {
                     val key = date.toString()
-                    val existingByHour = hourDao.getForDate(key).associateBy { it.hour } // 一次查询（复审意见）
+                    val existingByHour = hourDao.getForDate(key, src).associateBy { it.hour } // 一次查询（复审意见）
                     buckets.forEachIndexed { hour, minutes ->
-                        val incoming = HourUsageEntity(key, hour, minutes)
+                        val incoming = HourUsageEntity(key, hour, minutes, src)
                         val existing = existingByHour[hour]
                         val merged = MergePolicy.mergeHour(existing, incoming)
                         if (merged != existing) hourDao.insert(merged)
                     }
                 }
 
-                // CR-01 事件流：unlock 主键去重；notification 秒级分组取大
-                db.unlockEventDao().insertIgnore(result.unlockEvents.map { UnlockEventEntity(it.occurredAtMs) })
+                // CR-01 事件流：主键去重；CR-28 确定性 seq（同毫秒多条不丢、重放幂等）
+                db.unlockEventDao().insertIgnore(
+                    EventSeq.assign(result.unlockEvents) { listOf(it.occurredAtMs) }
+                        .map { (e, seq) -> UnlockEventEntity(e.occurredAtMs, src, seq) }
+                )
 
                 val notifDao = db.notificationEventDao()
-                val incomingNotifs = result.notificationEvents.map {
-                    NotificationEventEntity(it.occurredAtMs, it.type.name, it.pkg, it.channelId)
+                val incomingNotifs = EventSeq.assign(result.notificationEvents) {
+                    listOf(it.occurredAtMs, it.type, it.pkg)
+                }.map { (e, seq) ->
+                    NotificationEventEntity(e.occurredAtMs, e.type.name, e.pkg, e.channelId, src, seq)
                 }
                 if (incomingNotifs.isNotEmpty()) {
                     val startMs = incomingNotifs.minOf { it.occurredAtMs } - 1000
                     val endMs = incomingNotifs.maxOf { it.occurredAtMs } + 1000
-                    val existingNotifs = notifDao.between(startMs, endMs)
+                    val existingNotifs = notifDao.between(startMs, endMs, src)
                     val merged = MergePolicy.mergeNotifications(existingNotifs, incomingNotifs)
                     if (merged != existingNotifs.sortedBy { it.occurredAtMs }) {
                         // P0：区间删除，避免 `IN (:msList)` 在多日重拉时超过
                         // Android 8–11 的 SQLite 绑定变量上限（999）
-                        notifDao.deleteBetween(startMs, endMs)
+                        // CR-28：只删本来源窗口行（legacy 只读保护）
+                        notifDao.deleteBetween(startMs, endMs, src)
                         notifDao.insertIgnore(merged)
                     }
                 }
@@ -130,19 +149,20 @@ class IngestPipeline(
                 // 批 6g 三轮：会话区间真并集（治 MIUI 滚动缓冲少算）。
                 // ① 旧行 ∪ 新区间 → 规范段集写回；② 受影响日期的日聚合/小时矩阵从
                 // 并集重算，再与旧值取大——跨拉取的观测取「并」，不再是「单次观测取大」。
+                // CR-28：并集与重算都只在**本来源**内做（跨来源区间永不合并）。
                 val incomingSessions = result.screenSessions + result.keyguardSessions
                 if (incomingSessions.isNotEmpty()) {
                     val sessionDao = db.screenSessionDao()
                     val lo = incomingSessions.minOf { it.startMs } - 60_000
                     val hi = incomingSessions.maxOf { it.endMs } + 60_000
-                    val existingSessions = sessionDao.overlapping(lo, hi)
+                    val existingSessions = sessionDao.overlapping(lo, hi, src)
                     val mergedScreen = MergePolicy.mergeSessions(
-                        existingSessions, result.screenSessions, ScreenSessionEntity.KIND_SCREEN
+                        existingSessions, result.screenSessions, ScreenSessionEntity.KIND_SCREEN, src
                     )
                     val mergedKg = MergePolicy.mergeSessions(
-                        existingSessions, result.keyguardSessions, ScreenSessionEntity.KIND_KEYGUARD
+                        existingSessions, result.keyguardSessions, ScreenSessionEntity.KIND_KEYGUARD, src
                     )
-                    sessionDao.deleteOverlapping(lo, hi)
+                    sessionDao.deleteOverlapping(lo, hi, src)
                     sessionDao.insert(mergedScreen + mergedKg)
 
                     // ② 受影响日期从**全量已存区间**重算，不是只用本次窗口合并的子集——
@@ -159,26 +179,27 @@ class IngestPipeline(
                         val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
                         val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
                         // 该日窗口内的全部已存区间（含跨日长会话）；daySlices 内部按 kind 拆分
-                        val stored = sessionDao.overlapping(dayStart, dayEnd)
+                        val stored = sessionDao.overlapping(dayStart, dayEnd, src)
                         val slice = SessionUnion.daySlices(stored, stored, zone)[day]
                         if (slice != null) {
-                            val existing = dayDao.get(key)
+                            val existing = dayDao.get(key, src)
                             val incomingRow = DaySummaryEntity(
                                 date = key,
                                 screenMin = slice.screenMin,
                                 screenUnlockMin = slice.unlockMin,
                                 // 解锁次数以事件表（只增、主键去重）为准，不从会话推导
-                                unlocks = db.unlockEventDao().msBetween(dayStart, dayEnd - 1).size,
+                                unlocks = db.unlockEventDao().msBetween(dayStart, dayEnd - 1, src).size,
                                 launches = existing?.launches ?: (result.days[day]?.launches ?: 0),
                                 longestSessionMin = slice.longestMin,
-                                pulledAt = pulledAtMs
+                                pulledAt = pulledAtMs,
+                                sourceDeviceId = src
                             )
                             val mergedDay = MergePolicy.mergeDay(existing, incomingRow)
                             if (mergedDay != existing) dayDao.insert(mergedDay)
 
-                            val existingByHour = hourDao.getForDate(key).associateBy { it.hour }
+                            val existingByHour = hourDao.getForDate(key, src).associateBy { it.hour }
                             slice.hours.forEachIndexed { hour, minutes ->
-                                val incomingHour = HourUsageEntity(key, hour, minutes)
+                                val incomingHour = HourUsageEntity(key, hour, minutes, src)
                                 val existingHour = existingByHour[hour]
                                 val mergedHour = MergePolicy.mergeHour(existingHour, incomingHour)
                                 if (mergedHour != existingHour) hourDao.insert(mergedHour)

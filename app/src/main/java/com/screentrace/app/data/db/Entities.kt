@@ -7,34 +7,56 @@ import androidx.room.PrimaryKey
 /**
  * §4 六表 schema（CR-01 修正版红线：原四表原字段不得删除或改义，事件表只增不改）。
  * date 一律为设备本地自然日的 `yyyy-MM-dd` 字符串（§3-4）；时间戳为毫秒。
+ *
+ * CR-28：六表加 `sourceDeviceId` 来源维度，事件表主键再加确定性 `seq`。
  */
 
-@Entity(tableName = "day_summary")
+/**
+ * CR-28：来源标识的保留值（写死的哨兵，永不与真实设备 ID 冲突）。
+ *
+ * - [LEGACY]：历史来源未知（迁移归档的混合总量）——**只读**，普通拉取/合并/重算
+ *   不得改写（需求 §4「来源维度与历史保全」）。
+ * - [UNARCHIVED]：`MIGRATION_6_7` 搬行后的「未归档」临时态，只由
+ *   [com.screentrace.app.data.SourceArchive] 首启归档消化，正常写路径永不使用。
+ * - [UNSPECIFIED]：实体构造默认值——测试与旧调用点的「某台设备」；生产写路径
+ *   必须显式传真实设备 ID（本机 `deviceId` / 远端设备 ID）。
+ */
+object SourceIds {
+    const val LEGACY = "__legacy__"
+    const val UNARCHIVED = ""
+    const val UNSPECIFIED = "__local__"
+}
+
+@Entity(tableName = "day_summary", primaryKeys = ["date", "sourceDeviceId"])
 data class DaySummaryEntity(
-    @PrimaryKey val date: String,
+    val date: String,
     val screenMin: Int,
     val screenUnlockMin: Int,
     val unlocks: Int,
     val launches: Int,
     val longestSessionMin: Int,
-    val pulledAt: Long
+    val pulledAt: Long,
+    /** CR-28：来源设备维度（见 [SourceIds]）。 */
+    val sourceDeviceId: String = SourceIds.UNSPECIFIED
 )
 
-@Entity(tableName = "app_usage", primaryKeys = ["date", "pkg"])
+@Entity(tableName = "app_usage", primaryKeys = ["date", "pkg", "sourceDeviceId"])
 data class AppUsageEntity(
     val date: String,
     val pkg: String,
     val name: String,
     val minutes: Int,
     val launches: Int,
-    val category: String
+    val category: String,
+    val sourceDeviceId: String = SourceIds.UNSPECIFIED
 )
 
-@Entity(tableName = "hour_usage", primaryKeys = ["date", "hour"])
+@Entity(tableName = "hour_usage", primaryKeys = ["date", "hour", "sourceDeviceId"])
 data class HourUsageEntity(
     val date: String,
     val hour: Int,
-    val minutes: Int
+    val minutes: Int,
+    val sourceDeviceId: String = SourceIds.UNSPECIFIED
 )
 
 @Entity(tableName = "pull_log")
@@ -47,34 +69,44 @@ data class PullLogEntity(
 )
 
 /**
- * §4 unlock_event（CR-01，只增不改）：occurred_at_ms 主键去重。
- * 注意（6a 评审 P2-4）：PK 只有毫秒。跨账户（user=0 / 666 隐私空间 / 999 分身）
- * 两个真实解锁若撞同一毫秒会折叠成一行——`day_summary.unlocks` 计 2 而事件表只有 1。
- * 解析器已把系统广播事件跨账户收敛（|Δt|≤1000ms），物理同毫秒概率极低；
- * 若后续对账出现「日计数 > 事件数」，再考虑 PK 加 user（DB version 已为 1，需迁移）。
+ * §4 unlock_event（CR-01，只增不改；CR-28 主键加 `sourceDeviceId` 与 `seq`）。
+ *
+ * CR-28 修一个隐性缺陷：旧 PK 只有 `occurredAtMs`，同毫秒的第二条真实解锁会被
+ * `INSERT OR IGNORE` 吞掉（与 §3-8「同账户快速重复解锁保留」的解析口径打架）。
+ * 新 PK = (occurredAtMs, sourceDeviceId, seq)：`seq` 为**来源内**按解析器输出顺序
+ * 的确定性序号（[EventSeq]）——同毫秒多条各占一行，同一份输入重放得同一组键、
+ * 重复拉取幂等；跨来源同毫秒天然互不吞。
  */
-@Entity(tableName = "unlock_event")
+@Entity(
+    tableName = "unlock_event",
+    primaryKeys = ["occurredAtMs", "sourceDeviceId", "seq"]
+)
 data class UnlockEventEntity(
-    @PrimaryKey val occurredAtMs: Long
+    val occurredAtMs: Long,
+    val sourceDeviceId: String = SourceIds.UNSPECIFIED,
+    val seq: Int = 0
 )
 
 /**
- * §4 notification_event（CR-01，只增不改）：
- * PK = (occurred_at_ms, type, pkg)；channel_id 缺失为 NULL。
- * 按时间/包名建索引（CR-01 事件表索引要求）。
- * 注意（复审意见）：PK 不含 channelId——同毫秒同包同类型的两条记录会被
- * `INSERT OR IGNORE` 吞掉后者；物理上同毫秒双通知概率极低，如需保留需扩展 PK。
+ * §4 notification_event（CR-01，只增不改；CR-28 主键加 `sourceDeviceId` 与 `seq`）。
+ *
+ * 旧 PK 不含 channelId——同毫秒同包同类型的两条记录会被 `INSERT OR IGNORE` 吞掉
+ * 后者（复审意见自陈），与 CR-01 红线「同秒多条真实通知不丢」打架；CR-28 用
+ * 确定性 `seq` 补全：PK = (occurredAtMs, type, pkg, sourceDeviceId, seq)。
+ * channel_id 缺失为 NULL；按时间/包名建索引（CR-01 事件表索引要求）。
  */
 @Entity(
     tableName = "notification_event",
-    primaryKeys = ["occurredAtMs", "type", "pkg"],
+    primaryKeys = ["occurredAtMs", "type", "pkg", "sourceDeviceId", "seq"],
     indices = [Index("pkg"), Index("occurredAtMs")]
 )
 data class NotificationEventEntity(
     val occurredAtMs: Long,
     val type: String,
     val pkg: String,
-    val channelId: String?
+    val channelId: String?,
+    val sourceDeviceId: String = SourceIds.UNSPECIFIED,
+    val seq: Int = 0
 )
 
 /**
@@ -90,14 +122,17 @@ data class NotificationEventEntity(
  * 取大——任何一次拉取见过的时段都永久入账，不再依赖单次缓冲的窗口。
  *
  * kind：`SCREEN`（亮屏会话）/ `KEYGUARD`（锁屏期间，从 KEYGUARD_SHOWN→HIDDEN 配对），
- * screenUnlockMin = 亮屏并集 − 锁屏并集的重叠。PK (startMs, kind)：入库前已做
- * 扫线合并（同 kind 区间互不重叠），同毫秒跨 kind 不冲突。
+ * screenUnlockMin = 亮屏并集 − 锁屏并集的重叠。PK (startMs, kind, sourceDeviceId)：
+ * 入库前已做**同来源**扫线合并（同 kind 区间互不重叠），同毫秒跨 kind 不冲突；
+ * CR-28：不同来源的完全重叠区间各存一行、互不覆盖，跨来源区间永不合并
+ * （合并会破坏「占用时钟时长（UNION）」的同时性信息）。
  */
-@Entity(tableName = "screen_session", primaryKeys = ["startMs", "kind"], indices = [Index("endMs")])
+@Entity(tableName = "screen_session", primaryKeys = ["startMs", "kind", "sourceDeviceId"], indices = [Index("endMs")])
 data class ScreenSessionEntity(
     val startMs: Long,
     val endMs: Long,
-    val kind: String
+    val kind: String,
+    val sourceDeviceId: String = SourceIds.UNSPECIFIED
 ) {
     companion object {
         const val KIND_SCREEN = "SCREEN"

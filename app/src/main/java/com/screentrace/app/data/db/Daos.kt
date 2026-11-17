@@ -21,6 +21,10 @@ interface DaySummaryDao {
     @Query("SELECT * FROM day_summary WHERE date = :date")
     suspend fun get(date: String): DaySummaryEntity?
 
+    /** CR-28：按来源取行（写路径的同来源取大合并用；跨来源求和在读侧聚合）。 */
+    @Query("SELECT * FROM day_summary WHERE date = :date AND sourceDeviceId = :sourceDeviceId")
+    suspend fun get(date: String, sourceDeviceId: String): DaySummaryEntity?
+
     /** 评审 P0-1：整页空态判定用（降级通道不写本表，须三表一起看）。 */
     @Query("SELECT COUNT(*) FROM day_summary")
     suspend fun count(): Int
@@ -40,6 +44,14 @@ interface DaySummaryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(rows: List<DaySummaryEntity>)
+
+    /** CR-28 归档（[com.screentrace.app.data.SourceArchive]）：未归档行按日期命中 [dates] 归 [to]。 */
+    @Query("UPDATE day_summary SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND date IN (:dates)")
+    suspend fun archiveUnarchived(dates: List<String>, to: String): Int
+
+    /** CR-28 归档：剩余未归档行归 [to]。 */
+    @Query("UPDATE day_summary SET sourceDeviceId = :to WHERE sourceDeviceId = ''")
+    suspend fun archiveRest(to: String): Int
 }
 
 @Dao
@@ -88,6 +100,10 @@ interface AppUsageDao {
     @Query("SELECT * FROM app_usage WHERE date = :date AND pkg = :pkg")
     suspend fun get(date: String, pkg: String): AppUsageEntity?
 
+    /** CR-28：按来源取行（同来源取大合并用）。 */
+    @Query("SELECT * FROM app_usage WHERE date = :date AND pkg = :pkg AND sourceDeviceId = :sourceDeviceId")
+    suspend fun get(date: String, pkg: String, sourceDeviceId: String): AppUsageEntity?
+
     @Query("SELECT COUNT(*) FROM app_usage")
     suspend fun count(): Int
 
@@ -107,6 +123,14 @@ interface AppUsageDao {
     /** 批 8：备份导出需要全表（不限日期区间）。 */
     @Query("SELECT * FROM app_usage ORDER BY date, minutes DESC")
     suspend fun getAll(): List<AppUsageEntity>
+
+    /** CR-28 归档：未归档行按日期命中 [dates] 归 [to]。 */
+    @Query("UPDATE app_usage SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND date IN (:dates)")
+    suspend fun archiveUnarchived(dates: List<String>, to: String): Int
+
+    /** CR-28 归档：剩余未归档行归 [to]。 */
+    @Query("UPDATE app_usage SET sourceDeviceId = :to WHERE sourceDeviceId = ''")
+    suspend fun archiveRest(to: String): Int
 }
 
 data class AppUsageAggregated(
@@ -132,6 +156,10 @@ interface HourUsageDao {
     @Query("SELECT * FROM hour_usage WHERE date = :date ORDER BY hour")
     suspend fun getForDate(date: String): List<HourUsageEntity>
 
+    /** CR-28：按来源取行（同来源取大合并用）。 */
+    @Query("SELECT * FROM hour_usage WHERE date = :date AND sourceDeviceId = :sourceDeviceId ORDER BY hour")
+    suspend fun getForDate(date: String, sourceDeviceId: String): List<HourUsageEntity>
+
     @Query("SELECT COUNT(*) FROM hour_usage")
     suspend fun count(): Int
 
@@ -154,6 +182,14 @@ interface HourUsageDao {
     /** 批 8：备份导出需要全表。 */
     @Query("SELECT * FROM hour_usage ORDER BY date, hour")
     suspend fun getAll(): List<HourUsageEntity>
+
+    /** CR-28 归档：未归档行按日期命中 [dates] 归 [to]。 */
+    @Query("UPDATE hour_usage SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND date IN (:dates)")
+    suspend fun archiveUnarchived(dates: List<String>, to: String): Int
+
+    /** CR-28 归档：剩余未归档行归 [to]。 */
+    @Query("UPDATE hour_usage SET sourceDeviceId = :to WHERE sourceDeviceId = ''")
+    suspend fun archiveRest(to: String): Int
 }
 
 data class HourBucketAggregated(val hour: Int, val minutes: Int)
@@ -204,6 +240,18 @@ interface UnlockEventDao {
     @Query("SELECT occurredAtMs FROM unlock_event WHERE occurredAtMs BETWEEN :startMs AND :endMs ORDER BY occurredAtMs")
     suspend fun msBetween(startMs: Long, endMs: Long): List<Long>
 
+    /** CR-28：按来源计数（重算某来源的日聚合时，只数该来源的事件）。 */
+    @Query("SELECT occurredAtMs FROM unlock_event WHERE occurredAtMs BETWEEN :startMs AND :endMs AND sourceDeviceId = :sourceDeviceId ORDER BY occurredAtMs")
+    suspend fun msBetween(startMs: Long, endMs: Long, sourceDeviceId: String): List<Long>
+
+    /** CR-28 归档：未归档且落在 [startMs, endMs] 的行归 [to]。 */
+    @Query("UPDATE unlock_event SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND occurredAtMs BETWEEN :startMs AND :endMs")
+    suspend fun archiveOverlapping(startMs: Long, endMs: Long, to: String): Int
+
+    /** CR-28 归档：剩余未归档行归 [to]。 */
+    @Query("UPDATE unlock_event SET sourceDeviceId = :to WHERE sourceDeviceId = ''")
+    suspend fun archiveRest(to: String): Int
+
     @Query("SELECT MIN(occurredAtMs) FROM unlock_event")
     suspend fun minMs(): Long?
 }
@@ -224,6 +272,10 @@ interface NotificationEventDao {
     @Query("SELECT * FROM notification_event WHERE occurredAtMs BETWEEN :startMs AND :endMs ORDER BY occurredAtMs")
     suspend fun between(startMs: Long, endMs: Long): List<NotificationEventEntity>
 
+    /** CR-28：按来源取窗口行（同来源合并用；跨来源互不吞）。 */
+    @Query("SELECT * FROM notification_event WHERE occurredAtMs BETWEEN :startMs AND :endMs AND sourceDeviceId = :sourceDeviceId ORDER BY occurredAtMs")
+    suspend fun between(startMs: Long, endMs: Long, sourceDeviceId: String): List<NotificationEventEntity>
+
     @Query("SELECT * FROM notification_event ORDER BY occurredAtMs")
     suspend fun getAll(): List<NotificationEventEntity>
 
@@ -233,6 +285,18 @@ interface NotificationEventDao {
      */
     @Query("DELETE FROM notification_event WHERE occurredAtMs BETWEEN :startMs AND :endMs")
     suspend fun deleteBetween(startMs: Long, endMs: Long)
+
+    /** CR-28：只删同来源的窗口行（legacy 只读保护：不得动其他来源）。 */
+    @Query("DELETE FROM notification_event WHERE occurredAtMs BETWEEN :startMs AND :endMs AND sourceDeviceId = :sourceDeviceId")
+    suspend fun deleteBetween(startMs: Long, endMs: Long, sourceDeviceId: String)
+
+    /** CR-28 归档：未归档且落在 [startMs, endMs] 的行归 [to]。 */
+    @Query("UPDATE notification_event SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND occurredAtMs BETWEEN :startMs AND :endMs")
+    suspend fun archiveOverlapping(startMs: Long, endMs: Long, to: String): Int
+
+    /** CR-28 归档：剩余未归档行归 [to]。 */
+    @Query("UPDATE notification_event SET sourceDeviceId = :to WHERE sourceDeviceId = ''")
+    suspend fun archiveRest(to: String): Int
 
     @Query("SELECT MIN(occurredAtMs) FROM notification_event")
     suspend fun minMs(): Long?
@@ -254,6 +318,10 @@ interface ScreenSessionDao {
     @Query("SELECT * FROM screen_session WHERE endMs >= :startMs AND startMs <= :endMs ORDER BY startMs")
     suspend fun overlapping(startMs: Long, endMs: Long): List<ScreenSessionEntity>
 
+    /** CR-28：按来源取窗口区间（同来源扫线并集用；跨来源区间永不合并）。 */
+    @Query("SELECT * FROM screen_session WHERE endMs >= :startMs AND startMs <= :endMs AND sourceDeviceId = :sourceDeviceId ORDER BY startMs")
+    suspend fun overlapping(startMs: Long, endMs: Long, sourceDeviceId: String): List<ScreenSessionEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(rows: List<ScreenSessionEntity>)
 
@@ -264,6 +332,18 @@ interface ScreenSessionDao {
     /** 与窗口相交的区间整段删除（合并输出覆盖了它们的全部范围，无信息丢失）。 */
     @Query("DELETE FROM screen_session WHERE endMs >= :startMs AND startMs <= :endMs")
     suspend fun deleteOverlapping(startMs: Long, endMs: Long)
+
+    /** CR-28：只删同来源的窗口区间（legacy 只读保护：不得动其他来源）。 */
+    @Query("DELETE FROM screen_session WHERE endMs >= :startMs AND startMs <= :endMs AND sourceDeviceId = :sourceDeviceId")
+    suspend fun deleteOverlapping(startMs: Long, endMs: Long, sourceDeviceId: String)
+
+    /** CR-28 归档：未归档且**跨到** [startMs, endMs] 窗口的区间归 [to]（整段判定，保守）。 */
+    @Query("UPDATE screen_session SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND endMs >= :startMs AND startMs <= :endMs")
+    suspend fun archiveOverlapping(startMs: Long, endMs: Long, to: String): Int
+
+    /** CR-28 归档：剩余未归档行归 [to]。 */
+    @Query("UPDATE screen_session SET sourceDeviceId = :to WHERE sourceDeviceId = ''")
+    suspend fun archiveRest(to: String): Int
 
     @Query("SELECT COUNT(*) FROM screen_session")
     suspend fun count(): Int
@@ -309,6 +389,10 @@ interface DeviceMergeLedgerDao {
      */
     @Query("SELECT date FROM device_merge_ledger WHERE deviceId = :deviceId")
     suspend fun datesOf(deviceId: String): List<String>
+
+    /** CR-28 归档：全部来源设备的已合并日期（历史混合日判定用）。 */
+    @Query("SELECT DISTINCT date FROM device_merge_ledger")
+    suspend fun allDates(): List<String>
 
     /** CR-27：与 `mergeAccumulate` 的数据写入同事务写入。 */
     @Insert(onConflict = OnConflictStrategy.IGNORE)

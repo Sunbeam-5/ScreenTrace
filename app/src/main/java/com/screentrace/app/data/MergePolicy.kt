@@ -51,18 +51,22 @@ object MergePolicy {
      * 批 6g 三轮：会话区间**扫线真并集**（SCREEN / KEYGUARD 各自独立合并）。
      * 旧行 ∪ 新拉取区间 → 互不重叠的规范段集；调用方删除旧重叠行后整集写回。
      * 实现委托 [SessionUnion.union]（纯函数，单测覆盖重叠/相邻/含入）。
+     *
+     * CR-28：输出行携带 [sourceDeviceId]；调用方必须**只传同一来源**的旧行
+     * （跨来源区间永不合并——会破坏 UNION 的同时性信息）。
      */
     fun mergeSessions(
         existing: List<ScreenSessionEntity>,
         incoming: List<SessionSpan>,
-        kind: String
+        kind: String,
+        sourceDeviceId: String = com.screentrace.app.data.db.SourceIds.UNSPECIFIED
     ): List<ScreenSessionEntity> =
         SessionUnion.union(
             // 必须按 kind 过滤：overlapping 查询返回的是全 kind 混合行，
             // 不过滤会把 SCREEN 区间并进 KEYGUARD 输出（假锁屏会吞掉真实亮屏时长）
             existing.filter { it.kind == kind }.map { SessionUnion.Span(it.startMs, it.endMs) } +
                 incoming.map { SessionUnion.Span(it.startMs, it.endMs) }
-        ).map { ScreenSessionEntity(it.startMs, it.endMs, kind) }
+        ).map { ScreenSessionEntity(it.startMs, it.endMs, kind, sourceDeviceId) }
 
     /**
      * CR-01（§2.2 坑 2 / §4 事件合并）：notification_event 按

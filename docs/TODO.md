@@ -142,7 +142,11 @@
 - [ ] **CR-28 · 跨设备合并的来源设备维度（2026-11-17 15:15 设计审查 R2 二审通过，三小点按默认）**：
   - [x] **设计审查 R1**（`8fc9301`）→ 负责人首审「整体方向认可、逐指标口径通过」+ 六条修订 → **R2**（`34032d4`）逐条并入：冻结日重做（legacy 只读 + 新数据独立写入，R1「跳过所有写入」废除）/ schema 6 身份＝导出设备 + 三层兼容判定 / 事件主键加确定性 `seq`（同毫秒丢行修复）/ 重建工具快照-记录-核对-回滚（R1「残差归本机」废除）/ 跨午夜按自然日裁剪 + UNION 范围 / 测试矩阵 12 → 14 条。
   - [x] **三小点按默认**：`rebuild_log` 独立建表 / `seq` 用解析器序号 / UNION 文案「占用时钟时长」。
-  - [ ] **批次 A · 表结构 + `MIGRATION_6_7` + `seq` + 首启归档**：文档先行（需求 CR-28 登记 + §4 + §7-55~59）→ 实现（六表加 `source_device_id`、事件表主键加 `seq`、迁移建表搬行、首启归档幂等；测试 T7/T8/T13 + 变异）→ vivo 真机迁移 v6→v7 复核。
+  - [x] **批次 A · 表结构 + `MIGRATION_6_7` + `seq` + 首启归档（2026-11-17 实现完成）**：
+    - [x] 文档先行 `27234ee`：需求头部登记 CR-28 + §4 来源维度 / legacy 保护 / seq / 跨午夜裁剪 + CR-21「不加 device_id 列」局部推翻注记 + §7-55~59（54 → 59 条）。
+    - [x] 实现：六表加 `sourceDeviceId`（主键并入来源），事件表主键加确定性 `seq`（`EventSeq`，同毫秒多条不丢 + 重放幂等）；`MIGRATION_6_7` 建表搬行换名（旧行一行不丢、`sourceDeviceId=''` 未归档、seq=0）；`SourceArchive` 首启归档（合并账本内 → `'__legacy__'`、纯本机日 → 本机 ID；幂等、已归档行永不改写、跨日会话保守归 legacy）；写路径同来源取大 + 窗口删改按来源隔离（IngestPipeline / MergePolicy.mergeSessions / BackupRepository.mergeSessions，legacy 只读）。
+    - [x] 验证：新增 8 例（MigrationTest T7 / SourceArchiveTest T8×3 / SameMillisecondEventTest T13×4）；**4 处变异全部变红**（归档判定失效 2 红 / archiveRest 无守卫 3 红 / EventSeq 恒 0 4 红 / 迁移丢 notification 行 1 红），字节级还原后复跑全绿；`--rerun-tasks` **558 测全绿 / 0 skip**（550 + 8）。CR21DeviceTest 两处红是真问题——恢复写行的默认来源与存量行不同键导致双行，已修为「默认 `UNSPECIFIED` 同锅、生产显式传真实 ID」。
+    - [ ] **真机收口（v6→v7 迁移复核）**：**待设备回线**——vivo `10CEB40M5G001DK` 当前离线、Redmi 禁用至约 00:47；核对脚本 `C:\tmp\check_v7.py`（before/after 行数保真、无未归档行、账本保留、identity_hash）已备好。
   - [ ] **批次 B · 查询层分流 + legacy 只读保护**：SUM/MAX/UNION/COUNT 逐指标口径、跨午夜裁剪、同来源取大写路径；测试 T2/T3/T9/T10/T11/T14。
   - [ ] **批次 C · 备份 schema 6**：`sources[]` 设备分量、顶层＝导出设备身份、往返幂等、旧版本三层兼容提示；测试 T1/T4/T5/T12。
   - [ ] **批次 D · 历史重建工具**：快照 / `rebuild_log` 记录 / SUM/MAX/UNION 核对 / 整日回滚；测试 T6。
