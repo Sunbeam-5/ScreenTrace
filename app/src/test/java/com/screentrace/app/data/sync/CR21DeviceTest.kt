@@ -91,6 +91,7 @@ class CR21DeviceTest {
     private lateinit var localDb: ScreenTraceDatabase
     private lateinit var copyDb: ScreenTraceDatabase
     private lateinit var prefsFile: File
+    private lateinit var localBackups: BackupRepository
     private lateinit var settings: SettingsStore
     private lateinit var provider: FakeProvider
     private lateinit var manager: SyncManager
@@ -108,6 +109,7 @@ class CR21DeviceTest {
         settings = SettingsStore(prefs, "本机机型")
         provider = FakeProvider()
         val localBackups = BackupRepository(localDb, settings, zone = zone, device = { settings.currentDevice() })
+        this.localBackups = localBackups
         manager = SyncManager(provider, localBackups, settings, device = { settings.currentDevice() })
         operations = DeviceOperations(
             sync = manager,
@@ -365,9 +367,9 @@ class CR21DeviceTest {
             assertEquals("并入后当天使用量相加", 460, localDb.daySummaryDao().get(date)!!.screenMin)
         }
         assertEquals(
-            "记账必须记全三天",
+            "记账必须记全三天（CR-27 起账本在 Room、与数据同事务；旧 DataStore 只作历史兼容）",
             setOf("2026-11-10", "2026-11-11", "2026-11-12"),
-            settings.mergedDatesOf(remoteId)
+            settings.mergedDatesOf(remoteId) + localBackups.mergedDatesOf(remoteId)
         )
 
         val second = operations.mergeIntoLocal(remoteId)
@@ -516,4 +518,90 @@ class CR21DeviceTest {
         assertTrue(result is DeviceOperations.MergeResult.Failed)
         assertTrue(settings.mergedDatesOf(remoteId).isEmpty())
     }
+
+    // ---------------------------------------------------- CR-27 记账同事务
+
+    @Test
+    fun `合并后账本记在 Room 与数据同一事务里`() = runBlocking {
+        provider.remote[SyncPaths.manualPath(remoteId)] = remoteBackupJsonMulti(
+            listOf("2026-11-01", "2026-11-02"), screenMin = 60
+        )
+        val result = operations.mergeIntoLocal(remoteId)
+        assertTrue(result is DeviceOperations.MergeResult.Ok)
+        val dates = localBackups.mergedDatesOf(remoteId)
+        assertEquals("账本必须记下本次并入的日期", setOf("2026-11-01", "2026-11-02"), dates)
+    }
+
+    @Test
+    fun `重复合并不再累加 账本也不再增加`() = runBlocking {
+        provider.remote[SyncPaths.manualPath(remoteId)] = remoteBackupJsonMulti(
+            listOf("2026-11-01", "2026-11-02"), screenMin = 60
+        )
+        operations.mergeIntoLocal(remoteId)
+        val first = localDb.daySummaryDao().get("2026-11-01")!!.screenMin
+        val ledgerFirst = localBackups.mergedDatesOf(remoteId)
+
+        val again = operations.mergeIntoLocal(remoteId)
+        assertTrue("第二次应被账本挡住", again is DeviceOperations.MergeResult.Skipped)
+        assertEquals("当天不能翻倍", first, localDb.daySummaryDao().get("2026-11-01")!!.screenMin)
+        assertEquals("账本行数不该增加", ledgerFirst, localBackups.mergedDatesOf(remoteId))
+    }
+
+    @Test
+    fun `读取时 Room 账本与旧 DataStore 账本取并集`() = runBlocking {
+        // 迁移期：旧账在 DataStore、新账在 Room，取并集才不会把老账丢掉重新累加
+        settings.recordMergedDates(remoteId, setOf("2026-11-01"))
+        localBackups.mergeAccumulate(
+            file = com.screentrace.app.data.backup.BackupFile(
+                schemaVersion = 5, exportedAt = "x", appVersion = "1.0"
+            ),
+            allowedDates = emptySet(),
+            ledgerDeviceId = remoteId
+        )
+        // 直接往 Room 账本写一条（模拟「数据同事务写账本」的产物）
+        localDb.deviceMergeLedgerDao().insert(
+            listOf(com.screentrace.app.data.db.DeviceMergeLedgerEntity(remoteId, "2026-11-02"))
+        )
+        val room = localBackups.mergedDatesOf(remoteId)
+        val legacy = settings.mergedDatesOf(remoteId)
+        assertEquals(setOf("2026-11-02"), room)
+        assertEquals(setOf("2026-11-01"), legacy)
+        assertEquals(
+            "调用方取并集后才是完整的已合并集合",
+            setOf("2026-11-01", "2026-11-02"), room + legacy
+        )
+    }
+
+    @Test
+    fun `旧账在 DataStore 时也要被挡住 不会重新累加`() = runBlocking {
+        // CR-27：迁移期旧账在 DataStore、新账在 Room，调用方取**并集**。
+        // 只认 Room 的话，老账会作废 → 同一批日期被再累加一遍（翻倍）。
+        settings.recordMergedDates(remoteId, setOf("2026-11-01"))
+        provider.remote[SyncPaths.manualPath(remoteId)] = remoteBackupJsonMulti(
+            listOf("2026-11-01", "2026-11-02"), screenMin = 60
+        )
+        val result = operations.mergeIntoLocal(remoteId)
+        assertTrue(result is DeviceOperations.MergeResult.Ok)
+        val ok = result as DeviceOperations.MergeResult.Ok
+        assertEquals("只有没合并过的那天该并入", 1, ok.mergedDates)
+        assertEquals(
+            "被旧账挡住的那天不该再被并入",
+            null,
+            localDb.daySummaryDao().get("2026-11-01")
+        )
+        assertEquals("没合并过的那天照常并入", 60, localDb.daySummaryDao().get("2026-11-02")!!.screenMin)
+    }
+
+    @Test
+    fun `空集合不写账本行`() = runBlocking {
+        localBackups.mergeAccumulate(
+            file = com.screentrace.app.data.backup.BackupFile(
+                schemaVersion = 5, exportedAt = "x", appVersion = "1.0"
+            ),
+            allowedDates = emptySet(),
+            ledgerDeviceId = remoteId
+        )
+        assertEquals(0, localDb.deviceMergeLedgerDao().count())
+    }
+
 }

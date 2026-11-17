@@ -8,6 +8,7 @@ import com.screentrace.app.data.parse.AppUsageRow
 import com.screentrace.app.data.parse.DayMetrics
 import com.screentrace.app.data.db.AppLimitEntity
 import com.screentrace.app.data.db.AppUsageEntity
+import com.screentrace.app.data.db.DeviceMergeLedgerEntity
 import com.screentrace.app.data.db.DaySummaryEntity
 import com.screentrace.app.data.db.HourUsageEntity
 import com.screentrace.app.data.db.NotificationEventEntity
@@ -380,9 +381,23 @@ class BackupRepository(
      *                    事件与会话按本地时区换算日期后同样受它约束。
      * @return 合并结果摘要；`skipped` 含被自洽校验丢弃的行。
      */
+    /**
+     * §5.10 CR-27：某来源设备**已合并过**的日期（Room 账本）。
+     *
+     * 与旧 DataStore 账本的**并集**由调用方（[com.screentrace.app.data.sync.DeviceOperations]）
+     * 合成——迁移期间两边都可能有历史，取并集才不会把老账丢掉、重新累加一遍。
+     */
+    suspend fun mergedDatesOf(deviceId: String): Set<String> =
+        db.deviceMergeLedgerDao().datesOf(deviceId).toSet()
+
     suspend fun mergeAccumulate(
         file: BackupFile,
-        allowedDates: Set<String>
+        allowedDates: Set<String>,
+        /**
+         * CR-27：来源设备 ID——防重复账本要与数据**同事务**写进 `device_merge_ledger`。
+         * 空串 = 不记账（仅供测试/内部重放用）。
+         */
+        ledgerDeviceId: String = ""
     ): RestoreResult = db.withTransaction {
         var report = BackupMerge.Report()
 
@@ -481,6 +496,15 @@ class BackupRepository(
         }
 
         // ⑥ 应用限额：**完全不写**——限额是本机用户意图，跨设备合并不搬运（§4）。
+
+        // ⑦ 防重复记账（CR-27）：与上面的数据写入**同一个事务**。
+        // 旧实现把账本放 DataStore、在 Room 事务**之后**才写，进程在两步之间被杀
+        // 就会「数据已加、账没记」，下次合并把同一批日期**再累加一遍**（当天翻倍）。
+        if (allowedDates.isNotEmpty() && ledgerDeviceId.isNotEmpty()) {
+            db.deviceMergeLedgerDao().insert(
+                allowedDates.map { DeviceMergeLedgerEntity(ledgerDeviceId, it) }
+            )
+        }
         RestoreResult(report.added, report.updated, report.skipped, settingsRestored = false)
     }
 

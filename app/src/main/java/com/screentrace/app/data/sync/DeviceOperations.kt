@@ -105,7 +105,8 @@ class DeviceOperations(
         val file = remote.file
             ?: return MergeResult.Failed("下载失败：${remote.errorText()}")
 
-        val already = settings.mergedDatesOf(deviceId)
+        // CR-27：账本取 Room 与旧 DataStore 的**并集**（迁移期两边都可能有历史）
+        val already = settings.mergedDatesOf(deviceId) + localBackups.mergedDatesOf(deviceId)
         val candidates = CrossDeviceMerge.allowedDatesOf(file, already, zone)
         if (candidates.isEmpty()) {
             return MergeResult.Skipped(deviceId, "该设备的数据已全部合并过，没有新日期可并入")
@@ -131,13 +132,14 @@ class DeviceOperations(
             )
         }
 
-        val merged = runCatching { localBackups.mergeAccumulate(file, allowed) }
+        // CR-27：账本写进 Room、与数据同事务（旧的事务外 DataStore 记账已去除）
+        val merged = runCatching { localBackups.mergeAccumulate(file, allowed, deviceId) }
         if (merged.isFailure) {
             return MergeResult.Failed(
                 "合并失败，本机数据未改动：${merged.exceptionOrNull()?.message ?: "未知错误"}"
             )
         }
-        settings.recordMergedDates(deviceId, allowed)
+        // CR-27：不再事务外记账——账本已在 mergeAccumulate 的同一事务里写入 Room。
 
         val uploaded = runCatching { uploadAfterMerge() }.getOrDefault(false)
         val uploadNote = if (uploaded) "，已自动上传一次" else "，自动上传失败（本机合并已保留）"

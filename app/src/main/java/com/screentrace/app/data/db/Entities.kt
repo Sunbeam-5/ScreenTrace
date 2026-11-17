@@ -121,3 +121,22 @@ data class AppLimitEntity(
     val limitMin: Int,
     val enabled: Boolean
 )
+
+/**
+ * §5.10 CR-27：跨设备合并的**防重复记账**（与数据写入同一事务）。
+ *
+ * 旧实现把账本放 DataStore、在 Room 事务**之后**才写，两步之间进程被杀就会
+ * 「数据已加、账没记」→ 下次合并把同一批日期**再累加一遍**（当天翻倍）。
+ * 迁进 Room 后与 `mergeAccumulate` 同事务：先查未合并日期、再累加、最后写账本，
+ * 三步一荣俱荣一损俱损。
+ *
+ * PK = (`deviceId`, `date`)：同一来源设备的每一天各占一行，天然「整集合保留」
+ * ——CR-21 补记踩过「同键覆盖丢日期」的坑，这里用联合主键从结构上堵死。
+ *
+ * **不进备份 JSON**（与旧 DataStore 账本一致）：它是本机的合并流水，不是用户数据。
+ */
+@Entity(tableName = "device_merge_ledger", primaryKeys = ["deviceId", "date"])
+data class DeviceMergeLedgerEntity(
+    val deviceId: String,
+    val date: String
+)

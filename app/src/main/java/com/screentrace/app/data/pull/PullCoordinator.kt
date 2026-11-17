@@ -258,7 +258,12 @@ fun PullOutcome.asPullResult(): PullResult = when (this) {
     )
 
     PullOutcome.EmptyDump -> PullResult(ok = false, message = "系统暂无可解析的使用记录")
-    PullOutcome.Throttled -> PullResult(ok = true, message = "刚拉取过，30 分钟内不重复拉取")
+    PullOutcome.Throttled -> PullResult(
+            ok = true,
+            // CR-27：文案按**实际**节流间隔出，不再写死数字——批 6g 已把 30 分钟
+            // 收紧到 10 分钟，旧文案会误导用户以为要等半小时。
+            message = "刚拉取过，${PullCoordinator.DEFAULT_MIN_INTERVAL_MS / 60_000} 分钟内不重复拉取"
+        )
     PullOutcome.AlreadyRunning -> PullResult(ok = false, message = "正在拉取中，请稍候")
     is PullOutcome.Failure -> PullResult(ok = false, message = message)
 }

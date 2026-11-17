@@ -297,3 +297,24 @@ interface AppLimitDao {
     @Query("SELECT COUNT(*) FROM app_limit")
     suspend fun count(): Int
 }
+
+@Dao
+interface DeviceMergeLedgerDao {
+
+    /**
+     * 某来源设备**已合并过**的日期。
+     *
+     * 与旧 DataStore 账本的并集由调用方合成（`DeviceOperations`）——
+     * 迁移期间两边都可能有历史，取并集才不会把老账丢掉、重新累加一遍。
+     */
+    @Query("SELECT date FROM device_merge_ledger WHERE deviceId = :deviceId")
+    suspend fun datesOf(deviceId: String): List<String>
+
+    /** CR-27：与 `mergeAccumulate` 的数据写入同事务写入。 */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(rows: List<DeviceMergeLedgerEntity>)
+
+    /** 测试用：账本行数。 */
+    @Query("SELECT COUNT(*) FROM device_merge_ledger")
+    suspend fun count(): Int
+}

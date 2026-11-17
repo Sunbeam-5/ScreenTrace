@@ -10,6 +10,7 @@ import androidx.room.RoomDatabase
  * 版本 3（批 6g 四轮）：清空 app_usage（MIUI totalTimeUsed 虚高，旧值不可信，见 MIGRATION_2_3）。
  * 版本 4（批 6g 四轮）：清空 hour_usage（旧时段算法与并集后口径不一致，见 MIGRATION_3_4）。
  * 版本 5（批 8 第一步）：+ app_limit（应用限额；备份 schemaVersion=4 要包含它）。
+ * 版本 6（CR-27）：+ device_merge_ledger（跨设备合并的防重复记账，与数据同事务）。
  */
 @Database(
     entities = [
@@ -20,9 +21,10 @@ import androidx.room.RoomDatabase
         UnlockEventEntity::class,
         NotificationEventEntity::class,
         ScreenSessionEntity::class,
-        AppLimitEntity::class
+        AppLimitEntity::class,
+        DeviceMergeLedgerEntity::class
     ],
-    version = 5,
+    version = 6,
     // P2-1（6a 评审）：导出 schema JSON 到 app/schemas，供批 6b+ 的迁移与批 8 备份校验使用。
     // 注意区分：这里的 version 是**数据库结构版本**，备份文件的 schemaVersion（§5.10 C07）是另一套。
     exportSchema = true
@@ -36,4 +38,5 @@ abstract class ScreenTraceDatabase : RoomDatabase() {
     abstract fun notificationEventDao(): NotificationEventDao
     abstract fun screenSessionDao(): ScreenSessionDao
     abstract fun appLimitDao(): AppLimitDao
+    abstract fun deviceMergeLedgerDao(): DeviceMergeLedgerDao
 }

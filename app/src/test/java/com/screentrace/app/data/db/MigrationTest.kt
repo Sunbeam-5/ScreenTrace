@@ -38,9 +38,12 @@ abstract class MigrationTestV4Database : RoomDatabase()
  * 首次打开数据库就抛 `IllegalStateException`，App 直接起不来。
  *
  * 方式：先用 [MigrationTestV4Database] 建 v4 库并写入数据，再用
- * [ScreenTraceDatabase]（version 5）+ [MIGRATION_4_5] 打开同一文件——
+ * [ScreenTraceDatabase]（version 6）+ [MIGRATION_4_5] + [MIGRATION_5_6] 打开同一文件——
  * Room 执行迁移后会做**完整 schema 校验**（与 5.json 期望比对表/列/索引），
  * 迁移 SQL 差一个索引名都会在这里抛异常。
+ *
+ * CR-27：DB 升到 v6（+`device_merge_ledger`），这里必须补 [MIGRATION_5_6]，
+ * 否则 Room 报「A migration from 4 to 6 was required but not found」。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -67,7 +70,7 @@ class MigrationTest {
 
         // ② v5 打开触发 MIGRATION_4_5；Room 同时校验迁移后结构与 5.json 一致
         val v5 = Room.databaseBuilder(context, ScreenTraceDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
             .allowMainThreadQueries()
             .build()
 
@@ -87,6 +90,17 @@ class MigrationTest {
         v5.appLimitDao().upsert(AppLimitEntity("com.a", 30, true))
         assertEquals(1, v5.appLimitDao().getAll().size)
         assertTrue(v5.appLimitDao().getAll()[0].limitMin == 30)
+
+        // ⑥ CR-27：device_merge_ledger 在 v6 里可写可读，且联合主键去重
+        v5.deviceMergeLedgerDao().insert(
+            listOf(
+                DeviceMergeLedgerEntity("dev-1", "2026-11-10"),
+                DeviceMergeLedgerEntity("dev-1", "2026-11-10"),   // 同键重复
+                DeviceMergeLedgerEntity("dev-1", "2026-11-11")
+            )
+        )
+        assertEquals(2, v5.deviceMergeLedgerDao().count())
+        assertEquals(listOf("2026-11-10", "2026-11-11"), v5.deviceMergeLedgerDao().datesOf("dev-1").sorted())
 
         v5.close()
     }

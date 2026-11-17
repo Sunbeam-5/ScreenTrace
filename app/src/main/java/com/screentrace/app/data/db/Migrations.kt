@@ -77,3 +77,23 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
     }
 }
+
+/**
+ * v5 → v6（CR-27，2026-11-17）：新增 `device_merge_ledger`（跨设备合并的防重复记账）。
+ *
+ * 只建表结构 + 不搬旧数据：旧账本在 DataStore 里，**读取时两边取并集**即可
+ * （`DeviceOperations`），不必在这里写 protobuf 解析；写入只写这张表、与数据同事务。
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `device_merge_ledger` (
+                `deviceId` TEXT NOT NULL,
+                `date` TEXT NOT NULL,
+                PRIMARY KEY(`deviceId`, `date`)
+            )
+            """.trimIndent()
+        )
+    }
+}
