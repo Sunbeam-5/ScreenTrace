@@ -127,6 +127,12 @@
   - [x] **实现**：`TabMotion.EMPHASIZED_DECELERATE = CubicBezierEasing(0.05, 0.7, 0.1, 1)`（M3 emphasized decelerate，稳定 API）+ `scrollDurationMs(pageDelta)`（1 页 350 / 2 页 440 / 3+ 页 480ms，上限 §5.5）+ `scrollSpecFor(pageDelta)` 取代旧 `scrollSpec`（`358297b`）。
   - [x] **验证**：`TabMotionTest` 改写曲线用例；**5 处变异全部变红**；`--rerun-tasks` **540 测全绿 / 0 skip**；顺手修掉一条空洞断言（拿字段跟自己比 → 直接打缓动函数输出）。
   - [x] **vivo 真机验证（2026-11-17 09:55）**：vivo 不放 App 日志（`Log.d`/`Log.w` 都被过滤），改用**帧时间戳对照口径**——点标题（无动画）27 帧/464ms vs 点 tab 50~52 帧/873ms，**差值 ≈24 帧 ≈409ms**，与新曲线 350/440ms 吻合（旧 spring 实测 779ms，总跨度应约 1240ms）。详见 `CODE_REVIEW.md` 文末补记。
+- [x] **CR-26 · 纠正 CR-25 曲线起步过冲（2026-11-17 10:56 负责人按 GPT/Claude 复核裁定「做 1~3」）**：
+  - [x] **复算核实**：Claude 的曲线表**逐格准确**（二分解三次贝塞尔）。CR-25 的 `(0.05,0.7,0.1,1)` **起步过冲**——60Hz 首帧走完 38% = 跨两页一帧跳 **926px**，而旧 spring 首帧只有 5.9%（CR-25 治了尾巴、却把起步搞坏了）。
+  - [x] **① 曲线换 `FastOutSlowInEasing`**（S 形：慢起→中段快→慢收），首帧跳变 **926px → 8px**（60Hz 两页，目标 <100px）。
+  - [x] **② 收紧断言**：「5% ≤ 5%」（专咬起步过冲）+「33% ≤ 50%」+「50% ∈ [40%,85%]」+「90% ≥ 95%」；**自我纠错**：初稿「33% ≤ 25%」是错的（S 形曲线 33% 处实为 44.8%），已按实算值更正（`f0133c2`）。
+  - [x] **③ 剩余距离改连续进度**：`TabMotion.remainingPages(target, currentPage, offsetFraction)` 纯函数（`currentPage` 是离散索引，动画中再点 tab 会算错）。
+  - [x] **验证**：**5 处变异全部变红**（M4/M5 首轮绿，补了落在变异盲区的边界用例才咬住——变异不红先怀疑用例设计）；`--rerun-tasks` **543 测全绿 / 0 skip**；真机（vivo）逐帧渐进无瞬移、帧跨度 ~414ms 与 440ms 吻合。
 
 
 
