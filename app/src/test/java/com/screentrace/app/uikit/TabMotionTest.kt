@@ -103,28 +103,6 @@ class TabMotionTest {
     // ------------------------------------------------------------ 软着陆曲线
 
     @Test
-    fun `滚动曲线是有明确落点的强调缓出 不是渐近弹簧`() {
-        // CR-25：spring 的渐近尾巴（78% 行程 147ms、最后 22% 爬 630ms）就是「卡住」的来源；
-        // tween 到时即进度 1.0，末端准确停住。
-        val spec = TabMotion.scrollSpecFor(1)
-        assertTrue("必须是 tween（有明确落点）", spec is TweenSpec<*>)
-        val tween = spec as TweenSpec<*>
-        assertEquals(TabMotion.EMPHASIZED_DECELERATE, tween.easing)
-        assertEquals(TabMotion.SCROLL_BASE_MS, tween.durationMillis)
-    }
-
-    @Test
-    fun `缓动是强调缓出 中点已走完大部分行程`() {
-        // 直接打缓动函数的输出，不拿字段跟自己比（那样变异改字段也永远相等）。
-        // 强调缓出 = 起步快、后段稳：t=0.5 时应已走完 >80% 行程；线性是 0.5。
-        val e = TabMotion.EMPHASIZED_DECELERATE
-        assertEquals("起点 0", 0f, e.transform(0f), eps)
-        assertEquals("终点 1", 1f, e.transform(1f), eps)
-        val mid = e.transform(0.5f)
-        assertTrue("强调缓出中点应 > 0.8（线性是 0.5），实测 $mid", mid > 0.8f)
-    }
-
-    @Test
     fun `行程越远越久 但不超过 500ms`() {
         assertEquals(350, TabMotion.scrollDurationMs(1))
         assertEquals(440, TabMotion.scrollDurationMs(2))
@@ -137,5 +115,63 @@ class TabMotionTest {
     fun `行程为 0 或负数按一页算`() {
         assertEquals(350, TabMotion.scrollDurationMs(0))
         assertEquals(350, TabMotion.scrollDurationMs(-3))
+    }
+
+    @Test
+    fun `滚动曲线是有明确落点的 tween 不是渐近弹簧`() {
+        // CR-25：spring 有渐近尾巴；tween 到时即进度 1.0，末端准确停住。
+        val spec = TabMotion.scrollSpecFor(1)
+        assertTrue("必须是 tween（有明确落点）", spec is TweenSpec<*>)
+        val tween = spec as TweenSpec<*>
+        assertEquals(TabMotion.SCROLL_EASING, tween.easing)
+        assertEquals(TabMotion.SCROLL_BASE_MS, tween.durationMillis)
+    }
+
+    @Test
+    fun `曲线起步不冲 中段有速度 末端停住`() {
+        // CR-26 收紧：专咬「起步过冲」——CR-25 的旧曲线在 5% 时间点就走完 44.8%，
+        // 60Hz 首帧跳约 926px（一帧瞬移），就是「僵硬」的直接来源。
+        // FastOutSlowIn 是 S 形（慢起 → 中段快 → 慢收），首帧只走 0.6%。
+        val e = TabMotion.SCROLL_EASING
+        assertEquals("起点 0", 0f, e.transform(0f), eps)
+        assertEquals("终点 1", 1f, e.transform(1f), eps)
+        val early = e.transform(0.05f)
+        assertTrue("5% 时间点进度 $early 应 ≤ 0.05（起步不得跳变）", early <= 0.05f)
+        val third = e.transform(1f / 3f)
+        assertTrue("33% 时间点进度 $third 应 ≤ 0.50（前段不得过冲）", third <= 0.50f)
+        val mid = e.transform(0.5f)
+        assertTrue("50% 时间点进度 $mid 应在 0.40..0.85（中段要有运动）", mid in 0.40f..0.85f)
+        val tail = e.transform(0.9f)
+        assertTrue("90% 时间点进度 $tail 应 ≥ 0.95（末端准确停住）", tail >= 0.95f)
+    }
+
+    @Test
+    fun `剩余行程按连续进度算 而不是离散页索引`() {
+        // CR-26：动画进行中再点 tab 时，currentPage 是离散的、会把剩余距离算错。
+        assertEquals(2, TabMotion.remainingPages(target = 2, currentPage = 0, offsetFraction = 0f))
+        assertEquals("已走过 1.5 页，剩余 0.5 页应按 1 页给时长",
+            1, TabMotion.remainingPages(target = 2, currentPage = 1, offsetFraction = 0.5f))
+        assertEquals("刚好整页也要给 1",
+            1, TabMotion.remainingPages(target = 3, currentPage = 2, offsetFraction = 0f))
+        assertEquals("已经快到了不能给 0",
+            1, TabMotion.remainingPages(target = 1, currentPage = 1, offsetFraction = 0.9f))
+    }
+
+    @Test
+    fun `剩余行程必须吃偏移 离散索引会算错`() {
+        // 专咬「用离散 currentPage 算距离」的变异：正往第 2 页滑却点回第 0 页，
+        // 连续位置 1.5 → 剩余 1.5 页 → 应给 2；离散索引只会算出 1。
+        assertEquals("连续位置 1.5、目标 0，剩余 1.5 页应给 2",
+            2, TabMotion.remainingPages(target = 0, currentPage = 1, offsetFraction = 0.5f))
+        assertEquals("反方向同理：连续位置 0.5、目标 2，剩余 1.5 页应给 2",
+            2, TabMotion.remainingPages(target = 2, currentPage = 1, offsetFraction = -0.5f))
+    }
+
+    @Test
+    fun `剩余行程下限夹到 1 已经到位也给一页时长`() {
+        // 专咬「删掉 coerceAtLeast(1)」的变异：正好落在目标页时剩余 0，
+        // 但 tween 需要一个正的时长，必须夹到 1。
+        assertEquals(1, TabMotion.remainingPages(target = 1, currentPage = 1, offsetFraction = 0f))
+        assertEquals(1, TabMotion.remainingPages(target = 5, currentPage = 5, offsetFraction = 0f))
     }
 }

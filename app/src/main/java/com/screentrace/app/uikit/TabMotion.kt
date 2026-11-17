@@ -1,7 +1,8 @@
 package com.screentrace.app.uikit
 
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import kotlin.math.abs
 
@@ -44,20 +45,21 @@ object TabMotion {
     const val TITLE_SHIFT_PER_STEP_DP = 18f
 
     /**
-     * 点 tab 的运动曲线（§5.2 CR-25）：**有明确落点**的强调缓出。
+     * 点 tab 的运动曲线（§5.2 CR-26，**纠正 CR-25 的起步过冲**）：`FastOutSlowInEasing`。
      *
-     * 治的是「点 tab 比滑动卡」的直接原因——`spring` 的**渐近尾巴**：
-     * 真机 logcat 实测跨两页时 **78% 的行程只用 147ms，剩下 22% 却爬了 630ms**
-     * （154ms 时 progress=1.71，779ms 才落定 2.0）。那段「几乎看不出在动、又没结束」
-     * 的磨蹭就是观感上的「卡住」；滑动是手指驱动、松手即落定，没有这段。
+     * CR-25 用的 `CubicBezierEasing(0.05, 0.7, 0.1, 1)` **起步过冲**：60Hz 首帧（16.7ms）
+     * 就走完 **38%** 行程，跨两页时**一帧跳约 926px**——眼睛看到的是「跳过去」不是
+     * 「滑过去」，这正是「僵硬」的直接来源；而旧 spring 首帧只走 5.9%，**新曲线的
+     * 起步跳变是旧的 6.5 倍**（CR-25 治了尾巴、却把起步搞坏了）。
      *
-     * 改用 M3 emphasized decelerate（**稳定 API**，§6 不引实验组件）：
-     * 起步有速度、中段平稳、**末端准确停住**——`tween` 到时即进度 1.0，没有尾巴。
+     * `FastOutSlowIn`（`CubicBezier(0.4, 0, 0.2, 1)`，**稳定 API**）：起步慢（首帧 0.6%
+     * ≈ 15px）、中段有速度（50% 时间点走完 65%）、末端准确停住——`tween` 到时即
+     * 进度 1.0，同样没有 spring 的渐近尾巴。
      *
      * 与 [alphaFor] / [scaleFor] / [titleShiftDp] 同处一室：转场运动的参数只有一个
      * 出处，调观感时不会出现「标题改了曲线没改」的分叉。
      */
-    val EMPHASIZED_DECELERATE = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+    val SCROLL_EASING: Easing = FastOutSlowInEasing
 
     /** CR-25：单页基础时长（ms）。 */
     const val SCROLL_BASE_MS = 350
@@ -78,9 +80,21 @@ object TabMotion {
         return (SCROLL_BASE_MS + (d - 1) * SCROLL_PER_EXTRA_PAGE_MS).coerceAtMost(SCROLL_MAX_MS)
     }
 
+    /**
+     * 到目标页的**剩余行程**（按连续进度算，向上取整到整页）。§5.2 CR-26。
+     *
+     * 不能用 `|目标页 − currentPage|`——`currentPage` 是**离散**索引，动画进行到一半时
+     * 再点别的 tab，剩余距离会被算错（比如已经走过 1.5 页却仍按 2 页给时长）。
+     * 用 `currentPage + offsetFraction` 的连续位置才是真实剩余距离。
+     */
+    fun remainingPages(target: Int, currentPage: Int, offsetFraction: Float): Int {
+        val here = currentPage + offsetFraction
+        return abs(target - here).let { kotlin.math.ceil(it) }.toInt().coerceAtLeast(1)
+    }
+
     /** 点 tab 的滚动曲线：强调缓出 + 按行程给时长。 */
     fun scrollSpecFor(pageDelta: Int): AnimationSpec<Float> =
-        tween(durationMillis = scrollDurationMs(pageDelta), easing = EMPHASIZED_DECELERATE)
+        tween(durationMillis = scrollDurationMs(pageDelta), easing = SCROLL_EASING)
 
     /**
      * 景深透明度：居中 1 → 完全滑出 [DEPTH_ALPHA_AT_EDGE]，线性插值。

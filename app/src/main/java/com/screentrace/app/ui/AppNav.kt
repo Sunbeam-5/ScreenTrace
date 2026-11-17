@@ -123,6 +123,12 @@ private val MAIN_PAGES = listOf(AppPage.Today, AppPage.Stats, AppPage.Calendar)
  * 4. 二级页是覆盖在主页面之上的独立图层，右侧小幅滑入 + 交叉淡出；底部导航画在
  *    最外层，所以二级页里导航条依然在（§5.2/§5.5）。
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun remainingPages(target: Int, pagerState: androidx.compose.foundation.pager.PagerState): Int {
+    val here = pagerState.currentPage + pagerState.currentPageOffsetFraction
+    return kotlin.math.abs(target - here).let { kotlin.math.ceil(it) }.toInt().coerceAtLeast(1)
+}
+
 @OptIn(
     androidx.compose.foundation.ExperimentalFoundationApi::class,
     androidx.compose.material3.ExperimentalMaterial3Api::class
@@ -406,7 +412,7 @@ fun AppNav() {
                 tabGuard.begin(target)
                 try {
                     if (reduceMotion) pagerState.scrollToPage(target)
-                    else pagerState.animateScrollToPage(target, animationSpec = TabMotion.scrollSpecFor(kotlin.math.abs(target - pagerState.currentPage)))
+                    else pagerState.animateScrollToPage(target, animationSpec = TabMotion.scrollSpecFor(TabMotion.remainingPages(target, pagerState.currentPage, pagerState.currentPageOffsetFraction)))
                 } finally {
                     if (tabGuard.end(target)) alignRouteToPager(pagerState.currentPage)
                 }
@@ -937,7 +943,7 @@ fun AppNav() {
                         tabScope.launch {
                             try {
                                 if (reduceMotion) pagerState.scrollToPage(index)
-                                else pagerState.animateScrollToPage(index, animationSpec = TabMotion.scrollSpecFor(kotlin.math.abs(index - pagerState.currentPage)))
+                                else pagerState.animateScrollToPage(index, animationSpec = TabMotion.scrollSpecFor(TabMotion.remainingPages(index, pagerState.currentPage, pagerState.currentPageOffsetFraction)))
                             } finally {
                                 if (tabGuard.end(index)) alignRouteToPager(pagerState.currentPage)
                             }
