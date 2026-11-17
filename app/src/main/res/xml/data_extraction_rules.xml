@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  CR-29：系统备份与设备间迁移全排除（API 31+ 的 dataExtractionRules）。
+  cloud-backup（系统云备份）与 device-transfer（换机迁移）都排除全部应用数据；
+  导出与换机只经 §5.10 的 JSON/CSV 导出与云同步。allowBackup 已为 false，本文件是兜底。
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

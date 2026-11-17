@@ -168,6 +168,7 @@
     - [x] 导出兼容警告链：`legacyCompatWarning` → `AppViewModel.backupCompatWarning` → `BackupGroup` 导出成功后 `onNotice`（含多来源时提示「旧版本导入会丢失非本机来源数据」）。
     - [x] 验证：3 例 `AppViewModelCr28Test`（UNION=1h vs SUM=2h / 有 sources 警告 / 纯本机无警告）；**M20/M21 变异全红**。真机复核（统计页观感 + 导出提示）待 Redmi 阶段。
 - [ ] **Redmi 真机验证（约 00:47 插件稳定性测试后）**：迁移 v6→v8 冒烟（check_v7 流程）+ UI 批次复核（统计页副指标 / 导出警告）+ 整体冒烟。
+- [x] **CR-29 · 系统备份关闭（P1 隐私，2026-11-17 实现完成）**：`allowBackup="false"` + `fullBackupContent`（≤API30）/ `dataExtractionRules`（API31+，含 device-transfer）**全排除**规则文件；应用数据不进任何系统备份/迁移通道，导出换机只经 §5.10 出口。`BackupPolicyTest` 三重断言（运行时 flags / manifest 声明 / 规则文件全排除），**M22/M23 变异全红**（allowBackup 改回 true 2 红 / 删 root 排除 1 红）。§7-60 验收。
   - 铁律：不清空数据库、不删旧备份、不伪造历史来源、优先保证历史数据不丢失；每批一个提交、文档先行、变异验证；Redmi 禁用窗口内真机用 vivo `10CEB40M5G001DK`。设计全文 `docs/设计审查-CR-28 来源设备维度.md`。
   - [x] **真机迁移验证（2026-11-17 13:50，vivo）**：v5→v6 迁移通过——冷启动 `MainActivity` 为前台、crash 缓冲 0 条；真机库核对**老数据一行未丢**（day_summary 10 / app_usage 247 / hour_usage 144 / notification_event 3735 / screen_session 1283），`device_merge_ledger` 建出（列 deviceId+date）、`identity_hash` 已写。与 `MigrationTest` 的完整 schema 校验一致。
 
