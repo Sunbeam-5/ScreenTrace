@@ -57,6 +57,8 @@ fun BackupGroup(
     appVersion: String,
     onBuildJson: suspend () -> Pair<String, String>?,
     onBuildCsv: suspend () -> List<Pair<String, String>>,
+    /** CR-28 三层兼容：导出含多来源分量时的旧版本兼容警告（null = 无需提示）。 */
+    onExportWarning: (suspend () -> String?)? = null,
     onDecode: suspend (String) -> BackupCodec.DecodeResult,
     onRestore: suspend (BackupFile, Boolean, Boolean) -> BackupRepository.RestoreResult?,
     /** 真机反馈 #3：云同步配置挪二级页，本组只放一行入口。 */
@@ -173,6 +175,9 @@ fun BackupGroup(
                             onNotice("导出失败：数据读取异常")
                         } else {
                             pendingJson = payload
+                            // CR-28 三层兼容：含多来源分量时提示旧版本导入会丢 sources[]
+                            val warning = onExportWarning?.invoke()
+                            if (warning != null) onNotice(warning)
                             jsonLauncher.launch(payload.first)
                         }
                     }

@@ -128,6 +128,8 @@ fun SettingsScreen(
     buildReport: suspend (Boolean) -> Pair<String, String>?,
     /** 批 8：备份导出/恢复（§5.10）。 */
     onBuildBackupJson: suspend () -> Pair<String, String>? = { null },
+    /** CR-28 三层兼容：导出含多来源分量时的旧版本兼容警告。 */
+    onBackupCompatWarning: (suspend () -> String?)? = null,
     onBuildCsv: suspend () -> List<Pair<String, String>> = { emptyList() },
     onDecodeBackup: suspend (String) -> com.screentrace.app.data.backup.BackupCodec.DecodeResult =
         { com.screentrace.app.data.backup.BackupCodec.decode(it) },
@@ -177,6 +179,7 @@ fun SettingsScreen(
         appVersion = appVersion,
         onBuildJson = onBuildBackupJson,
         onBuildCsv = onBuildCsv,
+        onExportWarning = onBackupCompatWarning,
         onDecode = onDecodeBackup,
         onRestore = onRestoreBackup,
         cloudSummary = cloudSummary,

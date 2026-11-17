@@ -211,6 +211,13 @@ interface UsageRepository {
      * CR-01（C04）：解锁/通知详情统一查询。两详情页、卡片数字、图表与数据表
      * 必须同源于此（§7-16），禁止各写聚合逻辑。
      */
+    /**
+     * CR-28：「占用时钟时长」（会话区间跨来源 UNION）——区间内逐日会话并集分钟
+     * （跨午夜按自然日裁剪、只计 SCREEN）。**独立副指标**，与总使用时长（SUM）
+     * 不得混为一谈（双机同时用 1h：SUM=2h、UNION=1h）。默认空实现＝无会话数据。
+     */
+    suspend fun clockOccupied(selection: DateSelection): Map<LocalDate, Int> = emptyMap()
+
     suspend fun metricDetail(metric: MetricKind, selection: DateSelection): MetricDetail
 
     /**

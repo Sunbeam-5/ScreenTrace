@@ -163,6 +163,11 @@
   - [x] **批次 E · 测试矩阵收口 + 通知丢行修复（2026-11-17 实现完成）**：
     - [x] **修通知「整边替换丢行」**（A-3 真机遗留，CR-01 红线 DB 层缺口）：`MergePolicy.mergeNotifications`（秒级分组取大条数、整边替换——同秒组里条数少的一边连独有行整组丢掉）废除；IngestPipeline 通知合并改**完整主键 `insertIgnore` 并集**（同毫秒多条、同秒组不同内容互不丢；重复拉取同键幂等），与批次 C 对 BackupMerge 的简化同款。回归用例「同秒组不同内容两批合并不丢行」；**M19 变异红**（并集退化为组内只留一条 → 3 例红）。
     - [x] **测试矩阵 T1–T14 全面对账**：T1/T4/T5/T12→`BackupSourceRoundTripTest`、T2/T3/T9/T10/T11/T14→`CrossSourceAggregationTest`、T6→`SourceRebuildTest`、T7→`MigrationTest`、T8→`SourceArchiveTest`、T13→`SameMillisecondEventTest`，14 条全覆盖。
+  - [x] **UI 批次 · 统计页 UNION 副指标 + 导出兼容警告接线（2026-11-17 实现完成）**：
+    - [x] 契约加 `clockOccupied(selection)`（默认空实现不破 fake）；`RoomUsageRepository` 实现（区间逐日 `SessionUnion.occupiedMinutes`，跨午夜裁剪口径已测）；`StatsData.clockOccupiedMin` 区间合计；统计页趋势卡图例行下展示「占用时钟时长 X」（与「日均亮屏」＝总使用时长明确区分，数字与单位同一 Text）。
+    - [x] 导出兼容警告链：`legacyCompatWarning` → `AppViewModel.backupCompatWarning` → `BackupGroup` 导出成功后 `onNotice`（含多来源时提示「旧版本导入会丢失非本机来源数据」）。
+    - [x] 验证：3 例 `AppViewModelCr28Test`（UNION=1h vs SUM=2h / 有 sources 警告 / 纯本机无警告）；**M20/M21 变异全红**。真机复核（统计页观感 + 导出提示）待 Redmi 阶段。
+- [ ] **Redmi 真机验证（约 00:47 插件稳定性测试后）**：迁移 v6→v8 冒烟（check_v7 流程）+ UI 批次复核（统计页副指标 / 导出警告）+ 整体冒烟。
   - 铁律：不清空数据库、不删旧备份、不伪造历史来源、优先保证历史数据不丢失；每批一个提交、文档先行、变异验证；Redmi 禁用窗口内真机用 vivo `10CEB40M5G001DK`。设计全文 `docs/设计审查-CR-28 来源设备维度.md`。
   - [x] **真机迁移验证（2026-11-17 13:50，vivo）**：v5→v6 迁移通过——冷启动 `MainActivity` 为前台、crash 缓冲 0 条；真机库核对**老数据一行未丢**（day_summary 10 / app_usage 247 / hour_usage 144 / notification_event 3735 / screen_session 1283），`device_merge_ledger` 建出（列 deviceId+date）、`identity_hash` 已写。与 `MigrationTest` 的完整 schema 校验一致。
 

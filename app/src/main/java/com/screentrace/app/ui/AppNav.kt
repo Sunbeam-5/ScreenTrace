@@ -799,6 +799,7 @@ fun AppNav() {
                                         viewModel.buildHtmlReport(hideNames, appVersion)
                                     },
                                     onBuildBackupJson = { viewModel.buildBackupJson(appVersion) },
+                                    onBackupCompatWarning = { viewModel.backupCompatWarning(appVersion) },
                                     onBuildCsv = { viewModel.buildCsvFiles(appVersion) },
                                     onDecodeBackup = { text -> viewModel.decodeBackup(text) },
                                     onRestoreBackup = { file, overwrite, importSettings ->

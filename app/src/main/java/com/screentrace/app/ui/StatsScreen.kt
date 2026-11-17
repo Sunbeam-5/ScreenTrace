@@ -156,6 +156,15 @@ private fun StatsContent(
         TrendChartMath.averageMinutes(data.trend)?.let { avg ->
             AverageLegend(averageMinutes = avg)
         }
+        // CR-28 §7-57：「占用时钟时长」（UNION）独立副指标——与上方「日均亮屏」
+        // （总使用时长 SUM）明确区分：双机同时用 1h 时这里是 1h、总时长是 2h。
+        if (data.clockOccupiedMin > 0) {
+            Text(
+                text = "占用时钟时长 ${UsageCalculator.formatDuration(data.clockOccupiedMin)}",
+                style = FreshType.label,
+                color = palette.onSurfaceVariant
+            )
+        }
     }
 
     // ② 时段分布卡（CR-07 §5.2：36dp 四段条 + 2×2 图例）

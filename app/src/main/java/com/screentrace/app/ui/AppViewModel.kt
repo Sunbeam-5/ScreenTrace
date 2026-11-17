@@ -151,7 +151,12 @@ data class StatsData(
      * 趋势图点柱浮层的数据源（§5.7-5）：每个自然日的 top3。
      * 默认空 Map —— 降级通道没有逐日应用数据时浮层只显示当日总时长，不画空行。
      */
-    val topAppsPerDay: Map<java.time.LocalDate, List<AppUsage>> = emptyMap()
+    val topAppsPerDay: Map<java.time.LocalDate, List<AppUsage>> = emptyMap(),
+    /**
+     * CR-28：「占用时钟时长」（UNION）区间合计——独立副指标（§7-57），
+     * 与日均亮屏（总使用时长 SUM）分开展示，双机同时用 1h 时两者不同（2h vs 1h）。
+     */
+    val clockOccupiedMin: Int = 0
 )
 
 /** 日历页数据（连续记录 / 年视图 / 双卡）。点击详情直接用 CalendarLevel.minutes（返修 P1-4）。 */
@@ -1146,6 +1151,15 @@ class AppViewModel(
         return runCatching { repo.exportJson(appVersion) }.getOrNull()
     }
 
+    /**
+     * CR-28 三层兼容：导出含多来源分量（`sources[]`）时的旧版本兼容警告；
+     * 无分量时 null（无需提示）。
+     */
+    suspend fun backupCompatWarning(appVersion: String): String? {
+        val repo = backups ?: return null
+        return runCatching { repo.legacyCompatWarning(repo.buildFile(appVersion)) }.getOrNull()
+    }
+
     /** 生成七张明细表的 CSV：（文件名, 内容）列表。 */
     suspend fun buildCsvFiles(appVersion: String): List<Pair<String, String>> {
         val repo = backups ?: return emptyList()
@@ -1387,7 +1401,8 @@ class AppViewModel(
                                 statsSummary.recordedDays
                             ),
                             extremes = repository.extremes(statsSel, threshold),
-                            topAppsPerDay = repository.topAppsPerDay(statsSel, limit = 3)
+                            topAppsPerDay = repository.topAppsPerDay(statsSel, limit = 3),
+                            clockOccupiedMin = repository.clockOccupied(statsSel).values.sum()
                         )
                     )
                 }

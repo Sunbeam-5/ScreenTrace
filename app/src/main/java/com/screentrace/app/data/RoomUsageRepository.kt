@@ -170,6 +170,23 @@ class RoomUsageRepository(
             .sumBetween(selection.startDate.toString(), selection.endDate.toString())
             .map { HourBucket(it.hour, it.minutes) }
 
+    /**
+     * CR-28：「占用时钟时长」（UNION）——区间内逐日全来源 SCREEN 会话的裁剪并集分钟。
+     * 存储永不合并跨来源区间，这里在读侧做并集（§4.2：跨午夜按自然日裁剪、不跨日摊派）。
+     */
+    override suspend fun clockOccupied(selection: DateSelection): Map<LocalDate, Int> {
+        val rows = db.screenSessionDao().getAll()
+        if (rows.isEmpty()) return emptyMap()
+        val zone = ZoneId.systemDefault()
+        var day = selection.startDate
+        val out = mutableMapOf<LocalDate, Int>()
+        while (!day.isAfter(selection.endDate)) {
+            out[day] = SessionUnion.occupiedMinutes(rows, day, zone)
+            day = day.plusDays(1)
+        }
+        return out
+    }
+
     override suspend fun monthLevels(yearMonth: java.time.YearMonth): List<CalendarLevel> {
         val start = yearMonth.atDay(1)
         val end = yearMonth.atEndOfMonth()
