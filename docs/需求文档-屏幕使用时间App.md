@@ -187,7 +187,7 @@ device_merge_ledger(device_id, date, PK(device_id, date))
   - **首启归档（迁移后幂等执行）**：迁移把六表旧值的 `source_device_id` 置空（未归档），首次启动读「合并账本（`device_merge_ledger` ∪ 旧 DataStore）」判定——该日在账本内（合并过外来数据，来源不可考）→ `'__legacy__'`；不在账本内（纯本机日）→ 本机 `deviceId`。归档只处理空值行、跑两遍结果不变。
   - **legacy 只读保护**：`'__legacy__'` 行不得被普通拉取 / 合并 / 重算**取大、覆盖或累加**（所有表适用）；来源明确的新数据照常独立写入各自分量行（legacy 日期内本机新数据正常入库），聚合与重算按来源隔离——**不得因存在 legacy 而跳过该日写入或丢弃独立来源的原始事件**。指定验证：legacy=4h + A=1h + B=2h → SUM=7h 且 legacy 原值仍 4h。
   - **跨午夜与时区（CR-28）**：跨午夜会话**按自然日裁剪**（23:00–01:00 在两日各计 1h，SUM 与 UNION 都按裁剪段计），不整段归起点日；UNION 只对当日裁剪后区间做并集、不跨日摊派、只计 SCREEN 会话；日边界取聚合时本机时区（与 `date` 键口径一致），历史 `date` 不因时区切换重排；同日恒有 `UNION ≤ SUM`。
-  - **历史重建（可选、显式触发）**：有原始备份的日期可重拆来源分量（只写有备份实证的行，`'__legacy__'` 只留无法解释的剩余），重建前快照、记录范围（`rebuild_log` 表）、重建后核对 SUM/MAX/UNION、失败整日回滚；**禁止按当前设备 ID 猜测历史来源**，拆不动的日期保留 `'__legacy__'` 原值。
+  - **历史重建（可选、显式触发）**：有原始备份的日期可重拆来源分量（只写有备份实证的行，`'__legacy__'` 只留无法解释的剩余），重建前快照、记录范围（`rebuild_log` 表）、重建后核对 SUM/MAX/UNION、失败整日回滚；**禁止按当前设备 ID 猜测历史来源**，拆不动的日期保留 `'__legacy__'` 原值。**重建口径细化（CR-28 批次 D）**：① `rebuild_log(id, date_range_start, date_range_end, snapshot_path, touched_sources, rows_before, rows_after, check_sum_min, check_union_min, check_max_min, rolled_back, created_at_ms)` 独立建表；② 备份分量与 legacy 行按 SUM 口径差减——`剩余 = legacy − Σ备份分量`，剩余为 0 删 legacy 行、剩余 > 0 把 legacy 行改写为剩余值（`longest_session_min` 是 MAX 语义不差减、保留原值），**Σ分量 > legacy 判「对不上」→ 该日不重建**；③ 事件/会话只做**同键改归属**（与备份行主键完全一致的 legacy 行改写来源为该备份 `device.id`，不一致的一律留 `'__legacy__'`，同 CR-22 信号③的证据强度）；④ 核对：SUM 逐日硬断言（重建后合计 == 重建前），MAX/UNION 记录并做 sanity（≤ SUM）；核对不过或中途失败 → 事务回滚 + 快照恢复（`rolled_back = 1`）。
 - `category`：内置分类（视频娱乐/社交沟通/AI 助手/工具效率/游戏/购物/其他）按包名映射，允许用户改（排行页图例着色用）。用户对分类的修改纳入备份与同步范围。
 - 备份/同步的 JSON 结构与版本字段见 §5.10，解析与 UI 均不感知该文件格式，只有备份模块读写它。
 
