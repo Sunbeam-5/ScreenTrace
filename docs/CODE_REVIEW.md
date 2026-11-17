@@ -1683,12 +1683,30 @@ P1-1 的探针与 P1-2 的变异都是临时改动，复现后已 `git checkout 
 - **真机库核对**（拉 \screentrace.db\ + wal/shm 后只读打开）：
   | 表 | 行数 |
   |---|---|
-  | \day_summary\ | 10 ✓ |
-  | \pp_usage\ | 247 ✓ |
-  | \hour_usage\ | 144 ✓ |
-  | otification_event\ | 3735 ✓ |
-  | \screen_session\ | 1283 ✓ |
-  | \pp_limit\ | 0 ✓ |
-  | **\device_merge_ledger\** | **0**（新表建出，列 = \deviceId\ + \date\）|
-  oom_master_table.identity_hash = 467d338bb89b73624d0200e1703ad3a6\ 已写，**老数据一行未丢**。
-- **结论**：\MIGRATION_5_6\ 在真机 v5→v6 上通过；\MigrationTest\ 的完整 schema 校验（比对 .json\）与真机结果一致。
+  | `day_summary` | 10 ✓ |
+  | `app_usage` | 247 ✓ |
+  | `hour_usage` | 144 ✓ |
+  | `notification_event` | 3735 ✓ |
+  | `screen_session` | 1283 ✓ |
+  | `app_limit` | 0 ✓ |
+  | **`device_merge_ledger`** | **0**（新表建出，列 = `deviceId` + `date`）|
+  `room_master_table.identity_hash = 467d338bb89b73624d0200e1703ad3a6` 已写，**老数据一行未丢**。
+- **结论**：`MIGRATION_5_6` 在真机 v5→v6 上通过；`MigrationTest` 的完整 schema 校验（比对 `.json`）与真机结果一致。
+（2026-11-17 修：本段曾被 PowerShell 反引号转义写坏——`a`/`n`/`r`/`f` 被当转义符吞掉、反引号变反斜杠，已按原意修复。）
+
+---
+
+## 补记 · CR-28 批次 A 真机迁移验证（v6→v7，2026-11-17 17:13 vivo `10CEB40M5G001DK`）
+
+**首验抓到 P0（真机复核的价值）**：装机后 App 起不来，`IllegalStateException: Migration didn't properly handle: day_summary`——`MIGRATION_6_7` 建了 `sourceDeviceId` 索引而四个实体**没声明 `@Index`**，Room schema 校验期望 `indices=[]`、拒绝打开库。**`MigrationTest` 假绿**：Robolectric 的迁移校验对索引不敏感，同迁移在真机必崩（本轮最值得记账的教训：**迁移测试绿 ≠ 真能开**，「迁移建了索引、实体没声明」这类漂移 JVM 咬不住）。
+
+**修复（`d6162d0`）**：四实体补 `@Index` 声明与迁移逐字一致；`MigrationTest` 补显式 `sqlite_master` 索引断言（8 条索引名逐一对账）堵假绿洞；M14 变异（迁移漏建一条索引）验证断言有牙；564 测全绿。
+
+**复验通过（同机 v6→v7）**：
+- `room_master_table.identity_hash = 401b38329181b3303f7ad96ed8be14af`（v7），App 无崩溃、采集正常。
+- **归档正确**：六表全部行 `sourceDeviceId = 464e282a-…`（本机 UUID；Room ⊕ DataStore 账本皆空 → 无 legacy，符合「纯本机日归本机」）；无未归档行；旧行 `seq = 0`。
+- **保真（按主键分类核对）**：unlock **890/890 全保真**；day/app/hour/session **键 0 丢**（session 1 处为扫线并集吞并、已验证被覆盖；day/app/hour 的值更新均为 11-17 活跃统计的正常增长，非迁移改值）。
+- **seq 真机生效**：`notification_event` 出现 `seq = [0,1,2,3]`——同毫秒多条不丢真实发生。
+- 附带记账：WAL 未 checkpoint 时 `run-as cat` 只拉主库文件会误判「迁移没跑」——`check_v7.py` 已改拉 db+wal+shm 三件套。
+
+**遗留（非迁移问题，记待办）**：`notification_event` 1 键丢 + 10 处 `channelId` 变化，归因为 `MergePolicy.mergeNotifications` 的「秒级分组取大条数、**整边替换**」既有语义（CR-01「同秒多条不丢」在整边替换下并不严格保证），发生在迁移窗口的正常采集中；JVM T7 行数断言与 unlock 全保真佐证迁移搬行无损。待批次 E 或单列修复。 \pp_usage\ | 247 ✓ |
