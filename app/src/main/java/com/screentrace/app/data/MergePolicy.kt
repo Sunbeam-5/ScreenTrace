@@ -69,24 +69,9 @@ object MergePolicy {
         ).map { ScreenSessionEntity(it.startMs, it.endMs, kind, sourceDeviceId) }
 
     /**
-     * CR-01（§2.2 坑 2 / §4 事件合并）：notification_event 按
-     * `(occurredAtMs/1000, type, pkg)` 秒级分组，取两侧条数的**较大值**（整边）——
-     * 既不吞掉同秒真实通知（组内多条全保留），也不因双源/重拉重复计数。
-     * 返回涉及分组的最终行集；调用方删除旧行后写回（单事务）。
+     * ~~notification_event 秒级分组取大条数~~ **CR-28 批次 E 简化**：事件主键含
+     * `sourceDeviceId` 与确定性 `seq` 后，合并一律 `insertIgnore` 全部（完整主键
+     * 幂等、同毫秒多条与同秒组不同内容互不丢）。旧「取大条数、整边替换」会把
+     * 同秒组里条数少的一边整组丢掉——CR-01「同秒多条真实通知不丢」的 DB 层缺口。
      */
-    fun mergeNotifications(
-        existing: List<NotificationEventEntity>,
-        incoming: List<NotificationEventEntity>
-    ): List<NotificationEventEntity> {
-        val key: (NotificationEventEntity) -> Triple<Long, String, String> = {
-            Triple(it.occurredAtMs / 1000, it.type, it.pkg)
-        }
-        val ga = existing.groupBy(key)
-        val gb = incoming.groupBy(key)
-        return (ga.keys + gb.keys).flatMap { k ->
-            val la = ga[k].orEmpty().sortedBy { it.occurredAtMs }
-            val lb = gb[k].orEmpty().sortedBy { it.occurredAtMs }
-            if (la.size >= lb.size) la else lb
-        }.sortedBy { it.occurredAtMs }
-    }
 }

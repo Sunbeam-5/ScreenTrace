@@ -126,25 +126,16 @@ class IngestPipeline(
                         .map { (e, seq) -> UnlockEventEntity(e.occurredAtMs, src, seq) }
                 )
 
-                val notifDao = db.notificationEventDao()
+                // CR-28 批次 E：通知合并＝**完整主键 insertIgnore 并集**（同毫秒多条、
+                // 同秒组不同内容互不丢；重复拉取同键幂等）。旧「秒级分组取大条数、
+                // 整边替换」会把同秒组里条数少的一边整组丢掉（含其独有行）——
+                // CR-01「同秒多条真实通知不丢」的 DB 层缺口，随主键含 seq 废除。
                 val incomingNotifs = EventSeq.assign(result.notificationEvents) {
                     listOf(it.occurredAtMs, it.type, it.pkg)
                 }.map { (e, seq) ->
                     NotificationEventEntity(e.occurredAtMs, e.type.name, e.pkg, e.channelId, src, seq)
                 }
-                if (incomingNotifs.isNotEmpty()) {
-                    val startMs = incomingNotifs.minOf { it.occurredAtMs } - 1000
-                    val endMs = incomingNotifs.maxOf { it.occurredAtMs } + 1000
-                    val existingNotifs = notifDao.between(startMs, endMs, src)
-                    val merged = MergePolicy.mergeNotifications(existingNotifs, incomingNotifs)
-                    if (merged != existingNotifs.sortedBy { it.occurredAtMs }) {
-                        // P0：区间删除，避免 `IN (:msList)` 在多日重拉时超过
-                        // Android 8–11 的 SQLite 绑定变量上限（999）
-                        // CR-28：只删本来源窗口行（legacy 只读保护）
-                        notifDao.deleteBetween(startMs, endMs, src)
-                        notifDao.insertIgnore(merged)
-                    }
-                }
+                db.notificationEventDao().insertIgnore(incomingNotifs)
 
                 // 批 6g 三轮：会话区间真并集（治 MIUI 滚动缓冲少算）。
                 // ① 旧行 ∪ 新区间 → 规范段集写回；② 受影响日期的日聚合/小时矩阵从

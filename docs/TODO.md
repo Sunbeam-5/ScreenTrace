@@ -160,7 +160,9 @@
     - [x] 文档先行 `e636801`：§4 重建口径细化（`rebuild_log` 表 / SUM 差减 / 同键改归属 / 核对回滚）。
     - [x] 实现：`rebuild_log` 表 + `MIGRATION_7_8`（DB v7→v8）；`SourceRebuild` 四件套——**快照**（受影响日期六表全行 JSON，`recover()` 可恢复）→ **重建**（备份分量同源取大写入、legacy 差减留剩余、`longest_session_min` MAX 语义不差减、Σ分量>legacy 判「对不上」整日不重建、事件/会话**同键改归属**不一致留 legacy、禁止按当前设备 ID 猜来源）→ **核对**（SUM 逐日硬断言 + 批级合计、MAX/UNION 记录并 sanity）→ **回滚**（核对不过事务整体回滚 + `rebuild_log.rolled_back=1`）。
     - [x] 验证：T6 六例 `SourceRebuildTest`（完整拆分 / 缺来源留剩余 / 对不上不重建 / 同键改归属 / 核对不过回滚（预置分量>备份注入矛盾）/ recover 恢复原样）。**3 处行为变异全红**（剩余差减失效 / mismatch 失效 / 同键不看键各 1 红）；M18（删单日 SUM 断言）为**非行为变异**——与批级核对互为冗余兜底，记档（同 CR-27 M4/M5 教训），双层防御保留。实现中自查出一真 bug：`dedupeDaySummaries` 误用于跨来源集合会把不同来源同日行去重、Σ 少算炸核对——已改「按来源各自去重」并留注释。
-  - [ ] **批次 E · 测试收口 + 变异 + 真机复核**（14 条矩阵全绿）。
+  - [x] **批次 E · 测试矩阵收口 + 通知丢行修复（2026-11-17 实现完成）**：
+    - [x] **修通知「整边替换丢行」**（A-3 真机遗留，CR-01 红线 DB 层缺口）：`MergePolicy.mergeNotifications`（秒级分组取大条数、整边替换——同秒组里条数少的一边连独有行整组丢掉）废除；IngestPipeline 通知合并改**完整主键 `insertIgnore` 并集**（同毫秒多条、同秒组不同内容互不丢；重复拉取同键幂等），与批次 C 对 BackupMerge 的简化同款。回归用例「同秒组不同内容两批合并不丢行」；**M19 变异红**（并集退化为组内只留一条 → 3 例红）。
+    - [x] **测试矩阵 T1–T14 全面对账**：T1/T4/T5/T12→`BackupSourceRoundTripTest`、T2/T3/T9/T10/T11/T14→`CrossSourceAggregationTest`、T6→`SourceRebuildTest`、T7→`MigrationTest`、T8→`SourceArchiveTest`、T13→`SameMillisecondEventTest`，14 条全覆盖。
   - 铁律：不清空数据库、不删旧备份、不伪造历史来源、优先保证历史数据不丢失；每批一个提交、文档先行、变异验证；Redmi 禁用窗口内真机用 vivo `10CEB40M5G001DK`。设计全文 `docs/设计审查-CR-28 来源设备维度.md`。
   - [x] **真机迁移验证（2026-11-17 13:50，vivo）**：v5→v6 迁移通过——冷启动 `MainActivity` 为前台、crash 缓冲 0 条；真机库核对**老数据一行未丢**（day_summary 10 / app_usage 247 / hour_usage 144 / notification_event 3735 / screen_session 1283），`device_merge_ledger` 建出（列 deviceId+date）、`identity_hash` 已写。与 `MigrationTest` 的完整 schema 校验一致。
 

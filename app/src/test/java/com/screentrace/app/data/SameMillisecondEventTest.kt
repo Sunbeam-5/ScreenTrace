@@ -98,6 +98,40 @@ class SameMillisecondEventTest {
     }
 
     @Test
+    fun `同秒组不同内容两批合并不丢行 旧整边替换会丢第一批`() = runBlocking {
+        // 两批数据落在同一秒、同 type、同 pkg，内容不同（不同 channelId）
+        val batch1 = ParseResult(
+            days = mapOf(d1 to DayMetrics(60, 60, 1, 1, 60)),
+            hourMinutes = emptyMap(),
+            appUsage = emptyList(),
+            unlockEvents = emptyList(),
+            notificationEvents = listOf(
+                NotificationEvent(t, NotificationType.INTERRUPTION, "com.a", "ch1"),
+                NotificationEvent(t + 100, NotificationType.INTERRUPTION, "com.a", "ch1")
+            )
+        )
+        val batch2 = ParseResult(
+            days = mapOf(d1 to DayMetrics(60, 60, 1, 1, 60)),
+            hourMinutes = emptyMap(),
+            appUsage = emptyList(),
+            unlockEvents = emptyList(),
+            notificationEvents = listOf(
+                NotificationEvent(t + 200, NotificationType.INTERRUPTION, "com.a", "ch2"),
+                NotificationEvent(t + 300, NotificationType.INTERRUPTION, "com.a", "ch2")
+            )
+        )
+        val pipeline = IngestPipeline(db, localDeviceId = { "dev-A" })
+        assertTrue(pipeline.ingest(batch1, "dump", t).ok)
+        assertTrue(pipeline.ingest(batch2, "dump", t + 60_000).ok)
+
+        assertEquals(
+            "同秒组两批内容并集：4 条都在（旧「整边替换」会把第一批整组丢掉）",
+            4,
+            db.notificationEventDao().getAll().size
+        )
+    }
+
+    @Test
     fun `seq 按组内顺序确定性编号同一输入得同一组键`() {
         val items = listOf("a0", "b0", "a1", "b0b", "a2")
         val first = EventSeq.assign(items) { listOf(it.first()) }

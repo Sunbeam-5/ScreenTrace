@@ -53,49 +53,8 @@ class MergePolicyTest {
         assertEquals(b, MergePolicy.mergeHour(a, b))
     }
 
-    @Test
-    fun notificationSameSecondMultiRowsSurviveMerge() {
-        // 同秒同 type 同 pkg 的 3 条真实通知：重拉同数据 → 仍 3 条（不吞不多计）
-        val base = 1793660400000L
-        val three = listOf(
-            NotificationEventEntity(base + 100, "INTERRUPTION", "com.a", null),
-            NotificationEventEntity(base + 200, "INTERRUPTION", "com.a", null),
-            NotificationEventEntity(base + 300, "INTERRUPTION", "com.a", null)
-        )
-        val merged = MergePolicy.mergeNotifications(three, three)
-        assertEquals(3, merged.size) // 取大边=3，不是 6
-        assertEquals(listOf(base + 100, base + 200, base + 300), merged.map { it.occurredAtMs })
-    }
-
-    @Test
-    fun notificationTakesLargerSidePerSecondGroup() {
-        val base = 1793660400000L
-        // 库里 1 条 vs 本次拉取 3 条（同秒组）→ 取 3；另一秒组 2 vs 1 → 取 2
-        val existing = listOf(
-            NotificationEventEntity(base + 100, "INTERRUPTION", "com.a", null),
-            NotificationEventEntity(base + 5000, "SEEN", "com.a", null)
-        )
-        val incoming = listOf(
-            NotificationEventEntity(base + 150, "INTERRUPTION", "com.a", null),
-            NotificationEventEntity(base + 250, "INTERRUPTION", "com.a", null),
-            NotificationEventEntity(base + 350, "INTERRUPTION", "com.a", null),
-            NotificationEventEntity(base + 5100, "SEEN", "com.a", null)
-        )
-        val merged = MergePolicy.mergeNotifications(existing, incoming)
-        assertEquals(3, merged.count { it.type == "INTERRUPTION" }) // 秒组取大（3）
-        assertEquals(1, merged.count { it.type == "SEEN" }) // 5s 附近两条差 100ms 但跨秒？
-        // base+5000 与 base+5100 同秒（5000/1000==5100/1000==5）→ 同组 1 vs 1 → 取一边 1 条
-    }
-
-    @Test
-    fun notificationDifferentSecondsAreIndependent() {
-        val base = 1793660400000L
-        val rows = listOf(
-            NotificationEventEntity(base + 100, "INTERRUPTION", "com.a", null),
-            NotificationEventEntity(base + 1100, "INTERRUPTION", "com.a", null),
-            NotificationEventEntity(base + 2100, "INTERRUPTION", "com.a", null)
-        )
-        val merged = MergePolicy.mergeNotifications(emptyList(), rows)
-        assertEquals(3, merged.size) // 不同秒各成组，全部保留
-    }
+    // 通知合并用例已随 CR-28 批次 E 移除：`mergeNotifications`（秒级分组取大条数、
+    // 整边替换）废除——它会把同秒组里条数少的一边整组丢掉（CR-01「同秒多条真实
+    // 通知不丢」的 DB 层缺口）。现语义＝完整主键 `insertIgnore` 并集，实测见
+    // `SameMillisecondEventTest` 的「同秒组不同内容两批合并不丢行」。
 }
