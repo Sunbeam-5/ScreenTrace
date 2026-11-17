@@ -132,7 +132,7 @@ class DeviceSyncTest {
     fun `导出备份带本机 device 恢复别的设备后本机 id 不漂移`() = runBlocking {
         val localId = settings.getOrCreateDeviceId()
         val file = backups.buildFile("1.0")
-        assertEquals(5, file.schemaVersion)
+        assertEquals(6, file.schemaVersion)
         assertEquals(localId, file.device?.id)
         assertEquals("测试机型", file.device?.nickname)
 

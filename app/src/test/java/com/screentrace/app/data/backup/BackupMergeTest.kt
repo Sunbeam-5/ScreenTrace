@@ -89,39 +89,10 @@ class BackupMergeTest {
         assertEquals(1, plan.report.added)
     }
 
-    @Test
-    fun `解锁事件按主键去重`() {
-        val plan = BackupMerge.unlockEvents(
-            localMs = setOf(1000L, 2000L),
-            backup = listOf(UnlockEventDto(2000L), UnlockEventDto(3000L), UnlockEventDto(3000L))
-        )
-        assertEquals(1, plan.rows.size)
-        assertEquals(3000L, plan.rows.first().occurredAtMs)
-    }
-
-    @Test
-    fun `通知按秒级分组取较大条数而不是主键去重`() {
-        // 同一秒内：本地 1 条、备份 2 条 → 应补 1 条（简单去重会一条都不补）
-        val local = listOf(NotificationEventDto(10_200L, "INTERRUPTION", "com.a"))
-        val backup = listOf(
-            NotificationEventDto(10_100L, "INTERRUPTION", "com.a"),
-            NotificationEventDto(10_900L, "INTERRUPTION", "com.a")
-        )
-        val plan = BackupMerge.notificationEvents(local, backup)
-        assertEquals(1, plan.rows.size)
-        assertEquals(1, plan.report.skipped)
-    }
-
-    @Test
-    fun `备份条数不多时不新增`() {
-        val local = listOf(
-            NotificationEventDto(10_100L, "INTERRUPTION", "com.a"),
-            NotificationEventDto(10_900L, "INTERRUPTION", "com.a")
-        )
-        val backup = listOf(NotificationEventDto(10_500L, "INTERRUPTION", "com.a"))
-        val plan = BackupMerge.notificationEvents(local, backup)
-        assertTrue(plan.rows.isEmpty())
-    }
+    // 事件去重用例已随 CR-28 移除：事件主键含 `sourceDeviceId` 与确定性 `seq` 后，
+    // 导入一律 `insertIgnore` 全部（同键天然幂等、同毫秒多条各占一行），
+    // 不再按 ms / 秒组预去重——旧「先到先得」反而丢同毫秒第二条真实事件。
+    // 幂等与同毫秒语义由 `SameMillisecondEventTest` / `BackupSourceRoundTripTest` 钉住。
 
     // ---------------------------------------------------------------- 编解码
 

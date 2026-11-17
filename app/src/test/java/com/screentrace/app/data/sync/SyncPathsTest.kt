@@ -51,14 +51,14 @@ class SyncPathsTest {
     }
 
     @Test
-    fun `v5 备份往返保留 device 且无缺表提示`() {
+    fun `备份往返保留 device 且无缺表提示`() {
         val file = BackupFile(
             schemaVersion = BackupCodec.SCHEMA_VERSION,
             exportedAt = "2026-11-14 15:30",
             appVersion = "1.0",
             device = BackupDevice("uuid-1", "我的手机", "Redmi")
         )
-        assertEquals(5, BackupCodec.SCHEMA_VERSION)
+        assertEquals(6, BackupCodec.SCHEMA_VERSION)
         val decoded = BackupCodec.decode(BackupCodec.encode(file))
         assertTrue(decoded is BackupCodec.DecodeResult.Ok)
         val ok = decoded as BackupCodec.DecodeResult.Ok
@@ -80,8 +80,8 @@ class SyncPathsTest {
     }
 
     @Test
-    fun `高于 v5 的备份明确拒绝`() {
-        val future = """{"schemaVersion":6,"exportedAt":"x","appVersion":"9"}"""
+    fun `高于当前 schema 版本的备份明确拒绝`() {
+        val future = "{\"schemaVersion\":${BackupCodec.SCHEMA_VERSION + 1},\"exportedAt\":\"x\",\"appVersion\":\"9\"}"
         val decoded = BackupCodec.decode(future)
         assertTrue(decoded is BackupCodec.DecodeResult.Invalid)
         assertTrue((decoded as BackupCodec.DecodeResult.Invalid).reason.contains("升级"))

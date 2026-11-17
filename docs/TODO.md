@@ -152,7 +152,10 @@
     - [x] **跨设备合并改按来源写行**：`mergeAccumulate` 写 `sourceDeviceId = 来源设备 ID` 分量行、同来源取大（复用 `BackupMerge`）；`CrossDeviceMerge` 的三个累加函数废除、收敛为「备份内重复行去重」；同设备恢复（merge/overwrite）同样同来源过滤；`SameDeviceFingerprint` 本机来源行优先、回退 legacy（其他来源分量不参与「同一台机器」判定）。
     - [x] **验证**：新增 6 例 `CrossSourceAggregationTest`（T2 SUM=2h/UNION=1h/MAX=1h、T3 不重叠 90min、T9 legacy=4h+A=1h+B=2h→7h 且 legacy 逐字段不变、T10 合并不改 legacy、T11 合并后 +30min、T14 跨午夜两日各 1h）；`CrossDeviceMergeTest` 累加用例置换为去重用例；CR21DeviceTest 四处断言改 SUM 口径（含「自动上传」改查两行分量）。**4 处变异全部变红**（sumRange 逐行 4 红 / 累加进本机行 1 红 / UNION 不裁剪 1 红 / 来源写成本机锅 2 红），字节级还原后复跑全绿；`--rerun-tasks` **560 测全绿 / 0 skip**。
   - [ ] **批次 B · 查询层分流 + legacy 只读保护**：SUM/MAX/UNION/COUNT 逐指标口径、跨午夜裁剪、同来源取大写路径；测试 T2/T3/T9/T10/T11/T14。
-  - [ ] **批次 C · 备份 schema 6**：`sources[]` 设备分量、顶层＝导出设备身份、往返幂等、旧版本三层兼容提示；测试 T1/T4/T5/T12。
+  - [x] **批次 C · 备份 schema 6（2026-11-17 实现完成）**：
+    - [x] 文档先行 `fcb43ae`：§4 备份范围 v5→v6、§5.10 导出结构（`sources[]`）+ 导入派生规则 + 三层兼容 + CSV 带来源列。
+    - [x] 实现：`BackupFile.sources[]`（`BackupSource`，含 `'__legacy__'` 项）+ 事件 DTO 带 `seq`；导出「顶层＝导出设备分量、`sources[]`＝其余来源」（顶层缺 `device()` 也写出 `device.id`＝主体来源）；导入按派生规则打来源（顶层归 `device.id`、无 → `'__legacy__'`、**绝不归导入设备**）；`merge`/`mergeAccumulate`/`overwrite` 三入口收敛到 `mergeGroup`（同来源取大 + **legacy 只增不改** + 事件 `insertIgnore` 完整主键）；`BackupMerge.unlockEvents/notificationEvents` 删除（seq 主键后天然幂等，旧「先到先得」反而丢同毫秒第二条）；CSV 六表展平 `sources[]` 并带 `source_device_id` 列；`legacyCompatWarning()` 三层兼容警告 API。
+    - [x] 验证：新增 7 例 `BackupSourceRoundTripTest`（T5 无设备标识归 legacy / T1 重复导入幂等 / T12 A→B→再导出→再导入身份与分量往返 / T4 账本丢失重试不重复累计 / legacy 只增不改 / 兼容警告 / CSV 展平）；`BackupMergeTest` 3 个事件用例随语义简化移除；`SyncPathsTest`/`DeviceSyncTest` 三处 schema 版本断言升 6（「高于 v5 拒绝」改按当前版本+1 判）。`--rerun-tasks` **564 测全绿 / 0 skip**。变异结果见提交说明。
   - [ ] **批次 D · 历史重建工具**：快照 / `rebuild_log` 记录 / SUM/MAX/UNION 核对 / 整日回滚；测试 T6。
   - [ ] **批次 E · 测试收口 + 变异 + 真机复核**（14 条矩阵全绿）。
   - 铁律：不清空数据库、不删旧备份、不伪造历史来源、优先保证历史数据不丢失；每批一个提交、文档先行、变异验证；Redmi 禁用窗口内真机用 vivo `10CEB40M5G001DK`。设计全文 `docs/设计审查-CR-28 来源设备维度.md`。

@@ -14,6 +14,9 @@ import kotlinx.serialization.json.Json
  * - v4 = 增应用限额（app_limit），settings 增超时提醒开关与自定义主题种子色；
  * - v5 = 顶层增 `device` 设备标识（CR-15 ③ 批 C）。旧备份缺该字段时归「未知设备」，
  *   恢复流程绝不把备份里的 id 写回本机身份。
+ * - v6 = 保留设备分量（CR-28）：顶层六表 = 备份导出设备自己的分量，新增 `sources[]`
+ *   存其他来源分量（含 `'__legacy__'`），事件条目增 `seq`。旧读取器 `ignoreUnknownKeys`
+ *   跳过 `sources` —— 能解析 / 能展示（只见顶层）/ 不能正常导入（三层兼容）。
  *
  * 所有列表都给默认空值：恢复 v1 备份时文件里没有这些键，缺省即「该备份不含此表」，
  * 由 [BackupSummary.missingTables] 逐条提示，而不是靠解析失败去猜。
@@ -33,7 +36,31 @@ data class BackupFile(
     @SerialName("screen_session") val screenSession: List<ScreenSessionDto> = emptyList(),
     @SerialName("app_limit") val appLimit: List<AppLimitDto> = emptyList(),
     /** v5 新增；放在末位且带默认值，旧备份与既有构造点零改动兼容。 */
-    val device: BackupDevice? = null
+    val device: BackupDevice? = null,
+    /**
+     * CR-28（v6 新增）：其他来源的分量（含 `'__legacy__'`＝历史来源未知项）。
+     *
+     * 顶层六表 = **备份导出设备**（`device.id`）自己的分量；`sources[]` 每项带自己的
+     * `device`。导入派生：顶层行归 `device.id`（无 → `'__legacy__'`，绝不归导入设备）、
+     * `sources[]` 各归各的 `device.id`。旧读取器 `ignoreUnknownKeys` 跳过本字段——
+     * **能解析、能展示（只见顶层）、不能正常导入**（三层兼容，导出时须提示）。
+     */
+    val sources: List<BackupSource> = emptyList()
+)
+
+/**
+ * CR-28（v6）：一个非导出设备来源的分量（`'__legacy__'` 也用它表达）。
+ * 不含 pull_log / app_limit / settings——那些是导出设备本机的，不随来源搬运。
+ */
+@Serializable
+data class BackupSource(
+    val device: BackupDevice? = null,
+    @SerialName("day_summary") val daySummary: List<DaySummaryDto> = emptyList(),
+    @SerialName("app_usage") val appUsage: List<AppUsageDto> = emptyList(),
+    @SerialName("hour_usage") val hourUsage: List<HourUsageDto> = emptyList(),
+    @SerialName("screen_session") val screenSession: List<ScreenSessionDto> = emptyList(),
+    @SerialName("unlock_event") val unlockEvent: List<UnlockEventDto> = emptyList(),
+    @SerialName("notification_event") val notificationEvent: List<NotificationEventDto> = emptyList()
 )
 
 /** §5.10 批 C：备份的来源设备。只用于展示，不参与恢复时的本机身份写入。 */
@@ -88,14 +115,16 @@ data class HourUsageDto(val date: String, val hour: Int, val minutes: Int)
 data class PullLogDto(val pulledAt: Long, val source: String, val ok: Boolean, val note: String? = null)
 
 @Serializable
-data class UnlockEventDto(val occurredAtMs: Long)
+data class UnlockEventDto(val occurredAtMs: Long, /** CR-28：确定性序号（同毫秒多条不丢 + 重放幂等）。 */ val seq: Int = 0)
 
 @Serializable
 data class NotificationEventDto(
     val occurredAtMs: Long,
     val type: String,
     val pkg: String,
-    val channelId: String? = null
+    val channelId: String? = null,
+    /** CR-28：确定性序号（同毫秒同包同类型多条不丢 + 重放幂等）。 */
+    val seq: Int = 0
 )
 
 @Serializable
@@ -123,7 +152,12 @@ data class BackupSummary(
     /** 旧备份缺的表（逐条提示，不阻断导入）。 */
     val missingTables: List<String>,
     /** v5 起才有；null = 旧备份，UI 显示「未知设备」。 */
-    val device: BackupDevice? = null
+    val device: BackupDevice? = null,
+    /**
+     * CR-28（v6）：`sources[]` 里的来源设备 ID（含 `'__legacy__'`）。
+     * 非空 = 该备份含多设备分量，旧版本导入会丢失非本机来源（三层兼容提示）。
+     */
+    val sourceDevices: List<String> = emptyList()
 ) {
     /** 「11月1日 – 11月12日 · 8 天」这种一句话范围；无数据时明确说没有。 */
     val rangeText: String
@@ -135,7 +169,7 @@ data class BackupSummary(
 object BackupCodec {
 
     /** 当前 App 能写出的最高备份版本。 */
-    const val SCHEMA_VERSION = 5
+    const val SCHEMA_VERSION = 6
 
     private val json = Json {
         prettyPrint = true
@@ -207,7 +241,8 @@ object BackupCodec {
             limitRows = file.appLimit.size,
             hasSettings = file.settings != null,
             missingTables = missing,
-            device = file.device
+            device = file.device,
+            sourceDevices = file.sources.map { it.device?.id ?: "__legacy__" }
         )
     }
 

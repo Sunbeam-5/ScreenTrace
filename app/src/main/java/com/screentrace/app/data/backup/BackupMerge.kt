@@ -110,47 +110,12 @@ object BackupMerge {
         return Plan(rows, Report(added, updated, skipped))
     }
 
-    /** `unlock_event` 按主键去重：备份里本地没有的才写。 */
-    fun unlockEvents(
-        localMs: Set<Long>,
-        backup: List<UnlockEventDto>
-    ): Plan<UnlockEventDto> {
-        val rows = backup.filter { it.occurredAtMs !in localMs }.distinctBy { it.occurredAtMs }
-        return Plan(rows, Report(added = rows.size, updated = 0, skipped = backup.size - rows.size))
-    }
-
     /**
-     * `notification_event` 秒级分组取较大条数（§2.2 坑 2 / §4）。
-     *
-     * 做法：按 `(ms/1000, type, pkg)` 分组，比较两侧条数，把「多出来的那几条」写进去。
-     * 不去逐条比内容——同一秒内的两条通知在数据库里除了毫秒没有别的区分字段，
-     * 按主键去重的话先到先得，反而可能丢掉备份里真实存在的那条。
+     * ~~`unlock_event` 按主键去重~~ / ~~`notification_event` 秒级分组取较大条数~~
+     * **CR-28 简化**：事件主键含 `sourceDeviceId` 与确定性 `seq` 后，导入一律
+     * `insertIgnore` 全部（同键天然幂等、同毫秒多条各占一行），不再需要按 ms / 秒组
+     * 预去重——旧的「先到先得」反而会丢掉同毫秒的第二条真实事件。
      */
-    fun notificationEvents(
-        local: List<NotificationEventDto>,
-        backup: List<NotificationEventDto>
-    ): Plan<NotificationEventDto> {
-        fun key(row: NotificationEventDto) = Triple(row.occurredAtMs / 1000, row.type, row.pkg)
-        val localGroups = local.groupBy(::key).mapValues { it.value.size }
-        val localKeys = local.map { Triple(it.occurredAtMs, it.type, it.pkg) }.toSet()
-
-        val rows = mutableListOf<NotificationEventDto>()
-        var skipped = 0
-        backup.groupBy(::key).forEach { (groupKey, backupRows) ->
-            val localCount = localGroups[groupKey] ?: 0
-            val extra = backupRows.size - localCount
-            if (extra <= 0) {
-                skipped += backupRows.size
-                return@forEach
-            }
-            // 优先写本地没有的毫秒，避免撞主键后被 IGNORE 吞掉，白白少算一条
-            val fresh = backupRows.sortedBy { it.occurredAtMs }
-                .filter { Triple(it.occurredAtMs, it.type, it.pkg) !in localKeys }
-            rows += fresh.take(extra)
-            skipped += backupRows.size - fresh.take(extra).size
-        }
-        return Plan(rows, Report(added = rows.size, updated = 0, skipped = skipped))
-    }
 
     /** `app_limit`：同 pkg 以备份值覆盖（备份为准），本地独有限额保留。 */
     fun appLimits(
