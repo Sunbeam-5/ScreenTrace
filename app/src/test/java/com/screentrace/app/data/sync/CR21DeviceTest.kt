@@ -290,10 +290,14 @@ class CR21DeviceTest {
         assertEquals(localId, settings.currentDeviceId.first())
     }
 
+    /** CR-28：某日**跨来源合计**（读侧 SUM 口径——合并按来源分量落库，不再有累加行）。 */
+    private suspend fun daySum(date: String): Int =
+        localDb.daySummaryDao().getAll().filter { it.date == date }.sumOf { it.screenMin }
+
     // ------------------------------------------------- 跨设备合并（§7-44）
 
     @Test
-    fun `合并到本机是累加 旧数据单独保留 新数据里也有旧数据`() = runBlocking {
+    fun `合并到本机按来源分量落库 合计口径不变 旧数据单独保留`() = runBlocking {
         provider.remote[SyncPaths.manualPath(remoteId)] = remoteBackupJson(screenMin = 60, unlockMin = 50)
         localDb.daySummaryDao().insert(
             com.screentrace.app.data.db.DaySummaryEntity(
@@ -311,17 +315,29 @@ class CR21DeviceTest {
         val result = operations.mergeIntoLocal(remoteId)
         assertTrue(result is DeviceOperations.MergeResult.Ok)
 
-        val day = localDb.daySummaryDao().get("2026-11-01")!!
-        assertEquals("两台设备当天使用量必须相加", 460, day.screenMin)
-        assertEquals(410, day.screenUnlockMin)
+        // CR-28：按**来源分量**落库，合计口径在读侧（SUM）——两台当天使用量合计仍相加
+        val dayRows = localDb.daySummaryDao().getAll().filter { it.date == "2026-11-01" }
+        assertEquals("分量行：本机 + 远端各一行", 2, dayRows.size)
+        assertEquals("合计口径不变（SUM）", 460, dayRows.sumOf { it.screenMin })
+        assertEquals(410, dayRows.sumOf { it.screenUnlockMin })
+        assertEquals(
+            "本机分量不被改写",
+            400,
+            dayRows.single { it.sourceDeviceId == com.screentrace.app.data.db.SourceIds.UNSPECIFIED }.screenMin
+        )
+        assertEquals("远端分量单独保留", 60, dayRows.single { it.sourceDeviceId == remoteId }.screenMin)
 
-        val app = localDb.appUsageDao().get("2026-11-01", "com.a")!!
-        assertEquals("应用时长必须相加", 150, app.minutes)
-        assertEquals("启动数必须相加", 7, app.launches)
-        assertEquals("名字以本机为准", "本机名", app.name)
+        val appRows = localDb.appUsageDao().getAll().filter { it.date == "2026-11-01" && it.pkg == "com.a" }
+        assertEquals("应用时长合计", 150, appRows.sumOf { it.minutes })
+        assertEquals("启动数合计", 7, appRows.sumOf { it.launches })
+        assertEquals(
+            "名字以本机为准（读层取真名）",
+            "本机名",
+            localDb.appUsageDao().sumBetween("2026-11-01", "2026-11-01").single { it.pkg == "com.a" }.name
+        )
 
-        val hour = localDb.hourUsageDao().getForDate("2026-11-01").single { it.hour == 9 }
-        assertEquals("时段分钟必须相加", 45, hour.minutes)
+        val hourRows = localDb.hourUsageDao().getForDate("2026-11-01").filter { it.hour == 9 }
+        assertEquals("时段分钟合计", 45, hourRows.sumOf { it.minutes })
 
         // 旧设备自己的副本库与云端备份**不被改动**
         assertEquals("远端副本库不该被写", 0, copyDb.daySummaryDao().count())
@@ -339,11 +355,11 @@ class CR21DeviceTest {
         )
 
         operations.mergeIntoLocal(remoteId)
-        assertEquals(460, localDb.daySummaryDao().get("2026-11-01")!!.screenMin)
+        assertEquals("本机 400 + 远端 60", 460, daySum("2026-11-01"))
 
         val second = operations.mergeIntoLocal(remoteId)
         assertTrue("重复合并应被记账挡住", second is DeviceOperations.MergeResult.Skipped)
-        assertEquals("同一天不能翻倍", 460, localDb.daySummaryDao().get("2026-11-01")!!.screenMin)
+        assertEquals("同一天不能翻倍", 460, daySum("2026-11-01"))
     }
 
     @Test
@@ -364,7 +380,7 @@ class CR21DeviceTest {
         assertTrue(first is DeviceOperations.MergeResult.Ok)
         assertEquals("三天都要并入", 3, (first as DeviceOperations.MergeResult.Ok).mergedDates)
         dates.forEach { date ->
-            assertEquals("并入后当天使用量相加", 460, localDb.daySummaryDao().get(date)!!.screenMin)
+            assertEquals("并入后当天合计口径不变（400+60）", 460, daySum(date))
         }
         assertEquals(
             "记账必须记全三天（CR-27 起账本在 Room、与数据同事务；旧 DataStore 只作历史兼容）",
@@ -375,7 +391,7 @@ class CR21DeviceTest {
         val second = operations.mergeIntoLocal(remoteId)
         assertTrue("重复合并应被记账挡住", second is DeviceOperations.MergeResult.Skipped)
         dates.forEach { date ->
-            assertEquals("已合并的日期不能再翻倍", 460, localDb.daySummaryDao().get(date)!!.screenMin)
+            assertEquals("已合并的日期不能再翻倍", 460, daySum(date))
         }
     }
 
@@ -422,14 +438,14 @@ class CR21DeviceTest {
             ok.message.contains("同一台机器") && ok.message.contains("1 天")
         )
         assertEquals(
-            "一致的那天以本机为准、不累加",
+            "一致的那天以本机为准、不并入",
             60,
             localDb.daySummaryDao().get("2026-11-01")!!.screenMin
         )
         assertEquals(
-            "不一致的那天照常累加",
+            "不一致的那天照常并入（合计 460）",
             460,
-            localDb.daySummaryDao().get("2026-11-02")!!.screenMin
+            daySum("2026-11-02")
         )
     }
 
@@ -482,7 +498,9 @@ class CR21DeviceTest {
 
         val localId = settings.getOrCreateDeviceId()
         val uploaded = provider.remote[SyncPaths.manualPath(localId)]!!.decodeToString()
-        assertTrue("云端备份必须已含合并进来的旧数据", uploaded.contains("\"screenMin\": 460"))
+        // CR-28：合并按来源分量落库，导出各带各的行——本机 400 与并入的旧数据 60 都在
+        assertTrue("云端备份必须已含本机分量", uploaded.contains("\"screenMin\": 400"))
+        assertTrue("云端备份必须已含合并进来的旧数据", uploaded.contains("\"screenMin\": 60"))
     }
 
     @Test

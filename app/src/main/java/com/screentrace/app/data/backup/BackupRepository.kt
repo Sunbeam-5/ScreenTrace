@@ -203,11 +203,11 @@ class BackupRepository(
         db.screenSessionDao().deleteAll()
         db.appLimitDao().deleteAll()
 
-        insertDaySummaries(file.daySummary)
-        insertAppUsage(file.appUsage)
-        insertHourUsage(file.hourUsage)
-        insertPullLog(file.pullLog)
         val src = sourceDeviceId()
+        insertDaySummaries(file.daySummary, src)
+        insertAppUsage(file.appUsage, src)
+        insertHourUsage(file.hourUsage, src)
+        insertPullLog(file.pullLog)
         db.unlockEventDao().insertIgnore(
             EventSeq.assign(file.unlockEvent) { listOf(it.occurredAtMs) }
                 .map { (e, seq) -> UnlockEventEntity(e.occurredAtMs, src, seq) }
@@ -234,13 +234,15 @@ class BackupRepository(
     private suspend fun merge(file: BackupFile): RestoreResult {
         var report = BackupMerge.Report()
 
+        val src = sourceDeviceId()
+        // CR-28：同来源取大（跨来源行互不参与对方的合并判定）
         val dayPlan = BackupMerge.daySummaries(
-            db.daySummaryDao().getAll().map {
+            db.daySummaryDao().getAll().filter { it.sourceDeviceId == src }.map {
                 DaySummaryDto(it.date, it.screenMin, it.screenUnlockMin, it.unlocks, it.launches, it.longestSessionMin, it.pulledAt)
             },
             file.daySummary
         )
-        insertDaySummaries(dayPlan.rows)
+        insertDaySummaries(dayPlan.rows, src)
         report += dayPlan.report
 
         // 评审 P1-1：备份的应用/时段数据同样要过自洽校验（IngestSanity 与拉取入库同口径）。
@@ -276,19 +278,19 @@ class BackupRepository(
         }
 
         val appPlan = BackupMerge.appUsage(
-            db.appUsageDao().getAll().map {
+            db.appUsageDao().getAll().filter { it.sourceDeviceId == src }.map {
                 AppUsageDto(it.date, it.pkg, it.name, it.minutes, it.launches, it.category)
             },
             safeAppUsage
         )
-        insertAppUsage(appPlan.rows)
+        insertAppUsage(appPlan.rows, src)
         report += appPlan.report
 
         val hourPlan = BackupMerge.hourUsage(
-            db.hourUsageDao().getAll().map { HourUsageDto(it.date, it.hour, it.minutes) },
+            db.hourUsageDao().getAll().filter { it.sourceDeviceId == src }.map { HourUsageDto(it.date, it.hour, it.minutes) },
             safeHourUsage
         )
-        insertHourUsage(hourPlan.rows)
+        insertHourUsage(hourPlan.rows, src)
         report += hourPlan.report
 
         // 评审 P2-1：按 (pulledAt, source) 去重——同一台设备的备份反复合并时日志不膨胀，
@@ -301,10 +303,11 @@ class BackupRepository(
         report += BackupMerge.Report(added = pullRows.size)
 
         val unlockPlan = BackupMerge.unlockEvents(
-            localMs = db.unlockEventDao().getAll().map { it.occurredAtMs }.toSet(),
+            localMs = db.unlockEventDao().getAll().filter { it.sourceDeviceId == src }
+                .map { it.occurredAtMs }.toSet(),
             backup = file.unlockEvent
         )
-        val mergeSrc = sourceDeviceId()
+        val mergeSrc = src
         db.unlockEventDao().insertIgnore(
             EventSeq.assign(unlockPlan.rows) { listOf(it.occurredAtMs) }
                 .map { (e, seq) -> UnlockEventEntity(e.occurredAtMs, mergeSrc, seq) }
@@ -312,7 +315,7 @@ class BackupRepository(
         report += unlockPlan.report
 
         val notificationPlan = BackupMerge.notificationEvents(
-            local = db.notificationEventDao().getAll().map {
+            local = db.notificationEventDao().getAll().filter { it.sourceDeviceId == src }.map {
                 NotificationEventDto(it.occurredAtMs, it.type, it.pkg, it.channelId)
             },
             backup = file.notificationEvent
@@ -347,14 +350,24 @@ class BackupRepository(
         dates: Set<String>
     ): Map<String, SameDeviceFingerprint.DayFingerprint> {
         if (dates.isEmpty()) return emptyMap()
+        val src = sourceDeviceId()
         return db.daySummaryDao().getAll()
             .filter { it.date in dates }
-            .associate { it.date to SameDeviceFingerprint.DayFingerprint.of(
-                DaySummaryDto(
-                    it.date, it.screenMin, it.screenUnlockMin, it.unlocks,
-                    it.launches, it.longestSessionMin, it.pulledAt
+            // CR-28：「本机库的重叠日期」＝**本机来源行**；该日没有本机行时回退
+            // legacy 行（历史混合行＝升级前的本机锅）。其他来源的分量行不参与判定
+            // （拿 B 的行比 B 的备份会误判「同一台机器」）。
+            .groupBy { it.date }
+            .mapValues { (_, rows) ->
+                val pick = rows.firstOrNull { it.sourceDeviceId == src }
+                    ?: rows.firstOrNull { it.sourceDeviceId == com.screentrace.app.data.db.SourceIds.LEGACY }
+                    ?: rows.first()
+                SameDeviceFingerprint.DayFingerprint.of(
+                    DaySummaryDto(
+                        pick.date, pick.screenMin, pick.screenUnlockMin, pick.unlocks,
+                        pick.launches, pick.longestSessionMin, pick.pulledAt
+                    )
                 )
-            ) }
+            }
     }
 
     /**
@@ -368,15 +381,19 @@ class BackupRepository(
         zone: ZoneId
     ): Map<String, SameDeviceFingerprint.DayEventKeys> {
         if (dates.isEmpty()) return emptyMap()
+        // CR-28：「本机该日事件」＝本机来源 ∪ legacy（历史混合）事件；
+        // 其他来源的分量事件不参与判定（拿 B 的事件比 B 的备份会误判「同一台机器」）。
+        val src = sourceDeviceId()
+        val mine: (String) -> Boolean = { it == src || it == com.screentrace.app.data.db.SourceIds.LEGACY }
         val out = mutableMapOf<String, MutableSet<String>>()
-        db.notificationEventDao().getAll().forEach {
+        db.notificationEventDao().getAll().filter { mine(it.sourceDeviceId) }.forEach {
             val date = CrossDeviceMerge.dateOf(it.occurredAtMs, zone)
             if (date in dates) {
                 out.getOrPut(date) { mutableSetOf() } += SameDeviceFingerprint.DayEventKeys
                     .ofNotification(it.occurredAtMs, it.type, it.pkg)
             }
         }
-        db.unlockEventDao().getAll().forEach {
+        db.unlockEventDao().getAll().filter { mine(it.sourceDeviceId) }.forEach {
             val date = CrossDeviceMerge.dateOf(it.occurredAtMs, zone)
             if (date in dates) {
                 out.getOrPut(date) { mutableSetOf() } += SameDeviceFingerprint.DayEventKeys
@@ -419,27 +436,32 @@ class BackupRepository(
     ): RestoreResult = db.withTransaction {
         var report = BackupMerge.Report()
 
-        // ① 日聚合：累加（screen / unlock / launches 相加，longest 取大）
-        val dayPlan = CrossDeviceMerge.daySummaries(
-            db.daySummaryDao().getAll().map {
+        // ① 日聚合：同来源取大（CR-28：按**来源分量**写行，累加写入口径废除——
+        //    跨来源求和只发生在读侧聚合；备份内重复日期先去重防翻倍）。
+        val src = ledgerDeviceId.ifEmpty { sourceDeviceId() }
+        val existingDays = db.daySummaryDao().getAll().filter { it.sourceDeviceId == src }
+            .map {
                 DaySummaryDto(it.date, it.screenMin, it.screenUnlockMin, it.unlocks, it.launches, it.longestSessionMin, it.pulledAt)
-            },
-            file.daySummary.filter { it.date in allowedDates }
+            }
+        val dayPlan = BackupMerge.daySummaries(
+            existingDays,
+            CrossDeviceMerge.dedupeDaySummaries(file.daySummary.filter { it.date in allowedDates })
         )
-        insertDaySummaries(dayPlan.rows)
+        insertDaySummaries(dayPlan.rows, src)
         report += dayPlan.report
 
-        // ② 应用 / 时段：先过自洽校验（与同设备合并同一道闸），再累加。
-        // 参照物是**合并后的**日聚合（累加值），所以旧机那几天的应用时长有更宽的上限。
-        val sanityDays = dayPlan.rows.associate {
-            LocalDate.parse(it.date) to DayMetrics(
-                screenMin = it.screenMin,
-                screenUnlockMin = it.screenUnlockMin,
-                unlocks = it.unlocks,
-                launches = it.launches,
-                longestSessionMin = it.longestSessionMin
+        // ② 应用 / 时段：先过自洽校验（与同设备合并同一道闸），再同来源取大。
+        // 参照物是**该来源合并后**的日聚合（既有行 + 本次胜出行合成），
+        // 任何来源只对自己的分量负责（CR-28 来源隔离）。
+        val sanityDays = (existingDays + dayPlan.rows).associateBy { it.date }.map { (date, d) ->
+            LocalDate.parse(date) to DayMetrics(
+                screenMin = d.screenMin,
+                screenUnlockMin = d.screenUnlockMin,
+                unlocks = d.unlocks,
+                launches = d.launches,
+                longestSessionMin = d.longestSessionMin
             )
-        }
+        }.toMap()
         val incomingApp = file.appUsage.filter { it.date in allowedDates }
         val incomingHour = file.hourUsage.filter { it.date in allowedDates }
         val sanityVerdict = IngestSanity.check(
@@ -461,20 +483,20 @@ class BackupRepository(
             )
         }
 
-        val appPlan = CrossDeviceMerge.appUsage(
-            db.appUsageDao().getAll().map {
+        val appPlan = BackupMerge.appUsage(
+            db.appUsageDao().getAll().filter { it.sourceDeviceId == src }.map {
                 AppUsageDto(it.date, it.pkg, it.name, it.minutes, it.launches, it.category)
             },
-            safeApp
+            CrossDeviceMerge.dedupeAppUsage(safeApp)
         )
-        insertAppUsage(appPlan.rows)
+        insertAppUsage(appPlan.rows, src)
         report += appPlan.report
 
-        val hourPlan = CrossDeviceMerge.hourUsage(
-            db.hourUsageDao().getAll().map { HourUsageDto(it.date, it.hour, it.minutes) },
-            safeHour
+        val hourPlan = BackupMerge.hourUsage(
+            db.hourUsageDao().getAll().filter { it.sourceDeviceId == src }.map { HourUsageDto(it.date, it.hour, it.minutes) },
+            CrossDeviceMerge.dedupeHourUsage(safeHour)
         )
-        insertHourUsage(hourPlan.rows)
+        insertHourUsage(hourPlan.rows, src)
         report += hourPlan.report
 
         // ③ 拉取日志：仅追加，按 (pulledAt, source) 去重（与同设备合并同一口径）
@@ -486,7 +508,7 @@ class BackupRepository(
         report += BackupMerge.Report(added = pullRows.size)
 
         // ④ 事件：主键去重。两机时间戳不同故各自保留、计数自然累加，同刻同包才去重。
-        val accSrc = sourceDeviceId()
+        val accSrc = src
         val unlockRows = file.unlockEvent.filter {
             CrossDeviceMerge.dateOf(it.occurredAtMs, zone) in allowedDates
         }
@@ -515,7 +537,7 @@ class BackupRepository(
                 .any { it in allowedDates }
         }
         if (sessionRows.isNotEmpty()) {
-            report += mergeSessions(sessionRows)
+            report += mergeSessions(sessionRows, src)
         }
 
         // ⑥ 应用限额：**完全不写**——限额是本机用户意图，跨设备合并不搬运（§4）。
@@ -538,8 +560,11 @@ class BackupRepository(
      * 后续拉取时并集重算又突然跳变。重算结果与既有值取大（§4 合并策略），
      * 保证「合并」不会让任何一天变少。
      */
-    private suspend fun mergeSessions(backup: List<ScreenSessionDto>): BackupMerge.Report {
-        val src = sourceDeviceId()
+    private suspend fun mergeSessions(
+        backup: List<ScreenSessionDto>,
+        sourceOverride: String? = null
+    ): BackupMerge.Report {
+        val src = sourceOverride ?: sourceDeviceId()
         val incoming = backup.map { ScreenSessionEntity(it.startMs, it.endMs, it.kind, src) }
         val grouped = (db.screenSessionDao().getAll() + incoming).groupBy { it.sourceDeviceId }
         if (grouped.isEmpty()) return BackupMerge.Report()
@@ -606,30 +631,27 @@ class BackupRepository(
         return BackupMerge.Report(added = added, updated = updated, skipped = 0)
     }
 
-    private suspend fun insertDaySummaries(rows: List<DaySummaryDto>) {
-        val src = sourceDeviceId()
+    private suspend fun insertDaySummaries(rows: List<DaySummaryDto>, source: String) {
         rows.forEach {
             db.daySummaryDao().upsert(
                 DaySummaryEntity(
                     it.date, it.screenMin, it.screenUnlockMin, it.unlocks,
-                    it.launches, it.longestSessionMin, it.pulledAt, src
+                    it.launches, it.longestSessionMin, it.pulledAt, source
                 )
             )
         }
     }
 
-    private suspend fun insertAppUsage(rows: List<AppUsageDto>) {
-        val src = sourceDeviceId()
+    private suspend fun insertAppUsage(rows: List<AppUsageDto>, source: String) {
         rows.forEach {
             db.appUsageDao().insert(
-                AppUsageEntity(it.date, it.pkg, it.name, it.minutes, it.launches, it.category, src)
+                AppUsageEntity(it.date, it.pkg, it.name, it.minutes, it.launches, it.category, source)
             )
         }
     }
 
-    private suspend fun insertHourUsage(rows: List<HourUsageDto>) {
-        val src = sourceDeviceId()
-        rows.forEach { db.hourUsageDao().insert(HourUsageEntity(it.date, it.hour, it.minutes, src)) }
+    private suspend fun insertHourUsage(rows: List<HourUsageDto>, source: String) {
+        rows.forEach { db.hourUsageDao().insert(HourUsageEntity(it.date, it.hour, it.minutes, source)) }
     }
 
     private suspend fun insertPullLog(rows: List<PullLogDto>) {

@@ -18,6 +18,31 @@ interface DaySummaryDao {
     @Query("SELECT * FROM day_summary ORDER BY date")
     suspend fun getAll(): List<DaySummaryEntity>
 
+    /**
+     * CR-28：按日期聚合的**跨来源合计**（读侧口径：总使用时长/解锁/启动 SUM、
+     * 最长连续 MAX）——读路径唯一入口，替代「取原始行再算」。
+     */
+    @Query(
+        """
+        SELECT date, SUM(screenMin) AS screenMin, SUM(screenUnlockMin) AS screenUnlockMin,
+               SUM(unlocks) AS unlocks, SUM(launches) AS launches,
+               MAX(longestSessionMin) AS longestSessionMin, MAX(pulledAt) AS pulledAt
+        FROM day_summary WHERE date BETWEEN :start AND :end GROUP BY date ORDER BY date
+        """
+    )
+    suspend fun sumRange(start: String, end: String): List<DaySummaryAggregated>
+
+    /** CR-28：全量历史的跨来源合计（streak 用）。 */
+    @Query(
+        """
+        SELECT date, SUM(screenMin) AS screenMin, SUM(screenUnlockMin) AS screenUnlockMin,
+               SUM(unlocks) AS unlocks, SUM(launches) AS launches,
+               MAX(longestSessionMin) AS longestSessionMin, MAX(pulledAt) AS pulledAt
+        FROM day_summary GROUP BY date ORDER BY date
+        """
+    )
+    suspend fun sumAll(): List<DaySummaryAggregated>
+
     @Query("SELECT * FROM day_summary WHERE date = :date")
     suspend fun get(date: String): DaySummaryEntity?
 
@@ -53,6 +78,17 @@ interface DaySummaryDao {
     @Query("UPDATE day_summary SET sourceDeviceId = :to WHERE sourceDeviceId = ''")
     suspend fun archiveRest(to: String): Int
 }
+
+/** CR-28：日聚合的跨来源合计行（[DaySummaryDao.sumRange] / [DaySummaryDao.sumAll]）。 */
+data class DaySummaryAggregated(
+    val date: String,
+    val screenMin: Int,
+    val screenUnlockMin: Int,
+    val unlocks: Int,
+    val launches: Int,
+    val longestSessionMin: Int,
+    val pulledAt: Long
+)
 
 @Dao
 interface AppUsageDao {

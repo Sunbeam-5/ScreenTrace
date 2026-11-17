@@ -55,6 +55,24 @@ object SessionUnion {
         union(spansOf(rows, kind)).map { ScreenSessionEntity(it.startMs, it.endMs, kind) }
 
     /**
+     * CR-28：「占用时钟时长」（UNION）——某自然日内**全来源** SCREEN 会话的裁剪并集分钟。
+     *
+     * - 跨午夜会话**按自然日裁剪**（23:00–01:00 在两日各计 1h，不整段归起点日，§4.2）；
+     * - 跨来源区间在这里做并集（**存储永不合并**——合并会破坏 UNION 的同时性信息）；
+     * - 只计 [ScreenSessionEntity.KIND_SCREEN]（与最长会话口径一致）；
+     * - 同日恒有 `UNION ≤ SUM`，`SUM − UNION` = 跨设备重叠时长。
+     */
+    fun occupiedMinutes(rows: List<ScreenSessionEntity>, date: LocalDate, zone: ZoneId): Int {
+        val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val clipped = spansOf(rows, ScreenSessionEntity.KIND_SCREEN)
+            .map { Span(max(it.startMs, dayStart), min(it.endMs, dayEnd)) }
+            .filter { it.endMs > it.startMs }
+        val ms = union(clipped).sumOf { it.endMs - it.startMs }
+        return (ms / 60_000.0).roundToInt()
+    }
+
+    /**
      * 逐日重算（§3-5 口径，与解析器切片算法同源、毫秒域）：
      * - screenMin = 亮屏并集时长（不减锁屏）；
      * - unlockMin（= screenUnlockMin）= 亮屏并集 − 锁屏并集的重叠（sub_kg 口径）；

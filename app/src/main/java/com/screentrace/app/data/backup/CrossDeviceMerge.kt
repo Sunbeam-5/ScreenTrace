@@ -29,95 +29,29 @@ import java.time.ZoneId
  */
 object CrossDeviceMerge {
 
-    /** [rows] 是**合并后**要写回库里的整行（累加值），不是备份原样。 */
+    /** [rows] 是**合并后**要写回库里的整行（同来源取大值），不是备份原样。 */
     data class Plan<T>(val rows: List<T>, val report: BackupMerge.Report)
 
     /**
-     * 同日累加。
-     *
-     * 备份里同一个日期出现多行时取「主指标最大」的那一行再累加——手搓的备份文件
-     * 完全可能有重复日期，直接累加会把那天翻倍。
+     * CR-28：备份内同日期多行**去重**（取主指标最大的一行）——手搓的备份文件完全可能
+     * 有重复日期，不去重会让同一天翻倍。写行前调用；「同来源取大」合并见
+     * [BackupMerge]，**跨来源求和只发生在读侧聚合**（累加写入口径已废除）。
      */
-    fun daySummaries(
-        local: List<DaySummaryDto>,
-        backup: List<DaySummaryDto>
-    ): Plan<DaySummaryDto> {
-        val localByDate = local.associateBy { it.date }
-        val rows = mutableListOf<DaySummaryDto>()
-        var added = 0
-        var updated = 0
-        backup.groupBy { it.date }.forEach { (date, sameDay) ->
+    fun dedupeDaySummaries(backup: List<DaySummaryDto>): List<DaySummaryDto> =
+        backup.groupBy { it.date }.map { (_, sameDay) ->
             // 主指标与 [BackupMerge] 同口径：先比 screen_unlock_min，平手再比 screen_min
-            val incoming = sameDay.maxWithOrNull(
+            sameDay.maxWithOrNull(
                 compareBy<DaySummaryDto> { it.screenUnlockMin }.thenBy { it.screenMin }
             )!!
-            val current = localByDate[date]
-            if (current == null) {
-                rows += incoming
-                added++
-            } else {
-                rows += current.copy(
-                    screenMin = current.screenMin + incoming.screenMin,
-                    screenUnlockMin = current.screenUnlockMin + incoming.screenUnlockMin,
-                    unlocks = current.unlocks + incoming.unlocks,
-                    launches = current.launches + incoming.launches,
-                    longestSessionMin = maxOf(current.longestSessionMin, incoming.longestSessionMin),
-                    pulledAt = maxOf(current.pulledAt, incoming.pulledAt)
-                )
-                updated++
-            }
         }
-        return Plan(rows, BackupMerge.Report(added = added, updated = updated))
-    }
 
-    /** 同 `(date,pkg)` 的 `minutes / launches` 相加；`name / category` 以本机为准。 */
-    fun appUsage(
-        local: List<AppUsageDto>,
-        backup: List<AppUsageDto>
-    ): Plan<AppUsageDto> {
-        val localByKey = local.associateBy { it.date to it.pkg }
-        val rows = mutableListOf<AppUsageDto>()
-        var added = 0
-        var updated = 0
-        backup.groupBy { it.date to it.pkg }.forEach { (key, sameApp) ->
-            val incoming = sameApp.maxBy { it.minutes }
-            val current = localByKey[key]
-            if (current == null) {
-                rows += incoming
-                added++
-            } else {
-                rows += current.copy(
-                    minutes = current.minutes + incoming.minutes,
-                    launches = current.launches + incoming.launches
-                )
-                updated++
-            }
-        }
-        return Plan(rows, BackupMerge.Report(added = added, updated = updated))
-    }
+    /** CR-28：备份内同 `(date,pkg)` 去重（取 minutes 最大的一行）。 */
+    fun dedupeAppUsage(backup: List<AppUsageDto>): List<AppUsageDto> =
+        backup.groupBy { it.date to it.pkg }.map { (_, sameApp) -> sameApp.maxBy { it.minutes } }
 
-    /** 同 `(date,hour)` 的 `minutes` 相加。 */
-    fun hourUsage(
-        local: List<HourUsageDto>,
-        backup: List<HourUsageDto>
-    ): Plan<HourUsageDto> {
-        val localByKey = local.associateBy { it.date to it.hour }
-        val rows = mutableListOf<HourUsageDto>()
-        var added = 0
-        var updated = 0
-        backup.groupBy { it.date to it.hour }.forEach { (key, sameHour) ->
-            val incoming = sameHour.maxBy { it.minutes }
-            val current = localByKey[key]
-            if (current == null) {
-                rows += incoming
-                added++
-            } else {
-                rows += HourUsageDto(key.first, key.second, current.minutes + incoming.minutes)
-                updated++
-            }
-        }
-        return Plan(rows, BackupMerge.Report(added = added, updated = updated))
-    }
+    /** CR-28：备份内同 `(date,hour)` 去重（取 minutes 最大的一行）。 */
+    fun dedupeHourUsage(backup: List<HourUsageDto>): List<HourUsageDto> =
+        backup.groupBy { it.date to it.hour }.map { (_, sameHour) -> sameHour.maxBy { it.minutes } }
 
     // ------------------------------------------------------------ 日期口径
 

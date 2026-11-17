@@ -147,6 +147,10 @@
     - [x] 实现：六表加 `sourceDeviceId`（主键并入来源），事件表主键加确定性 `seq`（`EventSeq`，同毫秒多条不丢 + 重放幂等）；`MIGRATION_6_7` 建表搬行换名（旧行一行不丢、`sourceDeviceId=''` 未归档、seq=0）；`SourceArchive` 首启归档（合并账本内 → `'__legacy__'`、纯本机日 → 本机 ID；幂等、已归档行永不改写、跨日会话保守归 legacy）；写路径同来源取大 + 窗口删改按来源隔离（IngestPipeline / MergePolicy.mergeSessions / BackupRepository.mergeSessions，legacy 只读）。
     - [x] 验证：新增 8 例（MigrationTest T7 / SourceArchiveTest T8×3 / SameMillisecondEventTest T13×4）；**4 处变异全部变红**（归档判定失效 2 红 / archiveRest 无守卫 3 红 / EventSeq 恒 0 4 红 / 迁移丢 notification 行 1 红），字节级还原后复跑全绿；`--rerun-tasks` **558 测全绿 / 0 skip**（550 + 8）。CR21DeviceTest 两处红是真问题——恢复写行的默认来源与存量行不同键导致双行，已修为「默认 `UNSPECIFIED` 同锅、生产显式传真实 ID」。
     - [ ] **真机收口（v6→v7 迁移复核）**：**待设备回线**——vivo `10CEB40M5G001DK` 当前离线、Redmi 禁用至约 00:47；核对脚本 `C:\tmp\check_v7.py`（before/after 行数保真、无未归档行、账本保留、identity_hash）已备好。
+  - [x] **批次 B · 读侧聚合分流 + legacy 保护 + 跨设备合并按来源写行（2026-11-17 实现完成）**：
+    - [x] **读侧口径**：`day_summary` 跨来源合计查询（SUM 时长/解锁/启动、MAX 最长连续）成为读路径唯一入口（`recordsBetween`/`streak`/详情「不灭屏日」判定）；`app_usage` 按 (date,pkg) 跨来源合计（名字取真名——「以本机为准」从写路径移到读路径）；`SessionUnion.occupiedMinutes`＝「占用时钟时长（UNION）」纯函数（跨午夜按自然日裁剪、跨来源并集、只计 SCREEN）。
+    - [x] **跨设备合并改按来源写行**：`mergeAccumulate` 写 `sourceDeviceId = 来源设备 ID` 分量行、同来源取大（复用 `BackupMerge`）；`CrossDeviceMerge` 的三个累加函数废除、收敛为「备份内重复行去重」；同设备恢复（merge/overwrite）同样同来源过滤；`SameDeviceFingerprint` 本机来源行优先、回退 legacy（其他来源分量不参与「同一台机器」判定）。
+    - [x] **验证**：新增 6 例 `CrossSourceAggregationTest`（T2 SUM=2h/UNION=1h/MAX=1h、T3 不重叠 90min、T9 legacy=4h+A=1h+B=2h→7h 且 legacy 逐字段不变、T10 合并不改 legacy、T11 合并后 +30min、T14 跨午夜两日各 1h）；`CrossDeviceMergeTest` 累加用例置换为去重用例；CR21DeviceTest 四处断言改 SUM 口径（含「自动上传」改查两行分量）。**4 处变异全部变红**（sumRange 逐行 4 红 / 累加进本机行 1 红 / UNION 不裁剪 1 红 / 来源写成本机锅 2 红），字节级还原后复跑全绿；`--rerun-tasks` **560 测全绿 / 0 skip**。
   - [ ] **批次 B · 查询层分流 + legacy 只读保护**：SUM/MAX/UNION/COUNT 逐指标口径、跨午夜裁剪、同来源取大写路径；测试 T2/T3/T9/T10/T11/T14。
   - [ ] **批次 C · 备份 schema 6**：`sources[]` 设备分量、顶层＝导出设备身份、往返幂等、旧版本三层兼容提示；测试 T1/T4/T5/T12。
   - [ ] **批次 D · 历史重建工具**：快照 / `rebuild_log` 记录 / SUM/MAX/UNION 核对 / 整日回滚；测试 T6。

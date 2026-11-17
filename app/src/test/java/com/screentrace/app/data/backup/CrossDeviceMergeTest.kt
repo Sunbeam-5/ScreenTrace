@@ -6,10 +6,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * §4 CR-21：跨设备**累加**合并的纯函数口径。
+ * CR-28：跨设备合并的**写前去重**纯函数 + 日期/账本辅助口径。
  *
- * 这组测试的对照物是 [BackupMergeTest]（同设备「取较大」口径）——两套口径必须
- * 分得开：累加的同日结果是**相加**，不是取大。
+ * 历史注记：这里原是 CR-21「跨设备**累加**」的口径测试。CR-28 把落库形态改为
+ * **按来源分量写行**（同来源取大，见 [BackupMergeTest]），**跨来源求和只发生在
+ * 读侧聚合**（见 `CrossSourceAggregationTest`）——累加写入口径废除，本文件
+ * 只保留「备份内重复行去重」与日期口径两组纯函数。
  */
 class CrossDeviceMergeTest {
 
@@ -26,83 +28,56 @@ class CrossDeviceMergeTest {
     ) = DaySummaryDto(date, screen, unlock, unlocks, launches, longest, pulledAt)
 
     @Test
-    fun `同日的使用量相加 而不是取较大`() {
-        val plan = CrossDeviceMerge.daySummaries(
-            local = listOf(day("2026-11-01", screen = 100, unlock = 90, unlocks = 10, launches = 20)),
-            backup = listOf(day("2026-11-01", screen = 60, unlock = 50, unlocks = 5, launches = 8))
-        )
-        val row = plan.rows.single()
-        assertEquals(160, row.screenMin)
-        assertEquals(140, row.screenUnlockMin)
-        assertEquals(15, row.unlocks)
-        assertEquals(28, row.launches)
-    }
-
-    @Test
-    fun `longest 取较大 pulledAt 取较晚`() {
-        val plan = CrossDeviceMerge.daySummaries(
-            local = listOf(day("2026-11-01", longest = 30, pulledAt = 1_000L)),
-            backup = listOf(day("2026-11-01", longest = 25, pulledAt = 2_000L))
-        )
-        val row = plan.rows.single()
-        assertEquals("最长连续是 max 型指标，不能相加", 30, row.longestSessionMin)
-        assertEquals(2_000L, row.pulledAt)
-    }
-
-    @Test
-    fun `本机没有的那天直接并入 不会被改写`() {
-        val plan = CrossDeviceMerge.daySummaries(
-            local = emptyList(),
-            backup = listOf(day("2026-11-02", screen = 42))
-        )
-        assertEquals(42, plan.rows.single().screenMin)
-        assertEquals(1, plan.report.added)
-    }
-
-    @Test
-    fun `备份里同一天多行只取主指标最大的一行 不翻倍`() {
-        val plan = CrossDeviceMerge.daySummaries(
-            local = listOf(day("2026-11-01", screen = 10, unlock = 90)),
-            backup = listOf(
+    fun `备份里同一天多行只留主指标最大的一行 不翻倍`() {
+        val rows = CrossDeviceMerge.dedupeDaySummaries(
+            listOf(
                 day("2026-11-01", screen = 30, unlock = 90),
-                day("2026-11-01", screen = 50, unlock = 95)
+                day("2026-11-01", screen = 50, unlock = 95),
+                day("2026-11-02", screen = 10)
             )
         )
-        val row = plan.rows.single()
-        assertEquals("同日期多行必须先去重再累加", 10 + 50, row.screenMin)
+        assertEquals(2, rows.size)
+        val winner = rows.single { it.date == "2026-11-01" }
+        assertEquals("取 screen_unlock_min 较大的整行", 95, winner.screenUnlockMin)
+        assertEquals(50, winner.screenMin)
     }
 
     @Test
-    fun `应用时长与启动数相加 名字以本机为准`() {
-        val plan = CrossDeviceMerge.appUsage(
-            local = listOf(AppUsageDto("2026-11-01", "com.a", "本机名", 120, 5, "SOCIAL")),
-            backup = listOf(AppUsageDto("2026-11-01", "com.a", "备份名", 30, 2, "GAME"))
+    fun `平手时次级比较 screenMin 且胜者整行保留不拼字段`() {
+        val rows = CrossDeviceMerge.dedupeDaySummaries(
+            listOf(
+                day("2026-11-01", screen = 30, unlock = 90, unlocks = 1, launches = 1, longest = 5),
+                day("2026-11-01", screen = 50, unlock = 90, unlocks = 2, launches = 2, longest = 7)
+            )
         )
-        val row = plan.rows.single()
-        assertEquals(150, row.minutes)
-        assertEquals(7, row.launches)
-        assertEquals("本机名", row.name)
-        assertEquals("SOCIAL", row.category)
+        val winner = rows.single()
+        assertEquals(50, winner.screenMin)
+        assertEquals("整行保留胜者字段，不逐字段拼", 2, winner.unlocks)
+        assertEquals(2, winner.launches)
+        assertEquals(7, winner.longestSessionMin)
     }
 
     @Test
-    fun `本机没有的包沿用备份里的名字与分类`() {
-        val plan = CrossDeviceMerge.appUsage(
-            local = emptyList(),
-            backup = listOf(AppUsageDto("2026-11-01", "com.b", "旧机名", 30, 2, "GAME"))
+    fun `应用与时段同键去重 取 minutes 最大的一行`() {
+        val apps = CrossDeviceMerge.dedupeAppUsage(
+            listOf(
+                AppUsageDto("2026-11-01", "com.a", "小", 30, 2, "GAME"),
+                AppUsageDto("2026-11-01", "com.a", "大", 50, 3, "SOCIAL"),
+                AppUsageDto("2026-11-01", "com.b", "B", 10, 1, "TOOLS")
+            )
         )
-        val row = plan.rows.single()
-        assertEquals(30, row.minutes)
-        assertEquals("旧机名", row.name)
-    }
+        assertEquals(2, apps.size)
+        val winner = apps.single { it.pkg == "com.a" }
+        assertEquals(50, winner.minutes)
+        assertEquals("大", winner.name)
 
-    @Test
-    fun `时段分钟相加`() {
-        val plan = CrossDeviceMerge.hourUsage(
-            local = listOf(HourUsageDto("2026-11-01", 9, 30)),
-            backup = listOf(HourUsageDto("2026-11-01", 9, 15))
+        val hours = CrossDeviceMerge.dedupeHourUsage(
+            listOf(
+                HourUsageDto("2026-11-01", 9, 30),
+                HourUsageDto("2026-11-01", 9, 15)
+            )
         )
-        assertEquals(45, plan.rows.single().minutes)
+        assertEquals(30, hours.single().minutes)
     }
 
     @Test

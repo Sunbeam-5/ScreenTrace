@@ -17,7 +17,7 @@ import com.screentrace.app.contract.Summary
 import com.screentrace.app.contract.UnlockEvent
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.contract.UsageRepository
-import com.screentrace.app.data.db.DaySummaryEntity
+import com.screentrace.app.data.db.DaySummaryAggregated
 import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.parse.AppNames
 import kotlinx.coroutines.flow.first
@@ -71,8 +71,12 @@ class RoomUsageRepository(
         labelResolver: ((String) -> String?)? = null
     ) : this({ db }, settings, pull, labelResolver)
 
+    /**
+     * CR-28：读侧**跨来源合计**（§4 逐指标聚合：总使用时长/解锁/启动 SUM、最长连续 MAX）。
+     * 同一天可能有多来源行（legacy + 各设备分量），取原始行会让 UsageCalculator 双算。
+     */
     private suspend fun recordsBetween(start: LocalDate, end: LocalDate): List<DaySummary> =
-        db.daySummaryDao().getBetween(start.toString(), end.toString()).map { it.toDomain() }
+        db.daySummaryDao().sumRange(start.toString(), end.toString()).map { it.toDomain() }
 
     /**
      * 评审 P0-1：三表任一非空。**不能只看 `day_summary`**——降级通道按设计只写
@@ -113,7 +117,18 @@ class RoomUsageRepository(
             .groupBy { it.date }
             .mapNotNull { (dateKey, rows) ->
                 val date = runCatching { LocalDate.parse(dateKey) }.getOrNull() ?: return@mapNotNull null
-                val top = rows.take(limit).map {
+                // CR-28：同 (date,pkg) 跨来源合计（分钟/启动数 SUM）；名字取真名
+                // （本机名优先于包名占位——「名字以本机为准」从写路径移到读路径）。
+                val merged = rows.groupBy { it.pkg }.map { (_, samePkg) ->
+                    val best = samePkg.maxBy { it.minutes }
+                    val named = samePkg.firstOrNull { it.name.isNotBlank() && it.name != it.pkg } ?: best
+                    best.copy(
+                        name = named.name,
+                        minutes = samePkg.sumOf { it.minutes },
+                        launches = samePkg.sumOf { it.launches }
+                    )
+                }
+                val top = merged.sortedByDescending { it.minutes }.take(limit).map {
                     AppUsage(
                         date = date,
                         pkg = it.pkg,
@@ -168,9 +183,9 @@ class RoomUsageRepository(
         return UsageCalculator.yearLevels(anchor, weeks, recordsBetween(start, end))
     }
 
-    /** §5.6：streak 是截至锚点的**全量历史**，查全部 day_summary。 */
+    /** §5.6：streak 是截至锚点的**全量历史**，查全部 day_summary（CR-28：跨来源合计）。 */
     override suspend fun streak(anchor: LocalDate): StreakInfo =
-        UsageCalculator.streak(db.daySummaryDao().getAll().map { it.toDomain() }, anchor)
+        UsageCalculator.streak(db.daySummaryDao().sumAll().map { it.toDomain() }, anchor)
 
     override suspend fun extremes(selection: DateSelection, lowThresholdMin: Int): ExtremesInfo =
         UsageCalculator.extremes(
@@ -237,7 +252,7 @@ class RoomUsageRepository(
         // 反例：屏幕每 UnlockEvent 天开关几十次却 0 解锁事件（ROM 不上报），此时仍画「—」。
         val neverSleepsWindow = if (metric == MetricKind.UNLOCK) {
             val days = database.daySummaryDao()
-                .getBetween(selection.startDate.toString(), selection.endDate.toString())
+                .sumRange(selection.startDate.toString(), selection.endDate.toString())
                 .filter { it.screenUnlockMin > 0 }
             days.isNotEmpty() && days.all {
                 it.unlocks == 0 && it.longestSessionMin >= it.screenUnlockMin
@@ -299,7 +314,7 @@ class RoomUsageRepository(
     override suspend fun pullLatest(): PullResult =
         pull?.invoke() ?: PullResult(ok = false, message = "当前环境未接入拉取通道")
 
-    private fun DaySummaryEntity.toDomain() = DaySummary(
+    private fun DaySummaryAggregated.toDomain() = DaySummary(
         date = LocalDate.parse(date),
         screenMin = screenMin,
         screenUnlockMin = screenUnlockMin,
