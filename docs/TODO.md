@@ -121,7 +121,7 @@
   - [x] **① 纯函数模糊**：`WallpaperTuning.blurArgb(width, height, pixels, radius)`——只吃整数像素与半径，三趟可分离盒式模糊 + 前缀和 O(像素数)；`WallpaperBlurTest` 10 例覆盖「半径 0 原样」「越大越平滑」「三趟过渡带比一趟宽」「均值守恒」「边缘不发黑边」「四通道不串色」「纯函数且不改写输入」。
   - [x] **② 一次性缓存**：`WallpaperBlur.blurredImage` 按 density 降采样（1px ≈ 1dp，长边钳 800）后模糊；`WallpaperState` 增 `blurred`，`AppNav` 组装时一次性算好，`PageScaffold` 只贴它、**删掉每帧 `Modifier.blur`**；**API < 31 一并生效**（`blurSupported()` 恒真、`effectiveBlurDp` 只做越界夹取）。
   - [x] **③ 变异验证**：5 处变异**全部变红**（半径 0 返回空数组 / 不复制输入 / 只模糊一趟 / 边界不 clamp / 低版本又钳成 0）；首轮 2 处未变红已复查修正（M1 是非行为变异、M3 是真弱项补了「过渡带」用例）。`--rerun-tasks` **537 测全绿 / 0 skip**。
-  - [ ] **④ 真机 GPU 复测（设备掉线）**：vivo 拆段复测「GPU 段 5.13ms → ~4.3ms」+ 壁纸模糊观感与裁切核对，**待 vivo 重新接入后补做**。
+  - [x] **④ 真机 GPU 复测（2026-11-17 08:45 完成，结论与预期相反）**：vivo 同机同配置 A/B（`wallpaper_blur = 12`）——缓存版 GPU 5.08ms vs 每帧 `Modifier.blur` 5.11ms、总耗时 13.38 vs 13.24ms，**差异在噪声内，CR-24 的性能收益应按「无收益」记账**。同时更正两处归因：「壁纸模糊 +0.97ms GPU」实为关掉**整层壁纸**（位图 + 两层遮罩）的差值、与模糊无关；vivo 实测 `wallpaper_blur = 1`、模糊本就几乎没在跑。CR-24 的真实价值是**三条非性能项**（API < 31 也生效 / 模糊成纯函数可单测 / 参数变化时算一次）。详见 `CODE_REVIEW.md` 文末「补记·更正」。
 
 
 
