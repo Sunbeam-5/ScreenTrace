@@ -222,6 +222,26 @@ class MigrationTest {
             .allowMainThreadQueries()
             .build()
 
+        // ②b 索引显式核对（真机踩坑补洞：Robolectric 的 schema 校验对索引不敏感——
+        // 迁移建了索引而实体没声明时测试假绿、真机 App 起不来。这里直接查 sqlite_master。）
+        val indexNames = mutableSetOf<String>()
+        v7.openHelper.writableDatabase
+            .query("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'index_%'")
+            .use { c -> while (c.moveToNext()) indexNames.add(c.getString(0)) }
+        assertEquals(
+            setOf(
+                "index_day_summary_sourceDeviceId",
+                "index_app_usage_pkg",
+                "index_app_usage_sourceDeviceId",
+                "index_hour_usage_sourceDeviceId",
+                "index_screen_session_endMs",
+                "index_screen_session_sourceDeviceId",
+                "index_notification_event_pkg",
+                "index_notification_event_occurredAtMs"
+            ),
+            indexNames
+        )
+
         // ③ 一行不丢 + 全部「未归档」（迁移是纯 SQL，归属判定留给首启归档）
         assertEquals(2, v7.daySummaryDao().getAll().size)
         assertEquals(2, v7.appUsageDao().getAll().size)

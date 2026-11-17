@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 7,
-    "identityHash": "4b1ac7442c1e01d67d2b20855333a2c2",
+    "identityHash": "401b38329181b3303f7ad96ed8be14af",
     "entities": [
       {
         "tableName": "day_summary",
@@ -64,7 +64,17 @@
             "sourceDeviceId"
           ]
         },
-        "indices": [],
+        "indices": [
+          {
+            "name": "index_day_summary_sourceDeviceId",
+            "unique": false,
+            "columnNames": [
+              "sourceDeviceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_day_summary_sourceDeviceId` ON `${TABLE_NAME}` (`sourceDeviceId`)"
+          }
+        ],
         "foreignKeys": []
       },
       {
@@ -122,7 +132,26 @@
             "sourceDeviceId"
           ]
         },
-        "indices": [],
+        "indices": [
+          {
+            "name": "index_app_usage_pkg",
+            "unique": false,
+            "columnNames": [
+              "pkg"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_app_usage_pkg` ON `${TABLE_NAME}` (`pkg`)"
+          },
+          {
+            "name": "index_app_usage_sourceDeviceId",
+            "unique": false,
+            "columnNames": [
+              "sourceDeviceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_app_usage_sourceDeviceId` ON `${TABLE_NAME}` (`sourceDeviceId`)"
+          }
+        ],
         "foreignKeys": []
       },
       {
@@ -162,7 +191,17 @@
             "sourceDeviceId"
           ]
         },
-        "indices": [],
+        "indices": [
+          {
+            "name": "index_hour_usage_sourceDeviceId",
+            "unique": false,
+            "columnNames": [
+              "sourceDeviceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_hour_usage_sourceDeviceId` ON `${TABLE_NAME}` (`sourceDeviceId`)"
+          }
+        ],
         "foreignKeys": []
       },
       {
@@ -362,6 +401,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_screen_session_endMs` ON `${TABLE_NAME}` (`endMs`)"
+          },
+          {
+            "name": "index_screen_session_sourceDeviceId",
+            "unique": false,
+            "columnNames": [
+              "sourceDeviceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_screen_session_sourceDeviceId` ON `${TABLE_NAME}` (`sourceDeviceId`)"
           }
         ],
         "foreignKeys": []
@@ -429,7 +477,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4b1ac7442c1e01d67d2b20855333a2c2')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '401b38329181b3303f7ad96ed8be14af')"
     ]
   }
 }

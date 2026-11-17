@@ -27,7 +27,13 @@ object SourceIds {
     const val UNSPECIFIED = "__local__"
 }
 
-@Entity(tableName = "day_summary", primaryKeys = ["date", "sourceDeviceId"])
+@Entity(
+    tableName = "day_summary",
+    primaryKeys = ["date", "sourceDeviceId"],
+    // CR-28：索引声明必须与 MIGRATION_6_7 建的逐字一致（真机踩过：迁移建了索引、
+    // 实体没声明 → Room schema 校验炸、App 起不来）
+    indices = [Index("sourceDeviceId")]
+)
 data class DaySummaryEntity(
     val date: String,
     val screenMin: Int,
@@ -40,7 +46,11 @@ data class DaySummaryEntity(
     val sourceDeviceId: String = SourceIds.UNSPECIFIED
 )
 
-@Entity(tableName = "app_usage", primaryKeys = ["date", "pkg", "sourceDeviceId"])
+@Entity(
+    tableName = "app_usage",
+    primaryKeys = ["date", "pkg", "sourceDeviceId"],
+    indices = [Index("pkg"), Index("sourceDeviceId")]
+)
 data class AppUsageEntity(
     val date: String,
     val pkg: String,
@@ -51,7 +61,11 @@ data class AppUsageEntity(
     val sourceDeviceId: String = SourceIds.UNSPECIFIED
 )
 
-@Entity(tableName = "hour_usage", primaryKeys = ["date", "hour", "sourceDeviceId"])
+@Entity(
+    tableName = "hour_usage",
+    primaryKeys = ["date", "hour", "sourceDeviceId"],
+    indices = [Index("sourceDeviceId")]
+)
 data class HourUsageEntity(
     val date: String,
     val hour: Int,
@@ -127,7 +141,11 @@ data class NotificationEventEntity(
  * CR-28：不同来源的完全重叠区间各存一行、互不覆盖，跨来源区间永不合并
  * （合并会破坏「占用时钟时长（UNION）」的同时性信息）。
  */
-@Entity(tableName = "screen_session", primaryKeys = ["startMs", "kind", "sourceDeviceId"], indices = [Index("endMs")])
+@Entity(
+    tableName = "screen_session",
+    primaryKeys = ["startMs", "kind", "sourceDeviceId"],
+    indices = [Index("endMs"), Index("sourceDeviceId")]
+)
 data class ScreenSessionEntity(
     val startMs: Long,
     val endMs: Long,
