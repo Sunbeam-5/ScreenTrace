@@ -133,7 +133,7 @@ class MigrationTest {
 
         // ② v5 打开触发 MIGRATION_4_5；Room 同时校验迁移后结构与 7.json 一致
         val v5 = Room.databaseBuilder(context, ScreenTraceDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
             .allowMainThreadQueries()
             .build()
 
@@ -218,7 +218,7 @@ class MigrationTest {
 
         // ② v7 打开：触发 4_5 / 5_6 / 6_7，Room 对照 7.json 完整 schema 校验
         val v7 = Room.databaseBuilder(context, ScreenTraceDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
             .allowMainThreadQueries()
             .build()
 

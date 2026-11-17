@@ -438,3 +438,17 @@ interface DeviceMergeLedgerDao {
     @Query("SELECT COUNT(*) FROM device_merge_ledger")
     suspend fun count(): Int
 }
+
+/** CR-28 批次 D：历史重建流水（见 [RebuildLogEntity]）。 */
+@Dao
+interface RebuildLogDao {
+
+    @Insert
+    suspend fun insert(row: RebuildLogEntity): Long
+
+    @Query("SELECT * FROM rebuild_log ORDER BY id")
+    suspend fun getAll(): List<RebuildLogEntity>
+
+    @Query("SELECT COUNT(*) FROM rebuild_log")
+    suspend fun count(): Int
+}

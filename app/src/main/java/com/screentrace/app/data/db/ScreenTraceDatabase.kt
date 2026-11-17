@@ -14,6 +14,7 @@ import androidx.room.RoomDatabase
  * 版本 7（CR-28）：六表加 sourceDeviceId（来源维度），事件表主键加 seq（同毫秒多条
  *   不丢 + 重复拉取幂等）；旧值 sourceDeviceId 置 ''（未归档），首启由 SourceArchive
  *   按「合并账本内 → '__legacy__'、纯本机日 → 本机 ID」归档。
+ * 版本 8（CR-28 批次 D）：+ rebuild_log（历史重建流水，快照/核对/回滚记录）。
  */
 @Database(
     entities = [
@@ -25,9 +26,10 @@ import androidx.room.RoomDatabase
         NotificationEventEntity::class,
         ScreenSessionEntity::class,
         AppLimitEntity::class,
-        DeviceMergeLedgerEntity::class
+        DeviceMergeLedgerEntity::class,
+        RebuildLogEntity::class
     ],
-    version = 7,
+    version = 8,
     // P2-1（6a 评审）：导出 schema JSON 到 app/schemas，供批 6b+ 的迁移与批 8 备份校验使用。
     // 注意区分：这里的 version 是**数据库结构版本**，备份文件的 schemaVersion（§5.10 C07）是另一套。
     exportSchema = true
@@ -42,4 +44,5 @@ abstract class ScreenTraceDatabase : RoomDatabase() {
     abstract fun screenSessionDao(): ScreenSessionDao
     abstract fun appLimitDao(): AppLimitDao
     abstract fun deviceMergeLedgerDao(): DeviceMergeLedgerDao
+    abstract fun rebuildLogDao(): RebuildLogDao
 }

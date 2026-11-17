@@ -193,3 +193,26 @@ data class DeviceMergeLedgerEntity(
     val deviceId: String,
     val date: String
 )
+
+/**
+ * CR-28 批次 D：历史重建流水（`rebuild_log`，独立表——重建是修复动作、拉取是采集
+ * 流水，语义不同不并入 `pull_log`；三小点默认裁决之一）。
+ *
+ * 每次「重建历史来源」一行：重建范围（日期区间 + 涉及来源 + 快照路径）、
+ * 前后行数、核对值（SUM/MAX/UNION）、是否回滚。快照文件是审计与人工恢复的依据。
+ */
+@Entity(tableName = "rebuild_log")
+data class RebuildLogEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val dateRangeStart: String,
+    val dateRangeEnd: String,
+    val snapshotPath: String,
+    val touchedSources: String,
+    val rowsBefore: Int,
+    val rowsAfter: Int,
+    val checkSumMin: Int,
+    val checkUnionMin: Int,
+    val checkMaxMin: Int,
+    val rolledBack: Boolean,
+    val createdAtMs: Long
+)

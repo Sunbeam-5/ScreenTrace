@@ -270,3 +270,30 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         )
     }
 }
+
+/**
+ * v7 → v8（CR-28 批次 D，2026-11-17）：新增 `rebuild_log`（历史重建流水）。
+ * 只建表结构：重建动作的记录表，与数据表零耦合。
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `rebuild_log` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `dateRangeStart` TEXT NOT NULL,
+                `dateRangeEnd` TEXT NOT NULL,
+                `snapshotPath` TEXT NOT NULL,
+                `touchedSources` TEXT NOT NULL,
+                `rowsBefore` INTEGER NOT NULL,
+                `rowsAfter` INTEGER NOT NULL,
+                `checkSumMin` INTEGER NOT NULL,
+                `checkUnionMin` INTEGER NOT NULL,
+                `checkMaxMin` INTEGER NOT NULL,
+                `rolledBack` INTEGER NOT NULL,
+                `createdAtMs` INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+    }
+}
