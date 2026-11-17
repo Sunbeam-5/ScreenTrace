@@ -1671,3 +1671,24 @@ P1-1 的探针与 P1-2 的变异都是临时改动，复现后已 `git checkout 
   2. **用例落在变异盲区**（CR-26）：期望值被 `ceil`/`coerce` 抹平，变异前后答案相同。
   本轮补的两条用例与两处变异都按「必须改变可观测结果」设计：新用例断言**该日无行**（旧账必须挡住重累加）、M4 只记第一个日期、M5 记到错误的来源设备。
 - **仍未处理**：① 迁移真机验证（无设备）；② **CR-28「来源设备维度」**——GPT 的 P0（跨设备合并后本机数据被少算），方案已出、待负责人过目与三项裁决；③ **`allowBackup=true` 无备份规则**（GPT 的 P1 隐私）；④ Pager 跨页停滞的 UI 级测试与复现；⑤ 远距 tab 是否改 Fade Through；⑥ 真手指测刷新率；⑦ targetSdk 36 / `QUERY_ALL_PACKAGES` / security-crypto 弃用（发布准备）。
+
+---
+
+## 【补记·CR-27 真机迁移验证完成】（2026-11-17 13:50，vivo 重新接入）
+
+上一节记的「真机：无可用设备、迁移的真机验证待补」已补做，**结果：迁移通过**。
+
+- **设备**：vivo CEB40M5G001DK\（Redmi 禁用至约 **00:47**，全程未碰）。
+- **装机 + 冷启动**：\db install -r\ Success → \MainActivity\ 为 \	opResumedActivity\、**crash 缓冲 0 条**——迁移没让 App 起不来。
+- **真机库核对**（拉 \screentrace.db\ + wal/shm 后只读打开）：
+  | 表 | 行数 |
+  |---|---|
+  | \day_summary\ | 10 ✓ |
+  | \pp_usage\ | 247 ✓ |
+  | \hour_usage\ | 144 ✓ |
+  | otification_event\ | 3735 ✓ |
+  | \screen_session\ | 1283 ✓ |
+  | \pp_limit\ | 0 ✓ |
+  | **\device_merge_ledger\** | **0**（新表建出，列 = \deviceId\ + \date\）|
+  oom_master_table.identity_hash = 467d338bb89b73624d0200e1703ad3a6\ 已写，**老数据一行未丢**。
+- **结论**：\MIGRATION_5_6\ 在真机 v5→v6 上通过；\MigrationTest\ 的完整 schema 校验（比对 .json\）与真机结果一致。

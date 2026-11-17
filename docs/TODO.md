@@ -138,7 +138,7 @@
   - [x] **① 记账入 Room 同事务**：新增 `device_merge_ledger`（PK = deviceId+date）+ `MIGRATION_5_6` + DB v5→6；账本写入挪进 `mergeAccumulate` 的同一 `db.withTransaction`；读取取 **Room ⊕ 旧 DataStore 并集**（不丢老账）；去掉事务外的 `recordMergedDates`。
   - [x] **② 节流文案勘误**：实际 10 分钟、文案写「30 分钟」；改为按实际间隔出文案。
   - [x] **验证**：新增 7 例；**5 处变异全部变红**（首轮 3 处绿，复查发现 M4/M5 是**非行为变异**——这是第三轮同类问题，教训记入评审档案）；`--rerun-tasks` **550 测全绿 / 0 skip**。
-  - [ ] **真机迁移验证（无设备）**：Redmi 禁用至约 22:14、vivo 掉线；兜底是 `MigrationTest` 的 Room **完整 schema 校验**（比对 `6.json`，差一个索引名都炸）。
+  - [x] **真机迁移验证（2026-11-17 13:50，vivo）**：v5→v6 迁移通过——冷启动 `MainActivity` 为前台、crash 缓冲 0 条；真机库核对**老数据一行未丢**（day_summary 10 / app_usage 247 / hour_usage 144 / notification_event 3735 / screen_session 1283），`device_merge_ledger` 建出（列 deviceId+date）、`identity_hash` 已写。与 `MigrationTest` 的完整 schema 校验一致。
 
 - [ ] **CR-28 · 来源设备维度（GPT 的 P0，方案已出待过目）**：`MergePolicy` 取大 + `CrossDeviceMerge` 累加写同一张表 → **跨设备合并后本机新增被静默丢掉**（A 2h + B 3h = 5h，A 再用 30 分钟仍是 5h）。方案：四张聚合表加 `sourceDeviceId`、PK 改复合、按来源分流合并口径、展示时跨来源求和。**三个待裁决**：对外显示「总使用时长(SUM)」还是「占用时钟的时长(区间并集)」；历史已合并日子（无法回溯拆分）接受取大遗留还是清空重并；备份格式是否保留设备分量。详见 `C:/tmp/方案-跨设备合并的来源设备维度.md`。
 - [ ] **`allowBackup=true` 无备份规则**（GPT 的 P1 隐私）：AndroidManifest 未设 `fullBackupContent`/`dataExtractionRules`，Room 的使用记录、DataStore 的设备 ID 与合并账本可能被 Auto Backup 传到 Google 账号；且 `EncryptedSharedPreferences` 按官方文档**不该**被 Auto Backup 备份。需定「严格本地优先」或「明确备份规则」。
