@@ -1,8 +1,8 @@
 package com.screentrace.app.uikit
 
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import kotlin.math.abs
 
 /**
@@ -44,21 +44,43 @@ object TabMotion {
     const val TITLE_SHIFT_PER_STEP_DP = 18f
 
     /**
-     * 点 tab 的软着陆曲线（§5.2 CR-23 ③）。
+     * 点 tab 的运动曲线（§5.2 CR-25）：**有明确落点**的强调缓出。
      *
-     * 用**轻微回弹**的 spring 取代 `animateScrollToPage` 默认的
-     * `DampingRatioNoBouncy`（临界阻尼＝单调减速、机械停住）：落定带一点生命感，
-     * 才不像「一块板子滑到位就死住」。`0.85` 的阻尼比回弹量约 2%，是「有生命感」
-     * 而不是「弹跳」；横滑仍由手指驱动、不受此曲线影响。
+     * 治的是「点 tab 比滑动卡」的直接原因——`spring` 的**渐近尾巴**：
+     * 真机 logcat 实测跨两页时 **78% 的行程只用 147ms，剩下 22% 却爬了 630ms**
+     * （154ms 时 progress=1.71，779ms 才落定 2.0）。那段「几乎看不出在动、又没结束」
+     * 的磨蹭就是观感上的「卡住」；滑动是手指驱动、松手即落定，没有这段。
+     *
+     * 改用 M3 emphasized decelerate（**稳定 API**，§6 不引实验组件）：
+     * 起步有速度、中段平稳、**末端准确停住**——`tween` 到时即进度 1.0，没有尾巴。
      *
      * 与 [alphaFor] / [scaleFor] / [titleShiftDp] 同处一室：转场运动的参数只有一个
      * 出处，调观感时不会出现「标题改了曲线没改」的分叉。
      */
-    const val SCROLL_DAMPING_RATIO = 0.85f
-    const val SCROLL_STIFFNESS = Spring.StiffnessMediumLow
+    val EMPHASIZED_DECELERATE = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 
-    val scrollSpec: AnimationSpec<Float>
-        get() = spring(dampingRatio = SCROLL_DAMPING_RATIO, stiffness = SCROLL_STIFFNESS)
+    /** CR-25：单页基础时长（ms）。 */
+    const val SCROLL_BASE_MS = 350
+
+    /** CR-25：每多一页加的时长（ms）。 */
+    const val SCROLL_PER_EXTRA_PAGE_MS = 90
+
+    /** CR-25：时长上限（§5.5「转场总时长 ≤500ms」，留 20ms 余量）。 */
+    const val SCROLL_MAX_MS = 480
+
+    /**
+     * 点 tab 的滚动时长：按**行程**给（跨页越多越久），上限 [SCROLL_MAX_MS]。
+     *
+     * 1 页 = 350ms、2 页 = 440ms、3 页及以上 = 480ms。
+     */
+    fun scrollDurationMs(pageDelta: Int): Int {
+        val d = pageDelta.coerceAtLeast(1)
+        return (SCROLL_BASE_MS + (d - 1) * SCROLL_PER_EXTRA_PAGE_MS).coerceAtMost(SCROLL_MAX_MS)
+    }
+
+    /** 点 tab 的滚动曲线：强调缓出 + 按行程给时长。 */
+    fun scrollSpecFor(pageDelta: Int): AnimationSpec<Float> =
+        tween(durationMillis = scrollDurationMs(pageDelta), easing = EMPHASIZED_DECELERATE)
 
     /**
      * 景深透明度：居中 1 → 完全滑出 [DEPTH_ALPHA_AT_EDGE]，线性插值。

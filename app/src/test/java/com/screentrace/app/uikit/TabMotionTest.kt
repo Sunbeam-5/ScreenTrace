@@ -1,7 +1,6 @@
 package com.screentrace.app.uikit
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.TweenSpec
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -104,15 +103,39 @@ class TabMotionTest {
     // ------------------------------------------------------------ 软着陆曲线
 
     @Test
-    fun `滚动曲线是轻微回弹的软着陆 不是临界阻尼`() {
-        val spec = TabMotion.scrollSpec
-        assertTrue("必须是 spring 曲线", spec is SpringSpec<*>)
-        val spring = spec as SpringSpec<*>
-        assertEquals(TabMotion.SCROLL_DAMPING_RATIO, spring.dampingRatio, eps)
-        assertEquals(Spring.StiffnessMediumLow, spring.stiffness, eps)
-        assertTrue(
-            "阻尼比必须小于 1（临界阻尼＝机械停住，正是要治的僵硬）",
-            spring.dampingRatio < 1f
-        )
+    fun `滚动曲线是有明确落点的强调缓出 不是渐近弹簧`() {
+        // CR-25：spring 的渐近尾巴（78% 行程 147ms、最后 22% 爬 630ms）就是「卡住」的来源；
+        // tween 到时即进度 1.0，末端准确停住。
+        val spec = TabMotion.scrollSpecFor(1)
+        assertTrue("必须是 tween（有明确落点）", spec is TweenSpec<*>)
+        val tween = spec as TweenSpec<*>
+        assertEquals(TabMotion.EMPHASIZED_DECELERATE, tween.easing)
+        assertEquals(TabMotion.SCROLL_BASE_MS, tween.durationMillis)
+    }
+
+    @Test
+    fun `缓动是强调缓出 中点已走完大部分行程`() {
+        // 直接打缓动函数的输出，不拿字段跟自己比（那样变异改字段也永远相等）。
+        // 强调缓出 = 起步快、后段稳：t=0.5 时应已走完 >80% 行程；线性是 0.5。
+        val e = TabMotion.EMPHASIZED_DECELERATE
+        assertEquals("起点 0", 0f, e.transform(0f), eps)
+        assertEquals("终点 1", 1f, e.transform(1f), eps)
+        val mid = e.transform(0.5f)
+        assertTrue("强调缓出中点应 > 0.8（线性是 0.5），实测 $mid", mid > 0.8f)
+    }
+
+    @Test
+    fun `行程越远越久 但不超过 500ms`() {
+        assertEquals(350, TabMotion.scrollDurationMs(1))
+        assertEquals(440, TabMotion.scrollDurationMs(2))
+        assertEquals(480, TabMotion.scrollDurationMs(3))
+        assertEquals("超长行程封顶", 480, TabMotion.scrollDurationMs(9))
+        TabMotion.scrollDurationMs(1).let { assertTrue("单页 $it 应 ≤500ms", it <= 500) }
+    }
+
+    @Test
+    fun `行程为 0 或负数按一页算`() {
+        assertEquals(350, TabMotion.scrollDurationMs(0))
+        assertEquals(350, TabMotion.scrollDurationMs(-3))
     }
 }

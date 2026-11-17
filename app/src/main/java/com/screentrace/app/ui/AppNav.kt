@@ -406,7 +406,7 @@ fun AppNav() {
                 tabGuard.begin(target)
                 try {
                     if (reduceMotion) pagerState.scrollToPage(target)
-                    else pagerState.animateScrollToPage(target, animationSpec = TabMotion.scrollSpec)
+                    else pagerState.animateScrollToPage(target, animationSpec = TabMotion.scrollSpecFor(kotlin.math.abs(target - pagerState.currentPage)))
                 } finally {
                     if (tabGuard.end(target)) alignRouteToPager(pagerState.currentPage)
                 }
@@ -937,7 +937,7 @@ fun AppNav() {
                         tabScope.launch {
                             try {
                                 if (reduceMotion) pagerState.scrollToPage(index)
-                                else pagerState.animateScrollToPage(index, animationSpec = TabMotion.scrollSpec)
+                                else pagerState.animateScrollToPage(index, animationSpec = TabMotion.scrollSpecFor(kotlin.math.abs(index - pagerState.currentPage)))
                             } finally {
                                 if (tabGuard.end(index)) alignRouteToPager(pagerState.currentPage)
                             }
