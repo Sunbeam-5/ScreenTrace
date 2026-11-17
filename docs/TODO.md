@@ -133,6 +133,15 @@
   - [x] **② 收紧断言**：「5% ≤ 5%」（专咬起步过冲）+「33% ≤ 50%」+「50% ∈ [40%,85%]」+「90% ≥ 95%」；**自我纠错**：初稿「33% ≤ 25%」是错的（S 形曲线 33% 处实为 44.8%），已按实算值更正（`f0133c2`）。
   - [x] **③ 剩余距离改连续进度**：`TabMotion.remainingPages(target, currentPage, offsetFraction)` 纯函数（`currentPage` 是离散索引，动画中再点 tab 会算错）。
   - [x] **验证**：**5 处变异全部变红**（M4/M5 首轮绿，补了落在变异盲区的边界用例才咬住——变异不红先怀疑用例设计）；`--rerun-tasks` **543 测全绿 / 0 skip**；真机（vivo）逐帧渐进无瞬移、帧跨度 ~414ms 与 440ms 吻合。
+- [x] **CR-27 · 记账入 Room 同事务 + 节流文案勘误 + 文档进度源纪律（2026-11-17 11:53 负责人按 GPT 项目审查裁定）**：
+  - [x] **文档先行**（`693df68`）：CR-27 登记 + §5.10 记账同事务口径 + §7-53~54（52 → 54 条）+ **文档进度源纪律**（TODO.md 唯一真实进度源 / 需求文档只管 §7 条数 / 文档地图每次收口同步 / README 冻结、数字是历史快照）。
+  - [x] **① 记账入 Room 同事务**：新增 `device_merge_ledger`（PK = deviceId+date）+ `MIGRATION_5_6` + DB v5→6；账本写入挪进 `mergeAccumulate` 的同一 `db.withTransaction`；读取取 **Room ⊕ 旧 DataStore 并集**（不丢老账）；去掉事务外的 `recordMergedDates`。
+  - [x] **② 节流文案勘误**：实际 10 分钟、文案写「30 分钟」；改为按实际间隔出文案。
+  - [x] **验证**：新增 7 例；**5 处变异全部变红**（首轮 3 处绿，复查发现 M4/M5 是**非行为变异**——这是第三轮同类问题，教训记入评审档案）；`--rerun-tasks` **550 测全绿 / 0 skip**。
+  - [ ] **真机迁移验证（无设备）**：Redmi 禁用至约 22:14、vivo 掉线；兜底是 `MigrationTest` 的 Room **完整 schema 校验**（比对 `6.json`，差一个索引名都炸）。
+
+- [ ] **CR-28 · 来源设备维度（GPT 的 P0，方案已出待过目）**：`MergePolicy` 取大 + `CrossDeviceMerge` 累加写同一张表 → **跨设备合并后本机新增被静默丢掉**（A 2h + B 3h = 5h，A 再用 30 分钟仍是 5h）。方案：四张聚合表加 `sourceDeviceId`、PK 改复合、按来源分流合并口径、展示时跨来源求和。**三个待裁决**：对外显示「总使用时长(SUM)」还是「占用时钟的时长(区间并集)」；历史已合并日子（无法回溯拆分）接受取大遗留还是清空重并；备份格式是否保留设备分量。详见 `C:/tmp/方案-跨设备合并的来源设备维度.md`。
+- [ ] **`allowBackup=true` 无备份规则**（GPT 的 P1 隐私）：AndroidManifest 未设 `fullBackupContent`/`dataExtractionRules`，Room 的使用记录、DataStore 的设备 ID 与合并账本可能被 Auto Backup 传到 Google 账号；且 `EncryptedSharedPreferences` 按官方文档**不该**被 Auto Backup 备份。需定「严格本地优先」或「明确备份规则」。
 
 
 
