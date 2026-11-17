@@ -122,6 +122,11 @@
   - [x] **② 一次性缓存**：`WallpaperBlur.blurredImage` 按 density 降采样（1px ≈ 1dp，长边钳 800）后模糊；`WallpaperState` 增 `blurred`，`AppNav` 组装时一次性算好，`PageScaffold` 只贴它、**删掉每帧 `Modifier.blur`**；**API < 31 一并生效**（`blurSupported()` 恒真、`effectiveBlurDp` 只做越界夹取）。
   - [x] **③ 变异验证**：5 处变异**全部变红**（半径 0 返回空数组 / 不复制输入 / 只模糊一趟 / 边界不 clamp / 低版本又钳成 0）；首轮 2 处未变红已复查修正（M1 是非行为变异、M3 是真弱项补了「过渡带」用例）。`--rerun-tasks` **537 测全绿 / 0 skip**。
   - [x] **④ 真机 GPU 复测（2026-11-17 08:45 完成，结论与预期相反）**：vivo 同机同配置 A/B（`wallpaper_blur = 12`）——缓存版 GPU 5.08ms vs 每帧 `Modifier.blur` 5.11ms、总耗时 13.38 vs 13.24ms，**差异在噪声内，CR-24 的性能收益应按「无收益」记账**。同时更正两处归因：「壁纸模糊 +0.97ms GPU」实为关掉**整层壁纸**（位图 + 两层遮罩）的差值、与模糊无关；vivo 实测 `wallpaper_blur = 1`、模糊本就几乎没在跑。CR-24 的真实价值是**三条非性能项**（API < 31 也生效 / 模糊成纯函数可单测 / 参数变化时算一次）。详见 `CODE_REVIEW.md` 文末「补记·更正」。
+- [x] **CR-25 · 点 tab 曲线改「明确落点」的强调缓出（2026-11-17 08:52 负责人「可以做出来看看效果」）**：
+  - [x] **文档先行**：头部登记 CR-25（治 `spring` 渐近尾巴：78% 行程 147ms、剩下 22% 爬 630ms）；§5.2「运动曲线」条改写；§7 追加 52 条验收（51 → 52 条）。代码零改动（`64571b9`）。
+  - [x] **实现**：`TabMotion.EMPHASIZED_DECELERATE = CubicBezierEasing(0.05, 0.7, 0.1, 1)`（M3 emphasized decelerate，稳定 API）+ `scrollDurationMs(pageDelta)`（1 页 350 / 2 页 440 / 3+ 页 480ms，上限 §5.5）+ `scrollSpecFor(pageDelta)` 取代旧 `scrollSpec`（`358297b`）。
+  - [x] **验证**：`TabMotionTest` 改写曲线用例；**5 处变异全部变红**；`--rerun-tasks` **540 测全绿 / 0 skip**；顺手修掉一条空洞断言（拿字段跟自己比 → 直接打缓动函数输出）。
+  - [x] **vivo 真机验证（2026-11-17 09:55）**：vivo 不放 App 日志（`Log.d`/`Log.w` 都被过滤），改用**帧时间戳对照口径**——点标题（无动画）27 帧/464ms vs 点 tab 50~52 帧/873ms，**差值 ≈24 帧 ≈409ms**，与新曲线 350/440ms 吻合（旧 spring 实测 779ms，总跨度应约 1240ms）。详见 `CODE_REVIEW.md` 文末补记。
 
 
 
