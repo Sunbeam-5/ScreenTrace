@@ -18,13 +18,12 @@
   - 对应 doFrame ts=897391214605402，dur=197.5ms
   - 对账（exclusive 法）：Compose 重组+applyChanges 160.0ms + 纯 measure/layout 30.3ms
     + 绘制记录 3.2ms + 杂项 4.0ms = 197.5ms ✓
-- 全量 trace 哈希（原文件在 C:/tmp/cr30_a2/a3raw/）：
-  - a3_baseline_r4: 0F1917B74CF4F974…
-  - v1_navfreeze_r4: CDBCD47FFDC533EB…
-  - v2_hdrfreeze_r4: 1EBD8D9A1B15A6BE…（注：实为 CDB 系续，完整值见本地哈希）
-  - v3_overlays_r4: B7B11DDC5E39097B…
-  - v4_scrollstrip_r4: 5B021826439646C6…
-  - v5_allstrip_r4: 9E14C718B1B739C4…
+- **完整 SHA256（全部实际文件实算，88 条）见同目录 `SHA256SUMS.txt`**——覆盖：
+  本目录全部证据文件、e2_traces/ 12 轮压缩 trace、C:/tmp/cr30_a2/a3raw/ 全部原始
+  trace、C:/tmp/cr30_a4/raw/ 全部 A-4/R2/E1 补测 trace、以及 a3r2_v5_clean.apk。
+  （R3 更正：旧 README 的省略式哈希作废；V2 哈希曾误记，以 SHA256SUMS.txt 为准。）
+- a3r2_v5_clean.apk（V5 干净构建）**不在仓库**，归档于 C:/tmp/cr30_a2/apks/，
+  SHA256 已录 SHA256SUMS.txt；原 V5 探针版 APK 未留存，按 patches/V5.diff 复现。
 
 ## 统计口径（scripts/ 内脚本可复算）
 - `a3_run.py`：测量协议（force-stop → 预热 6s → gfxinfo reset → [perfetto] → far 切换 ×2 → dump）
