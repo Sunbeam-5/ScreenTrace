@@ -644,7 +644,7 @@ fun AppNav() {
                         }
                     }
                 }
-                        com.screentrace.app.uikit.PerfProbe.tick("Compose/PullZone")
+                        com.screentrace.app.uikit.PerfProbe.tick("AppNav/PullToRefreshCallsite") // R2 更名：AppNav 内调用点，非独立组件探针
                         PullToRefreshContainer(
                             state = pullState,
                             // M3 1.2 默认指示器空闲态不归零：真机上标题旁常驻一个无图标

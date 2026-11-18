@@ -1,4 +1,10 @@
-# A-3 原始证据清单
+# A-3 原始证据清单（R2 补编）
+
+> R2 补：\`a3_map_r1.txt\` 入库（原缺失）；完整 SHA256 见 \`SHA256SUMS.txt\`（19 条，
+> 含 A-3 全部 trace 与 E2 逐轮 trace）；E2 逐轮统计 \`e2_per_round_stats.txt\`（12 行）
+> 与代表 trace \`e2_far120_r1.pftrace.gz\`（5.9MB）补入；V5 探针版 APK 未留存（可按
+> patches/V5.diff + 8babcba 复现），R2 干净版 a3r2_v5_clean.apk 已留存并入哈希清单；
+> a3_stats.py 已修连续长帧算法（真实时序、不跨 trace），修正后历史数据连续长帧对=0。
 
 ## 代表性 logcat
 - `a3_map_r1.txt`：组件探针映射（一次 far 切换的完整 tick 序列，Redmi 120Hz，17:11）
