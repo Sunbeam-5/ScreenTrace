@@ -22,6 +22,8 @@ android {
 
     buildFeatures {
         compose = true
+        // CR-30 A-1：PerfProbe 用 BuildConfig.DEBUG 区分 debug/release 打点
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14" // 必须匹配 Kotlin 1.9.24

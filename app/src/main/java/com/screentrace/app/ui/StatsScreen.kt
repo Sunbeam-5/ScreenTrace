@@ -70,6 +70,7 @@ fun StatsScreen(
     /** 切主页面时变化，用于收起柱图浮层（Pager 常驻，组合不销毁）。 */
     resetKey: Any? = null
 ) {
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/Stats")
     // 分支顺序 = 「有数据就画数据」（批 6g）：切「近 7/30 天」时 ViewModel 带着旧
     // data 进入 loading，这里必须先渲染旧内容，等新数据落地直接换值，不闪骨架。
     //

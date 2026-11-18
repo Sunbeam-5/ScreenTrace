@@ -33,7 +33,10 @@ object WallpaperBlur {
      * @param blurDp 模糊半径（dp）；`<= 0` 直接返回 [src]（不复制、不模糊）。
      * @param density 屏幕 density（px / dp），用来做「1px ≈ 1dp」的降采样。
      */
-    fun blurredImage(src: ImageBitmap, blurDp: Int, density: Float): ImageBitmap {
+    fun blurredImage(src: ImageBitmap, blurDp: Int, density: Float): ImageBitmap =
+        com.screentrace.app.uikit.PerfProbe.measure("Wallpaper/blur") { blurImpl(src, blurDp, density) }
+
+    private fun blurImpl(src: ImageBitmap, blurDp: Int, density: Float): ImageBitmap {
         val radius = WallpaperTuning.clampBlur(blurDp)
         if (radius <= 0) return src
         val scale = if (density > 1f) 1f / density else 1f

@@ -67,6 +67,7 @@ fun TodayScreen(
     /** 正在拉取（首次 dump 要十几秒）。此时「没数据」是暂时的，不能显示「尚无使用记录」。 */
     pulling: Boolean = false
 ) {
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/Today")
     // 分支顺序 = 「有数据就画数据」（批 6g）：切换日期时 ViewModel 会带着旧 data
     // 进入 loading，这里必须先渲染旧内容，等新数据落地直接换值——
     // 若把 loading 放在最前，每次切日期都会整页闪一次骨架（真机反馈 #2/#3）。

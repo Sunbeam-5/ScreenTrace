@@ -76,7 +76,9 @@ class RoomUsageRepository(
      * 同一天可能有多来源行（legacy + 各设备分量），取原始行会让 UsageCalculator 双算。
      */
     private suspend fun recordsBetween(start: LocalDate, end: LocalDate): List<DaySummary> =
-        db.daySummaryDao().sumRange(start.toString(), end.toString()).map { it.toDomain() }
+        com.screentrace.app.uikit.PerfProbe.measure("Room/query") {
+            db.daySummaryDao().sumRange(start.toString(), end.toString()).map { it.toDomain() }
+        }
 
     /**
      * 评审 P0-1：三表任一非空。**不能只看 `day_summary`**——降级通道按设计只写
@@ -102,18 +104,23 @@ class RoomUsageRepository(
     }
 
     override suspend fun summary(selection: DateSelection): Summary =
-        UsageCalculator.summarize(selection, recordsBetween(selection.startDate, selection.endDate))
+        com.screentrace.app.uikit.PerfProbe.measure("Room/summary") {
+            UsageCalculator.summarize(selection, recordsBetween(selection.startDate, selection.endDate))
+        }
 
     override suspend fun dailyTrend(selection: DateSelection): List<DailyPoint> =
-        UsageCalculator.dailyPoints(selection, recordsBetween(selection.startDate, selection.endDate))
+        com.screentrace.app.uikit.PerfProbe.measure("Room/dailyTrend") {
+            UsageCalculator.dailyPoints(selection, recordsBetween(selection.startDate, selection.endDate))
+        }
 
     override suspend fun topAppsPerDay(
         selection: DateSelection,
         limit: Int
     ): Map<LocalDate, List<AppUsage>> {
         val overrides = settings?.categoryOverrides?.first() ?: emptyMap()
-        return db.appUsageDao()
-            .rowsBetween(selection.startDate.toString(), selection.endDate.toString())
+        return com.screentrace.app.uikit.PerfProbe.measure("Room/topAppsPerDay") {
+            db.appUsageDao()
+                .rowsBetween(selection.startDate.toString(), selection.endDate.toString())
             .groupBy { it.date }
             .mapNotNull { (dateKey, rows) ->
                 val date = runCatching { LocalDate.parse(dateKey) }.getOrNull() ?: return@mapNotNull null
@@ -143,73 +150,87 @@ class RoomUsageRepository(
                 date to top
             }
             .toMap()
+        }
     }
 
     override suspend fun appRanking(selection: DateSelection, limit: Int): List<AppUsage> {
         // 分类覆盖（用户修改）读取层叠加，优先于库内默认（§4，6a 评审 P1-1）
         val overrides = settings?.categoryOverrides?.first() ?: emptyMap()
-        return db.appUsageDao()
-            .sumBetween(selection.startDate.toString(), selection.endDate.toString())
-            .take(limit)
-            .map {
-                AppUsage(
-                    date = selection.endDate, // 区间聚合行（§5.7 排行显示区间累计）
-                    pkg = it.pkg,
-                    name = displayName(it.pkg, it.name),
-                    minutes = it.minutes,
-                    launches = it.launches,
-                    category = overrides[it.pkg] ?: runCatching {
-                        com.screentrace.app.contract.AppCategory.valueOf(it.category)
-                    }.getOrDefault(com.screentrace.app.contract.AppCategory.OTHER)
-                )
-            }
+        return com.screentrace.app.uikit.PerfProbe.measure("Room/appRanking") {
+            db.appUsageDao()
+                .sumBetween(selection.startDate.toString(), selection.endDate.toString())
+                .take(limit)
+                .map {
+                    AppUsage(
+                        date = selection.endDate, // 区间聚合行（§5.7 排行显示区间累计）
+                        pkg = it.pkg,
+                        name = displayName(it.pkg, it.name),
+                        minutes = it.minutes,
+                        launches = it.launches,
+                        category = overrides[it.pkg] ?: runCatching {
+                            com.screentrace.app.contract.AppCategory.valueOf(it.category)
+                        }.getOrDefault(com.screentrace.app.contract.AppCategory.OTHER)
+                    )
+                }
+        }
     }
 
     override suspend fun hourlyDistribution(selection: DateSelection): List<HourBucket> =
-        db.hourUsageDao()
-            .sumBetween(selection.startDate.toString(), selection.endDate.toString())
-            .map { HourBucket(it.hour, it.minutes) }
+        com.screentrace.app.uikit.PerfProbe.measure("Room/hourly") {
+            db.hourUsageDao()
+                .sumBetween(selection.startDate.toString(), selection.endDate.toString())
+                .map { HourBucket(it.hour, it.minutes) }
+        }
 
     /**
      * CR-28：「占用时钟时长」（UNION）——区间内逐日全来源 SCREEN 会话的裁剪并集分钟。
      * 存储永不合并跨来源区间，这里在读侧做并集（§4.2：跨午夜按自然日裁剪、不跨日摊派）。
      */
-    override suspend fun clockOccupied(selection: DateSelection): Map<LocalDate, Int> {
-        val rows = db.screenSessionDao().getAll()
-        if (rows.isEmpty()) return emptyMap()
-        val zone = ZoneId.systemDefault()
-        var day = selection.startDate
-        val out = mutableMapOf<LocalDate, Int>()
-        while (!day.isAfter(selection.endDate)) {
-            out[day] = SessionUnion.occupiedMinutes(rows, day, zone)
-            day = day.plusDays(1)
+    override suspend fun clockOccupied(selection: DateSelection): Map<LocalDate, Int> =
+        com.screentrace.app.uikit.PerfProbe.measure("Room/clockOccupied") {
+            val rows = db.screenSessionDao().getAll()
+            if (rows.isEmpty()) return@measure emptyMap()
+            val zone = ZoneId.systemDefault()
+            var day = selection.startDate
+            val out = mutableMapOf<LocalDate, Int>()
+            while (!day.isAfter(selection.endDate)) {
+                out[day] = SessionUnion.occupiedMinutes(rows, day, zone)
+                day = day.plusDays(1)
+            }
+            out
         }
-        return out
-    }
 
     override suspend fun monthLevels(yearMonth: java.time.YearMonth): List<CalendarLevel> {
         val start = yearMonth.atDay(1)
         val end = yearMonth.atEndOfMonth()
-        return UsageCalculator.monthLevels(yearMonth, recordsBetween(start, end))
+        return com.screentrace.app.uikit.PerfProbe.measure("Calc/monthLevels") {
+            UsageCalculator.monthLevels(yearMonth, recordsBetween(start, end))
+        }
     }
 
     override suspend fun yearLevels(anchor: LocalDate, weeks: Int): List<CalendarLevel> {
         val anchorMonday = anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val start = anchorMonday.minusDays((weeks.toLong() - 1) * 7)
         val end = anchorMonday.plusDays(6)
-        return UsageCalculator.yearLevels(anchor, weeks, recordsBetween(start, end))
+        return com.screentrace.app.uikit.PerfProbe.measure("Calc/yearLevels") {
+            UsageCalculator.yearLevels(anchor, weeks, recordsBetween(start, end))
+        }
     }
 
     /** §5.6：streak 是截至锚点的**全量历史**，查全部 day_summary（CR-28：跨来源合计）。 */
     override suspend fun streak(anchor: LocalDate): StreakInfo =
-        UsageCalculator.streak(db.daySummaryDao().sumAll().map { it.toDomain() }, anchor)
+        com.screentrace.app.uikit.PerfProbe.measure("Calc/streak") {
+            UsageCalculator.streak(db.daySummaryDao().sumAll().map { it.toDomain() }, anchor)
+        }
 
     override suspend fun extremes(selection: DateSelection, lowThresholdMin: Int): ExtremesInfo =
-        UsageCalculator.extremes(
-            selection,
-            recordsBetween(selection.startDate, selection.endDate),
-            lowThresholdMin
-        )
+        com.screentrace.app.uikit.PerfProbe.measure("Calc/extremes") {
+            UsageCalculator.extremes(
+                selection,
+                recordsBetween(selection.startDate, selection.endDate),
+                lowThresholdMin
+            )
+        }
 
     /**
      * §5.8 应用分类管理：全库出现过的包（不限区间——分类是长期属性，
@@ -236,7 +257,8 @@ class RoomUsageRepository(
      * gapDays 从 pull_log 推导：有失败记录且当天无成功拉取的日期为 GAP（6a 评审 P1-3，
      * 覆盖三态不再退化）。
      */
-    override suspend fun metricDetail(metric: MetricKind, selection: DateSelection): MetricDetail {
+    override suspend fun metricDetail(metric: MetricKind, selection: DateSelection): MetricDetail =
+        com.screentrace.app.uikit.PerfProbe.measure("Room/metricDetail") {
         // 同一次详情查询固定用一个库（中途切换设备会读出半新半旧的两套数字）
         val database = db
         val zone = ZoneId.systemDefault()
@@ -287,7 +309,7 @@ class RoomUsageRepository(
                 if (pkg !in this) put(pkg, displayName(pkg, pkg))
             }
         }
-        return UsageCalculator.metricDetail(
+        UsageCalculator.metricDetail(
             metric = metric,
             selection = selection,
             unlockEvents = unlockMs.map { UnlockEvent(it) },

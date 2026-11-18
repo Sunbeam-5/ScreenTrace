@@ -98,6 +98,7 @@ fun CalendarScreen(
     /** §5.11：日历页顶部的周期总结入口（与统计页底部同一个二级页）。 */
     onOpenPeriod: (PeriodType) -> Unit = {}
 ) {
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/Calendar")
     // 「有数据就画数据」（批 6g，理由见 TodayScreen）：换月份/换区间不闪骨架
     when {
         state.data != null -> CalendarContent(

@@ -1225,6 +1225,7 @@ class AppViewModel(
     private fun loadAll(cancelPrevious: Boolean = true) {
         if (cancelPrevious) loadJob?.cancel()
         loadJob = viewModelScope.launch {
+            com.screentrace.app.uikit.PerfProbe.measure("VM/loadAll") {
             // CR-15 B：三份互不干扰的窗口。今日/统计各自记忆，日历固定今天 + 全量历史。
             val todaySel = _todaySelection.value
             val statsSel = _statsSelection.value
@@ -1425,6 +1426,7 @@ class AppViewModel(
                     LoadState(error = message, data = _notificationDetail.value.data)
                 _periodState.value =
                     LoadState(error = message, data = _periodState.value.data)
+            }
             }
         }
     }

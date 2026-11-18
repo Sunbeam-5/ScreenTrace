@@ -411,8 +411,10 @@ fun AppNav() {
                 // 同样不能回写路由，否则标题会闪一下中间页。
                 tabGuard.begin(target)
                 try {
+                    com.screentrace.app.uikit.PerfProbe.event("Pager/scrollStart")
                     if (reduceMotion) pagerState.scrollToPage(target)
                     else pagerState.animateScrollToPage(target, animationSpec = TabMotion.scrollSpecFor(TabMotion.remainingPages(target, pagerState.currentPage, pagerState.currentPageOffsetFraction)))
+                    com.screentrace.app.uikit.PerfProbe.event("Pager/scrollEnd")
                 } finally {
                     if (tabGuard.end(target)) alignRouteToPager(pagerState.currentPage)
                 }
@@ -943,8 +945,10 @@ fun AppNav() {
                         tabGuard.begin(index)
                         tabScope.launch {
                             try {
+                                com.screentrace.app.uikit.PerfProbe.event("Pager/scrollStart")
                                 if (reduceMotion) pagerState.scrollToPage(index)
                                 else pagerState.animateScrollToPage(index, animationSpec = TabMotion.scrollSpecFor(TabMotion.remainingPages(index, pagerState.currentPage, pagerState.currentPageOffsetFraction)))
+                                com.screentrace.app.uikit.PerfProbe.event("Pager/scrollEnd")
                             } finally {
                                 if (tabGuard.end(index)) alignRouteToPager(pagerState.currentPage)
                             }
