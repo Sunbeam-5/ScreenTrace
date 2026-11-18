@@ -1,0 +1,18 @@
+# V3 = V2 + 覆盖层壳短路（累积）
+# 文件1：app/src/main/java/com/screentrace/app/ui/AppNav.kt
+--- old
++++ new
+@@ PullToRefreshContainer 调用点 @@
+-                        PullToRefreshContainer(
++                        if (false) PullToRefreshContainer( // A-3 V3（args 与闭括号不变）
+@@ DevicePanelOverlay 函数体开头（tick 行之后） @@
+     com.screentrace.app.uikit.PerfProbe.tick("Compose/DPO")
++    return // A-3 V3
++    @Suppress("UNREACHABLE_CODE")
+     Box(Modifier.fillMaxSize()) {
+# 文件2：app/src/main/java/com/screentrace/app/uikit/ContainerTransform.kt
+@@ ContainerTransformOverlay 函数体开头（tick 行之后） @@
+     com.screentrace.app.uikit.PerfProbe.tick("Compose/CTO")
++    return // A-3 V3
++    @Suppress("UNREACHABLE_CODE")
+     val progress by animateFloatAsState(

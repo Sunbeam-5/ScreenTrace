@@ -389,6 +389,7 @@ fun AppNav() {
         // 点 tab 不直接写路由的红线不变。这里必须读 `viewModel.page.value`：
         // 局部函数捕获的是组合时的值，早 Started 的协程里那个值已经过时。
         fun alignRouteToPager(landed: Int) {
+            com.screentrace.app.uikit.PerfProbe.event("Route/align=" + landed)
             val page = MAIN_PAGES.getOrNull(landed) ?: return
             if (AppPage.mainOf(viewModel.page.value) != page) viewModel.selectMain(page)
         }
@@ -428,12 +429,19 @@ fun AppNav() {
         //    捕获的 `page` 会一直停留在首次组合时的值，判断就会失效。
         LaunchedEffect(pagerState) {
             snapshotFlow { pagerState.currentPage }.distinctUntilChanged().collect { index ->
+                com.screentrace.app.uikit.PerfProbe.event("Route/currentPage=" + index)
                 val target = MAIN_PAGES.getOrNull(index) ?: return@collect
                 // CR-22 ①：程序化滚动期间**只忽略中间页**的回写（目标页照常回写，
                 // 动画走到七成时切标题最自然）——否则跨两页时路由会经过中间页，
                 // 标题与胶囊先跳到中间页再跳回（观感＝卡一下）。
-                if (tabGuard.ignoresWrite(index)) return@collect
-                if (AppPage.mainOf(viewModel.page.value) != target) viewModel.selectMain(target)
+                if (tabGuard.ignoresWrite(index)) {
+                    com.screentrace.app.uikit.PerfProbe.event("Route/guardIgnore=" + index)
+                    return@collect
+                }
+                if (AppPage.mainOf(viewModel.page.value) != target) {
+                    com.screentrace.app.uikit.PerfProbe.event("Route/selectMain=" + target)
+                    viewModel.selectMain(target)
+                }
             }
         }
 

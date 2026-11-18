@@ -1,0 +1,7 @@
+# V2 = V1 + AppHeader 高频状态读取中和（累积，不能单出 AppHeader 独立贡献）
+# 文件：app/src/main/java/com/screentrace/app/uikit/ScreenScaffold.kt
+--- old
++++ new
+@@ titleShiftPx 计算点 @@
+-        (tabProgress?.let { titleShiftDp(it.value) } ?: 0f).dp.toPx()
++        (tabProgress?.let { titleShiftDp(0f) } ?: 0f).dp.toPx() // A-3 V2

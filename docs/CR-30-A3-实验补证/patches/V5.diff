@@ -1,0 +1,9 @@
+# V5 = V4 + 三页内容换空 Box（累积；诊断性空页面，非产品方案）
+# 文件：app/src/main/java/com/screentrace/app/ui/AppNav.kt
+--- old
++++ new
+@@ HorizontalPager item 内容入口 @@
+                         ) {
+-                            when (MAIN_PAGES[index]) {
++                            if (true) { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) } else when (MAIN_PAGES[index]) {
+                                 AppPage.Today -> TodayScreen(

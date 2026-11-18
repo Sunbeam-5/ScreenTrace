@@ -1,0 +1,12 @@
+# V4 = V3 + ScrollablePage 结构剥离（累积）
+# 文件：app/src/main/java/com/screentrace/app/uikit/ScreenScaffold.kt
+--- old
++++ new
+@@ ScrollablePage Column 修饰符链 @@
+     com.screentrace.app.uikit.PerfProbe.tick("Compose/ScrollablePage")
+     Column(
+         modifier = modifier
+             .fillMaxSize()
+-            .verticalScroll(scrollState)
+-            .padding(horizontal = 20.dp)
++            // A-3 V4：剥离 verticalScroll + 横向 padding（底部 padding 链保留）

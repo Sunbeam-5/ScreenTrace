@@ -1,0 +1,7 @@
+# V1：FreshNavBar 高频状态读取中和（单变量）
+# 文件：app/src/main/java/com/screentrace/app/uikit/FreshNavBar.kt
+--- old
++++ new
+@@ navProximity 调用点 @@
+-            val proximity = if (progress != null) navProximity(index, progress.value) else 0f
++            val proximity = if (progress != null) navProximity(index, 0f) else 0f // A-3 V1
