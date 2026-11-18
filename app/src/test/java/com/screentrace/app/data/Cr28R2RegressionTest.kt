@@ -252,7 +252,40 @@ class Cr28R2RegressionTest {
         assertEquals("重放不增", 2, db.notificationEventDao().getAll().size)
     }
 
-    // ============ 缺口 G3：通知完整主键迁移
+    // ============ 缺口 G3：通知完整主键迁移（含 R2.1 正向场景）
+
+    @Test
+    fun `通知无冲突时按完整主键成功迁移给目标来源`() = runBlocking {
+        val ms = msOf(d, 9)
+        // legacy seq=0；dev-A 无对应；备份提供完整匹配的 (ms, type, pkg, seq=0) → 成功迁移
+        db.notificationEventDao().insertIgnore(
+            listOf(NotificationEventEntity(ms, "INTERRUPTION", "com.a", "ch", SourceIds.LEGACY, 0))
+        )
+        db.daySummaryDao().insert(dayRow(240, 240, 2, 20, 90, SourceIds.LEGACY))
+
+        SourceRebuild(db, zone).rebuild(
+            targets = setOf(d),
+            sources = listOf(
+                SourceRebuild.SourceBackup(
+                    deviceId = "dev-A",
+                    daySummaries = listOf(DaySummaryDto(d, 120, 120, 1, 10, 60, 2L)),
+                    notificationEvent = listOf(
+                        com.screentrace.app.data.backup.NotificationEventDto(ms, "INTERRUPTION", "com.a", "ch", 0)
+                    )
+                ),
+                SourceRebuild.SourceBackup(
+                    deviceId = "dev-B",
+                    daySummaries = listOf(DaySummaryDto(d, 120, 120, 1, 10, 60, 2L))
+                )
+            ),
+            snapshotDir = snapDir
+        )
+
+        val rows = db.notificationEventDao().getAll()
+        assertTrue("无冲突：成功迁给 dev-A", rows.any { it.sourceDeviceId == "dev-A" && it.seq == 0 })
+        assertTrue("legacy 原行已迁走（不再留在 legacy）",
+            rows.none { it.sourceDeviceId == SourceIds.LEGACY && it.seq == 0 })
+    }
 
     @Test
     fun `通知按完整主键改归属 seq 不匹配留 legacy 冲突保留 legacy`() = runBlocking {
@@ -414,7 +447,9 @@ class Cr28R2RegressionTest {
         db.unlockEventDao().insertIgnore(listOf(UnlockEventEntity(msOf(d, 0), SourceIds.UNARCHIVED, 0)))
         db.screenSessionDao().insert(
             listOf(
+                // 会话跨 d 全天（22:00 → dNext 0 点 = 结束于 **hi**）→ 归入 d
                 ScreenSessionEntity(msOf(d, 22), msOf(dNext, 0), ScreenSessionEntity.KIND_SCREEN, SourceIds.UNARCHIVED),
+                // 会话恰开始于 hi → 不归入 d
                 ScreenSessionEntity(msOf(dNext, 0), msOf(dNext, 1), ScreenSessionEntity.KIND_SCREEN, SourceIds.UNARCHIVED)
             )
         )
@@ -423,10 +458,23 @@ class Cr28R2RegressionTest {
         val event = db.unlockEventDao().getAll().single()
         assertEquals("事件恰在 lo 归入 d", SourceIds.LEGACY, event.sourceDeviceId)
         val sessions = db.screenSessionDao().getAll()
-        val endsAtLo = sessions.first { it.endMs == msOf(dNext, 0) }
+        val endsAtHi = sessions.first { it.endMs == msOf(dNext, 0) }
         val startsAtHi = sessions.first { it.startMs == msOf(dNext, 0) }
-        assertEquals("会话恰结束于 lo 归入 d（它跨 d 全天）", SourceIds.LEGACY, endsAtLo.sourceDeviceId)
+        assertEquals("会话结束于 hi（占 d 全天）归入 d", SourceIds.LEGACY, endsAtHi.sourceDeviceId)
         assertEquals("会话恰开始于 hi 不归入 d", "dev-1", startsAtHi.sourceDeviceId)
+    }
+
+    @Test
+    fun `会话恰结束于 lo 与次日窗口无交集不归入次日`() = runBlocking {
+        // 会话 [d 23:00, dNext 00:00)——endMs == 次日窗口 lo：与 dNext 无交集
+        // （半开 [lo,hi)：R2 用例曾把这种标成「结束于 lo」，实际那是结束于 hi；本例才是 endMs==lo）
+        db.screenSessionDao().insert(
+            listOf(ScreenSessionEntity(msOf(d, 23), msOf(dNext, 0), ScreenSessionEntity.KIND_SCREEN, SourceIds.UNARCHIVED))
+        )
+        SourceArchive.archive(db, "dev-1", setOf(dNext), zone)
+
+        val session = db.screenSessionDao().getAll().single()
+        assertEquals("endMs==lo 不归入次日", "dev-1", session.sourceDeviceId)
     }
 
     // ============ 缺口 G6：副本库归档真实恢复链路
@@ -465,5 +513,52 @@ class Cr28R2RegressionTest {
         } finally {
             copy.close()
         }
+    }
+
+    // ============ R2.1 ③：restore 真正「部分写入后」中途故障 → 整体回滚
+
+    @Test
+    fun `restore 写入中途故障时已写入部分也整体回滚`() = runBlocking {
+        // SQLite Trigger 在 hour_usage 写入时注入失败：OVERWRITE 先删后写，
+        // day_summary 已写入（999）→ hour 炸 → 事务必须回滚已写入的 day 行
+        db.openHelper.writableDatabase.execSQL(
+            "CREATE TRIGGER fail_hour BEFORE INSERT ON hour_usage BEGIN SELECT RAISE(ABORT, 'injected'); END"
+        )
+        db.daySummaryDao().insert(dayRow(60, 60, 1, 1, 60, "dev-A"))
+        val repo = BackupRepository(db, zone = zone, sourceDeviceId = { "dev-A" })
+        val file = BackupFile(
+            schemaVersion = 6,
+            exportedAt = "2026-11-18 10:00",
+            appVersion = "1.0",
+            device = com.screentrace.app.data.backup.BackupDevice("dev-A", "甲", "X"),
+            daySummary = listOf(DaySummaryDto(d, 999, 999, 9, 9, 99, 9L)),
+            hourUsage = listOf(HourUsageDto(d, 0, 5))
+        )
+        try {
+            repo.restore(file, BackupRepository.Strategy.OVERWRITE, importSettings = false)
+            fail("中途故障必须上抛")
+        } catch (e: Exception) {
+            // 预期：触发器 ABORT
+        }
+        val rows = db.daySummaryDao().getAll()
+        assertEquals("已写入的 day 行也要回滚", 1, rows.size)
+        assertEquals("原数据不变（不是 999）", 60, rows.single().screenMin)
+    }
+
+    // ============ R2.1 ④：afterRows 空集合（全零 legacy 无备份）不无谓回滚
+
+    @Test
+    fun `全零 legacy 无备份时删行后空集合 MAX 不炸 不回滚`() = runBlocking {
+        db.daySummaryDao().insert(dayRow(0, 0, 0, 0, 0, SourceIds.LEGACY))
+
+        val report = SourceRebuild(db, zone).rebuild(
+            targets = setOf(d),
+            sources = emptyList(),
+            snapshotDir = snapDir
+        )
+
+        assertEquals("不回滚", false, report.rolledBack)
+        assertEquals("全零行拆无可拆：删除", 0, db.daySummaryDao().getAll().size)
+        assertEquals("rebuilt", report.days.single().status)
     }
 }

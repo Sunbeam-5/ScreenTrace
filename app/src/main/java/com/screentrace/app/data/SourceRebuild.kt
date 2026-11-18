@@ -484,7 +484,9 @@ class SourceRebuild(
         val afterUnlocks = afterRows.sumOf { it.unlocks }
         val afterLaunches = afterRows.sumOf { it.launches }
         val afterUnlockMin = afterRows.sumOf { it.screenUnlockMin }
-        val afterMax = afterRows.maxOf { it.longestSessionMin }
+        // CR-28-R2.1 ④：`maxOfOrNull ?: 0`——全零 legacy 且无备份时删行后 afterRows
+        // 为空，`maxOf` 会抛异常导致无谓整批回滚（空集合 MAX 取 0：与 beforeMax=0 相容）
+        val afterMax = afterRows.maxOfOrNull { it.longestSessionMin } ?: 0
         val afterAppMinutes = db.appUsageDao().getAll().filter { it.date == date }.sumOf { it.minutes }
         val afterAppLaunches = db.appUsageDao().getAll().filter { it.date == date }.sumOf { it.launches }
         val afterHourMinutes = db.hourUsageDao().getAll().filter { it.date == date }.sumOf { it.minutes }
