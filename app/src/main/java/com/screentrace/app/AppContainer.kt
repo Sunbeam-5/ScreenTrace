@@ -169,6 +169,13 @@ class AppContainer(context: Context) {
                     settings.mergeLedger.first().values.flatten()
                 com.screentrace.app.data.SourceArchive.archive(db, localId, legacyDates)
             }
+
+            // CR-28 批次 F：超 24h 脏行自动清洗（幂等，无脏行不动；快照可回滚、
+            // rebuild_log 留痕；按会话并集重算校正，见 SourceRebuild.rebuildOversizedDays）
+            runCatching {
+                com.screentrace.app.data.SourceRebuild(db)
+                    .rebuildOversizedDays(java.io.File(appContext.filesDir, "rebuild_snapshots"))
+            }
         }
     }
 

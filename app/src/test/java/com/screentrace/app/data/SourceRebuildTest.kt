@@ -195,7 +195,45 @@ class SourceRebuildTest {
         assertTrue("rebuild_log 记 rolled_back", log.rolledBack)
     }
 
-    // --------------------------------------------------------------- recover
+    // --------------------------------------------------------------- 超 24h 脏行清洗（批次 F）
+
+    @Test
+    fun `超 24h 脏行按会话并集校正 launches 保留 unlocks 按事件计数`() = runBlocking {
+        // 脏行 1530 分钟（旧累加撑爆）；当日实证：会话 9:00-10:00（60min）+ 2 条解锁事件
+        db.daySummaryDao().insert(DaySummaryEntity(d, 1530, 1530, 0, 40, 765, 1L, "dev-A"))
+        db.screenSessionDao().insert(
+            listOf(ScreenSessionEntity(msOf(9), msOf(10), ScreenSessionEntity.KIND_SCREEN, "dev-A"))
+        )
+        db.unlockEventDao().insertIgnore(
+            listOf(
+                UnlockEventEntity(msOf(9) + 1000, "dev-A", 0),
+                UnlockEventEntity(msOf(9) + 2000, "dev-A", 1)
+            )
+        )
+
+        val report = SourceRebuild(db, zone).rebuildOversizedDays(snapDir)
+
+        val fixed = db.daySummaryDao().get(d, "dev-A")!!
+        assertEquals("screenMin 校正为会话并集 60", 60, fixed.screenMin)
+        assertEquals(60, fixed.screenUnlockMin)
+        assertEquals("unlocks 按事件计数校正", 2, fixed.unlocks)
+        assertEquals("launches 无实证保留原值", 40, fixed.launches)
+        assertEquals("longest 收紧为重算值", 60, fixed.longestSessionMin)
+        assertEquals("oversized_corrected", report.days.single().status)
+        assertEquals("rebuild_log 留痕", 1, db.rebuildLogDao().count())
+        assertTrue(File(report.snapshotPath).exists())
+    }
+
+    @Test
+    fun `无脏行时零改动不写 rebuild_log`() = runBlocking {
+        db.daySummaryDao().insert(DaySummaryEntity(d, 60, 60, 1, 1, 60, 1L, "dev-A"))
+
+        val report = SourceRebuild(db, zone).rebuildOversizedDays(snapDir)
+
+        assertTrue(report.days.isEmpty())
+        assertEquals(0, db.rebuildLogDao().count())
+        assertEquals("原值不动", 60, db.daySummaryDao().get(d, "dev-A")!!.screenMin)
+    }
 
     @Test
     fun `recover 按快照恢复重建前原样`() = runBlocking {

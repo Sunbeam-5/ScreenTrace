@@ -434,6 +434,114 @@ class SourceRebuild(
         if (!exists) insert(listOf(row))
     }
 
+    // ---------------------------------------------------- 超 24h 脏行清洗（批次 F）
+
+    companion object {
+        /** 一天最多 1440 分钟——超过即旧「累加合并」撑爆的脏行（真机 Redmi 11-10/11/12）。 */
+        const val MAX_DAY_MIN = 1440
+    }
+
+    /**
+     * CR-28 批次 F：**超 24h 脏行清洗**——`day_summary.screenMin > 1440` 的历史行按
+     * §4「会话表是日聚合的唯一重算输入」以当日**会话并集重算**校正（重算值天然 ≤ 1440）；
+     * `unlocks` 以事件表当日计数校正、`launches` 无实证保留原值；**只在重算值更小时
+     * 改写**（收紧不放松）。快照 / 核对 / 回滚 / `rebuild_log` 沿用 [rebuild] 四件套。
+     * 幂等：无脏行时零改动、不写 `rebuild_log`。
+     */
+    suspend fun rebuildOversizedDays(
+        snapshotDir: File,
+        nowMs: Long = System.currentTimeMillis()
+    ): Report {
+        val oversized = db.daySummaryDao().getAll().filter { it.screenMin > MAX_DAY_MIN }
+        if (oversized.isEmpty()) {
+            return Report(emptyList(), 0, 0, 0, 0, 0, "", rolledBack = false)
+        }
+        val dates = oversized.map { it.date }.toSet()
+        val snapshot = snapshotOf(dates)
+        snapshotDir.mkdirs()
+        val snapFile = File(snapshotDir, "rebuild_oversized_$nowMs.json")
+        snapFile.writeText(json.encodeToString(Snapshot.serializer(), snapshot), Charsets.UTF_8)
+        val rowsBefore = snapshot.days.size + snapshot.apps.size + snapshot.hours.size +
+            snapshot.unlocks.size + snapshot.notifs.size + snapshot.sessions.size
+
+        val outcomes = mutableListOf<DayOutcome>()
+        var checkSum = 0
+        var checkUnion = 0
+        var checkMax = 0
+        try {
+            db.withTransaction {
+                val allSessions = db.screenSessionDao().getAll()
+                for (row in oversized) {
+                    val day = java.time.LocalDate.parse(row.date)
+                    val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+                    val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                    val stored = allSessions.filter {
+                        CrossDeviceMerge.datesOfSession(it.startMs, it.endMs, zone).any { d -> d == row.date }
+                    }
+                    val slice = SessionUnion.daySlices(stored, stored, zone)[day]
+                    val screen = slice?.screenMin ?: 0
+                    val unlockMin = slice?.unlockMin ?: 0
+                    val longest = slice?.longestMin ?: 0
+                    val unlocks = db.unlockEventDao().msBetween(dayStart, dayEnd - 1).size
+
+                    // 收紧原则（时长）：只在重算值更小时改写（超 24h 行必被校正；防御未来误用）。
+                    // unlocks 是事件表可证的**精确计数**、直接写实证值（不是「越小越好」）。
+                    val newScreen = minOf(row.screenMin, screen)
+                    val newUnlockMin = minOf(row.screenUnlockMin, unlockMin)
+                    val newLongest = minOf(row.longestSessionMin, longest)
+                    val newUnlocks = unlocks
+                    val corrected = newScreen < row.screenMin
+                    db.daySummaryDao().upsert(
+                        row.copy(
+                            screenMin = newScreen,
+                            screenUnlockMin = newUnlockMin,
+                            longestSessionMin = newLongest,
+                            unlocks = newUnlocks
+                        )
+                    )
+                    outcomes += DayOutcome(row.date, if (corrected) "oversized_corrected" else "oversized_kept", 0)
+                }
+
+                // 核对：目标行全部 ≤ 1440、键集合不变（清洗不得增删行）
+                val after = db.daySummaryDao().getAll().filter { it.date in dates }
+                check(after.size == snapshot.days.size) { "清洗不得增删行（$dates）" }
+                for (row in after) {
+                    check(row.screenMin <= MAX_DAY_MIN) { "清洗后仍超 24h（${row.date}）" }
+                }
+                checkSum = after.sumOf { it.screenMin }
+                checkMax = after.maxOf { it.longestSessionMin }
+                checkUnion = dates.sumOf {
+                    SessionUnion.occupiedMinutes(db.screenSessionDao().getAll(), java.time.LocalDate.parse(it), zone)
+                }
+                check(checkUnion <= checkSum) { "UNION 核对不过：$checkUnion > $checkSum" }
+            }
+        } catch (e: Throwable) {
+            runCatching {
+                db.rebuildLogDao().insert(
+                    RebuildLogEntity(
+                        dateRangeStart = dates.min(), dateRangeEnd = dates.max(),
+                        snapshotPath = snapFile.absolutePath, touchedSources = "session-recompute",
+                        rowsBefore = rowsBefore, rowsAfter = rowsBefore,
+                        checkSumMin = 0, checkUnionMin = 0, checkMaxMin = 0,
+                        rolledBack = true, createdAtMs = nowMs
+                    )
+                )
+            }
+            return Report(outcomes, rowsBefore, rowsBefore, 0, 0, 0, snapFile.absolutePath, rolledBack = true)
+        }
+
+        db.rebuildLogDao().insert(
+            RebuildLogEntity(
+                dateRangeStart = dates.min(), dateRangeEnd = dates.max(),
+                snapshotPath = snapFile.absolutePath, touchedSources = "session-recompute",
+                rowsBefore = rowsBefore, rowsAfter = rowsBefore,
+                checkSumMin = checkSum, checkUnionMin = checkUnion, checkMaxMin = checkMax,
+                rolledBack = false, createdAtMs = nowMs
+            )
+        )
+        return Report(outcomes, rowsBefore, rowsBefore, checkSum, checkUnion, checkMax, snapFile.absolutePath, rolledBack = false)
+    }
+
     private fun DaySummaryEntity.toDto() = DaySummaryDto(date, screenMin, screenUnlockMin, unlocks, launches, longestSessionMin, pulledAt)
     private fun AppUsageEntity.toDto() = AppUsageDto(date, pkg, name, minutes, launches, category)
     private fun HourUsageEntity.toDto() = HourUsageDto(date, hour, minutes)
