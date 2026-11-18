@@ -223,13 +223,7 @@ fun AppHeader(
     // （真机 PTS 抽帧实测：标题左边缘全程齐平，36dp≈122px 完全没动）。
     // 改成与 `FreshNavBar` 的 `progress` 同一套路：在**组合期**读 `State<Float>`，
     // 于是每帧重组 AppHeader 一小段（不惊动整棵 `AppNav`），`graphicsLayer` 再把值画出去。
-    val titleShiftPx = with(LocalDensity.current) {
-        (tabProgress?.let { titleShiftDp(it.value) } ?: 0f).dp.toPx()
-    }
     com.screentrace.app.uikit.PerfProbe.tick("Compose/AppHeader")
-    if (kotlin.math.abs(titleShiftPx) > 2f) {
-        android.util.Log.d("TabNav", "titleShiftPx=${titleShiftPx}")
-    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -251,9 +245,12 @@ fun AppHeader(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = if (onBack != null) 4.dp else 0.dp)
-                // CR-23：标题块随连续进度轻微位移（落定归 0）。值在上面组合期算好，
-                // 这里只负责画出去（每帧重组时块里的捕获值随之更新）。
-                .graphicsLayer { translationX = titleShiftPx }
+                // A-4-E1：进度读取下沉到绘制期（graphicsLayer lambda 内直接读 tabProgress.value），
+                // 组合期不再消费高频状态；位移量与横滑行为不变。
+                .graphicsLayer {
+                    val shiftDp = tabProgress?.let { titleShiftDp(it.value) } ?: 0f
+                    translationX = shiftDp.dp.toPx()
+                }
         ) {
             Crossfade(
                 targetState = title,
