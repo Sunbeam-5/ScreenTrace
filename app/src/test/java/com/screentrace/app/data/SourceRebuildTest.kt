@@ -59,7 +59,9 @@ class SourceRebuildTest {
     private fun msOf(hour: Int): Long =
         java.time.LocalDate.parse(d).atTime(hour, 0).atZone(zone).toInstant().toEpochMilli()
 
-    private fun legacyDay(screen: Int) = DaySummaryEntity(d, screen, screen, 10, 20, 90, 1L, SourceIds.LEGACY)
+    // CR-28-R2 ②：longest=50（≤ 备份分量 MAX 60）——保证「拆完删行」分支可测；
+    // 「legacy MAX 不可拆时保留剩余行（不丢历史最长会话）」由 Cr28R2RegressionTest 专测。
+    private fun legacyDay(screen: Int) = DaySummaryEntity(d, screen, screen, 10, 20, 50, 1L, SourceIds.LEGACY)
 
     private fun backup(id: String, screen: Int) = SourceRebuild.SourceBackup(
         deviceId = id,

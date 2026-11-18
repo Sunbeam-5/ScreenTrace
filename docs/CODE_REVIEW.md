@@ -1745,3 +1745,18 @@ GPT 静态审查提出 2 P0 + 4 P1，逐条核对**全部属实**，按其建议
 - **确认项 副本库归档**：归档挂到 `BackupRepository.restore()` 开头（写入前归档、幂等，覆盖副本库全部恢复路径；副本库主体来源=该副本设备）。
 
 验证：`Cr28R1RegressionTest` 7 例 + `SameMillisecondEventTest` 修订 1 例；**六处变异全部真行为红**（M26 来源过滤回退 / M27b 无证据清零 / M28 不看 seq / M29 不按内容排序 / M30 去掉 unlocks 预检 / M32 endMs-1 回退，各 1 红；M27 首版为编译红、按纪律补 M27b 真行为变异）；`--rerun-tasks` **583 测全绿 / 0 skip**。Redmi 真机复验：清洗值保持（234/1402/1347）、`rebuild_log` 幂等空转不新增、零崩溃。
+
+---
+
+## 补记 · CR-28-R2 数据正确性修复（2026-11-18 09:50，GPT 针对性复审 4 新 P1 + 6 测试缺口）
+
+逐条核对**全部属实**，按「先写能失败的回归测试 → 修复 → 行为变异证明旧实现必失败」执行：
+
+- **① `app_usage.launches` 未参与历史差减/预检/核对** → launches 与 minutes 同等独立差减（`backupApps` 值改 (minutes, launches) 对）、超额整日跳过、重建前后核对（`afterAppLaunches == beforeAppLaunches`）。
+- **② 删 legacy 日行丢 `longestSessionMin`（MAX）** → 删行条件加「备份分量 MAX ≥ legacy MAX」守卫（不可拆则保留剩余行：其余字段 0、longest 原值）；核对加 **MAX 只增不减**（`afterMax >= beforeMax`——实现中发现 `==` 过严：备份实证补大 MAX 是合法的，改「不得变小」才是 GPT 原意）。
+- **③ 清洗校验键只按 date（同日 A 有证据 B 无证据时误炸整批）** → 改 `(date, sourceDeviceId)` 复合键；用例：A 校正 + B 无证据保留 → 事务正常提交。
+- **④ `restore` 用 `runCatching` 静默吞归档异常** → 移除，失败上抛触发恢复事务回滚；故障注入（`sourceDeviceId` lambda 抛异常）覆盖 MERGE/OVERWRITE 双路，验证原数据不变、无部分写入。
+- **6 项测试缺口补齐**：G1 同毫秒解锁跨批 1→2 保留 2、重放不增；G2 同毫秒同内容通知 1→2 保留 2；G3 通知完整主键迁移（seq 不匹配/冲突都留 legacy）；G4 六指标逐项超额跳过 + 正常重建前后六项 SUM + MAX 不变；G5 半开边界四例（事件恰在 lo 归入、会话恰结束于 lo 归入、恰开始于 hi 不归、空区间不占用——顺带补「空区间返回空集」语义）；G6 副本库归档**真实恢复链路**（restore 未归档行归属副本设备）。
+- **修剪两处过时断言**：`SourceRebuildTest` 的 `legacyDay` longest 90→50（MAX 守卫使「拆完删行」需分量 MAX 覆盖；「MAX 不可拆保留行」由 R2-2 专测）。
+
+验证：`Cr28R2RegressionTest` 10 例（含事务回滚 MERGE/OVERWRITE 双路）；**八处行为变异全部真红**（M33 launches 不差减 / M34 MAX 守卫去掉 / M35 单键校验 / M36 静默吞归档 / M38 seq 恒 0 / M39 通知先删后插 / M40 空区间 / M41 不归档，各 1+ 红；M39 首版锚点撞两处已换特异锚；无一用编译红冒充）；`--rerun-tasks` **594 测全绿 / 0 skip**。Redmi 真机复验：清洗值保持（234/1402/1347）、`rebuild_log` 幂等空转不新增、零崩溃。

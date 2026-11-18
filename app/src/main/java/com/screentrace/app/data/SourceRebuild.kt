@@ -303,8 +303,10 @@ class SourceRebuild(
         val sumBackup = backupDays.sumOf { it.screenMin }
         // CR-28-R1 P1-3：**逐指标差减校验**——任一可减指标 Σ备份 > legacy 即「对不上」，
         // 整日不重建（不能 coerceAtLeast(0) 截断历史）；写入与差减同用去重后数据。
+        // CR-28-R2 ①：`app_usage.launches` 独立差减/预检/核对（与 minutes 同等地位）。
         val backupApps = sources.flatMap { s -> CrossDeviceMerge.dedupeAppUsage(s.appUsage.filter { it.date == date }) }
-            .groupBy { it.pkg }.mapValues { (_, rows) -> rows.sumOf { it.minutes } }
+            .groupBy { it.pkg }
+            .mapValues { (_, rows) -> rows.sumOf { it.minutes } to rows.sumOf { it.launches } }
         val backupHours = sources.flatMap { s -> CrossDeviceMerge.dedupeHourUsage(s.hourUsage.filter { it.date == date }) }
             .groupBy { it.hour }.mapValues { (_, rows) -> rows.sumOf { it.minutes } }
         val overDrawn =
@@ -313,7 +315,7 @@ class SourceRebuild(
                 backupDays.sumOf { it.launches } > legacyRow.launches ||
                 db.appUsageDao().getAll().any { a ->
                     a.date == date && a.sourceDeviceId == SourceIds.LEGACY &&
-                        (backupApps[a.pkg] ?: 0) > a.minutes
+                        ((backupApps[a.pkg]?.first ?: 0) > a.minutes || (backupApps[a.pkg]?.second ?: 0) > a.launches)
                 } ||
                 db.hourUsageDao().getAll().any { h ->
                     h.date == date && h.sourceDeviceId == SourceIds.LEGACY &&
@@ -327,7 +329,9 @@ class SourceRebuild(
         val beforeUnlocks = db.daySummaryDao().getAll().filter { it.date == date }.sumOf { it.unlocks }
         val beforeLaunches = db.daySummaryDao().getAll().filter { it.date == date }.sumOf { it.launches }
         val beforeUnlockMin = db.daySummaryDao().getAll().filter { it.date == date }.sumOf { it.screenUnlockMin }
+        val beforeMax = db.daySummaryDao().getAll().filter { it.date == date }.maxOf { it.longestSessionMin }
         val beforeAppMinutes = db.appUsageDao().getAll().filter { it.date == date }.sumOf { it.minutes }
+        val beforeAppLaunches = db.appUsageDao().getAll().filter { it.date == date }.sumOf { it.launches }
         val beforeHourMinutes = db.hourUsageDao().getAll().filter { it.date == date }.sumOf { it.minutes }
 
         // ① 备份日分量：同来源取大写入
@@ -345,7 +349,13 @@ class SourceRebuild(
         val remainUnlockMin = legacyRow.screenUnlockMin - backupDays.sumOf { it.screenUnlockMin }
         val remainUnlocks = legacyRow.unlocks - backupDays.sumOf { it.unlocks }
         val remainLaunches = legacyRow.launches - backupDays.sumOf { it.launches }
-        if (remainScreen <= 0 && remainUnlockMin <= 0 && remainUnlocks <= 0 && remainLaunches <= 0) {
+        // CR-28-R2 ②：`longestSessionMin` 是跨来源 **MAX**、不差减——只有备份分量 MAX
+        // ≥ legacy MAX 时删行才不丢「历史最长会话」；否则保留剩余行（其余字段 0、
+        // longest 保留原值，跨来源 MAX 仍是 legacy 值）
+        val backupMax = backupDays.maxOfOrNull { it.longestSessionMin } ?: 0
+        if (remainScreen <= 0 && remainUnlockMin <= 0 && remainUnlocks <= 0 && remainLaunches <= 0 &&
+            legacyRow.longestSessionMin <= backupMax
+        ) {
             db.openHelper.writableDatabase.execSQL(
                 "DELETE FROM day_summary WHERE date = ? AND sourceDeviceId = ?",
                 arrayOf(date, SourceIds.LEGACY)
@@ -373,17 +383,23 @@ class SourceRebuild(
                 db.hourUsageDao().insert(HourUsageEntity(date, row.hour, winner.minutes, s.deviceId))
             }
         }
-        // legacy 应用行差减（CR-28-R1 P1-3：sumIn 用**去重后**数据，与写入同源）
+        // legacy 应用行差减（CR-28-R1 P1-3：sumIn 用**去重后**数据，与写入同源；
+        // CR-28-R2 ①：minutes 与 **launches** 独立差减）
         db.appUsageDao().getAll().filter { it.date == date && it.sourceDeviceId == SourceIds.LEGACY }.forEach { legacyApp ->
-            val remain = legacyApp.minutes - (backupApps[legacyApp.pkg] ?: 0)
-            if (remain <= 0) {
+            val remain = legacyApp.minutes - (backupApps[legacyApp.pkg]?.first ?: 0)
+            val remainLaunches = legacyApp.launches - (backupApps[legacyApp.pkg]?.second ?: 0)
+            if (remain <= 0 && remainLaunches <= 0) {
                 db.openHelper.writableDatabase.execSQL(
                     "DELETE FROM app_usage WHERE date = ? AND pkg = ? AND sourceDeviceId = ?",
                     arrayOf(date, legacyApp.pkg, SourceIds.LEGACY)
                 )
             } else {
                 db.appUsageDao().insert(
-                    AppUsageEntity(date, legacyApp.pkg, legacyApp.name, remain, legacyApp.launches, legacyApp.category, SourceIds.LEGACY)
+                    AppUsageEntity(
+                        date, legacyApp.pkg, legacyApp.name,
+                        remain.coerceAtLeast(0), remainLaunches.coerceAtLeast(0),
+                        legacyApp.category, SourceIds.LEGACY
+                    )
                 )
             }
         }
@@ -460,21 +476,28 @@ class SourceRebuild(
             }
         }
 
-        // ⑤ 单日**全部 SUM 指标**硬断言（CR-28-R1 P1-3：不止 screenMin——
-        // screenUnlockMin/unlocks/launches/app.minutes/hour.minutes 都不得凭空增减）
+        // ⑤ 单日**全部 SUM 指标 + MAX**硬断言（CR-28-R1 P1-3 / CR-28-R2 ①②：
+        // screenMin/screenUnlockMin/unlocks/launches/app.minutes/app.launches/hour.minutes
+        // 不得凭空增减；`longest_session_min` 是 MAX 语义——重建前后跨来源 MAX 相等）
         val afterRows = db.daySummaryDao().getAll().filter { it.date == date }
         val afterSum = afterRows.sumOf { it.screenMin }
         val afterUnlocks = afterRows.sumOf { it.unlocks }
         val afterLaunches = afterRows.sumOf { it.launches }
         val afterUnlockMin = afterRows.sumOf { it.screenUnlockMin }
+        val afterMax = afterRows.maxOf { it.longestSessionMin }
         val afterAppMinutes = db.appUsageDao().getAll().filter { it.date == date }.sumOf { it.minutes }
+        val afterAppLaunches = db.appUsageDao().getAll().filter { it.date == date }.sumOf { it.launches }
         val afterHourMinutes = db.hourUsageDao().getAll().filter { it.date == date }.sumOf { it.minutes }
         check(afterSum == beforeSum) { "SUM 核对不过（$date screenMin）：$afterSum != $beforeSum" }
         check(afterUnlockMin == beforeUnlockMin) { "SUM 核对不过（$date screenUnlockMin）：$afterUnlockMin != $beforeUnlockMin" }
         check(afterUnlocks == beforeUnlocks) { "SUM 核对不过（$date unlocks）：$afterUnlocks != $beforeUnlocks" }
         check(afterLaunches == beforeLaunches) { "SUM 核对不过（$date launches）：$afterLaunches != $beforeLaunches" }
         check(afterAppMinutes == beforeAppMinutes) { "SUM 核对不过（$date app minutes）：$afterAppMinutes != $beforeAppMinutes" }
+        check(afterAppLaunches == beforeAppLaunches) { "SUM 核对不过（$date app launches）：$afterAppLaunches != $beforeAppLaunches" }
         check(afterHourMinutes == beforeHourMinutes) { "SUM 核对不过（$date hour minutes）：$afterHourMinutes != $beforeHourMinutes" }
+        // MAX 语义（CR-28-R2 ②）：**只增不减**——备份实证可补大 MAX，但历史最长
+        // 会话绝不得变小（删行/差减导致的变小由删行条件与本断言双重堵住）
+        check(afterMax >= beforeMax) { "MAX 核对不过（$date longest）：$afterMax < $beforeMax（历史最长会话不得变小）" }
 
         val remaining = db.daySummaryDao().get(date, SourceIds.LEGACY)?.screenMin ?: 0
         return DayOutcome(date, if (remaining > 0) "rebuilt_with_remainder" else "rebuilt", remaining)
@@ -506,6 +529,9 @@ class SourceRebuild(
         nowMs: Long = System.currentTimeMillis()
     ): Report {
         val oversized = db.daySummaryDao().getAll().filter { it.screenMin > MAX_DAY_MIN }
+        // CR-28-R2 ③：校正行的**复合键**（date, sourceDeviceId）——同日 A 有证据、
+        // B 无证据时，B 的 no_evidence 行不得被 date 单键误纳入 ≤1440 校验（会误炸整批）
+        val correctedRowKeys = mutableSetOf<Pair<String, String>>()
         if (oversized.isEmpty()) {
             return Report(emptyList(), 0, 0, 0, 0, 0, "", rolledBack = false)
         }
@@ -551,6 +577,7 @@ class SourceRebuild(
                     val newLongest = minOf(row.longestSessionMin, longest)
                     val newUnlocks = unlocks
                     val corrected = newScreen < row.screenMin
+                    if (corrected) correctedRowKeys += row.date to row.sourceDeviceId
                     db.daySummaryDao().upsert(
                         row.copy(
                             screenMin = newScreen,
@@ -562,15 +589,13 @@ class SourceRebuild(
                     outcomes += DayOutcome(row.date, if (corrected) "oversized_corrected" else "oversized_kept", 0)
                 }
 
-                // 核对：目标行键集合不变（清洗不得增删行）；被校正的行全部 ≤ 1440
-                // （no_evidence 行保留原值、豁免此条）
+                // 核对：目标行键集合不变（清洗不得增删行）；被校正的行（按
+                // (date, sourceDeviceId) 复合键）全部 ≤ 1440（no_evidence 行豁免）
                 val after = db.daySummaryDao().getAll().filter { it.date in dates }
                 check(after.size == snapshot.days.size) { "清洗不得增删行（$dates）" }
-                val correctedKeys = outcomes.filter { it.status == "oversized_corrected" }
-                    .map { it.date }.toSet()
                 for (row in after) {
-                    if (row.date in correctedKeys) {
-                        check(row.screenMin <= MAX_DAY_MIN) { "清洗后仍超 24h（${row.date}）" }
+                    if ((row.date to row.sourceDeviceId) in correctedRowKeys) {
+                        check(row.screenMin <= MAX_DAY_MIN) { "清洗后仍超 24h（${row.date}/${row.sourceDeviceId}）" }
                     }
                 }
                 checkSum = after.sumOf { it.screenMin }

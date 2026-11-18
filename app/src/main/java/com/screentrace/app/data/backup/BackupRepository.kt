@@ -313,9 +313,9 @@ class BackupRepository(
         // CR-28-R1 ⑦：**写入前先归档**——迁移遗留的未归档（''）行归属本库主体来源
         // （副本库＝该副本设备、本机库＝本机）；只动 '' 行、幂等。副本库没有独立的
         // 启动挂点，挂在这里覆盖全部恢复路径。
-        runCatching {
-            com.screentrace.app.data.SourceArchive.archive(db, sourceDeviceId(), emptySet(), zone)
-        }
+        // CR-28-R2 ④：归档失败**必须上抛**（它是恢复前的来源不变量保障）→ 触发整个
+        // 恢复事务回滚、原数据不变；不得 runCatching 静默吞掉后带病继续恢复。
+        com.screentrace.app.data.SourceArchive.archive(db, sourceDeviceId(), emptySet(), zone)
         val result = when (strategy) {
             Strategy.OVERWRITE -> overwrite(file)
             Strategy.MERGE -> merge(file)

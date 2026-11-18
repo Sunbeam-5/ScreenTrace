@@ -61,6 +61,8 @@ object CrossDeviceMerge {
 
     /** 会话区间**跨到的**所有日期（跨零点会有两天）。 */
     fun datesOfSession(startMs: Long, endMs: Long, zone: ZoneId): Set<String> {
+        // CR-28-R2：半开 [startMs, endMs)——空区间不占用任何日
+        if (endMs <= startMs) return emptySet()
         val start = Instant.ofEpochMilli(startMs).atZone(zone).toLocalDate()
         // CR-28-R1 P1-4：**半开区间** [startMs, endMs)——结束日按 endMs-1 取，
         // 结束于零点的会话只算前一天（不得把次日提前记入合并账本）
