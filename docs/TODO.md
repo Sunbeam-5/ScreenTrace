@@ -167,7 +167,7 @@
     - [x] 契约加 `clockOccupied(selection)`（默认空实现不破 fake）；`RoomUsageRepository` 实现（区间逐日 `SessionUnion.occupiedMinutes`，跨午夜裁剪口径已测）；`StatsData.clockOccupiedMin` 区间合计；统计页趋势卡图例行下展示「占用时钟时长 X」（与「日均亮屏」＝总使用时长明确区分，数字与单位同一 Text）。
     - [x] 导出兼容警告链：`legacyCompatWarning` → `AppViewModel.backupCompatWarning` → `BackupGroup` 导出成功后 `onNotice`（含多来源时提示「旧版本导入会丢失非本机来源数据」）。
     - [x] 验证：3 例 `AppViewModelCr28Test`（UNION=1h vs SUM=2h / 有 sources 警告 / 纯本机无警告）；**M20/M21 变异全红**。真机复核（统计页观感 + 导出提示）待 Redmi 阶段。
-- [ ] **Redmi 真机验证（约 00:47 插件稳定性测试后）**：迁移 v6→v8 冒烟（check_v7 流程）+ UI 批次复核（统计页副指标 / 导出警告）+ 整体冒烟。
+- [x] **Redmi 真机验证（2026-11-18 08:00 完成）**：v5→v8 全链迁移通过（identity_hash 更新 v8、无崩溃）；归档正确（全行归本机 UUID、账本空无 legacy）；**notif 1492/1492 全保真、day/app/hour/session 键 0 丢**；统计页「占用时钟时长 128小时52分钟」真机显示（与日均亮屏区分，§7-57 ✓）；导出 JSON SAF 正常、纯本机无警告＝正确负路径；三页冒烟零 FATAL。证据 `CODE_REVIEW.md` 文末补记、`C:\tmp\cr28_v7\*GAQO*`。**遗留观察待裁决**：Redmi 历史 `day_summary` 有 >24h 脏行（11-11 = 46h44m 等，旧累加合并时代产物、非 CR-28 引入），是否清洗请负责人定。
 - [x] **CR-29 · 系统备份关闭（P1 隐私，2026-11-17 实现完成）**：`allowBackup="false"` + `fullBackupContent`（≤API30）/ `dataExtractionRules`（API31+，含 device-transfer）**全排除**规则文件；应用数据不进任何系统备份/迁移通道，导出换机只经 §5.10 出口。`BackupPolicyTest` 三重断言（运行时 flags / manifest 声明 / 规则文件全排除），**M22/M23 变异全红**（allowBackup 改回 true 2 红 / 删 root 排除 1 红）。§7-60 验收。
   - 铁律：不清空数据库、不删旧备份、不伪造历史来源、优先保证历史数据不丢失；每批一个提交、文档先行、变异验证；Redmi 禁用窗口内真机用 vivo `10CEB40M5G001DK`。设计全文 `docs/设计审查-CR-28 来源设备维度.md`。
   - [x] **真机迁移验证（2026-11-17 13:50，vivo）**：v5→v6 迁移通过——冷启动 `MainActivity` 为前台、crash 缓冲 0 条；真机库核对**老数据一行未丢**（day_summary 10 / app_usage 247 / hour_usage 144 / notification_event 3735 / screen_session 1283），`device_merge_ledger` 建出（列 deviceId+date）、`identity_hash` 已写。与 `MigrationTest` 的完整 schema 校验一致。

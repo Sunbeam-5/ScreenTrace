@@ -1709,4 +1709,16 @@ P1-1 的探针与 P1-2 的变异都是临时改动，复现后已 `git checkout 
 - **seq 真机生效**：`notification_event` 出现 `seq = [0,1,2,3]`——同毫秒多条不丢真实发生。
 - 附带记账：WAL 未 checkpoint 时 `run-as cat` 只拉主库文件会误判「迁移没跑」——`check_v7.py` 已改拉 db+wal+shm 三件套。
 
-**遗留（非迁移问题，记待办）**：`notification_event` 1 键丢 + 10 处 `channelId` 变化，归因为 `MergePolicy.mergeNotifications` 的「秒级分组取大条数、**整边替换**」既有语义（CR-01「同秒多条不丢」在整边替换下并不严格保证），发生在迁移窗口的正常采集中；JVM T7 行数断言与 unlock 全保真佐证迁移搬行无损。待批次 E 或单列修复。 \pp_usage\ | 247 ✓ |
+**遗留（非迁移问题，记待办）**：`notification_event` 1 键丢 + 10 处 `channelId` 变化，归因为 `MergePolicy.mergeNotifications` 的「秒级分组取大条数、**整边替换**」既有语义（CR-01「同秒多条不丢」在整边替换下并不严格保证），发生在迁移窗口的正常采集中；JVM T7 行数断言与 unlock 全保真佐证迁移搬行无损。待批次 E 或单列修复。
+
+---
+
+## 补记 · CR-28/29 Redmi 真机验证（2026-11-18 08:00 GAQOHMNFQWFUPBQO，插件稳定性测试结束后）
+
+- **v5→v8 全链迁移通过**（该机库比 vivo 还旧一级，MIGRATION_5_6→6_7→7_8 全跑）：identity_hash = 776a5e89c0227e47f90ee1d1add7c2e3（v8），App 无崩溃、采集正常。
+- **归档正确**：六表全部行 sourceDeviceId = 02ebd900-…（Redmi 本机 UUID；账本空 → 无 legacy，符合纯本机日归本机）。
+- **保真（按主键分类核对）**：
+otification_event **1492/1492 全保真**；day/app/hour/session **键 0 丢**（值更新均为启动后正常采集补录；session 1 处扫线并集吞并已验证被覆盖）。
+- **UI 复核**：统计页「占用时钟时长 128小时52分钟」真机显示（图例行下，与「日均亮屏」＝SUM 明确区分，§7-57 ✓）；导出 JSON 走 SAF 保存正常，**纯本机来源无兼容警告＝正确负路径**（多来源正路径由 AppViewModelCr28Test/BackupSourceRoundTripTest 单测覆盖）。
+- **冒烟**：今日/统计/日历三页渲染真实数据，pid 稳定、**零 FATAL**。
+- **遗留观察（非 CR-28 引入，待裁决）**：Redmi 历史 day_summary 存在 **>24h 的脏行**（11-11 = 46h44m、11-12 = 33h25m、11-10 = 25h30m）——旧「累加合并」时代撑爆的日聚合（before 快照原值即如此；MIGRATION_2_3/3_4 清过 pp_usage/hour_usage，day_summary 从未清洗）。CR-28 保真核对确认不是本批引入；是否清洗这批历史脏行请负责人裁决（可用重建工具思路或单独清洗批次）。 \pp_usage\ | 247 ✓ |
