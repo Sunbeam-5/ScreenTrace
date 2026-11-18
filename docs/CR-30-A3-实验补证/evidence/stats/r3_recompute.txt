@@ -1,0 +1,275 @@
+== A3_A_baseline (Hz=120) ==
+  a3_baseline_r4.pftrace: raw=489 unique=489 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=489 p50=8.5 p90=18.9 p95=21.8 p99=29.9 max=207.2
+  绝对阈值: >16.67ms=60 >33.33ms=4 >50ms=4 >100ms=4
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=268 错过一次刷新(>16.67)=60 严重长帧(>50)=4 极端长帧(>100)=4
+  jank_type: {'None': 294, 'Dropped Frame': 82, 'Buffer Stuffing': 105, 'App Deadline Missed, Buffer Stuffing': 2, 'App Deadline Missed': 3, 'Display HAL, App Deadline Missed': 1, 'Unknown Jank': 2}
+  present_type: {'On-time Present': 294, 'Dropped Frame': 82, 'Late Present': 113}  on_time_finish: {'late': 114, 'on_time': 375}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A3_V1 (Hz=120) ==
+  v1_navfreeze_r4.pftrace: raw=550 unique=550 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=550 p50=8.8 p90=13.8 p95=15.1 p99=20.6 max=191.0
+  绝对阈值: >16.67ms=10 >33.33ms=4 >50ms=4 >100ms=4
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=318 错过一次刷新(>16.67)=10 严重长帧(>50)=4 极端长帧(>100)=4
+  jank_type: {'App Deadline Missed': 4, 'None': 377, 'Dropped Frame': 142, 'Buffer Stuffing': 27}
+  present_type: {'Late Present': 31, 'On-time Present': 377, 'Dropped Frame': 142}  on_time_finish: {'late': 171, 'on_time': 379}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A3_V2 (Hz=120) ==
+  v2_hdrfreeze_r4.pftrace: raw=510 unique=510 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=510 p50=8.4 p90=13.1 p95=14.3 p99=23.1 max=226.4
+  绝对阈值: >16.67ms=13 >33.33ms=4 >50ms=4 >100ms=4
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=269 错过一次刷新(>16.67)=13 严重长帧(>50)=4 极端长帧(>100)=4
+  jank_type: {'App Deadline Missed': 2, 'Prediction Error': 1, 'Dropped Frame': 104, 'None': 373, 'Buffer Stuffing': 9, 'SurfaceFlinger CPU Deadline Missed': 1, 'Unknown Jank': 20}
+  present_type: {'Late Present': 33, 'Dropped Frame': 104, 'On-time Present': 373}  on_time_finish: {'late': 128, 'on_time': 382}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A3_V3 (Hz=120) ==
+  v3_overlays_r4.pftrace: raw=506 unique=506 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=506 p50=8.3 p90=13.1 p95=14.0 p99=22.4 max=186.2
+  绝对阈值: >16.67ms=13 >33.33ms=4 >50ms=4 >100ms=4
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=251 错过一次刷新(>16.67)=13 严重长帧(>50)=4 极端长帧(>100)=4
+  jank_type: {'Prediction Error, App Deadline Missed': 1, 'Prediction Error': 2, 'Dropped Frame': 101, 'None': 356, 'Buffer Stuffing': 7, 'App Deadline Missed, Buffer Stuffing': 1, 'App Deadline Missed': 3, 'Display HAL': 1, 'Unknown Jank': 23, 'App Deadline Missed, Unknown Jank': 11}
+  present_type: {'Late Present': 49, 'Dropped Frame': 101, 'On-time Present': 356}  on_time_finish: {'late': 123, 'on_time': 383}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A3_V4 (Hz=120) ==
+  v4_scrollstrip_r4.pftrace: raw=512 unique=512 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=512 p50=8.3 p90=13.4 p95=14.3 p99=21.5 max=210.4
+  绝对阈值: >16.67ms=11 >33.33ms=4 >50ms=4 >100ms=4
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=253 错过一次刷新(>16.67)=11 严重长帧(>50)=4 极端长帧(>100)=4
+  jank_type: {'App Deadline Missed': 3, 'Buffer Stuffing': 108, 'Dropped Frame': 103, 'None': 296, 'Display HAL': 1, 'Unknown Jank': 1}
+  present_type: {'Late Present': 113, 'Dropped Frame': 103, 'On-time Present': 296}  on_time_finish: {'late': 109, 'on_time': 403}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A3_V5 (Hz=120) ==
+  v5_allstrip_r4.pftrace: raw=568 unique=568 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=568 p50=7.7 p90=12.8 p95=13.5 p99=23.4 max=78.9
+  绝对阈值: >16.67ms=16 >33.33ms=4 >50ms=4 >100ms=0
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=210 错过一次刷新(>16.67)=16 严重长帧(>50)=4 极端长帧(>100)=0
+  jank_type: {'Display HAL, App Deadline Missed': 1, 'Unknown Jank': 26, 'Dropped Frame': 160, 'App Deadline Missed, Unknown Jank': 1, 'None': 374, 'Buffer Stuffing': 6}
+  present_type: {'Late Present': 34, 'Dropped Frame': 160, 'On-time Present': 374}  on_time_finish: {'late': 163, 'on_time': 405}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== R2_r2a_far120 (Hz=120) ==
+  r2a_far_120hz_r1.pftrace: raw=475 unique=475 dupIDs=0 tsDurConsistent=True dupTracks={}
+  r2a_far_120hz_r2.pftrace: raw=474 unique=474 dupIDs=0 tsDurConsistent=True dupTracks={}
+  r2a_far_120hz_r3.pftrace: raw=456 unique=456 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1405 p50=8.4 p90=18.4 p95=21.4 p99=27.4 max=215.7
+  绝对阈值: >16.67ms=189 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=717 错过一次刷新(>16.67)=189 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'Display HAL, App Deadline Missed': 1, 'Unknown Jank': 12, 'Dropped Frame': 186, 'Buffer Stuffing, Unknown Jank': 3, 'App Deadline Missed, Buffer Stuffing': 9, 'None': 908, 'Buffer Stuffing': 275, 'App Deadline Missed': 10, 'SurfaceFlinger CPU Deadline Missed, App Deadline Missed': 1}
+  present_type: {'Late Present': 311, 'Dropped Frame': 186, 'On-time Present': 908}  on_time_finish: {'late': 261, 'on_time': 1144}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== R2_r2v5_far120 (Hz=120) ==
+  r2v5_far_120hz_r1.pftrace: raw=466 unique=466 dupIDs=0 tsDurConsistent=True dupTracks={}
+  r2v5_far_120hz_r2.pftrace: raw=469 unique=469 dupIDs=0 tsDurConsistent=True dupTracks={}
+  r2v5_far_120hz_r3.pftrace: raw=461 unique=461 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1396 p50=7.7 p90=22.1 p95=25.5 p99=32.9 max=87.0
+  绝对阈值: >16.67ms=266 >33.33ms=13 >50ms=12 >100ms=0
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=443 错过一次刷新(>16.67)=266 严重长帧(>50)=12 极端长帧(>100)=0
+  jank_type: {'Prediction Error': 3, 'Dropped Frame': 172, 'Display HAL': 2, 'Buffer Stuffing, Unknown Jank': 19, 'Unknown Jank': 139, 'App Deadline Missed': 7, 'Buffer Stuffing': 121, 'None': 930, 'App Deadline Missed, Buffer Stuffing': 2, 'Display HAL, App Deadline Missed': 1}
+  present_type: {'Late Present': 294, 'Dropped Frame': 172, 'On-time Present': 930}  on_time_finish: {'on_time': 1211, 'late': 185}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_base_clean_far_120 (Hz=120) ==
+  base_clean_far_120hz_r1.pftrace: raw=466 unique=466 dupIDs=0 tsDurConsistent=True dupTracks={}
+  base_clean_far_120hz_r2.pftrace: raw=487 unique=487 dupIDs=0 tsDurConsistent=True dupTracks={}
+  base_clean_far_120hz_r3.pftrace: raw=478 unique=478 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1431 p50=8.4 p90=19.0 p95=22.1 p99=27.3 max=221.4
+  绝对阈值: >16.67ms=201 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=738 错过一次刷新(>16.67)=201 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'None': 860, 'Dropped Frame': 216, 'Buffer Stuffing': 179, 'App Deadline Missed, Buffer Stuffing': 6, 'App Deadline Missed': 12, 'Buffer Stuffing, Unknown Jank': 15, 'Display HAL': 3, 'Unknown Jank': 122, 'App Deadline Missed, Unknown Jank': 18}
+  present_type: {'On-time Present': 860, 'Dropped Frame': 216, 'Late Present': 355}  on_time_finish: {'on_time': 1137, 'late': 294}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_base_clean_far_60 (Hz=60) ==
+  base_clean_far_60hz_r1.pftrace: raw=490 unique=490 dupIDs=0 tsDurConsistent=True dupTracks={}
+  base_clean_far_60hz_r2.pftrace: raw=470 unique=470 dupIDs=0 tsDurConsistent=True dupTracks={}
+  base_clean_far_60hz_r3.pftrace: raw=478 unique=478 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1438 p50=8.4 p90=19.1 p95=21.6 p99=26.7 max=204.7
+  绝对阈值: >16.67ms=196 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(60Hz, 预算16.67ms): 超单帧预算(>16.67)=196 错过一次刷新(>33.33)=12 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'SurfaceFlinger CPU Deadline Missed, App Deadline Missed': 1, 'Buffer Stuffing, Unknown Jank': 10, 'Unknown Jank': 94, 'Dropped Frame': 218, 'None': 794, 'Buffer Stuffing': 300, 'App Deadline Missed': 14, 'App Deadline Missed, Buffer Stuffing': 4, 'Display HAL, Buffer Stuffing': 1, 'SurfaceFlinger CPU Deadline Missed, Buffer Stuffing': 1, 'Buffer Stuffing, SurfaceFlinger Stuffing': 1}
+  present_type: {'Late Present': 426, 'Dropped Frame': 218, 'On-time Present': 794}  on_time_finish: {'late': 271, 'on_time': 1167}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_base_clean_adj_120 (Hz=120) ==
+  base_clean_adj_120hz_r1.pftrace: raw=465 unique=465 dupIDs=0 tsDurConsistent=True dupTracks={}
+  base_clean_adj_120hz_r2.pftrace: raw=465 unique=465 dupIDs=0 tsDurConsistent=True dupTracks={}
+  base_clean_adj_120hz_r3.pftrace: raw=466 unique=466 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1396 p50=8.4 p90=17.5 p95=21.4 p99=28.4 max=223.1
+  绝对阈值: >16.67ms=154 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=776 错过一次刷新(>16.67)=154 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'App Deadline Missed': 9, 'Buffer Stuffing': 200, 'None': 983, 'Dropped Frame': 176, 'App Deadline Missed, Buffer Stuffing': 8, 'Display HAL, Buffer Stuffing': 1, 'Unknown Jank': 14, 'Buffer Stuffing, Unknown Jank': 3, 'Prediction Error': 2}
+  present_type: {'Late Present': 236, 'On-time Present': 983, 'Dropped Frame': 176, 'Early Present': 1}  on_time_finish: {'late': 263, 'on_time': 1133}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_base_clean_adj_60 (Hz=60) ==
+  base_clean_adj_60hz_r1.pftrace: raw=466 unique=466 dupIDs=0 tsDurConsistent=True dupTracks={}
+  base_clean_adj_60hz_r2.pftrace: raw=471 unique=471 dupIDs=0 tsDurConsistent=True dupTracks={}
+  base_clean_adj_60hz_r3.pftrace: raw=461 unique=461 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1398 p50=8.4 p90=17.0 p95=21.5 p99=27.5 max=229.4
+  绝对阈值: >16.67ms=148 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(60Hz, 预算16.67ms): 超单帧预算(>16.67)=148 错过一次刷新(>33.33)=12 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'None': 978, 'Dropped Frame': 180, 'App Deadline Missed, Buffer Stuffing': 9, 'Buffer Stuffing': 223, 'App Deadline Missed': 7, 'Prediction Error': 1}
+  present_type: {'On-time Present': 978, 'Dropped Frame': 180, 'Late Present': 240}  on_time_finish: {'on_time': 1129, 'late': 269}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_e1_clean_far_120 (Hz=120) ==
+  e1_clean_far_120hz_r1.pftrace: raw=503 unique=503 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1_clean_far_120hz_r2.pftrace: raw=484 unique=484 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1_clean_far_120hz_r3.pftrace: raw=497 unique=497 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1484 p50=8.4 p90=18.1 p95=21.1 p99=26.1 max=225.4
+  绝对阈值: >16.67ms=179 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=763 错过一次刷新(>16.67)=179 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'App Deadline Missed': 9, 'Buffer Stuffing': 299, 'App Deadline Missed, Buffer Stuffing': 6, 'Dropped Frame': 265, 'None': 778, 'Display HAL, App Deadline Missed, Buffer Stuffing': 1, 'App Deadline Missed, Buffer Stuffing, Unknown Jank': 2, 'Unknown Jank': 111, 'Buffer Stuffing, Unknown Jank': 12, 'SurfaceFlinger CPU Deadline Missed, App Deadline Missed': 1}
+  present_type: {'Late Present': 441, 'Dropped Frame': 265, 'On-time Present': 778}  on_time_finish: {'late': 357, 'on_time': 1127}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_e1_clean_far_60 (Hz=60) ==
+  e1_clean_far_60hz_r1.pftrace: raw=480 unique=480 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1_clean_far_60hz_r2.pftrace: raw=480 unique=480 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1_clean_far_60hz_r3.pftrace: raw=488 unique=488 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1448 p50=8.4 p90=18.9 p95=20.9 p99=27.9 max=221.4
+  绝对阈值: >16.67ms=190 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(60Hz, 预算16.67ms): 超单帧预算(>16.67)=190 错过一次刷新(>33.33)=12 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'App Deadline Missed': 8, 'Dropped Frame': 240, 'None': 935, 'Buffer Stuffing': 247, 'App Deadline Missed, Buffer Stuffing': 16, 'SurfaceFlinger CPU Deadline Missed, App Deadline Missed': 1, 'SurfaceFlinger CPU Deadline Missed': 1}
+  present_type: {'Late Present': 273, 'Dropped Frame': 240, 'On-time Present': 935}  on_time_finish: {'late': 332, 'on_time': 1116}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_e1_clean_adj_120 (Hz=120) ==
+  e1_clean_adj_120hz_r1.pftrace: raw=460 unique=460 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1_clean_adj_120hz_r2.pftrace: raw=468 unique=468 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1_clean_adj_120hz_r3.pftrace: raw=465 unique=465 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1393 p50=8.5 p90=16.7 p95=21.4 p99=27.1 max=217.7
+  绝对阈值: >16.67ms=141 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=788 错过一次刷新(>16.67)=141 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'None': 926, 'Buffer Stuffing': 207, 'App Deadline Missed, Buffer Stuffing': 8, 'Dropped Frame': 179, 'App Deadline Missed': 10, 'Prediction Error, App Deadline Missed': 1, 'Display HAL, Buffer Stuffing': 1, 'Buffer Stuffing, Unknown Jank': 20, 'Unknown Jank': 39, 'App Deadline Missed, Unknown Jank': 1, 'SurfaceFlinger CPU Deadline Missed, Buffer Stuffing': 1}
+  present_type: {'On-time Present': 926, 'Late Present': 288, 'Dropped Frame': 179}  on_time_finish: {'on_time': 1126, 'late': 267}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_e1_clean_adj_60 (Hz=60) ==
+  e1_clean_adj_60hz_r1.pftrace: raw=473 unique=473 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1_clean_adj_60hz_r2.pftrace: raw=466 unique=466 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1_clean_adj_60hz_r3.pftrace: raw=476 unique=476 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1415 p50=8.5 p90=16.4 p95=20.5 p99=28.5 max=223.5
+  绝对阈值: >16.67ms=134 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(60Hz, 预算16.67ms): 超单帧预算(>16.67)=134 错过一次刷新(>33.33)=12 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'Prediction Error, App Deadline Missed': 2, 'None': 872, 'Dropped Frame': 198, 'App Deadline Missed, Buffer Stuffing': 5, 'Buffer Stuffing': 256, 'App Deadline Missed': 12, 'Display HAL, App Deadline Missed': 1, 'Display HAL': 1, 'Unknown Jank': 8, 'SurfaceFlinger CPU Deadline Missed, Buffer Stuffing': 1, 'Buffer Stuffing, Unknown Jank': 58, 'Display HAL, Buffer Stuffing': 1}
+  present_type: {'Late Present': 345, 'On-time Present': 872, 'Dropped Frame': 198}  on_time_finish: {'late': 269, 'on_time': 1146}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_e2_clean_far_120 (Hz=120) ==
+  e2_clean_far_120hz_r1.pftrace: raw=465 unique=465 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e2_clean_far_120hz_r2.pftrace: raw=474 unique=474 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e2_clean_far_120hz_r3.pftrace: raw=465 unique=465 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1404 p50=8.3 p90=18.0 p95=21.6 p99=27.9 max=221.5
+  绝对阈值: >16.67ms=169 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=691 错过一次刷新(>16.67)=169 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'App Deadline Missed': 13, 'Buffer Stuffing': 232, 'Dropped Frame': 189, 'None': 965, 'App Deadline Missed, Buffer Stuffing': 5}
+  present_type: {'Late Present': 250, 'Dropped Frame': 189, 'On-time Present': 965}  on_time_finish: {'late': 288, 'on_time': 1116}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_e2_clean_far_60 (Hz=60) ==
+  e2_clean_far_60hz_r1.pftrace: raw=467 unique=467 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e2_clean_far_60hz_r2.pftrace: raw=461 unique=461 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e2_clean_far_60hz_r3.pftrace: raw=464 unique=464 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1392 p50=8.3 p90=18.5 p95=21.6 p99=27.2 max=220.4
+  绝对阈值: >16.67ms=187 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(60Hz, 预算16.67ms): 超单帧预算(>16.67)=187 错过一次刷新(>33.33)=12 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'Prediction Error': 1, 'None': 972, 'Dropped Frame': 182, 'Buffer Stuffing': 210, 'App Deadline Missed, Buffer Stuffing': 7, 'App Deadline Missed': 16, 'Display HAL': 1, 'App Deadline Missed, Unknown Jank': 1, 'Buffer Stuffing, Unknown Jank': 1, 'Unknown Jank': 1}
+  present_type: {'Early Present': 1, 'On-time Present': 972, 'Dropped Frame': 182, 'Late Present': 237}  on_time_finish: {'on_time': 1128, 'late': 264}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_e2_clean_adj_120 (Hz=120) ==
+  e2_clean_adj_120hz_r1.pftrace: raw=448 unique=448 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e2_clean_adj_120hz_r2.pftrace: raw=451 unique=451 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e2_clean_adj_120hz_r3.pftrace: raw=452 unique=452 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1351 p50=8.4 p90=17.5 p95=21.1 p99=28.1 max=227.7
+  绝对阈值: >16.67ms=148 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=695 错过一次刷新(>16.67)=148 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'Prediction Error, App Deadline Missed': 1, 'Prediction Error': 3, 'Dropped Frame': 136, 'None': 1102, 'Buffer Stuffing': 91, 'App Deadline Missed': 16, 'App Deadline Missed, Buffer Stuffing': 2}
+  present_type: {'Late Present': 113, 'Dropped Frame': 136, 'On-time Present': 1102}  on_time_finish: {'late': 265, 'on_time': 1086}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== A4_e2_clean_adj_60 (Hz=60) ==
+  e2_clean_adj_60hz_r1.pftrace: raw=447 unique=447 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e2_clean_adj_60hz_r2.pftrace: raw=441 unique=441 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e2_clean_adj_60hz_r3.pftrace: raw=442 unique=442 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1330 p50=8.3 p90=17.0 p95=20.8 p99=30.2 max=208.4
+  绝对阈值: >16.67ms=141 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(60Hz, 预算16.67ms): 超单帧预算(>16.67)=141 错过一次刷新(>33.33)=12 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'Prediction Error, App Deadline Missed': 2, 'None': 953, 'Dropped Frame': 118, 'App Deadline Missed, Buffer Stuffing': 6, 'Buffer Stuffing': 169, 'App Deadline Missed': 15, 'Display HAL': 1, 'Unknown Jank': 30, 'App Deadline Missed, Unknown Jank': 32, 'Buffer Stuffing, Unknown Jank': 3, 'SurfaceFlinger CPU Deadline Missed': 1}
+  present_type: {'Late Present': 259, 'On-time Present': 953, 'Dropped Frame': 118}  on_time_finish: {'late': 213, 'on_time': 1117}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== R2_e1a_far_120 (Hz=120) ==
+  e1a_far_120hz_r1.pftrace: raw=479 unique=479 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1a_far_120hz_r2.pftrace: raw=472 unique=472 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1a_far_120hz_r3.pftrace: raw=479 unique=479 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1430 p50=8.3 p90=19.0 p95=21.7 p99=28.9 max=220.4
+  绝对阈值: >16.67ms=198 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=721 错过一次刷新(>16.67)=198 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'Prediction Error': 1, 'App Deadline Missed': 13, 'Dropped Frame': 210, 'None': 792, 'App Deadline Missed, Buffer Stuffing': 6, 'Buffer Stuffing': 310, 'Display HAL': 1, 'Buffer Stuffing, Unknown Jank': 42, 'Unknown Jank': 49, 'App Deadline Missed, Buffer Stuffing, Unknown Jank': 1, 'Prediction Error, App Deadline Missed': 1, 'SurfaceFlinger CPU Deadline Missed': 1, 'Display HAL, Buffer Stuffing': 1, 'App Deadline Missed, Unknown Jank': 2}
+  present_type: {'Early Present': 1, 'Late Present': 427, 'Dropped Frame': 210, 'On-time Present': 792}  on_time_finish: {'on_time': 1173, 'late': 257}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== R2_e1a_far_60 (Hz=60) ==
+  e1a_far_60hz_r1.pftrace: raw=473 unique=473 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1a_far_60hz_r2.pftrace: raw=460 unique=460 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1a_far_60hz_r3.pftrace: raw=471 unique=471 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1404 p50=8.4 p90=18.2 p95=21.2 p99=27.9 max=209.6
+  绝对阈值: >16.67ms=187 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(60Hz, 预算16.67ms): 超单帧预算(>16.67)=189 错过一次刷新(>33.33)=12 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'None': 938, 'Buffer Stuffing': 252, 'Dropped Frame': 191, 'App Deadline Missed': 13, 'App Deadline Missed, Buffer Stuffing': 5, 'Display HAL, Buffer Stuffing': 1, 'Buffer Stuffing, Unknown Jank': 4}
+  present_type: {'On-time Present': 938, 'Late Present': 275, 'Dropped Frame': 191}  on_time_finish: {'late': 263, 'on_time': 1141}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== R2_e1a_adj_120 (Hz=120) ==
+  e1a_adj_120hz_r1.pftrace: raw=473 unique=473 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1a_adj_120hz_r2.pftrace: raw=453 unique=453 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1a_adj_120hz_r3.pftrace: raw=491 unique=491 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1417 p50=8.5 p90=17.2 p95=21.9 p99=30.0 max=250.6
+  绝对阈值: >16.67ms=150 >33.33ms=13 >50ms=12 >100ms=12
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=816 错过一次刷新(>16.67)=150 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'App Deadline Missed': 11, 'Prediction Error': 1, 'Dropped Frame': 199, 'Buffer Stuffing': 235, 'None': 929, 'App Deadline Missed, Buffer Stuffing': 11, 'Display HAL': 2, 'Buffer Stuffing, Unknown Jank': 1, 'Unknown Jank': 21, 'App Deadline Missed, Unknown Jank': 7}
+  present_type: {'Late Present': 289, 'Dropped Frame': 199, 'On-time Present': 929}  on_time_finish: {'late': 306, 'on_time': 1111}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== R2_e1a_adj_60 (Hz=60) ==
+  e1a_adj_60hz_r1.pftrace: raw=472 unique=472 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1a_adj_60hz_r2.pftrace: raw=462 unique=462 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1a_adj_60hz_r3.pftrace: raw=460 unique=460 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1394 p50=8.5 p90=17.4 p95=21.4 p99=30.6 max=226.9
+  绝对阈值: >16.67ms=148 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(60Hz, 预算16.67ms): 超单帧预算(>16.67)=148 错过一次刷新(>33.33)=12 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'None': 1058, 'Dropped Frame': 176, 'Buffer Stuffing': 141, 'App Deadline Missed, Buffer Stuffing': 7, 'App Deadline Missed': 10, 'Prediction Error': 2}
+  present_type: {'On-time Present': 1058, 'Dropped Frame': 176, 'Late Present': 160}  on_time_finish: {'on_time': 1098, 'late': 296}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== R2_e1b_far_120 (Hz=120) ==
+  e1b_far_120hz_r1.pftrace: raw=480 unique=480 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1b_far_120hz_r2.pftrace: raw=479 unique=479 dupIDs=0 tsDurConsistent=True dupTracks={}
+  e1b_far_120hz_r3.pftrace: raw=503 unique=503 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=1462 p50=8.4 p90=17.8 p95=21.0 p99=24.5 max=209.2
+  绝对阈值: >16.67ms=176 >33.33ms=12 >50ms=12 >100ms=12
+  刷新率适配(120Hz, 预算8.33ms): 超单帧预算(>8.33)=760 错过一次刷新(>16.67)=176 严重长帧(>50)=12 极端长帧(>100)=12
+  jank_type: {'Unknown Jank': 3, 'Prediction Error': 2, 'Buffer Stuffing': 334, 'None': 862, 'Dropped Frame': 242, 'App Deadline Missed, Buffer Stuffing': 7, 'App Deadline Missed': 10, 'Display HAL': 1, 'Display HAL, App Deadline Missed': 1}
+  present_type: {'Early Present': 2, 'Late Present': 356, 'On-time Present': 862, 'Dropped Frame': 242}  on_time_finish: {'late': 313, 'on_time': 1149}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+== R2_e1b_far_60 (Hz=60) ==
+  e1b_far_60hz_r1.pftrace: raw=485 unique=485 dupIDs=0 tsDurConsistent=True dupTracks={}
+  唯一帧合计=485 p50=8.4 p90=17.4 p95=21.2 p99=26.2 max=193.2
+  绝对阈值: >16.67ms=53 >33.33ms=4 >50ms=4 >100ms=4
+  刷新率适配(60Hz, 预算16.67ms): 超单帧预算(>16.67)=53 错过一次刷新(>33.33)=4 严重长帧(>50)=4 极端长帧(>100)=4
+  jank_type: {'None': 353, 'App Deadline Missed': 4, 'App Deadline Missed, Buffer Stuffing': 2, 'Buffer Stuffing': 44, 'Dropped Frame': 82}
+  present_type: {'On-time Present': 353, 'Late Present': 50, 'Dropped Frame': 82}  on_time_finish: {'on_time': 374, 'late': 111}
+  连续长帧对(唯一帧时序,同trace内)=0
+
+R2_e1b_adj_120: (no traces)
+
+R2_e1b_adj_60: (no traces)

@@ -1,0 +1,461 @@
+== base_clean_far_120 ==
+  base_clean_far_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[104] 纳入=True raw=466 unique=466 dupIDs=0 nameToken不一致=0 窗口=5.40s trace=10.95s n=466 p50=8.4 p90=18.6 p95=22.3 p99=27.3 max=208.6 >16.67=67 >33.33=4 >50=4 >100=4
+  base_clean_far_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[84] 纳入=True raw=487 unique=487 dupIDs=0 nameToken不一致=0 窗口=5.42s trace=10.94s n=487 p50=8.4 p90=19.3 p95=21.9 p99=28.0 max=187.7 >16.67=68 >33.33=4 >50=4 >100=4
+  base_clean_far_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[59] 纳入=True raw=478 unique=478 dupIDs=0 nameToken不一致=0 窗口=5.32s trace=10.94s n=478 p50=8.4 p90=19.4 p95=22.1 p99=28.7 max=221.4 >16.67=66 >33.33=4 >50=4 >100=4
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1431；帧覆盖窗口合计=16.15s；trace 时长合计=32.83s
+  p50=8.4 p90=19.0 p95=22.1 p99=27.3 max=221.4ms
+  绝对阈值: >16.67ms=201 (14.0%) >33.33ms=12 (0.8%) >50ms=12 (0.8%) >100ms=12 (0.8%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=738 (51.6%) 帧耗时超两倍预算(>2×8.33ms)=201 (14.0%) 严重长帧(>50ms)=12 (0.8%) 极端长帧(>100ms)=12 (0.8%)
+  真实呈现迟到/丢帧: Late Present=355 (24.8%) Dropped Frame=216 (15.1%) on_time_finish=false(late)=294 (20.5%) unknown(null)=0 (0.0%) jank含App Deadline Missed=36 (2.5%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'on_time(true)': 1137, 'late(false)': 294}
+  jank_type: {'None': 860, 'Dropped Frame': 216, 'Buffer Stuffing': 179, 'App Deadline Missed, Buffer Stuffing': 6, 'App Deadline Missed': 12, 'Buffer Stuffing, Unknown Jank': 15, 'Display HAL': 3, 'Unknown Jank': 122, 'App Deadline Missed, Unknown Jank': 18}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'On-time Present': 860, 'Dropped Frame': 216, 'Late Present': 355}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('base_clean_far_120hz_r1.pftrace', 152), ('base_clean_far_120hz_r2.pftrace', 157), ('base_clean_far_120hz_r3.pftrace', 152)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1431}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: base_clean_far_120hz_r3.pftrace（frame_token=537627702）
+  异常清单: （空）
+
+== base_clean_far_60 ==
+  base_clean_far_60hz_r1.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[63] 纳入=True raw=490 unique=490 dupIDs=0 nameToken不一致=0 窗口=5.34s trace=10.94s n=490 p50=8.3 p90=19.1 p95=21.9 p99=27.0 max=204.7 >16.67=62 >33.33=4 >50=4 >100=4
+  base_clean_far_60hz_r2.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[69] 纳入=True raw=470 unique=470 dupIDs=0 nameToken不一致=0 窗口=5.39s trace=10.96s n=470 p50=8.5 p90=18.8 p95=21.0 p99=26.7 max=196.8 >16.67=69 >33.33=4 >50=4 >100=4
+  base_clean_far_60hz_r3.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[63] 纳入=True raw=478 unique=478 dupIDs=0 nameToken不一致=0 窗口=5.37s trace=10.95s n=478 p50=8.4 p90=19.3 p95=21.3 p99=27.0 max=191.2 >16.67=65 >33.33=4 >50=4 >100=4
+  组刷新率=60Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1438；帧覆盖窗口合计=16.10s；trace 时长合计=32.85s
+  p50=8.4 p90=19.1 p95=21.6 p99=26.7 max=204.7ms
+  绝对阈值: >16.67ms=196 (13.6%) >33.33ms=12 (0.8%) >50ms=12 (0.8%) >100ms=12 (0.8%)
+  预算阈值(60Hz, 单帧预算16.67ms): 超单帧预算(>1×)=196 (13.6%) 帧耗时超两倍预算(>2×16.67ms)=12 (0.8%) 严重长帧(>50ms)=12 (0.8%) 极端长帧(>100ms)=12 (0.8%)
+  真实呈现迟到/丢帧: Late Present=426 (29.6%) Dropped Frame=218 (15.2%) on_time_finish=false(late)=271 (18.8%) unknown(null)=0 (0.0%) jank含App Deadline Missed=19 (1.3%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 271, 'on_time(true)': 1167}
+  jank_type: {'SurfaceFlinger CPU Deadline Missed, App Deadline Missed': 1, 'Buffer Stuffing, Unknown Jank': 10, 'Unknown Jank': 94, 'Dropped Frame': 218, 'None': 794, 'Buffer Stuffing': 300, 'App Deadline Missed': 14, 'App Deadline Missed, Buffer Stuffing': 4, 'Display HAL, Buffer Stuffing': 1, 'SurfaceFlinger CPU Deadline Missed, Buffer Stuffing': 1, 'Buffer Stuffing, SurfaceFlinger Stuffing': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Late Present': 426, 'Dropped Frame': 218, 'On-time Present': 794}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('base_clean_far_60hz_r1.pftrace', 153), ('base_clean_far_60hz_r2.pftrace', 152), ('base_clean_far_60hz_r3.pftrace', 152)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1438}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: base_clean_far_60hz_r1.pftrace（frame_token=537640612）
+  异常清单: （空）
+
+== base_clean_adj_120 ==
+  base_clean_adj_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[62] 纳入=True raw=465 unique=465 dupIDs=0 nameToken不一致=0 窗口=5.43s trace=10.95s n=465 p50=8.5 p90=16.9 p95=21.9 p99=26.4 max=214.4 >16.67=48 >33.33=4 >50=4 >100=4
+  base_clean_adj_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[79] 纳入=True raw=465 unique=465 dupIDs=0 nameToken不一致=0 窗口=5.45s trace=10.94s n=465 p50=8.5 p90=17.6 p95=20.7 p99=26.0 max=183.5 >16.67=53 >33.33=4 >50=4 >100=4
+  base_clean_adj_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[66] 纳入=True raw=466 unique=466 dupIDs=0 nameToken不一致=0 窗口=5.32s trace=10.94s n=466 p50=8.4 p90=18.6 p95=22.6 p99=29.8 max=223.1 >16.67=53 >33.33=4 >50=4 >100=4
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1396；帧覆盖窗口合计=16.19s；trace 时长合计=32.83s
+  p50=8.4 p90=17.5 p95=21.4 p99=28.4 max=223.1ms
+  绝对阈值: >16.67ms=154 (11.0%) >33.33ms=12 (0.9%) >50ms=12 (0.9%) >100ms=12 (0.9%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=776 (55.6%) 帧耗时超两倍预算(>2×8.33ms)=154 (11.0%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=12 (0.9%)
+  真实呈现迟到/丢帧: Late Present=236 (16.9%) Dropped Frame=176 (12.6%) on_time_finish=false(late)=263 (18.8%) unknown(null)=0 (0.0%) jank含App Deadline Missed=17 (1.2%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 263, 'on_time(true)': 1133}
+  jank_type: {'App Deadline Missed': 9, 'Buffer Stuffing': 200, 'None': 983, 'Dropped Frame': 176, 'App Deadline Missed, Buffer Stuffing': 8, 'Display HAL, Buffer Stuffing': 1, 'Unknown Jank': 14, 'Buffer Stuffing, Unknown Jank': 3, 'Prediction Error': 2}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Late Present': 236, 'On-time Present': 983, 'Dropped Frame': 176, 'Early Present': 1}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('base_clean_adj_120hz_r1.pftrace', 131), ('base_clean_adj_120hz_r2.pftrace', 133), ('base_clean_adj_120hz_r3.pftrace', 134)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1396}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: base_clean_adj_120hz_r3.pftrace（frame_token=537702082）
+  异常清单: （空）
+
+== base_clean_adj_60 ==
+  base_clean_adj_60hz_r1.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[98] 纳入=True raw=466 unique=466 dupIDs=0 nameToken不一致=0 窗口=5.39s trace=10.94s n=466 p50=8.5 p90=16.7 p95=21.7 p99=27.3 max=229.4 >16.67=47 >33.33=4 >50=4 >100=4
+  base_clean_adj_60hz_r2.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[100] 纳入=True raw=471 unique=471 dupIDs=0 nameToken不一致=0 窗口=5.41s trace=10.95s n=471 p50=8.4 p90=17.5 p95=21.8 p99=27.5 max=216.5 >16.67=51 >33.33=4 >50=4 >100=4
+  base_clean_adj_60hz_r3.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[96] 纳入=True raw=461 unique=461 dupIDs=0 nameToken不一致=0 窗口=5.32s trace=10.96s n=461 p50=8.4 p90=17.0 p95=21.0 p99=27.6 max=226.4 >16.67=50 >33.33=4 >50=4 >100=4
+  组刷新率=60Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1398；帧覆盖窗口合计=16.12s；trace 时长合计=32.85s
+  p50=8.4 p90=17.0 p95=21.5 p99=27.5 max=229.4ms
+  绝对阈值: >16.67ms=148 (10.6%) >33.33ms=12 (0.9%) >50ms=12 (0.9%) >100ms=12 (0.9%)
+  预算阈值(60Hz, 单帧预算16.67ms): 超单帧预算(>1×)=148 (10.6%) 帧耗时超两倍预算(>2×16.67ms)=12 (0.9%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=12 (0.9%)
+  真实呈现迟到/丢帧: Late Present=240 (17.2%) Dropped Frame=180 (12.9%) on_time_finish=false(late)=269 (19.2%) unknown(null)=0 (0.0%) jank含App Deadline Missed=16 (1.1%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'on_time(true)': 1129, 'late(false)': 269}
+  jank_type: {'None': 978, 'Dropped Frame': 180, 'App Deadline Missed, Buffer Stuffing': 9, 'Buffer Stuffing': 223, 'App Deadline Missed': 7, 'Prediction Error': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'On-time Present': 978, 'Dropped Frame': 180, 'Late Present': 240}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('base_clean_adj_60hz_r1.pftrace', 132), ('base_clean_adj_60hz_r2.pftrace', 130), ('base_clean_adj_60hz_r3.pftrace', 132)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1398}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: base_clean_adj_60hz_r1.pftrace（frame_token=537714827）
+  异常清单: （空）
+
+== e1_clean_far_120 ==
+  e1_clean_far_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[97] 纳入=True raw=503 unique=503 dupIDs=0 nameToken不一致=0 窗口=5.44s trace=10.94s n=503 p50=8.4 p90=18.1 p95=20.7 p99=25.8 max=198.7 >16.67=60 >33.33=4 >50=4 >100=4
+  e1_clean_far_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[90] 纳入=True raw=484 unique=484 dupIDs=0 nameToken不一致=0 窗口=5.35s trace=10.94s n=484 p50=8.3 p90=18.0 p95=20.8 p99=26.4 max=215.0 >16.67=61 >33.33=4 >50=4 >100=4
+  e1_clean_far_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[101] 纳入=True raw=497 unique=497 dupIDs=0 nameToken不一致=0 窗口=5.38s trace=10.96s n=497 p50=8.4 p90=18.4 p95=21.6 p99=31.5 max=225.4 >16.67=58 >33.33=4 >50=4 >100=4
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1484；帧覆盖窗口合计=16.17s；trace 时长合计=32.85s
+  p50=8.4 p90=18.1 p95=21.1 p99=26.1 max=225.4ms
+  绝对阈值: >16.67ms=179 (12.1%) >33.33ms=12 (0.8%) >50ms=12 (0.8%) >100ms=12 (0.8%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=763 (51.4%) 帧耗时超两倍预算(>2×8.33ms)=179 (12.1%) 严重长帧(>50ms)=12 (0.8%) 极端长帧(>100ms)=12 (0.8%)
+  真实呈现迟到/丢帧: Late Present=441 (29.7%) Dropped Frame=265 (17.9%) on_time_finish=false(late)=357 (24.1%) unknown(null)=0 (0.0%) jank含App Deadline Missed=19 (1.3%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 357, 'on_time(true)': 1127}
+  jank_type: {'App Deadline Missed': 9, 'Buffer Stuffing': 299, 'App Deadline Missed, Buffer Stuffing': 6, 'Dropped Frame': 265, 'None': 778, 'Display HAL, App Deadline Missed, Buffer Stuffing': 1, 'App Deadline Missed, Buffer Stuffing, Unknown Jank': 2, 'Unknown Jank': 111, 'Buffer Stuffing, Unknown Jank': 12, 'SurfaceFlinger CPU Deadline Missed, App Deadline Missed': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Late Present': 441, 'Dropped Frame': 265, 'On-time Present': 778}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1_clean_far_120hz_r1.pftrace', 165), ('e1_clean_far_120hz_r2.pftrace', 161), ('e1_clean_far_120hz_r3.pftrace', 158)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1484}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1_clean_far_120hz_r3.pftrace（frame_token=537462393）
+  异常清单: （空）
+
+== e1_clean_far_60 ==
+  e1_clean_far_60hz_r1.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[99] 纳入=True raw=480 unique=480 dupIDs=0 nameToken不一致=0 窗口=5.40s trace=10.94s n=480 p50=8.5 p90=19.0 p95=20.9 p99=28.7 max=221.1 >16.67=62 >33.33=4 >50=4 >100=4
+  e1_clean_far_60hz_r2.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[60] 纳入=True raw=480 unique=480 dupIDs=0 nameToken不一致=0 窗口=5.30s trace=10.94s n=480 p50=8.3 p90=17.9 p95=20.4 p99=26.5 max=221.4 >16.67=63 >33.33=4 >50=4 >100=4
+  e1_clean_far_60hz_r3.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[60] 纳入=True raw=488 unique=488 dupIDs=0 nameToken不一致=0 窗口=5.39s trace=10.94s n=488 p50=8.4 p90=19.1 p95=21.7 p99=30.5 max=191.3 >16.67=65 >33.33=4 >50=4 >100=4
+  组刷新率=60Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1448；帧覆盖窗口合计=16.09s；trace 时长合计=32.83s
+  p50=8.4 p90=18.9 p95=20.9 p99=27.9 max=221.4ms
+  绝对阈值: >16.67ms=190 (13.1%) >33.33ms=12 (0.8%) >50ms=12 (0.8%) >100ms=12 (0.8%)
+  预算阈值(60Hz, 单帧预算16.67ms): 超单帧预算(>1×)=190 (13.1%) 帧耗时超两倍预算(>2×16.67ms)=12 (0.8%) 严重长帧(>50ms)=12 (0.8%) 极端长帧(>100ms)=12 (0.8%)
+  真实呈现迟到/丢帧: Late Present=273 (18.9%) Dropped Frame=240 (16.6%) on_time_finish=false(late)=332 (22.9%) unknown(null)=0 (0.0%) jank含App Deadline Missed=25 (1.7%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 332, 'on_time(true)': 1116}
+  jank_type: {'App Deadline Missed': 8, 'Dropped Frame': 240, 'None': 935, 'Buffer Stuffing': 247, 'App Deadline Missed, Buffer Stuffing': 16, 'SurfaceFlinger CPU Deadline Missed, App Deadline Missed': 1, 'SurfaceFlinger CPU Deadline Missed': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Late Present': 273, 'Dropped Frame': 240, 'On-time Present': 935}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1_clean_far_60hz_r1.pftrace', 153), ('e1_clean_far_60hz_r2.pftrace', 157), ('e1_clean_far_60hz_r3.pftrace', 156)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1448}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1_clean_far_60hz_r2.pftrace（frame_token=537488016）
+  异常清单: （空）
+
+== e1_clean_adj_120 ==
+  e1_clean_adj_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[106] 纳入=True raw=460 unique=460 dupIDs=0 nameToken不一致=0 窗口=5.43s trace=10.94s n=460 p50=8.5 p90=16.8 p95=21.0 p99=27.1 max=217.7 >16.67=46 >33.33=4 >50=4 >100=4
+  e1_clean_adj_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[66] 纳入=True raw=468 unique=468 dupIDs=0 nameToken不一致=0 窗口=5.35s trace=10.94s n=468 p50=8.4 p90=16.8 p95=20.1 p99=27.6 max=193.7 >16.67=48 >33.33=4 >50=4 >100=4
+  e1_clean_adj_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[24] 纳入=True raw=465 unique=465 dupIDs=0 nameToken不一致=0 窗口=5.43s trace=10.95s n=465 p50=8.6 p90=16.7 p95=21.8 p99=26.4 max=194.1 >16.67=47 >33.33=4 >50=4 >100=4
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1393；帧覆盖窗口合计=16.20s；trace 时长合计=32.84s
+  p50=8.5 p90=16.7 p95=21.4 p99=27.1 max=217.7ms
+  绝对阈值: >16.67ms=141 (10.1%) >33.33ms=12 (0.9%) >50ms=12 (0.9%) >100ms=12 (0.9%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=788 (56.6%) 帧耗时超两倍预算(>2×8.33ms)=141 (10.1%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=12 (0.9%)
+  真实呈现迟到/丢帧: Late Present=288 (20.7%) Dropped Frame=179 (12.8%) on_time_finish=false(late)=267 (19.2%) unknown(null)=0 (0.0%) jank含App Deadline Missed=20 (1.4%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'on_time(true)': 1126, 'late(false)': 267}
+  jank_type: {'None': 926, 'Buffer Stuffing': 207, 'App Deadline Missed, Buffer Stuffing': 8, 'Dropped Frame': 179, 'App Deadline Missed': 10, 'Prediction Error, App Deadline Missed': 1, 'Display HAL, Buffer Stuffing': 1, 'Buffer Stuffing, Unknown Jank': 20, 'Unknown Jank': 39, 'App Deadline Missed, Unknown Jank': 1, 'SurfaceFlinger CPU Deadline Missed, Buffer Stuffing': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'On-time Present': 926, 'Late Present': 288, 'Dropped Frame': 179}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1_clean_adj_120hz_r1.pftrace', 133), ('e1_clean_adj_120hz_r2.pftrace', 133), ('e1_clean_adj_120hz_r3.pftrace', 131)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1393}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1_clean_adj_120hz_r1.pftrace（frame_token=537753501）
+  异常清单: （空）
+
+== e1_clean_adj_60 ==
+  e1_clean_adj_60hz_r1.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[61] 纳入=True raw=473 unique=473 dupIDs=0 nameToken不一致=0 窗口=5.42s trace=10.95s n=473 p50=8.4 p90=16.3 p95=20.5 p99=24.5 max=223.5 >16.67=44 >33.33=4 >50=4 >100=4
+  e1_clean_adj_60hz_r2.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[85] 纳入=True raw=466 unique=466 dupIDs=0 nameToken不一致=0 窗口=5.36s trace=10.94s n=466 p50=8.5 p90=16.5 p95=20.1 p99=28.5 max=214.8 >16.67=45 >33.33=4 >50=4 >100=4
+  e1_clean_adj_60hz_r3.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[27] 纳入=True raw=476 unique=476 dupIDs=0 nameToken不一致=0 窗口=5.42s trace=10.94s n=476 p50=8.6 p90=16.4 p95=21.7 p99=29.8 max=193.7 >16.67=45 >33.33=4 >50=4 >100=4
+  组刷新率=60Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1415；帧覆盖窗口合计=16.20s；trace 时长合计=32.84s
+  p50=8.5 p90=16.4 p95=20.5 p99=28.5 max=223.5ms
+  绝对阈值: >16.67ms=134 (9.5%) >33.33ms=12 (0.8%) >50ms=12 (0.8%) >100ms=12 (0.8%)
+  预算阈值(60Hz, 单帧预算16.67ms): 超单帧预算(>1×)=134 (9.5%) 帧耗时超两倍预算(>2×16.67ms)=12 (0.8%) 严重长帧(>50ms)=12 (0.8%) 极端长帧(>100ms)=12 (0.8%)
+  真实呈现迟到/丢帧: Late Present=345 (24.4%) Dropped Frame=198 (14.0%) on_time_finish=false(late)=269 (19.0%) unknown(null)=0 (0.0%) jank含App Deadline Missed=20 (1.4%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 269, 'on_time(true)': 1146}
+  jank_type: {'Prediction Error, App Deadline Missed': 2, 'None': 872, 'Dropped Frame': 198, 'App Deadline Missed, Buffer Stuffing': 5, 'Buffer Stuffing': 256, 'App Deadline Missed': 12, 'Display HAL, App Deadline Missed': 1, 'Display HAL': 1, 'Unknown Jank': 8, 'SurfaceFlinger CPU Deadline Missed, Buffer Stuffing': 1, 'Buffer Stuffing, Unknown Jank': 58, 'Display HAL, Buffer Stuffing': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Late Present': 345, 'On-time Present': 872, 'Dropped Frame': 198}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1_clean_adj_60hz_r1.pftrace', 134), ('e1_clean_adj_60hz_r2.pftrace', 133), ('e1_clean_adj_60hz_r3.pftrace', 133)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1415}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1_clean_adj_60hz_r1.pftrace（frame_token=537791600）
+  异常清单: （空）
+
+== e2_clean_far_120 ==
+  e2_clean_far_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[100] 纳入=True raw=465 unique=465 dupIDs=0 nameToken不一致=0 窗口=5.41s trace=10.95s n=465 p50=8.4 p90=18.3 p95=21.4 p99=29.4 max=177.1 >16.67=57 >33.33=4 >50=4 >100=4
+  e2_clean_far_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[100] 纳入=True raw=474 unique=474 dupIDs=0 nameToken不一致=0 窗口=5.42s trace=10.95s n=474 p50=8.3 p90=18.3 p95=22.0 p99=27.9 max=202.1 >16.67=60 >33.33=4 >50=4 >100=4
+  e2_clean_far_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[64] 纳入=True raw=465 unique=465 dupIDs=0 nameToken不一致=0 窗口=5.32s trace=10.94s n=465 p50=8.3 p90=17.4 p95=21.4 p99=30.7 max=221.5 >16.67=52 >33.33=4 >50=4 >100=4
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1404；帧覆盖窗口合计=16.16s；trace 时长合计=32.84s
+  p50=8.3 p90=18.0 p95=21.6 p99=27.9 max=221.5ms
+  绝对阈值: >16.67ms=169 (12.0%) >33.33ms=12 (0.9%) >50ms=12 (0.9%) >100ms=12 (0.9%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=691 (49.2%) 帧耗时超两倍预算(>2×8.33ms)=169 (12.0%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=12 (0.9%)
+  真实呈现迟到/丢帧: Late Present=250 (17.8%) Dropped Frame=189 (13.5%) on_time_finish=false(late)=288 (20.5%) unknown(null)=0 (0.0%) jank含App Deadline Missed=18 (1.3%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 288, 'on_time(true)': 1116}
+  jank_type: {'App Deadline Missed': 13, 'Buffer Stuffing': 232, 'Dropped Frame': 189, 'None': 965, 'App Deadline Missed, Buffer Stuffing': 5}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Late Present': 250, 'Dropped Frame': 189, 'On-time Present': 965}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e2_clean_far_120hz_r1.pftrace', 163), ('e2_clean_far_120hz_r2.pftrace', 163), ('e2_clean_far_120hz_r3.pftrace', 167)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1404}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e2_clean_far_120hz_r3.pftrace（frame_token=537852617）
+  异常清单: （空）
+
+== e2_clean_far_60 ==
+  e2_clean_far_60hz_r1.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[74] 纳入=True raw=467 unique=467 dupIDs=0 nameToken不一致=0 窗口=5.32s trace=10.95s n=467 p50=8.3 p90=18.7 p95=21.3 p99=26.2 max=182.1 >16.67=65 >33.33=4 >50=4 >100=4
+  e2_clean_far_60hz_r2.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[1] 纳入=True raw=461 unique=461 dupIDs=0 nameToken不一致=0 窗口=5.39s trace=10.95s n=461 p50=8.2 p90=18.5 p95=21.6 p99=27.2 max=203.9 >16.67=63 >33.33=4 >50=4 >100=4
+  e2_clean_far_60hz_r3.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[93] 纳入=True raw=464 unique=464 dupIDs=0 nameToken不一致=0 窗口=5.43s trace=10.96s n=464 p50=8.3 p90=17.8 p95=22.0 p99=27.5 max=220.4 >16.67=59 >33.33=4 >50=4 >100=4
+  组刷新率=60Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1392；帧覆盖窗口合计=16.14s；trace 时长合计=32.86s
+  p50=8.3 p90=18.5 p95=21.6 p99=27.2 max=220.4ms
+  绝对阈值: >16.67ms=187 (13.4%) >33.33ms=12 (0.9%) >50ms=12 (0.9%) >100ms=12 (0.9%)
+  预算阈值(60Hz, 单帧预算16.67ms): 超单帧预算(>1×)=187 (13.4%) 帧耗时超两倍预算(>2×16.67ms)=12 (0.9%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=12 (0.9%)
+  真实呈现迟到/丢帧: Late Present=237 (17.0%) Dropped Frame=182 (13.1%) on_time_finish=false(late)=264 (19.0%) unknown(null)=0 (0.0%) jank含App Deadline Missed=24 (1.7%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'on_time(true)': 1128, 'late(false)': 264}
+  jank_type: {'Prediction Error': 1, 'None': 972, 'Dropped Frame': 182, 'Buffer Stuffing': 210, 'App Deadline Missed, Buffer Stuffing': 7, 'App Deadline Missed': 16, 'Display HAL': 1, 'App Deadline Missed, Unknown Jank': 1, 'Buffer Stuffing, Unknown Jank': 1, 'Unknown Jank': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Early Present': 1, 'On-time Present': 972, 'Dropped Frame': 182, 'Late Present': 237}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e2_clean_far_60hz_r1.pftrace', 162), ('e2_clean_far_60hz_r2.pftrace', 161), ('e2_clean_far_60hz_r3.pftrace', 161)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1392}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e2_clean_far_60hz_r3.pftrace（frame_token=537889412）
+  异常清单: （空）
+
+== e2_clean_adj_120 ==
+  e2_clean_adj_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[64] 纳入=True raw=448 unique=448 dupIDs=0 nameToken不一致=0 窗口=5.40s trace=10.95s n=448 p50=8.5 p90=17.5 p95=21.1 p99=27.2 max=224.2 >16.67=49 >33.33=4 >50=4 >100=4
+  e2_clean_adj_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[86] 纳入=True raw=451 unique=451 dupIDs=0 nameToken不一致=0 窗口=5.43s trace=10.96s n=451 p50=8.3 p90=17.0 p95=21.2 p99=28.7 max=227.7 >16.67=48 >33.33=4 >50=4 >100=4
+  e2_clean_adj_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[16] 纳入=True raw=452 unique=452 dupIDs=0 nameToken不一致=0 窗口=5.33s trace=10.95s n=452 p50=8.3 p90=17.6 p95=21.1 p99=27.8 max=227.0 >16.67=51 >33.33=4 >50=4 >100=4
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1351；帧覆盖窗口合计=16.16s；trace 时长合计=32.85s
+  p50=8.4 p90=17.5 p95=21.1 p99=28.1 max=227.7ms
+  绝对阈值: >16.67ms=148 (11.0%) >33.33ms=12 (0.9%) >50ms=12 (0.9%) >100ms=12 (0.9%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=695 (51.4%) 帧耗时超两倍预算(>2×8.33ms)=148 (11.0%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=12 (0.9%)
+  真实呈现迟到/丢帧: Late Present=113 (8.4%) Dropped Frame=136 (10.1%) on_time_finish=false(late)=265 (19.6%) unknown(null)=0 (0.0%) jank含App Deadline Missed=19 (1.4%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 265, 'on_time(true)': 1086}
+  jank_type: {'Prediction Error, App Deadline Missed': 1, 'Prediction Error': 3, 'Dropped Frame': 136, 'None': 1102, 'Buffer Stuffing': 91, 'App Deadline Missed': 16, 'App Deadline Missed, Buffer Stuffing': 2}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Late Present': 113, 'Dropped Frame': 136, 'On-time Present': 1102}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e2_clean_adj_120hz_r1.pftrace', 133), ('e2_clean_adj_120hz_r2.pftrace', 135), ('e2_clean_adj_120hz_r3.pftrace', 135)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1351}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e2_clean_adj_120hz_r2.pftrace（frame_token=537914118）
+  异常清单: （空）
+
+== e2_clean_adj_60 ==
+  e2_clean_adj_60hz_r1.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[79] 纳入=True raw=447 unique=447 dupIDs=0 nameToken不一致=0 窗口=5.41s trace=10.96s n=447 p50=8.3 p90=16.7 p95=21.3 p99=28.9 max=193.8 >16.67=46 >33.33=4 >50=4 >100=4
+  e2_clean_adj_60hz_r2.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[20] 纳入=True raw=441 unique=441 dupIDs=0 nameToken不一致=0 窗口=5.43s trace=10.94s n=441 p50=8.4 p90=17.4 p95=20.3 p99=26.9 max=195.0 >16.67=50 >33.33=4 >50=4 >100=4
+  e2_clean_adj_60hz_r3.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[82] 纳入=True raw=442 unique=442 dupIDs=0 nameToken不一致=0 窗口=5.30s trace=10.93s n=442 p50=8.4 p90=16.7 p95=20.5 p99=31.2 max=208.4 >16.67=45 >33.33=4 >50=4 >100=4
+  组刷新率=60Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1330；帧覆盖窗口合计=16.14s；trace 时长合计=32.84s
+  p50=8.3 p90=17.0 p95=20.8 p99=30.2 max=208.4ms
+  绝对阈值: >16.67ms=141 (10.6%) >33.33ms=12 (0.9%) >50ms=12 (0.9%) >100ms=12 (0.9%)
+  预算阈值(60Hz, 单帧预算16.67ms): 超单帧预算(>1×)=141 (10.6%) 帧耗时超两倍预算(>2×16.67ms)=12 (0.9%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=12 (0.9%)
+  真实呈现迟到/丢帧: Late Present=259 (19.5%) Dropped Frame=118 (8.9%) on_time_finish=false(late)=213 (16.0%) unknown(null)=0 (0.0%) jank含App Deadline Missed=55 (4.1%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 213, 'on_time(true)': 1117}
+  jank_type: {'Prediction Error, App Deadline Missed': 2, 'None': 953, 'Dropped Frame': 118, 'App Deadline Missed, Buffer Stuffing': 6, 'Buffer Stuffing': 169, 'App Deadline Missed': 15, 'Display HAL': 1, 'Unknown Jank': 30, 'App Deadline Missed, Unknown Jank': 32, 'Buffer Stuffing, Unknown Jank': 3, 'SurfaceFlinger CPU Deadline Missed': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Late Present': 259, 'On-time Present': 953, 'Dropped Frame': 118}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e2_clean_adj_60hz_r1.pftrace', 138), ('e2_clean_adj_60hz_r2.pftrace', 138), ('e2_clean_adj_60hz_r3.pftrace', 139)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1330}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e2_clean_adj_60hz_r3.pftrace（frame_token=537957849）
+  异常清单: （空）
+
+== e1a_far_120 ==
+  e1a_far_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[66] 纳入=True raw=479 unique=479 dupIDs=0 nameToken不一致=0 窗口=5.35s trace=10.94s n=479 p50=8.3 p90=18.5 p95=21.6 p99=28.9 max=217.7 >16.67=66 >33.33=4 >50=4 >100=4
+  e1a_far_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[85] 纳入=True raw=472 unique=472 dupIDs=0 nameToken不一致=0 窗口=5.30s trace=10.95s n=472 p50=8.4 p90=19.1 p95=22.1 p99=30.3 max=188.5 >16.67=68 >33.33=4 >50=4 >100=4
+  e1a_far_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[70] 纳入=True raw=479 unique=479 dupIDs=0 nameToken不一致=0 窗口=5.36s trace=10.94s n=479 p50=8.3 p90=19.1 p95=21.6 p99=31.0 max=220.4 >16.67=64 >33.33=4 >50=4 >100=4
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1430；帧覆盖窗口合计=16.00s；trace 时长合计=32.83s
+  p50=8.3 p90=19.0 p95=21.7 p99=28.9 max=220.4ms
+  绝对阈值: >16.67ms=198 (13.8%) >33.33ms=12 (0.8%) >50ms=12 (0.8%) >100ms=12 (0.8%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=721 (50.4%) 帧耗时超两倍预算(>2×8.33ms)=198 (13.8%) 严重长帧(>50ms)=12 (0.8%) 极端长帧(>100ms)=12 (0.8%)
+  真实呈现迟到/丢帧: Late Present=427 (29.9%) Dropped Frame=210 (14.7%) on_time_finish=false(late)=257 (18.0%) unknown(null)=0 (0.0%) jank含App Deadline Missed=23 (1.6%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'on_time(true)': 1173, 'late(false)': 257}
+  jank_type: {'Prediction Error': 1, 'App Deadline Missed': 13, 'Dropped Frame': 210, 'None': 792, 'App Deadline Missed, Buffer Stuffing': 6, 'Buffer Stuffing': 310, 'Display HAL': 1, 'Buffer Stuffing, Unknown Jank': 42, 'Unknown Jank': 49, 'App Deadline Missed, Buffer Stuffing, Unknown Jank': 1, 'Prediction Error, App Deadline Missed': 1, 'SurfaceFlinger CPU Deadline Missed': 1, 'Display HAL, Buffer Stuffing': 1, 'App Deadline Missed, Unknown Jank': 2}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Early Present': 1, 'Late Present': 427, 'Dropped Frame': 210, 'On-time Present': 792}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1a_far_120hz_r1.pftrace', 155), ('e1a_far_120hz_r2.pftrace', 151), ('e1a_far_120hz_r3.pftrace', 155)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1430}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1a_far_120hz_r3.pftrace（frame_token=538108206）
+  异常清单: （空）
+
+== e1a_far_60 ==
+  e1a_far_60hz_r1.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[70] 纳入=True raw=473 unique=473 dupIDs=0 nameToken不一致=0 窗口=5.40s trace=10.94s n=473 p50=8.4 p90=17.2 p95=20.9 p99=27.2 max=209.6 >16.67=55 >33.33=4 >50=4 >100=4
+  e1a_far_60hz_r2.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[78] 纳入=True raw=460 unique=460 dupIDs=0 nameToken不一致=0 窗口=5.39s trace=10.95s n=460 p50=8.4 p90=18.2 p95=21.4 p99=28.9 max=191.4 >16.67=62 >33.33=4 >50=4 >100=4
+  e1a_far_60hz_r3.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[76] 纳入=True raw=471 unique=471 dupIDs=0 nameToken不一致=0 窗口=5.35s trace=10.94s n=471 p50=8.4 p90=19.2 p95=21.6 p99=30.7 max=190.9 >16.67=70 >33.33=4 >50=4 >100=4
+  组刷新率=60Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1404；帧覆盖窗口合计=16.14s；trace 时长合计=32.83s
+  p50=8.4 p90=18.2 p95=21.2 p99=27.9 max=209.6ms
+  绝对阈值: >16.67ms=187 (13.3%) >33.33ms=12 (0.9%) >50ms=12 (0.9%) >100ms=12 (0.9%)
+  预算阈值(60Hz, 单帧预算16.67ms): 超单帧预算(>1×)=189 (13.5%) 帧耗时超两倍预算(>2×16.67ms)=12 (0.9%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=12 (0.9%)
+  真实呈现迟到/丢帧: Late Present=275 (19.6%) Dropped Frame=191 (13.6%) on_time_finish=false(late)=263 (18.7%) unknown(null)=0 (0.0%) jank含App Deadline Missed=18 (1.3%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 263, 'on_time(true)': 1141}
+  jank_type: {'None': 938, 'Buffer Stuffing': 252, 'Dropped Frame': 191, 'App Deadline Missed': 13, 'App Deadline Missed, Buffer Stuffing': 5, 'Display HAL, Buffer Stuffing': 1, 'Buffer Stuffing, Unknown Jank': 4}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'On-time Present': 938, 'Late Present': 275, 'Dropped Frame': 191}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1a_far_60hz_r1.pftrace', 155), ('e1a_far_60hz_r2.pftrace', 157), ('e1a_far_60hz_r3.pftrace', 152)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1404}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1a_far_60hz_r1.pftrace（frame_token=538166659）
+  异常清单: （空）
+
+== e1a_adj_120 ==
+  e1a_adj_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[67] 纳入=True raw=473 unique=473 dupIDs=0 nameToken不一致=0 窗口=5.46s trace=10.94s n=473 p50=8.5 p90=16.9 p95=21.9 p99=30.0 max=186.8 >16.67=49 >33.33=4 >50=4 >100=4
+  e1a_adj_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[66] 纳入=True raw=453 unique=453 dupIDs=0 nameToken不一致=0 窗口=5.41s trace=10.94s n=453 p50=8.4 p90=17.2 p95=21.9 p99=27.6 max=206.7 >16.67=47 >33.33=4 >50=4 >100=4
+  e1a_adj_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[98] 纳入=True raw=491 unique=491 dupIDs=0 nameToken不一致=0 窗口=5.47s trace=10.95s n=491 p50=9.0 p90=17.2 p95=21.9 p99=33.6 max=250.6 >16.67=54 >33.33=5 >50=4 >100=4
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1417；帧覆盖窗口合计=16.35s；trace 时长合计=32.83s
+  p50=8.5 p90=17.2 p95=21.9 p99=30.0 max=250.6ms
+  绝对阈值: >16.67ms=150 (10.6%) >33.33ms=13 (0.9%) >50ms=12 (0.8%) >100ms=12 (0.8%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=816 (57.6%) 帧耗时超两倍预算(>2×8.33ms)=150 (10.6%) 严重长帧(>50ms)=12 (0.8%) 极端长帧(>100ms)=12 (0.8%)
+  真实呈现迟到/丢帧: Late Present=289 (20.4%) Dropped Frame=199 (14.0%) on_time_finish=false(late)=306 (21.6%) unknown(null)=0 (0.0%) jank含App Deadline Missed=29 (2.0%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 306, 'on_time(true)': 1111}
+  jank_type: {'App Deadline Missed': 11, 'Prediction Error': 1, 'Dropped Frame': 199, 'Buffer Stuffing': 235, 'None': 929, 'App Deadline Missed, Buffer Stuffing': 11, 'Display HAL': 2, 'Buffer Stuffing, Unknown Jank': 1, 'Unknown Jank': 21, 'App Deadline Missed, Unknown Jank': 7}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Late Present': 289, 'Dropped Frame': 199, 'On-time Present': 929}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1a_adj_120hz_r1.pftrace', 133), ('e1a_adj_120hz_r2.pftrace', 132), ('e1a_adj_120hz_r3.pftrace', 133)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1417}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1a_adj_120hz_r3.pftrace（frame_token=538230258）
+  异常清单: （空）
+
+== e1a_adj_60 ==
+  e1a_adj_60hz_r1.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[66] 纳入=True raw=472 unique=472 dupIDs=0 nameToken不一致=0 窗口=5.37s trace=10.95s n=472 p50=8.8 p90=17.4 p95=21.1 p99=30.6 max=222.5 >16.67=50 >33.33=4 >50=4 >100=4
+  e1a_adj_60hz_r2.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[90] 纳入=True raw=462 unique=462 dupIDs=0 nameToken不一致=0 窗口=5.32s trace=10.96s n=462 p50=8.4 p90=17.4 p95=21.5 p99=30.8 max=214.1 >16.67=49 >33.33=4 >50=4 >100=4
+  e1a_adj_60hz_r3.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[97] 纳入=True raw=460 unique=460 dupIDs=0 nameToken不一致=0 窗口=5.35s trace=10.95s n=460 p50=8.4 p90=17.3 p95=21.5 p99=27.7 max=226.9 >16.67=49 >33.33=4 >50=4 >100=4
+  组刷新率=60Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1394；帧覆盖窗口合计=16.05s；trace 时长合计=32.86s
+  p50=8.5 p90=17.4 p95=21.4 p99=30.6 max=226.9ms
+  绝对阈值: >16.67ms=148 (10.6%) >33.33ms=12 (0.9%) >50ms=12 (0.9%) >100ms=12 (0.9%)
+  预算阈值(60Hz, 单帧预算16.67ms): 超单帧预算(>1×)=148 (10.6%) 帧耗时超两倍预算(>2×16.67ms)=12 (0.9%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=12 (0.9%)
+  真实呈现迟到/丢帧: Late Present=160 (11.5%) Dropped Frame=176 (12.6%) on_time_finish=false(late)=296 (21.2%) unknown(null)=0 (0.0%) jank含App Deadline Missed=17 (1.2%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'on_time(true)': 1098, 'late(false)': 296}
+  jank_type: {'None': 1058, 'Dropped Frame': 176, 'Buffer Stuffing': 141, 'App Deadline Missed, Buffer Stuffing': 7, 'App Deadline Missed': 10, 'Prediction Error': 2}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'On-time Present': 1058, 'Dropped Frame': 176, 'Late Present': 160}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1a_adj_60hz_r1.pftrace', 133), ('e1a_adj_60hz_r2.pftrace', 132), ('e1a_adj_60hz_r3.pftrace', 131)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1394}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1a_adj_60hz_r3.pftrace（frame_token=538268298）
+  异常清单: （空）
+
+== e1b_far_120 ==
+  e1b_far_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[54] 纳入=True raw=480 unique=480 dupIDs=0 nameToken不一致=0 窗口=5.31s trace=10.96s n=480 p50=8.3 p90=18.2 p95=20.4 p99=28.3 max=188.5 >16.67=61 >33.33=4 >50=4 >100=4
+  e1b_far_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[70] 纳入=True raw=479 unique=479 dupIDs=0 nameToken不一致=0 窗口=5.39s trace=10.94s n=479 p50=8.4 p90=17.5 p95=21.1 p99=24.4 max=190.9 >16.67=56 >33.33=4 >50=4 >100=4
+  e1b_far_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[65] 纳入=True raw=503 unique=503 dupIDs=0 nameToken不一致=0 窗口=5.40s trace=10.95s n=503 p50=8.7 p90=18.2 p95=21.3 p99=24.5 max=209.2 >16.67=59 >33.33=4 >50=4 >100=4
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1462；帧覆盖窗口合计=16.11s；trace 时长合计=32.85s
+  p50=8.4 p90=17.8 p95=21.0 p99=24.5 max=209.2ms
+  绝对阈值: >16.67ms=176 (12.0%) >33.33ms=12 (0.8%) >50ms=12 (0.8%) >100ms=12 (0.8%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=760 (52.0%) 帧耗时超两倍预算(>2×8.33ms)=176 (12.0%) 严重长帧(>50ms)=12 (0.8%) 极端长帧(>100ms)=12 (0.8%)
+  真实呈现迟到/丢帧: Late Present=356 (24.4%) Dropped Frame=242 (16.6%) on_time_finish=false(late)=313 (21.4%) unknown(null)=0 (0.0%) jank含App Deadline Missed=18 (1.2%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 313, 'on_time(true)': 1149}
+  jank_type: {'Unknown Jank': 3, 'Prediction Error': 2, 'Buffer Stuffing': 334, 'None': 862, 'Dropped Frame': 242, 'App Deadline Missed, Buffer Stuffing': 7, 'App Deadline Missed': 10, 'Display HAL': 1, 'Display HAL, App Deadline Missed': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Early Present': 2, 'Late Present': 356, 'On-time Present': 862, 'Dropped Frame': 242}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1b_far_120hz_r1.pftrace', 160), ('e1b_far_120hz_r2.pftrace', 165), ('e1b_far_120hz_r3.pftrace', 161)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1462}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1b_far_120hz_r3.pftrace（frame_token=538146495）
+  异常清单: （空）
+
+== e1b_far_60 ==
+  e1b_far_60hz_r1.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[69] 纳入=True raw=485 unique=485 dupIDs=0 nameToken不一致=0 窗口=5.30s trace=10.95s n=485 p50=8.4 p90=17.4 p95=21.2 p99=26.2 max=193.2 >16.67=53 >33.33=4 >50=4 >100=4
+  e1b_far_60hz_r2.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[61] 纳入=True raw=496 unique=496 dupIDs=0 nameToken不一致=0 窗口=5.32s trace=10.95s n=496 p50=8.3 p90=19.3 p95=22.1 p99=28.9 max=199.2 >16.67=61 >33.33=4 >50=4 >100=4
+  e1b_far_60hz_r3.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[65] 纳入=True raw=493 unique=493 dupIDs=0 nameToken不一致=0 窗口=5.35s trace=10.94s n=493 p50=8.3 p90=18.8 p95=21.7 p99=27.5 max=225.0 >16.67=59 >33.33=4 >50=4 >100=4
+  组刷新率=60Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1474；帧覆盖窗口合计=15.98s；trace 时长合计=32.85s
+  p50=8.3 p90=18.7 p95=21.7 p99=26.2 max=225.0ms
+  绝对阈值: >16.67ms=173 (11.7%) >33.33ms=12 (0.8%) >50ms=12 (0.8%) >100ms=12 (0.8%)
+  预算阈值(60Hz, 单帧预算16.67ms): 超单帧预算(>1×)=173 (11.7%) 帧耗时超两倍预算(>2×16.67ms)=12 (0.8%) 严重长帧(>50ms)=12 (0.8%) 极端长帧(>100ms)=12 (0.8%)
+  真实呈现迟到/丢帧: Late Present=327 (22.2%) Dropped Frame=255 (17.3%) on_time_finish=false(late)=323 (21.9%) unknown(null)=0 (0.0%) jank含App Deadline Missed=20 (1.4%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'on_time(true)': 1151, 'late(false)': 323}
+  jank_type: {'None': 892, 'App Deadline Missed': 10, 'App Deadline Missed, Buffer Stuffing': 9, 'Buffer Stuffing': 307, 'Dropped Frame': 255, 'Display HAL, App Deadline Missed, Buffer Stuffing': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'On-time Present': 892, 'Late Present': 327, 'Dropped Frame': 255}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1b_far_60hz_r1.pftrace', 162), ('e1b_far_60hz_r2.pftrace', 159), ('e1b_far_60hz_r3.pftrace', 158)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1474}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1b_far_60hz_r3.pftrace（frame_token=538308203）
+  异常清单: （空）
+
+== e1b_adj_120 ==
+  e1b_adj_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[62] 纳入=True raw=478 unique=478 dupIDs=0 nameToken不一致=0 窗口=5.44s trace=10.96s n=478 p50=8.5 p90=16.3 p95=20.9 p99=27.5 max=214.3 >16.67=42 >33.33=4 >50=4 >100=4
+  e1b_adj_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[1] 纳入=True raw=481 unique=481 dupIDs=0 nameToken不一致=0 窗口=5.41s trace=10.94s n=481 p50=8.5 p90=16.3 p95=21.3 p99=26.5 max=226.7 >16.67=48 >33.33=4 >50=4 >100=4
+  e1b_adj_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[69] 纳入=True raw=464 unique=464 dupIDs=0 nameToken不一致=0 窗口=5.36s trace=10.95s n=464 p50=8.6 p90=16.2 p95=21.5 p99=26.9 max=225.2 >16.67=42 >33.33=4 >50=4 >100=4
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1423；帧覆盖窗口合计=16.20s；trace 时长合计=32.86s
+  p50=8.5 p90=16.3 p95=21.1 p99=26.5 max=226.7ms
+  绝对阈值: >16.67ms=132 (9.3%) >33.33ms=12 (0.8%) >50ms=12 (0.8%) >100ms=12 (0.8%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=831 (58.4%) 帧耗时超两倍预算(>2×8.33ms)=132 (9.3%) 严重长帧(>50ms)=12 (0.8%) 极端长帧(>100ms)=12 (0.8%)
+  真实呈现迟到/丢帧: Late Present=221 (15.5%) Dropped Frame=201 (14.1%) on_time_finish=false(late)=285 (20.0%) unknown(null)=0 (0.0%) jank含App Deadline Missed=15 (1.1%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'on_time(true)': 1138, 'late(false)': 285}
+  jank_type: {'None': 1001, 'App Deadline Missed': 12, 'Buffer Stuffing': 153, 'Dropped Frame': 201, 'Display HAL, Buffer Stuffing': 1, 'Unknown Jank': 43, 'Buffer Stuffing, Unknown Jank': 9, 'App Deadline Missed, Buffer Stuffing': 3}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'On-time Present': 1001, 'Late Present': 221, 'Dropped Frame': 201}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1b_adj_120hz_r1.pftrace', 139), ('e1b_adj_120hz_r2.pftrace', 134), ('e1b_adj_120hz_r3.pftrace', 134)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1423}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1b_adj_120hz_r2.pftrace（frame_token=538333940）
+  异常清单: （空）
+
+== e1b_adj_60 ==
+  e1b_adj_60hz_r1.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[76] 纳入=True raw=465 unique=465 dupIDs=0 nameToken不一致=0 窗口=5.31s trace=10.94s n=465 p50=8.5 p90=16.7 p95=20.1 p99=27.7 max=187.6 >16.67=47 >33.33=4 >50=4 >100=4
+  e1b_adj_60hz_r2.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[22] 纳入=True raw=473 unique=473 dupIDs=0 nameToken不一致=0 窗口=5.35s trace=10.95s n=473 p50=8.5 p90=17.7 p95=21.1 p99=28.4 max=185.0 >16.67=54 >33.33=4 >50=4 >100=4
+  e1b_adj_60hz_r3.pftrace: hz=60(显式(文件名=采集配置)) 进程数=1 upids=[69] 纳入=True raw=467 unique=467 dupIDs=0 nameToken不一致=0 窗口=5.43s trace=10.94s n=467 p50=8.5 p90=16.9 p95=20.8 p99=27.8 max=224.8 >16.67=50 >33.33=4 >50=4 >100=4
+  组刷新率=60Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1405；帧覆盖窗口合计=16.09s；trace 时长合计=32.83s
+  p50=8.5 p90=17.1 p95=20.9 p99=27.7 max=224.8ms
+  绝对阈值: >16.67ms=151 (10.7%) >33.33ms=12 (0.9%) >50ms=12 (0.9%) >100ms=12 (0.9%)
+  预算阈值(60Hz, 单帧预算16.67ms): 超单帧预算(>1×)=151 (10.7%) 帧耗时超两倍预算(>2×16.67ms)=12 (0.9%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=12 (0.9%)
+  真实呈现迟到/丢帧: Late Present=190 (13.5%) Dropped Frame=186 (13.2%) on_time_finish=false(late)=269 (19.1%) unknown(null)=0 (0.0%) jank含App Deadline Missed=16 (1.1%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 269, 'on_time(true)': 1136}
+  jank_type: {'None': 1028, 'Dropped Frame': 186, 'App Deadline Missed, Buffer Stuffing': 7, 'Buffer Stuffing': 172, 'App Deadline Missed': 9, 'SurfaceFlinger CPU Deadline Missed': 1, 'Unknown Jank': 1, 'Prediction Error': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'On-time Present': 1028, 'Dropped Frame': 186, 'Late Present': 190, 'Early Present': 1}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('e1b_adj_60hz_r1.pftrace', 135), ('e1b_adj_60hz_r2.pftrace', 135), ('e1b_adj_60hz_r3.pftrace', 133)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1405}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: e1b_adj_60hz_r3.pftrace（frame_token=538385769）
+  异常清单: （空）
+
+== r2a_far_120 ==
+  r2a_far_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[100] 纳入=True raw=475 unique=475 dupIDs=0 nameToken不一致=0 窗口=5.42s trace=10.93s n=475 p50=8.4 p90=18.8 p95=21.4 p99=29.7 max=203.9 >16.67=64 >33.33=4 >50=4 >100=4
+  r2a_far_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[74] 纳入=True raw=474 unique=474 dupIDs=0 nameToken不一致=0 窗口=5.34s trace=10.95s n=474 p50=8.4 p90=18.7 p95=21.6 p99=25.3 max=187.7 >16.67=64 >33.33=4 >50=4 >100=4
+  r2a_far_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[72] 纳入=True raw=456 unique=456 dupIDs=0 nameToken不一致=0 窗口=5.39s trace=10.94s n=456 p50=8.3 p90=18.4 p95=21.1 p99=28.6 max=215.7 >16.67=61 >33.33=4 >50=4 >100=4
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1405；帧覆盖窗口合计=16.15s；trace 时长合计=32.82s
+  p50=8.4 p90=18.4 p95=21.4 p99=27.4 max=215.7ms
+  绝对阈值: >16.67ms=189 (13.5%) >33.33ms=12 (0.9%) >50ms=12 (0.9%) >100ms=12 (0.9%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=717 (51.0%) 帧耗时超两倍预算(>2×8.33ms)=189 (13.5%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=12 (0.9%)
+  真实呈现迟到/丢帧: Late Present=311 (22.1%) Dropped Frame=186 (13.2%) on_time_finish=false(late)=261 (18.6%) unknown(null)=0 (0.0%) jank含App Deadline Missed=21 (1.5%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'late(false)': 261, 'on_time(true)': 1144}
+  jank_type: {'Display HAL, App Deadline Missed': 1, 'Unknown Jank': 12, 'Dropped Frame': 186, 'Buffer Stuffing, Unknown Jank': 3, 'App Deadline Missed, Buffer Stuffing': 9, 'None': 908, 'Buffer Stuffing': 275, 'App Deadline Missed': 10, 'SurfaceFlinger CPU Deadline Missed, App Deadline Missed': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Late Present': 311, 'Dropped Frame': 186, 'On-time Present': 908}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('r2a_far_120hz_r1.pftrace', 160), ('r2a_far_120hz_r2.pftrace', 157), ('r2a_far_120hz_r3.pftrace', 156)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1405}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: r2a_far_120hz_r3.pftrace（frame_token=538032233）
+  异常清单: （空）
+
+== r2v5_far_120 ==
+  r2v5_far_120hz_r1.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[75] 纳入=True raw=466 unique=466 dupIDs=0 nameToken不一致=0 窗口=5.33s trace=10.94s n=466 p50=7.7 p90=22.7 p95=25.9 p99=32.9 max=85.3 >16.67=87 >33.33=4 >50=4 >100=0
+  r2v5_far_120hz_r2.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[100] 纳入=True raw=469 unique=469 dupIDs=0 nameToken不一致=0 窗口=5.32s trace=10.95s n=469 p50=7.6 p90=20.9 p95=25.1 p99=31.6 max=87.0 >16.67=90 >33.33=4 >50=4 >100=0
+  r2v5_far_120hz_r3.pftrace: hz=120(显式(文件名=采集配置)) 进程数=1 upids=[70] 纳入=True raw=461 unique=461 dupIDs=0 nameToken不一致=0 窗口=5.44s trace=10.94s n=461 p50=7.8 p90=22.4 p95=25.2 p99=37.6 max=82.5 >16.67=89 >33.33=5 >50=4 >100=0
+  组刷新率=120Hz（逐 trace 显式声明，组内一致性检查通过；面板率≠渲染率，见脚本头注）
+  唯一帧合计 n=1396；帧覆盖窗口合计=16.08s；trace 时长合计=32.83s
+  p50=7.7 p90=22.1 p95=25.5 p99=32.9 max=87.0ms
+  绝对阈值: >16.67ms=266 (19.1%) >33.33ms=13 (0.9%) >50ms=12 (0.9%) >100ms=0 (0.0%)
+  预算阈值(120Hz, 单帧预算8.33ms): 超单帧预算(>1×)=443 (31.7%) 帧耗时超两倍预算(>2×8.33ms)=266 (19.1%) 严重长帧(>50ms)=12 (0.9%) 极端长帧(>100ms)=0 (0.0%)
+  真实呈现迟到/丢帧: Late Present=294 (21.1%) Dropped Frame=172 (12.3%) on_time_finish=false(late)=185 (13.3%) unknown(null)=0 (0.0%) jank含App Deadline Missed=10 (0.7%)
+  （android_frames_overrun 不可用（trace_processor 无该表）——真实呈现迟到以 present_type/on_time_finish/jank_type 组合陈述）
+  on_time_finish: {'on_time(true)': 1211, 'late(false)': 185}
+  jank_type: {'Prediction Error': 3, 'Dropped Frame': 172, 'Display HAL': 2, 'Buffer Stuffing, Unknown Jank': 19, 'Unknown Jank': 139, 'App Deadline Missed': 7, 'Buffer Stuffing': 121, 'None': 930, 'App Deadline Missed, Buffer Stuffing': 2, 'Display HAL, App Deadline Missed': 1}   （'None'=真实无 jank；unknown(数据缺失)=NULL）
+  present_type: {'Late Present': 294, 'Dropped Frame': 172, 'On-time Present': 930}
+  帧身份: 唯一键=(name, layer_name, upid)，语义=应用图层帧记录(per-layer surface frame)，非 app 级逻辑帧；android_frames(app 级)对照计数=[('r2v5_far_120hz_r1.pftrace', 115), ('r2v5_far_120hz_r2.pftrace', 121), ('r2v5_far_120hz_r3.pftrace', 116)]（与唯一帧 n 不同口径，仅对照）
+  name↔surface_frame_token 不一致=0（有不符见异常）；重复记录 ts/dur、display_token、jank、present、on_time 一致性=见异常清单（无=一致）
+  surface_frame_token→图层数分布={1: 1396}
+  连续长帧对(唯一帧时序,同 trace 内)=0
+  代表 trace（含 max 帧）: r2v5_far_120hz_r2.pftrace（frame_token=538057118）
+  异常清单: （空）
