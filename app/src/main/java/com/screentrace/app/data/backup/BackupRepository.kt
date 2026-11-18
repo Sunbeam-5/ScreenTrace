@@ -310,6 +310,12 @@ class BackupRepository(
         strategy: Strategy,
         importSettings: Boolean
     ): RestoreResult = db.withTransaction {
+        // CR-28-R1 ⑦：**写入前先归档**——迁移遗留的未归档（''）行归属本库主体来源
+        // （副本库＝该副本设备、本机库＝本机）；只动 '' 行、幂等。副本库没有独立的
+        // 启动挂点，挂在这里覆盖全部恢复路径。
+        runCatching {
+            com.screentrace.app.data.SourceArchive.archive(db, sourceDeviceId(), emptySet(), zone)
+        }
         val result = when (strategy) {
             Strategy.OVERWRITE -> overwrite(file)
             Strategy.MERGE -> merge(file)

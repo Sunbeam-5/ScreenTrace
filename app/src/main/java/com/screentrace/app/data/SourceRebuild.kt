@@ -301,11 +301,34 @@ class SourceRebuild(
             CrossDeviceMerge.dedupeDaySummaries(s.daySummaries.filter { it.date == date })
         }
         val sumBackup = backupDays.sumOf { it.screenMin }
-        if (sumBackup > legacyRow.screenMin) {
+        // CR-28-R1 P1-3：**逐指标差减校验**——任一可减指标 Σ备份 > legacy 即「对不上」，
+        // 整日不重建（不能 coerceAtLeast(0) 截断历史）；写入与差减同用去重后数据。
+        val backupApps = sources.flatMap { s -> CrossDeviceMerge.dedupeAppUsage(s.appUsage.filter { it.date == date }) }
+            .groupBy { it.pkg }.mapValues { (_, rows) -> rows.sumOf { it.minutes } }
+        val backupHours = sources.flatMap { s -> CrossDeviceMerge.dedupeHourUsage(s.hourUsage.filter { it.date == date }) }
+            .groupBy { it.hour }.mapValues { (_, rows) -> rows.sumOf { it.minutes } }
+        val overDrawn =
+            backupDays.sumOf { it.screenUnlockMin } > legacyRow.screenUnlockMin ||
+                backupDays.sumOf { it.unlocks } > legacyRow.unlocks ||
+                backupDays.sumOf { it.launches } > legacyRow.launches ||
+                db.appUsageDao().getAll().any { a ->
+                    a.date == date && a.sourceDeviceId == SourceIds.LEGACY &&
+                        (backupApps[a.pkg] ?: 0) > a.minutes
+                } ||
+                db.hourUsageDao().getAll().any { h ->
+                    h.date == date && h.sourceDeviceId == SourceIds.LEGACY &&
+                        (backupHours[h.hour] ?: 0) > h.minutes
+                }
+        if (sumBackup > legacyRow.screenMin || overDrawn) {
             // 备份与总量对不上：该日整体不重建（不猜、不丢）
             return DayOutcome(date, "mismatch_skipped", legacyRow.screenMin)
         }
         val beforeSum = db.daySummaryDao().getAll().filter { it.date == date }.sumOf { it.screenMin }
+        val beforeUnlocks = db.daySummaryDao().getAll().filter { it.date == date }.sumOf { it.unlocks }
+        val beforeLaunches = db.daySummaryDao().getAll().filter { it.date == date }.sumOf { it.launches }
+        val beforeUnlockMin = db.daySummaryDao().getAll().filter { it.date == date }.sumOf { it.screenUnlockMin }
+        val beforeAppMinutes = db.appUsageDao().getAll().filter { it.date == date }.sumOf { it.minutes }
+        val beforeHourMinutes = db.hourUsageDao().getAll().filter { it.date == date }.sumOf { it.minutes }
 
         // ① 备份日分量：同来源取大写入
         for (s in sources) {
@@ -350,10 +373,9 @@ class SourceRebuild(
                 db.hourUsageDao().insert(HourUsageEntity(date, row.hour, winner.minutes, s.deviceId))
             }
         }
-        // legacy 应用行差减
+        // legacy 应用行差减（CR-28-R1 P1-3：sumIn 用**去重后**数据，与写入同源）
         db.appUsageDao().getAll().filter { it.date == date && it.sourceDeviceId == SourceIds.LEGACY }.forEach { legacyApp ->
-            val sumIn = sources.sumOf { s -> s.appUsage.filter { it.date == date && it.pkg == legacyApp.pkg }.sumOf { it.minutes } }
-            val remain = legacyApp.minutes - sumIn
+            val remain = legacyApp.minutes - (backupApps[legacyApp.pkg] ?: 0)
             if (remain <= 0) {
                 db.openHelper.writableDatabase.execSQL(
                     "DELETE FROM app_usage WHERE date = ? AND pkg = ? AND sourceDeviceId = ?",
@@ -366,8 +388,7 @@ class SourceRebuild(
             }
         }
         db.hourUsageDao().getAll().filter { it.date == date && it.sourceDeviceId == SourceIds.LEGACY }.forEach { legacyHour ->
-            val sumIn = sources.sumOf { s -> s.hourUsage.filter { it.date == date && it.hour == legacyHour.hour }.sumOf { it.minutes } }
-            val remain = legacyHour.minutes - sumIn
+            val remain = legacyHour.minutes - (backupHours[legacyHour.hour] ?: 0)
             if (remain <= 0) {
                 db.openHelper.writableDatabase.execSQL(
                     "DELETE FROM hour_usage WHERE date = ? AND hour = ? AND sourceDeviceId = ?",
@@ -378,32 +399,46 @@ class SourceRebuild(
             }
         }
 
-        // ④ 事件 / 会话：同键改归属（主键完全一致的 legacy 行改写为备份来源）
+        // ④ 事件 / 会话：同键改归属（CR-28-R1 P1-2：**完整主键**（含 seq）匹配才改；
+        // 目标已有同完整主键时**保留 legacy 行不动**——先删后插会被 INSERT OR IGNORE
+        // 吞掉、把归属证据弄丢）
         for (s in sources) {
-            val unlockKeys = s.unlockEvent.map { it.occurredAtMs }.toSet()
+            val unlockKeys = s.unlockEvent.map { it.occurredAtMs to it.seq }.toSet()
             db.unlockEventDao().getAll().filter {
-                it.sourceDeviceId == SourceIds.LEGACY && it.occurredAtMs in unlockKeys &&
+                it.sourceDeviceId == SourceIds.LEGACY &&
+                    (it.occurredAtMs to it.seq) in unlockKeys &&
                     CrossDeviceMerge.dateOf(it.occurredAtMs, zone).toString() == date
             }.forEach { row ->
-                db.openHelper.writableDatabase.execSQL(
-                    "DELETE FROM unlock_event WHERE occurredAtMs = ? AND sourceDeviceId = ? AND seq = ?",
-                    arrayOf(row.occurredAtMs, row.sourceDeviceId, row.seq)
-                )
-                db.unlockEventDao().insertIgnore(UnlockEventEntity(row.occurredAtMs, s.deviceId, row.seq))
+                val exists = db.unlockEventDao().getAll().any {
+                    it.sourceDeviceId == s.deviceId && it.occurredAtMs == row.occurredAtMs && it.seq == row.seq
+                }
+                if (!exists) {
+                    db.openHelper.writableDatabase.execSQL(
+                        "DELETE FROM unlock_event WHERE occurredAtMs = ? AND sourceDeviceId = ? AND seq = ?",
+                        arrayOf(row.occurredAtMs, row.sourceDeviceId, row.seq)
+                    )
+                    db.unlockEventDao().insertIgnore(UnlockEventEntity(row.occurredAtMs, s.deviceId, row.seq))
+                }
             }
-            val notifKeys = s.notificationEvent.map { Triple(it.occurredAtMs, it.type, it.pkg) }.toSet()
+            val notifKeys = s.notificationEvent.map { Triple(it.occurredAtMs, it.type, it.pkg) to it.seq }.toSet()
             db.notificationEventDao().getAll().filter {
                 it.sourceDeviceId == SourceIds.LEGACY &&
-                    Triple(it.occurredAtMs, it.type, it.pkg) in notifKeys &&
+                    (Triple(it.occurredAtMs, it.type, it.pkg) to it.seq) in notifKeys &&
                     CrossDeviceMerge.dateOf(it.occurredAtMs, zone).toString() == date
             }.forEach { row ->
-                db.openHelper.writableDatabase.execSQL(
-                    "DELETE FROM notification_event WHERE occurredAtMs = ? AND type = ? AND pkg = ? AND sourceDeviceId = ? AND seq = ?",
-                    arrayOf(row.occurredAtMs, row.type, row.pkg, row.sourceDeviceId, row.seq)
-                )
-                db.notificationEventDao().insertIgnore(
-                    NotificationEventEntity(row.occurredAtMs, row.type, row.pkg, row.channelId, s.deviceId, row.seq)
-                )
+                val exists = db.notificationEventDao().getAll().any {
+                    it.sourceDeviceId == s.deviceId && it.occurredAtMs == row.occurredAtMs &&
+                        it.type == row.type && it.pkg == row.pkg && it.seq == row.seq
+                }
+                if (!exists) {
+                    db.openHelper.writableDatabase.execSQL(
+                        "DELETE FROM notification_event WHERE occurredAtMs = ? AND type = ? AND pkg = ? AND sourceDeviceId = ? AND seq = ?",
+                        arrayOf(row.occurredAtMs, row.type, row.pkg, row.sourceDeviceId, row.seq)
+                    )
+                    db.notificationEventDao().insertIgnore(
+                        NotificationEventEntity(row.occurredAtMs, row.type, row.pkg, row.channelId, s.deviceId, row.seq)
+                    )
+                }
             }
             val sessionKeys = s.screenSession.map { Triple(it.startMs, it.endMs, it.kind) }.toSet()
             db.screenSessionDao().getAll().filter {
@@ -411,17 +446,35 @@ class SourceRebuild(
                     Triple(it.startMs, it.endMs, it.kind) in sessionKeys &&
                     CrossDeviceMerge.datesOfSession(it.startMs, it.endMs, zone).any { d -> d == date }
             }.forEach { row ->
-                db.openHelper.writableDatabase.execSQL(
-                    "DELETE FROM screen_session WHERE startMs = ? AND kind = ? AND sourceDeviceId = ?",
-                    arrayOf(row.startMs, row.kind, row.sourceDeviceId)
-                )
-                db.screenSessionDao().insertIgnoreIfAbsent(row.copy(sourceDeviceId = s.deviceId))
+                val exists = db.screenSessionDao().getAll().any {
+                    it.sourceDeviceId == s.deviceId && it.startMs == row.startMs &&
+                        it.kind == row.kind && it.endMs == row.endMs
+                }
+                if (!exists) {
+                    db.openHelper.writableDatabase.execSQL(
+                        "DELETE FROM screen_session WHERE startMs = ? AND kind = ? AND sourceDeviceId = ?",
+                        arrayOf(row.startMs, row.kind, row.sourceDeviceId)
+                    )
+                    db.screenSessionDao().insertIgnoreIfAbsent(row.copy(sourceDeviceId = s.deviceId))
+                }
             }
         }
 
-        // ⑤ 单日 SUM 硬断言
-        val afterSum = db.daySummaryDao().getAll().filter { it.date == date }.sumOf { it.screenMin }
-        check(afterSum == beforeSum) { "SUM 核对不过（$date）：拆分后 $afterSum != 拆分前 $beforeSum" }
+        // ⑤ 单日**全部 SUM 指标**硬断言（CR-28-R1 P1-3：不止 screenMin——
+        // screenUnlockMin/unlocks/launches/app.minutes/hour.minutes 都不得凭空增减）
+        val afterRows = db.daySummaryDao().getAll().filter { it.date == date }
+        val afterSum = afterRows.sumOf { it.screenMin }
+        val afterUnlocks = afterRows.sumOf { it.unlocks }
+        val afterLaunches = afterRows.sumOf { it.launches }
+        val afterUnlockMin = afterRows.sumOf { it.screenUnlockMin }
+        val afterAppMinutes = db.appUsageDao().getAll().filter { it.date == date }.sumOf { it.minutes }
+        val afterHourMinutes = db.hourUsageDao().getAll().filter { it.date == date }.sumOf { it.minutes }
+        check(afterSum == beforeSum) { "SUM 核对不过（$date screenMin）：$afterSum != $beforeSum" }
+        check(afterUnlockMin == beforeUnlockMin) { "SUM 核对不过（$date screenUnlockMin）：$afterUnlockMin != $beforeUnlockMin" }
+        check(afterUnlocks == beforeUnlocks) { "SUM 核对不过（$date unlocks）：$afterUnlocks != $beforeUnlocks" }
+        check(afterLaunches == beforeLaunches) { "SUM 核对不过（$date launches）：$afterLaunches != $beforeLaunches" }
+        check(afterAppMinutes == beforeAppMinutes) { "SUM 核对不过（$date app minutes）：$afterAppMinutes != $beforeAppMinutes" }
+        check(afterHourMinutes == beforeHourMinutes) { "SUM 核对不过（$date hour minutes）：$afterHourMinutes != $beforeHourMinutes" }
 
         val remaining = db.daySummaryDao().get(date, SourceIds.LEGACY)?.screenMin ?: 0
         return DayOutcome(date, if (remaining > 0) "rebuilt_with_remainder" else "rebuilt", remaining)
@@ -470,19 +523,26 @@ class SourceRebuild(
         var checkMax = 0
         try {
             db.withTransaction {
-                val allSessions = db.screenSessionDao().getAll()
                 for (row in oversized) {
                     val day = java.time.LocalDate.parse(row.date)
                     val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
                     val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-                    val stored = allSessions.filter {
-                        CrossDeviceMerge.datesOfSession(it.startMs, it.endMs, zone).any { d -> d == row.date }
+                    // CR-28-R1 P0-1：会话与事件都只取**当前来源**——跨来源混算会把
+                    // 别的设备的会话并集写进本来源行（来源污染 + 跨来源 SUM 重复）。
+                    val stored = db.screenSessionDao().getAll().filter {
+                        it.sourceDeviceId == row.sourceDeviceId &&
+                            CrossDeviceMerge.datesOfSession(it.startMs, it.endMs, zone).any { d -> d == row.date }
                     }
                     val slice = SessionUnion.daySlices(stored, stored, zone)[day]
-                    val screen = slice?.screenMin ?: 0
-                    val unlockMin = slice?.unlockMin ?: 0
-                    val longest = slice?.longestMin ?: 0
-                    val unlocks = db.unlockEventDao().msBetween(dayStart, dayEnd - 1).size
+                    if (slice == null) {
+                        // CR-28-R1 P0-2：**无会话实证不改写**——缺证据不能把历史时长清零
+                        outcomes += DayOutcome(row.date, "oversized_no_evidence", 0)
+                        continue
+                    }
+                    val screen = slice.screenMin
+                    val unlockMin = slice.unlockMin
+                    val longest = slice.longestMin
+                    val unlocks = db.unlockEventDao().msBetween(dayStart, dayEnd - 1, row.sourceDeviceId).size
 
                     // 收紧原则（时长）：只在重算值更小时改写（超 24h 行必被校正；防御未来误用）。
                     // unlocks 是事件表可证的**精确计数**、直接写实证值（不是「越小越好」）。
@@ -502,11 +562,16 @@ class SourceRebuild(
                     outcomes += DayOutcome(row.date, if (corrected) "oversized_corrected" else "oversized_kept", 0)
                 }
 
-                // 核对：目标行全部 ≤ 1440、键集合不变（清洗不得增删行）
+                // 核对：目标行键集合不变（清洗不得增删行）；被校正的行全部 ≤ 1440
+                // （no_evidence 行保留原值、豁免此条）
                 val after = db.daySummaryDao().getAll().filter { it.date in dates }
                 check(after.size == snapshot.days.size) { "清洗不得增删行（$dates）" }
+                val correctedKeys = outcomes.filter { it.status == "oversized_corrected" }
+                    .map { it.date }.toSet()
                 for (row in after) {
-                    check(row.screenMin <= MAX_DAY_MIN) { "清洗后仍超 24h（${row.date}）" }
+                    if (row.date in correctedKeys) {
+                        check(row.screenMin <= MAX_DAY_MIN) { "清洗后仍超 24h（${row.date}）" }
+                    }
                 }
                 checkSum = after.sumOf { it.screenMin }
                 checkMax = after.maxOf { it.longestSessionMin }

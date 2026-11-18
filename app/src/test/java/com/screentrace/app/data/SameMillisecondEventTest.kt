@@ -132,12 +132,17 @@ class SameMillisecondEventTest {
     }
 
     @Test
-    fun `seq 按组内顺序确定性编号同一输入得同一组键`() {
+    fun `seq 按组内稳定内容键排序编号同一输入得同一组键`() {
         val items = listOf("a0", "b0", "a1", "b0b", "a2")
-        val first = EventSeq.assign(items) { listOf(it.first()) }
-        val second = EventSeq.assign(items) { listOf(it.first()) }
+        val first = EventSeq.assign(items, { listOf(it.first()) }, { listOf(it) })
+        val second = EventSeq.assign(items, { listOf(it.first()) }, { listOf(it) })
         assertEquals("同一输入必须得同一组 (item, seq)", first, second)
-        // a 组三条按列表顺序 0/1/2；b 组两条 0/1
-        assertEquals(listOf(0, 0, 1, 1, 2), first.map { it.second })
+        // a 组按内容排序编号 0/1/2；b 组按内容排序编号 0/1
+        val seqByItem = first.toMap()
+        assertEquals(0, seqByItem["a0"])
+        assertEquals(1, seqByItem["a1"])
+        assertEquals(2, seqByItem["a2"])
+        assertEquals(0, seqByItem["b0"])
+        assertEquals(1, seqByItem["b0b"])
     }
 }

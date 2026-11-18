@@ -122,17 +122,24 @@ class IngestPipeline(
 
                 // CR-01 事件流：主键去重；CR-28 确定性 seq（同毫秒多条不丢、重放幂等）
                 db.unlockEventDao().insertIgnore(
-                    EventSeq.assign(result.unlockEvents) { listOf(it.occurredAtMs) }
-                        .map { (e, seq) -> UnlockEventEntity(e.occurredAtMs, src, seq) }
+                    EventSeq.assign(
+                        result.unlockEvents,
+                        { listOf(it.occurredAtMs) },
+                        { listOf(it.occurredAtMs) }
+                    ).map { (e, seq) -> UnlockEventEntity(e.occurredAtMs, src, seq) }
                 )
 
                 // CR-28 批次 E：通知合并＝**完整主键 insertIgnore 并集**（同毫秒多条、
                 // 同秒组不同内容互不丢；重复拉取同键幂等）。旧「秒级分组取大条数、
                 // 整边替换」会把同秒组里条数少的一边整组丢掉（含其独有行）——
                 // CR-01「同秒多条真实通知不丢」的 DB 层缺口，随主键含 seq 废除。
-                val incomingNotifs = EventSeq.assign(result.notificationEvents) {
-                    listOf(it.occurredAtMs, it.type, it.pkg)
-                }.map { (e, seq) ->
+                // CR-28-R1 P1-1：组 = 主键组 (ms, type, pkg)、组内按**内容键**（含
+                // channelId）稳定排序编号——跨批次乱序/超集/重放都稳定不吞。
+                val incomingNotifs = EventSeq.assign(
+                    result.notificationEvents,
+                    { listOf(it.occurredAtMs, it.type, it.pkg) },
+                    { listOf(it.occurredAtMs, it.type, it.pkg, it.channelId) }
+                ).map { (e, seq) ->
                     NotificationEventEntity(e.occurredAtMs, e.type.name, e.pkg, e.channelId, src, seq)
                 }
                 db.notificationEventDao().insertIgnore(incomingNotifs)

@@ -280,8 +280,8 @@ interface UnlockEventDao {
     @Query("SELECT occurredAtMs FROM unlock_event WHERE occurredAtMs BETWEEN :startMs AND :endMs AND sourceDeviceId = :sourceDeviceId ORDER BY occurredAtMs")
     suspend fun msBetween(startMs: Long, endMs: Long, sourceDeviceId: String): List<Long>
 
-    /** CR-28 归档：未归档且落在 [startMs, endMs] 的行归 [to]。 */
-    @Query("UPDATE unlock_event SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND occurredAtMs BETWEEN :startMs AND :endMs")
+    /** CR-28 归档：未归档且落在半开窗口 `[startMs, endMs)` 的行归 [to]。 */
+    @Query("UPDATE unlock_event SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND occurredAtMs >= :startMs AND occurredAtMs < :endMs")
     suspend fun archiveOverlapping(startMs: Long, endMs: Long, to: String): Int
 
     /** CR-28 归档：剩余未归档行归 [to]。 */
@@ -326,8 +326,8 @@ interface NotificationEventDao {
     @Query("DELETE FROM notification_event WHERE occurredAtMs BETWEEN :startMs AND :endMs AND sourceDeviceId = :sourceDeviceId")
     suspend fun deleteBetween(startMs: Long, endMs: Long, sourceDeviceId: String)
 
-    /** CR-28 归档：未归档且落在 [startMs, endMs] 的行归 [to]。 */
-    @Query("UPDATE notification_event SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND occurredAtMs BETWEEN :startMs AND :endMs")
+    /** CR-28 归档：未归档且落在半开窗口 `[startMs, endMs)` 的行归 [to]。 */
+    @Query("UPDATE notification_event SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND occurredAtMs >= :startMs AND occurredAtMs < :endMs")
     suspend fun archiveOverlapping(startMs: Long, endMs: Long, to: String): Int
 
     /** CR-28 归档：剩余未归档行归 [to]。 */
@@ -373,8 +373,10 @@ interface ScreenSessionDao {
     @Query("DELETE FROM screen_session WHERE endMs >= :startMs AND startMs <= :endMs AND sourceDeviceId = :sourceDeviceId")
     suspend fun deleteOverlapping(startMs: Long, endMs: Long, sourceDeviceId: String)
 
-    /** CR-28 归档：未归档且**跨到** [startMs, endMs] 窗口的区间归 [to]（整段判定，保守）。 */
-    @Query("UPDATE screen_session SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND endMs >= :startMs AND startMs <= :endMs")
+    /** CR-28 归档：未归档且与半开窗口 `[startMs, endMs)` **相交**的区间归 [to]
+     *  （CR-28-R1 P1-4：`endMs > :startMs AND startMs < :endMs`——只在边界接触的
+     *  不算相交）。 */
+    @Query("UPDATE screen_session SET sourceDeviceId = :to WHERE sourceDeviceId = '' AND endMs > :startMs AND startMs < :endMs")
     suspend fun archiveOverlapping(startMs: Long, endMs: Long, to: String): Int
 
     /** CR-28 归档：剩余未归档行归 [to]。 */
