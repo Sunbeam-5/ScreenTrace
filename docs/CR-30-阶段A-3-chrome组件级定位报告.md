@@ -174,24 +174,62 @@ ts/dur 一致**——GPT 复审发现的重复帧（frame name 538008274 ×2）�
 「连续长帧＝0」经同 trace 内唯一帧真实时间序复核**成立**（原「待复核」标记解除）。
 代表帧选择（`a3_frame_detail.py`）同口径基于唯一帧，重复行不再进入长帧列表。
 
-**刷新率适配指标（R3 要求 3）**：绝对阈值（16.67/33.33/50/100ms）保留；新增 120Hz
-单帧预算 8.33ms 与 60Hz 16.67/33.33ms 适配阈值，并输出 jank_type / present_type /
-on_time_finish 分布（超单帧预算 / 错过一次刷新 / 严重长帧 >50ms / 极端长帧 >100ms）。
-V1–V5 累积消融（Redmi 120Hz，唯一帧）按新口径重算：
+**刷新率适配指标（R3 要求 3；R3.1 口径修订）**：绝对阈值（16.67/33.33/50/100ms）保留；
+按单帧预算拆分为四级：**超单帧预算(>1×)／帧耗时超两倍预算(>2×)／严重长帧(>50ms)／
+极端长帧(>100ms)**。R3.1 更正：「>2×预算」只表示帧耗时超过两倍单帧预算，**不得表述为
+「错过一次刷新」**；真实呈现迟到以 present_type（Late Present/Dropped Frame）+
+on_time_finish=false + jank_type（App Deadline Missed）组合陈述。V1–V5 累积消融
+（Redmi 120Hz，唯一帧，每构建单 trace）按新口径重算，含样本量与占比：
 
-| 构建 | 超单帧预算(>8.33) | 错过一次刷新(>16.67) | 严重长帧(>50) | 极端长帧(>100) | on_time / late |
-|---|---|---|---|---|---|
-| A 基线 | 268 | 60 | 4 | 4 | 375 / 114 |
-| V1 | 318 | 10 | 4 | 4 | 379 / 171 |
-| V2 | 269 | 13 | 4 | 4 | 382 / 128 |
-| V3 | 251 | 13 | 4 | 4 | 383 / 123 |
-| V4 | 253 | 11 | 4 | 4 | 403 / 109 |
-| **V5** | 210 | 16 | 4 | **0** | 405 / 163 |
+| 构建 | n | 窗口(s) | 超单帧预算 >8.33 | 超两倍预算 >16.67 | 严重 >50 | 极端 >100 | on_time/late/unknown |
+|---|---|---|---|---|---|---|---|
+| A 基线 | 489 | 5.44 | 268 (54.8%) | 60 (12.3%) | 4 (0.8%) | 4 (0.8%) | 375/114/0 |
+| V1 | 550 | 5.41 | 318 (57.8%) | 10 (1.8%) | 4 (0.7%) | 4 (0.7%) | 379/171/0 |
+| V2 | 510 | 5.42 | 269 (52.7%) | 13 (2.5%) | 4 (0.8%) | 4 (0.8%) | 382/128/0 |
+| V3 | 506 | 5.38 | 251 (49.6%) | 13 (2.6%) | 4 (0.8%) | 4 (0.8%) | 383/123/0 |
+| V4 | 512 | 5.41 | 253 (49.4%) | 11 (2.1%) | 4 (0.8%) | 4 (0.8%) | 403/109/0 |
+| **V5** | 568 | 5.37 | 210 (37.0%) | 16 (2.8%) | 4 (0.7%) | **0 (0.0%)** | 405/163/0 |
 
-（每构建单 trace；on_time_finish 为唯一帧计数。jank_type/present_type 全量分布见证据
-目录重算输出，逐 trace 可由 `a3_stats.py` 复算。）§3 代表帧、§4 表内 p 系列与阈值计数
-与上表同源（唯一帧口径）。
+（窗口=帧覆盖窗口，每构建 trace 时长 ≈10.9s。on_time/late/unknown 为唯一帧计数，
+R3.1 NULL 三分口径；本批全部 unknown=0，历史数值不受 NULL 误分类影响。jank_type/
+present_type 全量分布、代表 trace、进程/帧身份检查见证据 `stats/r31_a3_v1v5.txt`，
+逐 trace 可由 `a3_stats.py` 复算。）§3 代表帧、§4 表内 p 系列与阈值计数与上表同源
+（唯一帧口径）。
 
 **V5 口径（R3 要求 4，最终版）**：V5＝多变量＋空内容组合诊断构建。等开销干净对照下
 **降低极端长帧**（max 215.7→87.0、>100ms 12→0），**未改善整体帧耗时分布**
 （p90/95/99 变差、>16.67ms 189→266）；不作量化收益结论，不外推真实页面或 vivo。
+
+## 9. R3.1 附记：统计链路可靠性整改（2026-11-18，GPT 复审第四轮）
+
+仅改统计工具、结果输出与报告，业务代码零改动。全量重算输出入库
+`docs/CR-30-A3-实验补证/evidence/stats/`（`r31_a3_v1v5.txt` / `r31_a4_all.txt` 等）。
+
+1. **NULL 三分**：on_time_finish=on_time(true)/late(false)/unknown(null)；jank_type 区分
+   `'None'`（真实无 jank）与 NULL（数据缺失）；present_type 保留真实枚举 + unknown。
+   **全量核对结果：所有 A-3/A-4 trace 的 on_time_finish/jank_type/present_type 均无 NULL
+   （unknown=0）**——历史 on_time/late 与 jank 分布不受 NULL 误分类影响，数值不变；
+   三分逻辑已入脚本防未来数据。
+2. **刷新率逐 trace 显式声明**（文件名 token 或 --hz；缺失/冲突即报错；组内混合 60/120Hz
+   直接报错退出；无默认值）。
+   **现场验证发现（2026-11-18，Redmi 2407FRK8EC / MTK，dumpsys + trace 双证据）**：
+   面板刷新率与渲染率解耦——`min/peak_refresh_rate=60` 锁定在 App 内连续滑动期间持续
+   生效（解析 RefreshRate=60.0），但 renderFrameRate=120，app/SF 以 120Hz 渲染、present
+   处大量 Dropped Frame（60Hz 组 Dropped 占 9%~17%）；trace 内 ActiveModeFps/RenderRateFps
+   为**渲染侧模式投票**、VSYNC-sf 为合成节奏（两标签组均为 8.33ms），**均≠面板率**，
+   trace 内容无可靠面板率信号。故面板 Hz 以采集配置显式声明为准（已现场验证该配置
+   生效），60/120Hz 标签成立；60Hz 组帧时长含最多一个 60Hz present 槽位排队延迟，
+   与 120Hz 组机械口径不同，解读时分开陈述。
+3. **阈值表述更正**：>2×预算 ≠「错过一次刷新」（见 §8）；真实呈现迟到以
+   present_type/on_time_finish/jank_type 组合陈述；android_frames_overrun 在本
+   trace_processor 版本不可用（如实记录）。
+4. **进程检查**：全部 trace 目标进程数=1（upid/pid 逐 trace 输出），无多实例/重启，
+   无「静默取 upids[0]」路径；异常清单逐组输出（本批全部为空）。
+5. **帧身份检查**：唯一键 (frame name, layer_name, upid) 语义＝**应用图层帧记录
+   （per-layer surface frame）**，非 app 级逻辑帧；全部 trace name↔surface_frame_token
+   不一致=0、重复记录 ts/dur、display_token、jank/present/on_time 一致（dupIDs=0）、
+   surface_frame_token→图层数分布={1: n}（单图层）；android_frames（app 级）对照计数
+   ≈115–213/trace，与 per-layer 唯一帧 n（≈460–570/trace）口径不同，仅作对照，
+   本报告全部分布均基于 per-layer 唯一帧。
+6. **分母完整**：§8 表已补 n、阈值占比、窗口时长、on_time/late/unknown；jank_type/
+   present_type 分布、代表 trace（含 max 帧 frame_token）随 `stats/r31_*.txt` 逐组输出。
