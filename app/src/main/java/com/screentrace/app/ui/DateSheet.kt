@@ -140,6 +140,7 @@ fun DateSheet(
     /** CR-14：按入口页裁剪的选项集；CR-16 起二级页也走 [dateSheetModeFor]，FULL 仅剩兜底语义。 */
     mode: DateSheetMode = DateSheetMode.FULL
 ) {
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/DateSheet")
     val palette = LocalFreshPalette.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var tab by rememberSaveable { mutableStateOf(0) }

@@ -199,6 +199,7 @@ fun ScreenTimeTheme(
     wallpaper: WallpaperState? = null,
     content: @Composable () -> Unit
 ) {
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/Theme")
     val context = LocalContext.current
     // 评审 P2-7：派生 + 自动校正最坏上千次对比度计算，必须 remember——
     // 否则每次重组合都重跑一遍

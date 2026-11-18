@@ -98,6 +98,7 @@ fun FreshNavBar(
     modifier: Modifier = Modifier,
     progress: State<Float>? = null
 ) {
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/FreshNavBar")
     val palette = LocalFreshPalette.current
     val reduceMotion = rememberReduceMotion()
     val widthSpec: AnimationSpec<Float> = if (reduceMotion) tween(0) else spring(

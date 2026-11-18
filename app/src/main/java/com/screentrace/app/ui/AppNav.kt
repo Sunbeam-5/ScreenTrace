@@ -135,6 +135,7 @@ private fun remainingPages(target: Int, pagerState: androidx.compose.foundation.
 )
 @Composable
 fun AppNav() {
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/AppNav")
     val context = LocalContext.current
     val container = (context.applicationContext as? ScreenTraceApp)?.container
     val viewModel: AppViewModel = viewModel(factory = viewModelFactory {
@@ -635,6 +636,7 @@ fun AppNav() {
                         }
                     }
                 }
+                        com.screentrace.app.uikit.PerfProbe.tick("Compose/PullZone")
                         PullToRefreshContainer(
                             state = pullState,
                             // M3 1.2 默认指示器空闲态不归零：真机上标题旁常驻一个无图标
@@ -1183,6 +1185,7 @@ private fun DevicePanelOverlay(
     onSwitchDevice: suspend (String) -> String,
     onMergeDevice: suspend (String) -> String
 ) {
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/DPO")
     Box(Modifier.fillMaxSize()) {
         // 点外部收起：不加 ripple，避免整屏出现按压水波；透明层无动画，随 visible 立即出现/消失
         if (visible) {

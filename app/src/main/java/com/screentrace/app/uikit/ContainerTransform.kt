@@ -271,6 +271,7 @@ fun ContainerTransformOverlay(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/CTO")
     val progress by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
         animationSpec = tween(

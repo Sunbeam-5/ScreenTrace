@@ -51,6 +51,7 @@ fun StyleSheet(
     onSelect: (ThemeVariant) -> Unit,
     onDismiss: () -> Unit
 ) {
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/StyleSheet")
     val palette = LocalFreshPalette.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 

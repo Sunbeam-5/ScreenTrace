@@ -154,6 +154,7 @@ fun ScrollablePage(
     scrollState: androidx.compose.foundation.ScrollState = rememberScrollState(),
     content: @Composable ColumnScope.() -> Unit
 ) {
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/ScrollablePage")
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -225,6 +226,7 @@ fun AppHeader(
     val titleShiftPx = with(LocalDensity.current) {
         (tabProgress?.let { titleShiftDp(it.value) } ?: 0f).dp.toPx()
     }
+    com.screentrace.app.uikit.PerfProbe.tick("Compose/AppHeader")
     if (kotlin.math.abs(titleShiftPx) > 2f) {
         android.util.Log.d("TabNav", "titleShiftPx=${titleShiftPx}")
     }
