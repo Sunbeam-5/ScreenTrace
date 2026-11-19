@@ -10,12 +10,16 @@
   dur=207.2ms；对应 doFrame 197.5ms，对账 Composition 160.0 + 布局 30.3 + 绘制 3.2 + 杂项 4.0 ✓）
 - `e2_far120_r1.pftrace.gz`：E2 早期代表 trace
 - `e2_traces/`：**E2 全 12 轮压缩原始 trace**（base/e2 × far/adj × 60/120 × 3 中 e2_clean 全部）
+- `vivo_traces/`：**vivo V2352A 全 36 轮压缩原始 trace**（base_clean/e1_clean/e2_clean ×
+  far/adj × 60/120 × 3，2026-11-19 补测；采集配置为从 trace 内嵌提取的 TraceConfig，
+  与 Redmi 采集同源）
 - `a4_traces/`：**A-4 全部其余压缩原始 trace 入库**（base_clean/e1_clean/e1a/e1b 各 12 轮 +
   r2a/r2v5 干净对照各 3 轮，共 54 个 .pftrace.gz）——E1 逐轮原始 trace 可访问归档，
   后续可独立复算 E1/E2/V5 复测全部数值
 - `stats/`：完整统计输出（可访问归档）
   - `r3_recompute.txt` / `e1_full_stats.txt`：R3 版全量重算输出（历史记录）
-  - `r31_a3_v1v5.txt` / `r31_a4_all.txt` / `r31_e1_full.txt` / `r31_e2_full.txt`：
+  - `r31_a3_v1v5.txt` / `r31_a4_all.txt` / `r31_e1_full.txt` / `r31_e2_full.txt` /
+    `r31_vivo_all.txt`（vivo 12 组，2026-11-19 补测）：
     **R3.1 现行口径**重算输出（唯一帧 + NULL 三分 + 显式刷新率 + n/占比/窗口 + jank/present/on_time 分布）
 - `patches/`：V1–V5 累积消融可复现 patch 集（含构建细节与基线 SHA）
 - `SHA256SUMS.txt`：**全部实际交付文件逐个实算哈希**（仓库内相对路径）+
