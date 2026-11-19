@@ -13,6 +13,9 @@
 - `vivo_traces/`：**vivo V2352A 全 36 轮压缩原始 trace**（base_clean/e1_clean/e2_clean ×
   far/adj × 60/120 × 3，2026-11-19 补测；采集配置为从 trace 内嵌提取的 TraceConfig，
   与 Redmi 采集同源）
+- `manual_acceptance/`：**人工手指验收录屏**（负责人 2026-11-19 双机实操；Redmi
+  Screenrecorder-2026-11-19-09-08-21-891.mp4、vivo Screenrecording_20261119_090659.mp4；
+  逐项复核结果见 A-4 报告 §5）
 - `a4_traces/`：**A-4 全部其余压缩原始 trace 入库**（base_clean/e1_clean/e1a/e1b 各 12 轮 +
   r2a/r2v5 干净对照各 3 轮，共 54 个 .pftrace.gz）——E1 逐轮原始 trace 可访问归档，
   后续可独立复算 E1/E2/V5 复测全部数值
