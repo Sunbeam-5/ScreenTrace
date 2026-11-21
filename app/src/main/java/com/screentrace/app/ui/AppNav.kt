@@ -383,6 +383,8 @@ fun AppNav() {
         val tabScope = rememberCoroutineScope()
         // CR-22 ①：程序化滚动守卫（点 tab 触发的滚动期间不接受 Pager 的中间页回写）
         val tabGuard = remember { TabScrollGuard() }
+        // A-5 只读探针：滚动任务序号（观察旧任务取消/延迟完成/回写覆盖的竞态时序）。仅日志，无行为。
+        val a5Seq = remember { java.util.concurrent.atomic.AtomicInteger(0) }
 
         // CR-22 ①：按 **Pager 的实际停留页**对齐路由。
         // 写的是 Pager 此刻的位置（不是「用户点的页」），所以 Pager 仍是唯一真相源，
@@ -411,14 +413,23 @@ fun AppNav() {
             if (pagerState.currentPage != target) {
                 // CR-22 ①：这也是一次程序化滚动（二级页返回时的回滚），中途的中间页
                 // 同样不能回写路由，否则标题会闪一下中间页。
+                val seq = a5Seq.incrementAndGet()
+                com.screentrace.app.uikit.PerfProbe.event("A5/routeScroll=" + target + "#" + seq)
                 tabGuard.begin(target)
                 try {
                     com.screentrace.app.uikit.PerfProbe.event("Pager/scrollStart")
+                    com.screentrace.app.uikit.PerfProbe.event("A5/scrollStart=" + target + "#" + seq)
                     if (reduceMotion) pagerState.scrollToPage(target)
                     else pagerState.animateScrollToPage(target, animationSpec = TabMotion.scrollSpecFor(TabMotion.remainingPages(target, pagerState.currentPage, pagerState.currentPageOffsetFraction)))
                     com.screentrace.app.uikit.PerfProbe.event("Pager/scrollEnd")
+                    com.screentrace.app.uikit.PerfProbe.event("A5/scrollEnd=" + target + "#" + seq)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    com.screentrace.app.uikit.PerfProbe.event("A5/scrollCancel=" + target + "#" + seq)
+                    throw e
                 } finally {
-                    if (tabGuard.end(target)) alignRouteToPager(pagerState.currentPage)
+                    val aligned = tabGuard.end(target)
+                    com.screentrace.app.uikit.PerfProbe.event("A5/scrollFinally=" + target + "#" + seq + " aligned=" + aligned)
+                    if (aligned) alignRouteToPager(pagerState.currentPage)
                 }
             }
         }
@@ -952,15 +963,24 @@ fun AppNav() {
                         // CR-17 ②：点 tab 只滚 Pager，不直接写路由；route 由 ② 单向回写
                         // CR-22 ①：标记为程序化滚动——滚动途中 Pager 的回写一律忽略，
                         // 结束后按 Pager 的停留页对齐一次（跨页时不经过中间页）。
+                        val seq = a5Seq.incrementAndGet()
+                        com.screentrace.app.uikit.PerfProbe.event("A5/tabClick=" + index + "#" + seq)
                         tabGuard.begin(index)
                         tabScope.launch {
                             try {
                                 com.screentrace.app.uikit.PerfProbe.event("Pager/scrollStart")
+                                com.screentrace.app.uikit.PerfProbe.event("A5/scrollStart=" + index + "#" + seq)
                                 if (reduceMotion) pagerState.scrollToPage(index)
                                 else pagerState.animateScrollToPage(index, animationSpec = TabMotion.scrollSpecFor(TabMotion.remainingPages(index, pagerState.currentPage, pagerState.currentPageOffsetFraction)))
                                 com.screentrace.app.uikit.PerfProbe.event("Pager/scrollEnd")
+                                com.screentrace.app.uikit.PerfProbe.event("A5/scrollEnd=" + index + "#" + seq)
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                com.screentrace.app.uikit.PerfProbe.event("A5/scrollCancel=" + index + "#" + seq)
+                                throw e
                             } finally {
-                                if (tabGuard.end(index)) alignRouteToPager(pagerState.currentPage)
+                                val aligned = tabGuard.end(index)
+                                com.screentrace.app.uikit.PerfProbe.event("A5/scrollFinally=" + index + "#" + seq + " aligned=" + aligned)
+                                if (aligned) alignRouteToPager(pagerState.currentPage)
                             }
                         }
                     },
