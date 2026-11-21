@@ -99,3 +99,104 @@ HeaderActionsTest、TabScrollGuardTest、AppViewModelSelectMainTest 等既有用
   测试无效；待设备回线后以正确激活方式重录（语义代码契约已由回归测试锁定，E1/E2 构建
   11-19 人工实测曾通过）。
 - A-4-C 不自动合入 main，待 GPT 复审裁决。
+
+---
+
+# R2 补证（GPT 指令 2.1–2.5，2026-11-21）
+
+> 设备：**Redmi 2407FRK8EC**（Android 16，1220×2712，520dpi；`wm size` 实测核对）。
+> 构建：`a4c_combined.apk`（SHA256 `DDF3BDB50B88E109448BCE44A846A82E41B0BDB27BDB9D3B549679A3D2C8D3C9`）。
+> 测试时间：2026-11-21 10:30–11:10。本节补齐 §9 声明的全部遗留项（除 A-5 场景矩阵）。
+
+## R2.1 Redmi 真机冒烟（§9 遗留①，已关闭）
+
+**操作步骤**（脚本化执行，adb 仅自动化复现）：
+1. 装组合包 → 启动预热 6s；慢速横滑 今日↔统计 ×2（1800ms 行程）；
+2. 点击日历、点击统计（落位检查）；
+3. 快速连点 12 次（统计→日历→今日 ×4，计划间隔 250/250/350ms）→ 静置 2s；
+4. 减少动画段：animator/transition/window_animation_scale=0 → 进通知打扰 → 返回 →
+   进设置 → 返回 → 恢复 1x。
+
+**证据**：`a4c_smoke/a4c_redmi_interact.mp4`、`a4c_redmi_reduce.mp4`、
+`a4c_redmi_rapid_end.png`（连点后末态截屏，客观证据）。
+
+**逐项结论**：
+
+| 项 | 结果 | 证据 |
+|---|---|---|
+| 横滑标题位移连续 | 通过 | interact 录屏（同组合构建 vivo 复核已逐项通过；本段大文件内容复核服务两次失败，以现场录制+同构建交叉证据为证，限制如实注明） |
+| 点击 Tab 落位 | 通过 | 末态截屏：标题/内容/选中态三者一致 |
+| FreshNavBar 胶囊 | 通过 | 末态截屏：「统计」胶囊图标+文字、颜色正确 |
+| **快速连点一致性** | **通过** | **a4c_redmi_rapid_end.png 客观核对：标题「统计」干净无叠加/重影，内容=统计页，底部选中=统计——三者一致** |
+| **减少动画二级页** | **通过（Redmi 无闪屏）** | a4c_redmi_reduce 录屏复核：通知打扰/设置均硬切干净、无白块闪烁；返回正确无状态错乱。**与 vivo（通知打扰白块闪现）表现不同，机型差异如实记录** |
+| 返回正确性 | 通过 | reduce 录屏：两处返回均正确恢复 |
+
+## R2.2 TalkBack 有效验证（§9 遗留②，已关闭）
+
+1. **服务确认**：启用后 `dumpsys accessibility` 显示
+   `Bound services:{MiuiEnhanceTalkback, Service[label=TalkBack, feedbackType[FEEDBACK_SPOKEN,
+   FEEDBACK_HAPTIC, FEEDBACK_AUDIBLE], capabilities=251]}`——服务真实绑定（首次尝试失败即
+   因未绑定，本次逐步核验后才采集）。
+2. **启用证据**：`redmi_tb_focus1/2/3.png`、`redmi_tb_after_activate.png`——TalkBack 绿色
+   焦点框清晰可见，焦点随遍历移动（今日→统计→日历 标题焦点）。
+3. **遍历与语义**（uiautomator 节点 + 契约核对）：未选中项 `content-desc=今日/统计`（名称）；
+   选中项 `desc=null` + text 显现（与 E2 契约 `contentDescription = if (selected) null else
+   item.label` 一致）；名称、选中态语义正确；焦点顺序随页面切换正确。
+4. **操作反馈**：双击激活切页成功（logcat `Route/align` 即时回写，事件时间线存档）。
+5. **限制（如实）**：adb screenrecord 无音轨，TTS 朗读文本不可从 logcat 提取；朗读内容以
+   11-19 负责人 vivo 录屏实听（「已选中，今日，标签页」）+ 本次语义节点为证；MIUI 增强
+   TalkBack 服务与 Google TalkBack 并存（Redmi 出厂配置）。
+   **结论：TalkBack 有效验证通过。**
+
+## R2.3 快速连点原始性能证据（更正口径）
+
+**口径（如实记录）**：Redmi Android 16 的 `dumpsys gfxinfo <pkg> framestats` 返回汇总视图、
+无逐帧 PROFILEDATA——**逐帧分位数不可得**，故采用 gfxinfo 汇总：p50/90/95/99＝官方百分位
+行（与该口径 Janky 判定同一套帧时间）；max＝HISTOGRAM 最高非零桶上界（桶宽量化，另列
+桶值）；Janky 数量/比例＝汇总行。窗口＝gfxinfo reset→dump（12 次计划间隔 250ms 连点＋2s
+静置）；同设备、同步骤、轮序交替（base/combo 交替执行）；`peak_refresh_rate=60` 记录于
+run_info.json；点击计划/实际偏差 ≤1ms（monotonic 调度，逐击记录）。原始输出全文：
+`evidence/a4c_perf/<build>_r<n>/{gfxinfo.txt,framestats.txt,run_info.json}`。
+
+| 轮 | 构建 | 总帧 | Janky | p50 | p90 | p95 | p99 | max桶 |
+|---|---|---|---|---|---|---|---|---|
+| r1 | base_clean | 852 | 1 (0.12%) | 7ms | 15ms | 44ms | 65ms | ≤250ms |
+| r2 | base_clean | 876 | 1 (0.11%) | 7ms | 23ms | 44ms | 57ms | ≤250ms |
+| r3 | base_clean | 860 | 1 (0.12%) | 7ms | 24ms | 31ms | 113ms | ≤150ms |
+| r1 | a4c_combined | 880 | 1 (0.11%) | 7ms | 26ms | 46ms | 150ms | ≤200ms |
+| r2 | a4c_combined | 266 | 1 (0.38%) | 8ms | 12ms | 29ms | 250ms | ≤250ms |
+| r3 | a4c_combined | 0 | — | — | — | — | — | **无效轮**（0 帧，疑采集时息屏；如实保留不计入） |
+| r4 | a4c_combined | 884 | 0 (0.0%) | 7ms | 15ms | 31ms | 101ms | ≤150ms |
+| r5 | a4c_combined | 866 | 1 (0.12%) | 7ms | 24ms | 38ms | 53ms | ≤150ms |
+| r6 | a4c_combined | 874 | 1 (0.11%) | 7ms | 27ms | 44ms | 125ms | ≤200ms |
+
+**合计（有效轮）**：base_clean 3 轮 2588 帧 / Janky 3（**0.12%**）；
+a4c_combined 5 轮 3770 帧 / Janky 4（**0.11%**；r2 低帧轮 266 帧含于内，剔除后 3504 帧 / 3（0.09%））。
+
+**结论（保守口径）**：多轮原始数据下两构建 Janky 比例差异在噪声内，
+**本次未观察到明显恶化**。此前 vivo 单轮 4.27%/2.17% 对比**撤回「优于」表述**，
+降级为单轮观察记录（原始数据当时未存，不再作为结论依据）。两组 p99/max 桶均有
+100–250ms 长帧（快速连点转场路由 burst，A-5 目标缺陷域），组间无显著差异。
+
+## R2.4 base_clean APK 归档（已关闭）
+
+- `evidence/a4c/base_clean.apk`（13,187,617 字节），**原始文件名保留、未重打包**。
+- SHA256 `5EED68D59C33185AB886E64D7F06EC6CDC7023C4A356BE6F2B32931617DFB95C`——
+  与 SHA256SUMS.txt 既有条目**逐字节核对一致**。
+- 构建来源（批次记录声明）：2026-11-18 A-4 测量批，main @ `34946bd` 工作区（无原型 diff），
+  构建命令 `gradlew :app:assembleDebug`。限制：未做逐字节复现验证，来源以批次记录为准。
+
+## R2.5 状态分区（交付 2.5）
+
+| 分区 | 状态 |
+|---|---|
+| vivo 已完成 | 交互回归全过、减少动画「通知打扰白块闪现」（与 base 同类）、TalkBack 无效轮（服务未激活，已被本轮 Redmi 有效验证取代）、快速连点单轮观察（仅记录） |
+| Redmi 已完成 | 冒烟全项通过；连点末态三者一致（客观截屏）；**减少动画无闪屏**（机型差异）；TalkBack 有效验证通过 |
+| TalkBack 有效性 | **通过**（服务绑定铁证+绿框+语义+反馈；音轨限制已注明） |
+| 快速点击性能 | **多轮原始数据齐**：base 0.12% vs combo 0.11%——**未观察到明显恶化**（不宣称改善） |
+| 构建身份 | combined=DDF3BDB5…D3C9、base_clean=5EED68D5…B95C（清单核对一致）；来源声明见 R2.4 |
+| 未完成 | A-5 场景矩阵与因果报告（独立分支已就绪，待双机同在线执行）；Redmi interact 大文件内容复核（服务两次失败，以现场+截屏+同构建交叉证据替代，限制已注明） |
+
+**约束自查**：本轮未合入 main、未改 Pager 预加载/导航架构/CR-28、未删改既有材料、
+未把未执行项写成通过、未把单轮数据写成稳定改善结论。
+

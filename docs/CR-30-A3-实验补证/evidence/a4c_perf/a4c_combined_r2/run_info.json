@@ -1,0 +1,107 @@
+{
+ "build": "a4c_combined",
+ "round": "2",
+ "device": "GAQOHMNFQWFUPBQO",
+ "taps": [
+  {
+   "i": 0,
+   "target": "stats",
+   "plan_offset_ms": 0.0,
+   "actual_offset_ms": 0.0,
+   "deviation_ms": 0.0,
+   "cmd_duration_ms": 112.8
+  },
+  {
+   "i": 1,
+   "target": "calendar",
+   "plan_offset_ms": 250.0,
+   "actual_offset_ms": 251.0,
+   "deviation_ms": 1.0,
+   "cmd_duration_ms": 205.3
+  },
+  {
+   "i": 2,
+   "target": "today",
+   "plan_offset_ms": 500.0,
+   "actual_offset_ms": 500.3,
+   "deviation_ms": 0.3,
+   "cmd_duration_ms": 77.8
+  },
+  {
+   "i": 3,
+   "target": "stats",
+   "plan_offset_ms": 750.0,
+   "actual_offset_ms": 750.3,
+   "deviation_ms": 0.3,
+   "cmd_duration_ms": 86.1
+  },
+  {
+   "i": 4,
+   "target": "calendar",
+   "plan_offset_ms": 1000.0,
+   "actual_offset_ms": 1000.7,
+   "deviation_ms": 0.7,
+   "cmd_duration_ms": 63.5
+  },
+  {
+   "i": 5,
+   "target": "today",
+   "plan_offset_ms": 1250.0,
+   "actual_offset_ms": 1250.4,
+   "deviation_ms": 0.4,
+   "cmd_duration_ms": 79.0
+  },
+  {
+   "i": 6,
+   "target": "stats",
+   "plan_offset_ms": 1500.0,
+   "actual_offset_ms": 1500.7,
+   "deviation_ms": 0.7,
+   "cmd_duration_ms": 42.7
+  },
+  {
+   "i": 7,
+   "target": "calendar",
+   "plan_offset_ms": 1750.0,
+   "actual_offset_ms": 1750.2,
+   "deviation_ms": 0.2,
+   "cmd_duration_ms": 69.8
+  },
+  {
+   "i": 8,
+   "target": "today",
+   "plan_offset_ms": 2000.0,
+   "actual_offset_ms": 2001.0,
+   "deviation_ms": 1.0,
+   "cmd_duration_ms": 80.1
+  },
+  {
+   "i": 9,
+   "target": "stats",
+   "plan_offset_ms": 2250.0,
+   "actual_offset_ms": 2251.0,
+   "deviation_ms": 1.0,
+   "cmd_duration_ms": 78.2
+  },
+  {
+   "i": 10,
+   "target": "calendar",
+   "plan_offset_ms": 2500.0,
+   "actual_offset_ms": 2501.0,
+   "deviation_ms": 1.0,
+   "cmd_duration_ms": 71.2
+  },
+  {
+   "i": 11,
+   "target": "today",
+   "plan_offset_ms": 2750.0,
+   "actual_offset_ms": 2750.9,
+   "deviation_ms": 0.9,
+   "cmd_duration_ms": 59.9
+  }
+ ],
+ "gap_plan_ms": 250.0,
+ "window": "gfxinfo reset 至 dump（12 次计划间隔 250ms 连点 + 2s 静置）",
+ "refresh": "60",
+ "failures": []
+}
