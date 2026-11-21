@@ -217,7 +217,7 @@ def main():
     def patch_nav(p):
         a5_run.DEVICES["2407FRK8EC"]["nav"]["today"] = (99999, 0)
     code, calls, tmp, info = run_case(pre=patch_nav)
-    a5_run.DEVICES["2407FRK8EC"]["nav"]["today"] = (503, 2493)
+    a5_run.DEVICES["2407FRK8EC"]["nav"]["today"] = (335, 2493)
     ok = (code == 1 and info and info["status"] == "FAILED" and no_taps(calls))
     results.append(("t9b 越界坐标拒绝零点击", ok, code, info))
 
