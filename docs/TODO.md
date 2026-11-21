@@ -29,7 +29,7 @@
 
 ## 当前优先（负责人 2026-11-13 裁定：先收口 UI 与同步）
 
-- [ ] **A-5 R10 · TabScrollGuard 同目标连续点击的守卫所有权（P2，GPT R9 复审发现）**：守卫只用 target index 区分协程，`end(index)` 的 `target != index` 判据在「新旧点击目标相同」时失效——旧协程被取消后错误返回 true 并清掉新协程的守卫状态（真机复现：R9 v3 s5_same，seq1 `scrollCancel→scrollFinally(aligned=true)`+Route/align=1，seq2 `aligned=false` 且无 Route/align）。**缺陷只在同目标连击时穿透**（目标不同的五轮被旧逻辑侥幸挡住）；s5_same 最终路由仍为统计页、与视觉一致，属「侥幸无害」，但机制是错的。**本轮未改业务代码**（不授权）。设计已出：`docs/CR-30-A5-R10-TabScrollGuard-所有权设计.md`（token 所有权机制 / 状态转移表 / T1~T8 测试设计 / M1~M7 变异验证 / 最小 diff 计划：生产 2 文件约 27 行 + 新增 1 个测试文件）。**待 GPT 评审后实施**；建议**在 A-5 完整矩阵之前**先修（矩阵会大量复现同目标连击场景）。待裁决点 Q1~Q6 见设计文档 §6。
+- [ ] **A-5 R10 · TabScrollGuard 同目标连续点击的守卫所有权（P2，GPT R9 复审发现）**：守卫只用 target index 区分协程，`end(index)` 的 `target != index` 判据在「新旧点击目标相同」时失效——旧协程被取消后错误返回 true 并清掉新协程的守卫状态（真机复现：R9 v3 s5_same，seq1 `scrollCancel→scrollFinally(aligned=true)`+Route/align=1，seq2 `aligned=false` 且无 Route/align）。**缺陷只在同目标连击时穿透**（目标不同的五轮被旧逻辑侥幸挡住）；s5_same 最终路由仍为统计页、与视觉一致，属「侥幸无害」，但机制是错的。**本轮未改业务代码**（不授权）。设计已出：`docs/CR-30-A5-R10-TabScrollGuard-所有权设计.md`。**GPT 独立复审结论：退回修订**（T3 时序写错 / `issuedState` 冗余 / 多字段读取无整体一致性 / `end(index,token)` 双校验致守卫残留 / §7 编号应为 **68→69** 而非 54→55），**v2 修订稿已按 5 项必修 + T8 接线审查 + T6 边界声明全部落实**（逐条对照见设计文档 §9），Q1~Q6 裁决已全部关闭（ownsTarget 删除 / aligned 字段保留 / 暂不加 token 探针 / 矩阵前修 / §7-69 / 真机另申请）。**待 GPT 复审 v2 后再进入实现**；仍不擅自启动真机。
 
 - [x] ~~**转场进一步贴近系统原生**~~：负责人双机真机对比后裁定 **B 方案收口**（CR-13，仅图标上限 1.5× + 保留 0.35–0.65 淡出），不追求与系统完全同构；「裁剪框竖向中间态」属几何必然、非缺陷。对照素材保留在 `C:/tmp/screentrace-capture/`。
 

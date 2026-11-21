@@ -1787,3 +1787,50 @@ GPT 复审 R9 结论：**APK 身份对账通过、A5 专属探针六场景日志
 - **本轮处置**：**未修改任何导航业务代码**（本任务不授权改业务）。修复设计（token 所有权机制 + 状态转移表 + 8 条测试设计 + 7 项变异验证 + 最小 diff 计划）见 `docs/CR-30-A5-R10-TabScrollGuard-所有权设计.md`，**待 GPT 评审后再决定是否实施**。
 - **同时修正 R9 报告**：§5 表格中 s5_same 的 seq1 路径原写作「End→Finally(true)」（真值为 `scrollCancel→scrollFinally(aligned=true)`）已改正；新增 §5.1 澄清 **`aligned` = `TabScrollGuard.end(index)` 的 Boolean 返回值（守卫对齐所有权），不代表「Pager 当前页与目标页相等」**；新增 §5.2 登记本 P2。
 - **未越界**：未执行 Redmi 60Hz、未执行 vivo、未启动完整性能矩阵、未合入 main；A-5 R9 原始证据（v1 旧 APK 轮 / v2 坐标缺陷轮 / v3 身份对账轮）全部保留不覆盖不删除。
+---
+
+## 补记 · A-5 R10 设计复审：退回修订（GPT 独立静态复审，2026-11-21 16:45）
+
+GPT **重新从头审查** R10（不沿用上一轮结论），结论：**核心技术方向正确，但设计文档仍需修改，暂不批准进入编码**。上一轮「附条件通过」偏宽松——本轮除 T3 时序错误外，还发现一个 API 与状态管理问题。
+
+### 复审确认成立的结论
+
+- **R9 的 P2 定性保留**：`end(index)` 用 `target` 判断协程是否还是当前所有者——**目标页不是协程身份**；R9 的 s5_same 日志（seq1 `scrollCancel→scrollFinally(aligned=true)`+`Route/align=1`，seq2 `scrollEnd→scrollFinally(aligned=false)`）直接证明了所有权错误。
+- **但必须分开陈述两个事实**：① 所有权错误已被日志直接证明；② **用户可见的错误路由尚未被本轮证据证明**（R9 最终页面仍是统计页），不能描述成「已经发生页面错位」。R10 对根因的理解正确。
+
+### 退回的四条 P1
+
+| # | 问题 | 要求 |
+|---|---|---|
+| P1-1 | **T3 测试时序写错**：描述为「旧协程先结束」却配了「新点击先发生、旧协程后结束」的断言（实为 T2）。**照 v1 描述实现很可能把正常的所有权释放误判成失败** | T3 改为：`begin(1)`→t1 → **`end(1,t1)`=true**（它仍拥有所有权，理应成功释放）→ 状态回 IDLE → 再 `begin(2)`→t2 → `end(2,t2)`=true |
+| P1-2 | **`issuedState` 没有保留价值**：自己定义了 `owner != NO_OWNER → owner == issued`，且 `begin()` 总是同时更新两者——`token == owner && token == issued` **在重复检查同一个事实** | 只保留 `nextToken`（生成 token）+ `owner`（当前有效 token），不维护没有独立语义的第二份状态 |
+| P1-3 | **多字段状态读取不具备整体一致性**：三个独立 `@Volatile` 字段只保证单字段可见性；`ignoresWrite()` 未在同一把锁里读三个字段，读取期间恰逢更新可能读到 `programmatic=true / target=-1 / owner=NO_OWNER` 这种**非法业务状态** | 改为不可变 `GuardState(programmatic, target, owner)` 快照，`@Volatile` 持有；`begin`/`end` **整体替换**状态对象；`ignoresWrite` **只读取一次**快照 |
+| P1-4 | **`end(index, token)` 双校验可能导致守卫永久残留**：token 正确但 index 传错 → 返回 false → 不清状态 → 之后**没有其他协程能再正确释放这个 owner** → 守卫停留在 ACTIVE（比原缺陷更糟） | **token 已足以证明所有权，index 不应再参与所有权判定** → 改为 `fun end(token: Long): Boolean`；token 匹配即结束，不匹配则完全不动状态；`target` 仍存在状态里供 `ignoresWrite()` 用，AppNav 继续用自己的 target 局部变量做日志与路由业务 |
+
+### 测试方案重新裁决
+
+T1 保留 / **T2 保留（核心回归）** / **T3 修正时序** / T4 保留（重要边界）/ T5 保留 / **T6 保留但明确是状态机时序测试** / T7 保留 / **T8 需补充 AppNav 接线审查**。
+
+两条边界声明：
+
+1. **直接调用 begin/end ≠ 真实协程取消测试**——状态机测试可验证取消后的 `finally` 语义，但不等于验证 Compose 中真实协程取消、Pager 动画互相中断与路由回写；
+2. **T8 目前没有真正验证「横滑不调用 begin」**——它只证明守卫在 IDLE 时不会忽略回写；是否存在其他调用路径错误地创建 owner，需检查 AppNav 真实调用链；**这部分先做静态调用链审查，不必引入庞大的 Compose UI 测试框架**。
+
+### Q1~Q6 最终裁决
+
+| 项目 | 最终决定 |
+|---|---|
+| Q1 `ownsTarget` | **删除，token 取代** |
+| Q2 `aligned` 日志字段 | **保留**，不破坏 R9 证据兼容性 |
+| Q3 增加 owner token 探针 | **暂不增加**，避免扩大探针修改范围 |
+| Q4 修复时机 | **A-5 完整矩阵之前** |
+| Q5 新增验收条目 | **是，§7-69**（并纠正：§7 当前是 **68 条**，不是 54 条；新增后 69 条） |
+| Q6 真机复测 | **代码评审通过后，再单独申请 Redmi** |
+
+### 本轮不放行事项
+
+不允许直接编码、不允许修改 AppNav 导航业务、不允许合入 main、不允许启动完整 A-5 性能矩阵、**不允许擅自启动 Redmi 或 vivo 真机实验**。
+
+### 复审建议（已按此执行）
+
+「这次不要再让施工方只做文字解释，而是要求它把**状态机、API 和测试时序一起修订**。」→ 已出 v2 修订稿（`docs/CR-30-A5-R10-TabScrollGuard-所有权设计.md`），逐条对应见该文档 §9 对照表：T3 时序已改、`issuedState` 已删、状态改为不可变快照、`end` 改为 `end(token)`、§7-69 编号与验收文案已修正、**T8 已补 AppNav 静态调用链审查**（结论：横滑只走回写路径，`LaunchedEffect(mainPage)` 内 `pagerState.currentPage != target` 守卫使其**不进入 begin**，故横滑期间守卫恒 IDLE、跟手不受影响）、T6 已标注为状态机时序测试。**本轮仍未改任何业务代码、未动真机。**
