@@ -1,0 +1,721 @@
+{
+ "valid": [
+  {
+   "dir": "s5_same_120hz_r3",
+   "status": "OK",
+   "error": null,
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": null,
+   "selected_tab": "统计",
+   "video_bytes": 10150859,
+   "logcat_bytes": 4221,
+   "setup": null,
+   "shell_marks": null,
+   "n_tabClick": 2,
+   "route_align": [
+    "Route/align=1"
+   ],
+   "route_align_count": 1,
+   "route_align_owner_finally": "A5/scrollFinally=1#2 aligned=true",
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [
+    "1"
+   ],
+   "selectMain_seq": [
+    "AppPage$Stats@f30f27b"
+   ],
+   "guard_ignore": [],
+   "pager_events": [
+    "Pager/scrollStart",
+    "Pager/scrollStart",
+    "Pager/scrollEnd"
+   ],
+   "a5_timeline": [
+    "D A5/tabClick=1#1",
+    "D A5/scrollStart=1#1",
+    "D A5/tabClick=1#2",
+    "D A5/scrollStart=1#2",
+    "D A5/scrollCancel=1#1",
+    "D A5/scrollFinally=1#1 aligned=false",
+    "D A5/scrollEnd=1#2",
+    "D A5/scrollFinally=1#2 aligned=true"
+   ],
+   "route_timeline": [
+    "D Route/currentPage=1",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Stats@f30f27b",
+    "D Route/align=1"
+   ]
+  },
+  {
+   "dir": "s5_same_120hz_r4",
+   "status": "OK",
+   "error": null,
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": null,
+   "selected_tab": "统计",
+   "video_bytes": 11732143,
+   "logcat_bytes": 2824,
+   "setup": null,
+   "shell_marks": null,
+   "n_tabClick": 2,
+   "route_align": [
+    "Route/align=1"
+   ],
+   "route_align_count": 1,
+   "route_align_owner_finally": "A5/scrollFinally=1#1 aligned=false",
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [
+    "1"
+   ],
+   "selectMain_seq": [
+    "AppPage$Stats@34d4120"
+   ],
+   "guard_ignore": [],
+   "pager_events": [
+    "Pager/scrollStart",
+    "Pager/scrollStart",
+    "Pager/scrollEnd",
+    "Pager/scrollEnd"
+   ],
+   "a5_timeline": [
+    "D A5/tabClick=1#1",
+    "D A5/scrollStart=1#1",
+    "D A5/tabClick=1#2",
+    "D A5/scrollStart=1#2",
+    "D A5/scrollEnd=1#2",
+    "D A5/scrollFinally=1#2 aligned=true",
+    "D A5/scrollEnd=1#1",
+    "D A5/scrollFinally=1#1 aligned=false"
+   ],
+   "route_timeline": [
+    "D Route/currentPage=1",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Stats@34d4120",
+    "D Route/align=1"
+   ]
+  },
+  {
+   "dir": "s5_same_120hz_r5",
+   "status": "OK",
+   "error": null,
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": null,
+   "selected_tab": "统计",
+   "video_bytes": 19269695,
+   "logcat_bytes": 4367,
+   "setup": null,
+   "shell_marks": null,
+   "n_tabClick": 2,
+   "route_align": [
+    "Route/align=1"
+   ],
+   "route_align_count": 1,
+   "route_align_owner_finally": "A5/scrollFinally=1#2 aligned=true",
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [
+    "1"
+   ],
+   "selectMain_seq": [
+    "AppPage$Stats@e413a0a"
+   ],
+   "guard_ignore": [],
+   "pager_events": [
+    "Pager/scrollStart",
+    "Pager/scrollStart",
+    "Pager/scrollEnd"
+   ],
+   "a5_timeline": [
+    "D A5/tabClick=1#1",
+    "D A5/scrollStart=1#1",
+    "D A5/tabClick=1#2",
+    "D A5/scrollStart=1#2",
+    "D A5/scrollCancel=1#1",
+    "D A5/scrollFinally=1#1 aligned=false",
+    "D A5/scrollEnd=1#2",
+    "D A5/scrollFinally=1#2 aligned=true"
+   ],
+   "route_timeline": [
+    "D Route/currentPage=1",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Stats@e413a0a",
+    "D Route/align=1"
+   ]
+  },
+  {
+   "dir": "s7_swipe_fast_120hz_r3",
+   "status": "OK",
+   "error": null,
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": "今日",
+   "selected_tab": "日历",
+   "video_bytes": 8476576,
+   "logcat_bytes": 5135,
+   "setup": [
+    {
+     "i": 0,
+     "target": "today",
+     "x": 335,
+     "y": 2493
+    }
+   ],
+   "shell_marks": [
+    {
+     "i": 0,
+     "cmd": "date +%s.%N; input swipe 1150 700 -600 700 150; date +%s.%N; input swipe 1150 700 90 700 80; date +%s.%N",
+     "device_marks": [
+      "1795252997.461375892",
+      "1795252997.858364508",
+      "1795252998.188933738"
+     ],
+     "plan_offset_ms": 0.0,
+     "host_initiated_offset_ms": 0.0,
+     "deviation_ms": 0.0,
+     "cmd_duration_ms": 818.9
+    }
+   ],
+   "n_tabClick": 0,
+   "route_align": [],
+   "route_align_count": 0,
+   "route_align_owner_finally": null,
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [
+    "1",
+    "2"
+   ],
+   "selectMain_seq": [
+    "AppPage$Stats@37a40d4",
+    "AppPage$Calendar@7dc2901"
+   ],
+   "guard_ignore": [],
+   "pager_events": [],
+   "a5_timeline": [],
+   "route_timeline": [
+    "D Route/currentPage=1",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Stats@37a40d4",
+    "D Route/currentPage=2",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Calendar@7dc2901"
+   ]
+  },
+  {
+   "dir": "s7_swipe_fast_120hz_r4",
+   "status": "OK",
+   "error": null,
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": "今日",
+   "selected_tab": "统计",
+   "video_bytes": 5142360,
+   "logcat_bytes": 5713,
+   "setup": [
+    {
+     "i": 0,
+     "target": "today",
+     "x": 335,
+     "y": 2493
+    }
+   ],
+   "shell_marks": [
+    {
+     "i": 0,
+     "cmd": "date +%s.%N; input swipe 1150 700 -600 700 150; date +%s.%N; input swipe 1150 700 90 700 80; date +%s.%N",
+     "device_marks": [
+      "1795253025.476219971",
+      "1795253025.801511279",
+      "1795253026.189230663"
+     ],
+     "plan_offset_ms": 0.0,
+     "host_initiated_offset_ms": 0.0,
+     "deviation_ms": 0.0,
+     "cmd_duration_ms": 795.0
+    }
+   ],
+   "n_tabClick": 0,
+   "route_align": [],
+   "route_align_count": 0,
+   "route_align_owner_finally": null,
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [
+    "1",
+    "0",
+    "1"
+   ],
+   "selectMain_seq": [
+    "AppPage$Stats@f30f27b",
+    "AppPage$Today@24036be",
+    "AppPage$Stats@f30f27b"
+   ],
+   "guard_ignore": [],
+   "pager_events": [],
+   "a5_timeline": [],
+   "route_timeline": [
+    "D Route/currentPage=1",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Stats@f30f27b",
+    "D Route/currentPage=0",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Today@24036be",
+    "D Route/currentPage=1",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Stats@f30f27b"
+   ]
+  },
+  {
+   "dir": "s7_swipe_fast_120hz_r5",
+   "status": "OK",
+   "error": null,
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": "今日",
+   "selected_tab": "统计",
+   "video_bytes": 5389322,
+   "logcat_bytes": 5060,
+   "setup": [
+    {
+     "i": 0,
+     "target": "today",
+     "x": 335,
+     "y": 2493
+    }
+   ],
+   "shell_marks": [
+    {
+     "i": 0,
+     "cmd": "date +%s.%N; input swipe 1150 700 -600 700 150; date +%s.%N; input swipe 1150 700 90 700 80; date +%s.%N",
+     "device_marks": [
+      "1795253087.905432205",
+      "1795253088.248930975",
+      "1795253088.469379975"
+     ],
+     "plan_offset_ms": 0.0,
+     "host_initiated_offset_ms": 0.0,
+     "deviation_ms": 0.0,
+     "cmd_duration_ms": 636.8
+    }
+   ],
+   "n_tabClick": 0,
+   "route_align": [],
+   "route_align_count": 0,
+   "route_align_owner_finally": null,
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [
+    "1",
+    "0",
+    "1"
+   ],
+   "selectMain_seq": [
+    "AppPage$Stats@200d341",
+    "AppPage$Today@9f9aefc",
+    "AppPage$Stats@200d341"
+   ],
+   "guard_ignore": [],
+   "pager_events": [],
+   "a5_timeline": [],
+   "route_timeline": [
+    "D Route/currentPage=1",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Stats@200d341",
+    "D Route/currentPage=0",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Today@9f9aefc",
+    "D Route/currentPage=1",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Stats@200d341"
+   ]
+  },
+  {
+   "dir": "s8_swipe_interrupt_120hz_r2",
+   "status": "OK",
+   "error": null,
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": "今日",
+   "selected_tab": "今日",
+   "video_bytes": 21883131,
+   "logcat_bytes": 4854,
+   "setup": [
+    {
+     "i": 0,
+     "target": "today",
+     "x": 335,
+     "y": 2493
+    }
+   ],
+   "shell_marks": [
+    {
+     "i": 0,
+     "cmd": "date +%s.%N; input tap 885 2493; date +%s.%N; sleep 0.12; input swipe 150 700 1150 700 80; date +%s.%N",
+     "device_marks": [
+      "1795253052.966053434",
+      "1795253053.041759357",
+      "1795253053.535036280"
+     ],
+     "plan_offset_ms": 0.0,
+     "host_initiated_offset_ms": 0.0,
+     "deviation_ms": 0.0,
+     "cmd_duration_ms": 635.6
+    }
+   ],
+   "n_tabClick": 1,
+   "route_align": [
+    "Route/align=1"
+   ],
+   "route_align_count": 1,
+   "route_align_owner_finally": "A5/scrollFinally=2#2 aligned=true",
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [
+    "1",
+    "0"
+   ],
+   "selectMain_seq": [
+    "AppPage$Today@861543d"
+   ],
+   "guard_ignore": [
+    "Route/guardIgnore=1"
+   ],
+   "pager_events": [
+    "Pager/scrollStart"
+   ],
+   "a5_timeline": [
+    "D A5/tabClick=2#2",
+    "D A5/scrollStart=2#2",
+    "D A5/scrollCancel=2#2",
+    "D A5/scrollFinally=2#2 aligned=true"
+   ],
+   "route_timeline": [
+    "D Route/currentPage=1",
+    "D Route/guardIgnore=1",
+    "D Route/align=1",
+    "D Route/currentPage=0",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Today@861543d"
+   ]
+  },
+  {
+   "dir": "s8_swipe_interrupt_120hz_r3",
+   "status": "OK",
+   "error": null,
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": "今日",
+   "selected_tab": "统计",
+   "video_bytes": 21118234,
+   "logcat_bytes": 5112,
+   "setup": [
+    {
+     "i": 0,
+     "target": "today",
+     "x": 335,
+     "y": 2493
+    }
+   ],
+   "shell_marks": [
+    {
+     "i": 0,
+     "cmd": "date +%s.%N; input tap 885 2493; date +%s.%N; sleep 0.12; input swipe 150 700 1150 700 80; date +%s.%N",
+     "device_marks": [
+      "1795253115.660486053",
+      "1795253115.724686976",
+      "1795253116.207255592"
+     ],
+     "plan_offset_ms": 0.0,
+     "host_initiated_offset_ms": 0.0,
+     "deviation_ms": 0.0,
+     "cmd_duration_ms": 621.3
+    }
+   ],
+   "n_tabClick": 1,
+   "route_align": [
+    "Route/align=2"
+   ],
+   "route_align_count": 1,
+   "route_align_owner_finally": "A5/scrollFinally=2#2 aligned=true",
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [
+    "1",
+    "2",
+    "1"
+   ],
+   "selectMain_seq": [
+    "AppPage$Calendar@93e571e",
+    "AppPage$Stats@5edaec7"
+   ],
+   "guard_ignore": [
+    "Route/guardIgnore=1"
+   ],
+   "pager_events": [
+    "Pager/scrollStart"
+   ],
+   "a5_timeline": [
+    "D A5/tabClick=2#2",
+    "D A5/scrollStart=2#2",
+    "D A5/scrollCancel=2#2",
+    "D A5/scrollFinally=2#2 aligned=true"
+   ],
+   "route_timeline": [
+    "D Route/currentPage=1",
+    "D Route/guardIgnore=1",
+    "D Route/currentPage=2",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Calendar@93e571e",
+    "D Route/align=2",
+    "D Route/currentPage=1",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Stats@5edaec7"
+   ]
+  },
+  {
+   "dir": "s8_swipe_interrupt_120hz_r4",
+   "status": "OK",
+   "error": null,
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": "今日",
+   "selected_tab": "今日",
+   "video_bytes": 17988450,
+   "logcat_bytes": 4781,
+   "setup": [
+    {
+     "i": 0,
+     "target": "today",
+     "x": 335,
+     "y": 2493
+    }
+   ],
+   "shell_marks": [
+    {
+     "i": 0,
+     "cmd": "date +%s.%N; input tap 885 2493; date +%s.%N; sleep 0.12; input swipe 150 700 1150 700 80; date +%s.%N",
+     "device_marks": [
+      "1795253144.337449209",
+      "1795253144.388253132",
+      "1795253144.867996901"
+     ],
+     "plan_offset_ms": 0.0,
+     "host_initiated_offset_ms": 0.0,
+     "deviation_ms": 0.0,
+     "cmd_duration_ms": 605.1
+    }
+   ],
+   "n_tabClick": 1,
+   "route_align": [
+    "Route/align=1"
+   ],
+   "route_align_count": 1,
+   "route_align_owner_finally": "A5/scrollFinally=2#2 aligned=true",
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [
+    "1",
+    "0"
+   ],
+   "selectMain_seq": [
+    "AppPage$Today@27581e7"
+   ],
+   "guard_ignore": [
+    "Route/guardIgnore=1"
+   ],
+   "pager_events": [
+    "Pager/scrollStart"
+   ],
+   "a5_timeline": [
+    "D A5/tabClick=2#2",
+    "D A5/scrollStart=2#2",
+    "D A5/scrollCancel=2#2",
+    "D A5/scrollFinally=2#2 aligned=true"
+   ],
+   "route_timeline": [
+    "D Route/currentPage=1",
+    "D Route/guardIgnore=1",
+    "D Route/align=1",
+    "D Route/currentPage=0",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Today@27581e7"
+   ]
+  }
+ ],
+ "invalid": [
+  {
+   "dir": "s5_same_120hz_r1_oldapk_contrast",
+   "status": "OK",
+   "error": null,
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": null,
+   "selected_tab": null,
+   "video_bytes": 18276209,
+   "logcat_bytes": 4367,
+   "setup": null,
+   "shell_marks": null,
+   "n_tabClick": 2,
+   "route_align": [
+    "Route/align=1"
+   ],
+   "route_align_count": 1,
+   "route_align_owner_finally": "A5/scrollFinally=1#2 aligned=false",
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [
+    "1"
+   ],
+   "selectMain_seq": [
+    "AppPage$Stats@e413a0a"
+   ],
+   "guard_ignore": [],
+   "pager_events": [
+    "Pager/scrollStart",
+    "Pager/scrollStart",
+    "Pager/scrollEnd"
+   ],
+   "a5_timeline": [
+    "D A5/tabClick=1#1",
+    "D A5/scrollStart=1#1",
+    "D A5/tabClick=1#2",
+    "D A5/scrollStart=1#2",
+    "D A5/scrollCancel=1#1",
+    "D A5/scrollFinally=1#1 aligned=true",
+    "D A5/scrollEnd=1#2",
+    "D A5/scrollFinally=1#2 aligned=false"
+   ],
+   "route_timeline": [
+    "D Route/currentPage=1",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Stats@e413a0a",
+    "D Route/align=1"
+   ]
+  },
+  {
+   "dir": "s5_same_120hz_r2_invalid_env_gate",
+   "status": "INVALID",
+   "error": "Abort(\"refresh mismatch: requested=120 settings_readback={'min_refresh_rate': '120', 'peak_refresh_rate': '120'} actual_active_fps=60.0 —— 不作为有效样本\")",
+   "restore_ok": true,
+   "actual_fps": 60.0,
+   "refresh_match": false,
+   "setup_tab": null,
+   "selected_tab": null,
+   "video_bytes": null,
+   "logcat_bytes": null,
+   "setup": null,
+   "shell_marks": null,
+   "n_tabClick": 0,
+   "route_align": [],
+   "route_align_count": 0,
+   "route_align_owner_finally": null,
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [],
+   "selectMain_seq": [],
+   "guard_ignore": [],
+   "pager_events": [],
+   "a5_timeline": [],
+   "route_timeline": []
+  },
+  {
+   "dir": "s7_swipe_fast_120hz_r1_gesture_noop_y1200",
+   "status": "OK",
+   "error": null,
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": null,
+   "selected_tab": "统计",
+   "video_bytes": 3748300,
+   "logcat_bytes": 3306,
+   "setup": null,
+   "shell_marks": null,
+   "n_tabClick": 0,
+   "route_align": [],
+   "route_align_count": 0,
+   "route_align_owner_finally": null,
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [
+    "1"
+   ],
+   "selectMain_seq": [
+    "AppPage$Stats@bc71bb9"
+   ],
+   "guard_ignore": [],
+   "pager_events": [],
+   "a5_timeline": [],
+   "route_timeline": [
+    "D Route/currentPage=1",
+    "D Route/selectMain=com.screentrace.app.ui.AppPage$Stats@bc71bb9"
+   ]
+  },
+  {
+   "dir": "s7_swipe_fast_120hz_r2_scriptbug",
+   "status": "FAILED",
+   "error": "UNEXPECTED: UnboundLocalError(\"cannot access local variable 'done' where it is not associated with a value\")",
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": "今日",
+   "selected_tab": null,
+   "video_bytes": null,
+   "logcat_bytes": null,
+   "setup": [
+    {
+     "i": 0,
+     "target": "today",
+     "x": 335,
+     "y": 2493
+    }
+   ],
+   "shell_marks": [],
+   "n_tabClick": 0,
+   "route_align": [],
+   "route_align_count": 0,
+   "route_align_owner_finally": null,
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [],
+   "selectMain_seq": [],
+   "guard_ignore": [],
+   "pager_events": [],
+   "a5_timeline": [],
+   "route_timeline": []
+  },
+  {
+   "dir": "s8_swipe_interrupt_120hz_r1_scriptbug",
+   "status": "FAILED",
+   "error": "UNEXPECTED: UnboundLocalError(\"cannot access local variable 'done' where it is not associated with a value\")",
+   "restore_ok": true,
+   "actual_fps": 120.00001,
+   "refresh_match": true,
+   "setup_tab": "今日",
+   "selected_tab": null,
+   "video_bytes": null,
+   "logcat_bytes": null,
+   "setup": [
+    {
+     "i": 0,
+     "target": "today",
+     "x": 335,
+     "y": 2493
+    }
+   ],
+   "shell_marks": [],
+   "n_tabClick": 0,
+   "route_align": [],
+   "route_align_count": 0,
+   "route_align_owner_finally": null,
+   "a5_routeScroll": [],
+   "a5_routeScroll_count": 0,
+   "currentPage_seq": [],
+   "selectMain_seq": [],
+   "guard_ignore": [],
+   "pager_events": [],
+   "a5_timeline": [],
+   "route_timeline": []
+  }
+ ]
+}

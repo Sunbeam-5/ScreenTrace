@@ -1,0 +1,20 @@
+{
+ "collected_at": "2026-11-21T09:13:34.414065+00:00",
+ "git_commit": "ee5c57d7de15eb5c7caab6ca3af919a069076dc2",
+ "git_branch": "exp/a5-route-probe",
+ "apk_path": "E:\\project\\ScreenTrace\\app\\build\\outputs\\apk\\debug\\app-debug.apk",
+ "apk_sha256": "0CC0171E45D29DFAD57C2F9DDC4CFBD6FAD2572BC2C0582BBC9400791BC486E4",
+ "apk_bytes": 13202723,
+ "install_stdout": "Performing Streamed Install\r\nSuccess",
+ "install_rc": 0,
+ "pm_path": "package:/data/app/~~uG_P-OStLEopb3EtKdm4xQ==/com.screentrace.app-sOR0VDGF5U92v7nZThor1Q==/base.apk",
+ "versionName": "0.1.0",
+ "versionCode": "1",
+ "lastUpdateTime": "2026-11-21",
+ "firstInstallTime": "2026-11-11",
+ "pkgFlags": " DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ",
+ "pull_rc": 0,
+ "device_base_apk_sha256": "0CC0171E45D29DFAD57C2F9DDC4CFBD6FAD2572BC2C0582BBC9400791BC486E4",
+ "device_base_apk_bytes": 13202723,
+ "sha256_match": true
+}

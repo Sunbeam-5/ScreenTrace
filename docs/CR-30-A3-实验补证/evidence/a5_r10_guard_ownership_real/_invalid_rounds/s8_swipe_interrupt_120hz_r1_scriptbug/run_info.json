@@ -1,0 +1,101 @@
+{
+ "serial": "GAQOHMNFQWFUPBQO",
+ "hz_requested": "120",
+ "scenario": "s8_swipe_interrupt",
+ "rep": "1",
+ "taps": [],
+ "swipes": [],
+ "shell_marks": [],
+ "setup": [
+  {
+   "i": 0,
+   "target": "today",
+   "x": 335,
+   "y": 2493
+  }
+ ],
+ "env": {
+  "model": "2407FRK8EC",
+  "wm_size": "Physical size: 1220x2712",
+  "nav": {
+   "today": [
+    335,
+    2493
+   ],
+   "stats": [
+    703,
+    2493
+   ],
+   "calendar": [
+    885,
+    2493
+   ]
+  },
+  "min_refresh_rate_before": "60",
+  "peak_refresh_rate_before": "60",
+  "settings_readback": {
+   "min_refresh_rate": "120",
+   "peak_refresh_rate": "120"
+  },
+  "display_parse": {
+   "display_device_blocks": 1,
+   "PDS_DisplayStates.RefreshRate(持久化偏好，非活动率)": "60.0",
+   "mActiveSfDisplayMode(SF侧)": [
+    "2",
+    "120.00001"
+   ],
+   "mActiveRenderFrameRate(渲染侧)": "120.00001",
+   "mActiveModeId_total": 1,
+   "mActiveModeId_bound_to_device_blocks": 1,
+   "internal_blocks": 1,
+   "target_device": {
+    "uniqueId": "local:4627039422300187648",
+    "internal": true,
+    "mActiveModeId": "3"
+   },
+   "device_mode_entries": [
+    [
+     "1",
+     "60.0"
+    ],
+    [
+     "2",
+     "144.00002"
+    ],
+    [
+     "3",
+     "120.00001"
+    ],
+    [
+     "4",
+     "90.0"
+    ]
+   ],
+   "device_modeId_counts": {
+    "1": 1,
+    "2": 1,
+    "3": 1,
+    "4": 1
+   },
+   "duplicate_mode_ids": {},
+   "active_mode_id_occurrences": 1,
+   "device_modeId": "3",
+   "active_mode_fps": "120.00001",
+   "semantics": "活动物理显示模式＝目标设备块 modeId 与自身 mActiveModeId 一致后，经该设备自身 supportedModes 映射；PDS/模式列表/SF/渲染率仅上下文"
+  },
+  "actual_active_display_fps": 120.00001,
+  "refresh_evidence": "dumpsys display 按显示设备分段解析（活动模式＝设备块 modeId→supportedModes 映射，mActiveModeId 交叉核对）；PDS.RefreshRate=持久化偏好；SF/渲染率字段仅上下文；采样时点＝活动态（屏幕已唤醒、App 在前台），与交互同一时窗",
+  "refresh_match_request": true,
+  "setup_tab": "今日",
+  "refresh_restore": {
+   "min_refresh_rate": "put 60 -> after=60 restore_ok=True",
+   "peak_refresh_rate": "put 60 -> after=60 restore_ok=True"
+  }
+ },
+ "failures": [],
+ "status": "FAILED",
+ "error": "UNEXPECTED: UnboundLocalError(\"cannot access local variable 'done' where it is not associated with a value\")",
+ "primary_status": "FAILED",
+ "primary_error": "UNEXPECTED: UnboundLocalError(\"cannot access local variable 'done' where it is not associated with a value\")",
+ "restore_ok": true
+}
