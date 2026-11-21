@@ -25,6 +25,7 @@ import re
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 PKG = "com.screentrace.app"
@@ -39,6 +40,12 @@ DEVICES = {
         # 「今日」坐标取收起态边界 [251,420]∩展开态 [251,605] 的交集内（x=335 全态命中）；
         # 旧值 x=503 仅在今日展开态命中，收起/他态会误点「统计」（R9 实测发现，见补验报告）。
         "nav": {"today": (335, 2493), "stats": (703, 2493), "calendar": (885, 2493)},
+        # 横滑手势：(x1, y1, x2, y2, duration_ms)；y 取内容区中部（避开顶栏与底部导航）。
+        # fast_two_page：从右向左大位移快滑（今日→日历方向）；fast_back：反向快滑（打断程序化滚动）。
+        "swipe": {
+            "fast_two_page": (1150, 1200, 90, 1200, 90),
+            "fast_back": (150, 1200, 1150, 1200, 90),
+        },
         "resolution": ("1220x2712",),
     },
 }
@@ -50,6 +57,39 @@ SCENARIOS = {
     "s4_reverse": [("stats", 0), ("today", 250)],
     "s5_same": [("stats", 0), ("stats", 200)],
     "s6_other": [("stats", 0), ("calendar", 200)],
+}
+
+# A-5 R10 真机复核（GPT 放行的受控范围）：横滑场景。
+#
+# 事实约束（真机实测，见 evidence/a5_r10_guard_ownership_real/）：
+#   * 屏幕宽 1220px，HorizontalPager 用默认 flingBehavior（snapDistance=atMost(1)），
+#     单个人类手势**最多跨一页**；跨两页需要 >=1.5 页宽（~1830px）——超出屏宽，
+#     故「跨两页」只能用「单手势连过两个 50%% 阈值」（越界长拖：currentPage 0->1->0）
+#     或「连续两次快滑」构造。这是合成手势，与人手不同，报告中如实标注。
+#   * y=700 是实测有效的手势区（y=1200 被页面内控件吞掉，无任何页面变化）。
+#   * adb 主机往返 ~150ms/命令，会错过 OBS-1 的亚帧时序窗口 → 被测手势改为
+#     **设备侧单条 shell 串行执行**（不回主机），串内嵌 date +%%s.%%N 记录设备端时刻。
+#
+# s7 —— 快速横滑跨两页：检验 OBS-1（快速横滑时 currentPage != target 可能成立 →
+#       意外建立程序化 owner / 发射 A5/routeScroll）。
+# s8 —— 点 tab 触发程序化滚动后立即横滑 → 打断程序化滚动（检验最终路由是否跟随
+#       Pager 实际停留页；判别性：点 tab 的目标页与打断后 Pager 实际停留页不同）。
+SETUP_SCENARIOS = {
+    # 前置：把 Pager 归一到确定起手页（今日=第 0 页），前置动作不计入被测窗口
+    # （录屏与 logcat 都在 setup 之后才启动）。
+    "s7_swipe_fast": [("tap", "today", 0)],
+    "s8_swipe_interrupt": [("tap", "today", 0)],
+}
+
+SWIPE_SCENARIOS = {
+    "s7_swipe_fast": [
+        ("shell", "date +%s.%N; input swipe 1150 700 -600 700 150; date +%s.%N; "
+                  "input swipe 1150 700 90 700 80; date +%s.%N", 0),
+    ],
+    "s8_swipe_interrupt": [
+        ("shell", "date +%s.%N; input tap 885 2493; date +%s.%N; sleep 0.12; "
+                  "input swipe 150 700 1150 700 80; date +%s.%N", 0),
+    ],
 }
 
 
@@ -224,16 +264,53 @@ def restore_refresh(serial, info, log):
     return ok
 
 
+def parse_selected_tab(xml_text):
+    # 从 uiautomator dump 里取当前**选中**的底部 tab（今日/统计/日历）。
+    # 选中态落在导航带里那个可点击容器节点上（selected=true），tab 名在其子节点的
+    # content-desc 或 text 上；按「导航带容器 + selected + 内部 label」判定，
+    # 不依赖 label 一定出现在 content-desc 上（选中项展开时 label 的呈现方式会变）。
+    try:
+        root = ET.fromstring(xml_text)
+    except Exception:
+        return None
+    tabs = []
+    for node in root.iter("node"):
+        m = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.get("bounds", "") or "")
+        if not m:
+            continue
+        x1, y1, x2, y2 = map(int, m.groups())
+        if 2400 <= y1 <= 2430 and 2550 <= y2 <= 2600 and (x2 - x1) > 100:
+            tabs.append((x1, node))
+    tabs.sort(key=lambda it: it[0])
+    for idx, (x1, node) in enumerate(tabs):
+        if node.get("selected") != "true":
+            continue
+        for child in node.iter("node"):
+            d = child.get("content-desc") or child.get("text") or ""
+            if d in ("今日", "统计", "日历"):
+                return d
+        return "nav_slot_%d" % idx
+    return None
+
+
 def main():
     serial, hz, scen, rep = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-    taps = SCENARIOS[scen]
+    if scen in SCENARIOS:
+        actions = [("tap", name, gap) for (name, gap) in SCENARIOS[scen]]
+        setup_actions = []
+    elif scen in SWIPE_SCENARIOS:
+        actions = list(SWIPE_SCENARIOS[scen])
+        setup_actions = list(SETUP_SCENARIOS.get(scen, []))
+    else:
+        raise Abort(f"unknown scenario: {scen!r} —— 不执行")
     log = []
     run_dir = OUT / f"{scen}_{hz}hz_r{rep}"
     if run_dir.exists() and any(run_dir.iterdir()):
         raise Abort(f"round dir exists with content (refusing to overwrite): {run_dir}")
     run_dir.mkdir(parents=True, exist_ok=True)
     info = {"serial": serial, "hz_requested": hz, "scenario": scen, "rep": rep,
-            "taps": [], "env": {}, "failures": log, "status": "FAILED"}
+            "taps": [], "swipes": [], "shell_marks": [], "setup": [],
+            "env": {}, "failures": log, "status": "FAILED"}
     write_failed = False
     try:
         # ---- 设备识别与分辨率/坐标核对 ----
@@ -270,7 +347,19 @@ def main():
             info["status"] = "INVALID"
             raise Abort(f"settings readback mismatch: requested={hz} readback={rb} —— 不作为有效样本")
 
-        # ---- 任务四/二：dumpsys 证据采集 fail-closed + 分段解析 ----
+        # ---- R10 真机复核修正：活动态前置采样 ----
+        # 面板在 idle 态常驻 60Hz；只有唤醒屏幕并让 App 进入前台后才会切入目标模式。
+        # 门禁 dumpsys 必须在**活动态**采集（与后续交互同一时窗），否则会把 60Hz idle
+        # 误判成「请求 120Hz 未生效」→ 整轮 INVALID、零采样。门禁语义不变（仍要求活动
+        # 模式唯一映射到目标 fps），只改采样时点。
+        time.sleep(0.5)
+        must(serial, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"], "wakeup", log)
+        must(serial, ["shell", "am", "force-stop", PKG], "force-stop", log)
+        time.sleep(1)
+        must(serial, ["shell", "am", "start", "-n", f"{PKG}/.MainActivity"], "start", log)
+        time.sleep(6)
+
+        # ---- 任务四/二：dumpsys 证据采集 fail-closed + 分段解析（活动态）----
         disp = adb(serial, "shell", "dumpsys", "display")
         if disp.returncode != 0:
             info["status"] = "INVALID"
@@ -293,7 +382,8 @@ def main():
         info["env"]["actual_active_display_fps"] = actual
         info["env"]["refresh_evidence"] = ("dumpsys display 按显示设备分段解析（活动模式＝设备块 "
                                           "modeId→supportedModes 映射，mActiveModeId 交叉核对）；"
-                                          "PDS.RefreshRate=持久化偏好；SF/渲染率字段仅上下文")
+                                          "PDS.RefreshRate=持久化偏好；SF/渲染率字段仅上下文；"
+                                          "采样时点＝活动态（屏幕已唤醒、App 在前台），与交互同一时窗")
         match = actual is not None and abs(actual - float(hz)) <= 1.0
         info["env"]["refresh_match_request"] = match
         if actual is None:
@@ -304,32 +394,73 @@ def main():
             raise Abort(f"refresh mismatch: requested={hz} settings_readback={rb} "
                         f"actual_active_fps={actual} —— 不作为有效样本")
 
-        time.sleep(0.5)
-        must(serial, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"], "wakeup", log)
-        must(serial, ["shell", "am", "force-stop", PKG], "force-stop", log)
-        time.sleep(1)
-        must(serial, ["shell", "am", "start", "-n", f"{PKG}/.MainActivity"], "start", log)
-        time.sleep(6)
-        must(serial, ["logcat", "-c"], "logcat clear", log)
+        # ---- 场景前置（setup）：归一起手页；不计入被测窗口 ----
+        for i, (kind, name, gap_ms) in enumerate(setup_actions):
+            if kind != "tap":
+                raise Abort(f"setup action must be tap, got {kind!r}")
+            x, y = cfg["nav"][name]
+            must(serial, ["shell", "input", "tap", str(x), str(y)], f"setup{i}:{name}", log)
+            info["setup"].append({"i": i, "target": name, "x": x, "y": y})
+            time.sleep(0.2)
+        if setup_actions:
+            time.sleep(2.5)   # 等程序化滚动落定
+            try:
+                ui0 = adb(serial, "shell", "uiautomator", "dump", "/sdcard/ui_setup.xml")
+                if ui0.returncode == 0:
+                    xml0 = adb(serial, "exec-out", "cat", "/sdcard/ui_setup.xml").stdout.decode("utf-8", "replace")
+                    (run_dir / "ui_setup.xml").write_text(xml0, encoding="utf-8")
+                    info["env"]["setup_tab"] = parse_selected_tab(xml0)
+            except Exception as e:
+                info.setdefault("ui_dump_failures", []).append("setup:" + repr(e))
+
         rec = subprocess.Popen(["adb", "-s", serial, "shell", "screenrecord",
                                 "--time-limit", "10", f"/sdcard/{run_dir.name}.mp4"])
         time.sleep(1)
+        must(serial, ["logcat", "-c"], "logcat clear", log)
         t0 = time.monotonic()
         prev_plan = t0
-        for i, (name, gap_ms) in enumerate(taps):
+        for i, (kind, name, gap_ms) in enumerate(actions):
             plan = prev_plan + (gap_ms / 1000.0 if i > 0 else 0)
             delay = plan - time.monotonic()
             if delay > 0:
                 time.sleep(delay)
             host = time.monotonic()
-            x, y = cfg["nav"][name]
-            must(serial, ["shell", "input", "tap", str(x), str(y)], f"tap{i}:{name}", log)
-            done = time.monotonic()
-            info["taps"].append({"i": i, "target": name, "x": x, "y": y,
-                                 "plan_offset_ms": round((plan - t0) * 1000, 1),
-                                 "host_initiated_offset_ms": round((host - t0) * 1000, 1),
-                                 "deviation_ms": round((host - plan) * 1000, 1),
-                                 "cmd_duration_ms": round((done - host) * 1000, 1)})
+            if kind == "tap":
+                x, y = cfg["nav"][name]
+                must(serial, ["shell", "input", "tap", str(x), str(y)], f"tap{i}:{name}", log)
+                done = time.monotonic()
+                info["taps"].append({"i": i, "target": name, "x": x, "y": y,
+                                     "plan_offset_ms": round((plan - t0) * 1000, 1),
+                                     "host_initiated_offset_ms": round((host - t0) * 1000, 1),
+                                     "deviation_ms": round((host - plan) * 1000, 1),
+                                     "cmd_duration_ms": round((done - host) * 1000, 1)})
+            elif kind == "swipe":
+                sw = cfg.get("swipe", {}).get(name)
+                if sw is None:
+                    raise Abort(f"device {model!r} has no swipe gesture {name!r} —— 拒绝盲发坐标")
+                x1, y1, x2, y2, dur = sw
+                must(serial, ["shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(dur)],
+                     f"swipe{i}:{name}", log)
+                done = time.monotonic()
+                info["swipes"].append({"i": i, "gesture": name, "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                                       "duration_ms": dur,
+                                       "plan_offset_ms": round((plan - t0) * 1000, 1),
+                                       "host_initiated_offset_ms": round((host - t0) * 1000, 1),
+                                       "deviation_ms": round((host - plan) * 1000, 1),
+                                       "cmd_duration_ms": round((done - host) * 1000, 1)})
+            elif kind == "shell":
+                cmd = name
+                r = must(serial, ["shell", cmd], f"shell{i}", log)
+                done = time.monotonic()
+                marks = r.stdout.decode("utf-8", "replace").split()
+                info["shell_marks"].append({
+                    "i": i, "cmd": cmd, "device_marks": marks,
+                    "plan_offset_ms": round((plan - t0) * 1000, 1),
+                    "host_initiated_offset_ms": round((host - t0) * 1000, 1),
+                    "deviation_ms": round((host - plan) * 1000, 1),
+                    "cmd_duration_ms": round((done - host) * 1000, 1)})
+            else:
+                raise Abort(f"unknown action kind: {kind!r}")
             prev_plan = plan
         time.sleep(3)
         try:
@@ -359,6 +490,15 @@ def main():
             raise Abort(f"video unreadable: bad header {head!r}")
         info["video_bytes"] = vp.stat().st_size
         info["logcat_bytes"] = len(text)
+        # 最终页面与选中 tab（GPT 真机复核要求项）：录屏结束后再 dump，避免干扰录制
+        try:
+            ui = adb(serial, "shell", "uiautomator", "dump", "/sdcard/ui.xml")
+            if ui.returncode == 0:
+                xml = adb(serial, "exec-out", "cat", "/sdcard/ui.xml").stdout.decode("utf-8", "replace")
+                (run_dir / "ui_final.xml").write_text(xml, encoding="utf-8")
+                info["env"]["selected_tab"] = parse_selected_tab(xml)
+        except Exception as e:
+            info.setdefault("ui_dump_failures", []).append(repr(e))
         info["status"] = "OK"
     except (Abort, subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         if info["status"] != "INVALID":
