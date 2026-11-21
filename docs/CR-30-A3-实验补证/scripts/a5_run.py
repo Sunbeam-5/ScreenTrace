@@ -95,12 +95,14 @@ def parse_display_refresh(text):
         m_uid = re.search(r'uniqueId="([^"]*)"', c)
         m_mode = re.search(r"\bmodeId (\d+)", c)
         ms = re.search(r"supportedModes \[(.*?)\], colorMode", c)
+        # R8：保留原始模式条目列表（不转 dict——dict 会静默吞掉重复 id）
+        mode_entries = re.findall(r"\{id=(\d+), width=\d+, height=\d+, fps=([\d.]+)", ms.group(1)) if ms else []
         devices.append({
             "chunk": c,
             "internal": ("type INTERNAL" in c[:3000]) or ("内置屏幕" in head),
             "uniqueId": m_uid.group(1) if m_uid else None,
             "modeId": m_mode.group(1) if m_mode else None,
-            "mode_map": dict(re.findall(r"\{id=(\d+), width=\d+, height=\d+, fps=([\d.]+)", ms.group(1))) if ms else {},
+            "mode_entries": mode_entries,
             "actives": re.findall(r"mActiveModeId=(\S+)", c),
         })
     detail["display_device_blocks"] = len(devices)
@@ -141,15 +143,32 @@ def parse_display_refresh(text):
     if active_id != tgt["modeId"]:
         detail["reason"] = f"目标设备 modeId({tgt['modeId']}) 与自身 mActiveModeId({active_id}) 不一致，无法唯一确认"
         return None, detail
-    if tgt["modeId"] not in tgt["mode_map"]:
-        detail["reason"] = f"活动模式 id={tgt['modeId']} 不在该设备自身 supportedModes 映射中，无法确认活动刷新率"
+    # R8：supportedModes 唯一映射校验——活动 id 必须恰好出现一次（重复即 INVALID，
+    # 即使 fps 相同；不以 dict 覆盖/set 去重掩盖重复）
+    counts = {}
+    for mid, _fp in tgt["mode_entries"]:
+        counts[mid] = counts.get(mid, 0) + 1
+    dup = {m: n for m, n in counts.items() if n > 1}
+    detail["device_mode_entries"] = tgt["mode_entries"]        # 原始条目（含重复）
+    detail["device_modeId_counts"] = counts                    # 每个 id 出现次数
+    detail["duplicate_mode_ids"] = dup                         # 重复 id 及次数
+    n_active = counts.get(tgt["modeId"], 0)
+    detail["active_mode_id_occurrences"] = n_active
+    if n_active == 0:
+        detail["reason"] = f"活动模式 id={tgt['modeId']} 在该设备 supportedModes 出现零次，映射缺失，无法确认"
         return None, detail
+    if n_active != 1:
+        fps_list = [fp for m, fp in tgt["mode_entries"] if m == tgt["modeId"]]
+        detail["active_mode_id_fps_entries"] = fps_list
+        detail["reason"] = (f"活动模式 id={tgt['modeId']} 在该设备 supportedModes 出现 {n_active} 次"
+                            f"（fps 条目={fps_list}），映射非唯一，无法确认——即使重复条目 fps 相同亦不放行")
+        return None, detail
+    fps_unique = next(fp for m, fp in tgt["mode_entries"] if m == tgt["modeId"])
     detail["device_modeId"] = tgt["modeId"]
-    detail["device_supportedModes_id_fps"] = tgt["mode_map"]
-    detail["active_mode_fps"] = tgt["mode_map"][tgt["modeId"]]
+    detail["active_mode_fps"] = fps_unique
     detail["semantics"] = ("活动物理显示模式＝目标设备块 modeId 与自身 mActiveModeId 一致后，"
                            "经该设备自身 supportedModes 映射；PDS/模式列表/SF/渲染率仅上下文")
-    return float(tgt["mode_map"][tgt["modeId"]]), detail
+    return float(fps_unique), detail
 
 
 def restore_refresh(serial, info, log):

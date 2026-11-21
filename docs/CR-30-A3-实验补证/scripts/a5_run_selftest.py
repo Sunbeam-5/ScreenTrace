@@ -423,6 +423,50 @@ def main():
           and not no_taps(calls))
     results.append(("R7-10 真实120Hz fixture 走 main→OK exit0+恢复+点击执行", ok, code, info))
 
+    # ---- R8：supportedModes 重复 ID 唯一映射 ----
+    LIST_DEV = b"supportedModes [{id=1, width=1220, height=2712, fps=60.0}, {id=3, width=1220, height=2712, fps=120.00001}]"
+    DUP_MIX = b"supportedModes [{id=1, width=1220, height=2712, fps=60.0}, {id=3, width=1220, height=2712, fps=60.0}, {id=3, width=1220, height=2712, fps=120.00001}]"
+    DUP_SAME = b"supportedModes [{id=1, width=1220, height=2712, fps=60.0}, {id=3, width=1220, height=2712, fps=120.00001}, {id=3, width=1220, height=2712, fps=120.00001}]"
+    TRIPLE = b"supportedModes [{id=3, width=1220, height=2712, fps=60.0}, {id=3, width=1220, height=2712, fps=120.00001}, {id=3, width=1220, height=2712, fps=120.00001}, {id=1, width=1220, height=2712, fps=60.0}]"
+    DUP_OTHER = b"supportedModes [{id=1, width=1220, height=2712, fps=60.0}, {id=1, width=1220, height=2712, fps=60.0}, {id=3, width=1220, height=2712, fps=120.00001}]"
+
+    def dev_with(list_bytes):
+        return DEV_BASE.replace(LIST_DEV, list_bytes)
+
+    run_invalid("R8-1 活动id×2(60/120)→INVALID 零点击+落盘", dev_with(DUP_MIX), "出现 2 次")
+    run_invalid("R8-2 活动id×2(同120)→INVALID（fps 相同亦不放行）", dev_with(DUP_SAME), "出现 2 次")
+    run_invalid("R8-3 活动id×3→INVALID", dev_with(TRIPLE), "出现 3 次")
+
+    # R8-4 非活动 id 重复、活动 id 唯一 → 允许；证明活动映射唯一且不受影响
+    code, calls, tmp, info = run_case(script={"dumpsys|display": FakeResult(out=dev_with(DUP_OTHER))})
+    ok = (code == 0 and info and info["status"] == "OK"
+          and info["env"]["actual_active_display_fps"] == 120.00001
+          and info["env"]["display_parse"]["active_mode_id_occurrences"] == 1
+          and info["env"]["display_parse"]["duplicate_mode_ids"] == {"1": 2}
+          and not no_taps(calls))
+    results.append(("R8-4 非活动id重复/活动id唯一→允许且不受影响", ok, code, info))
+
+    # R8-5 真实 fixture 四份：严格解析不误伤真实格式
+    for name in ("dumpsys_redmi_idle_60hz.txt", "dumpsys_redmi_idle_120hz.txt",
+                 "dumpsys_redmi_active_60hz.txt", "dumpsys_redmi_active_120hz.txt"):
+        actual, detail = a5_run.parse_display_refresh(fx(name))
+        ok = (actual == 120.00001 and detail["active_mode_id_occurrences"] == 1
+              and detail["duplicate_mode_ids"] == {})
+        results.append((f"R8-5 真实fixture {name} 唯一映射通过", ok, None, detail))
+
+    # R8-6 真实 120Hz fixture 完整走 main（门禁/恢复/状态/退出码/run_info 落盘）
+    code, calls, tmp, info = run_case(script={
+        "dumpsys|display": FakeResult(out=fx("dumpsys_redmi_active_120hz.txt").encode("utf-8", "replace")),
+        "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(out=b"60")],
+        "settings|get|peak_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(out=b"60")]},
+        argv=["a5_run.py", "fake-serial", "120", "s1_single", "1"])
+    ok = (code == 0 and info is not None and info["status"] == "OK" and info["restore_ok"] is True
+          and info["env"]["actual_active_display_fps"] == 120.00001
+          and info["env"]["display_parse"]["active_mode_id_occurrences"] == 1
+          and "restore_ok=True" in info["env"]["refresh_restore"]["min_refresh_rate"]
+          and not no_taps(calls))
+    results.append(("R8-6 真实120Hz fixture 走 main→OK/exit0/恢复/落盘", ok, code, info))
+
     all_ok = True
     for name, ok, code, info in results:
         if not ok:
