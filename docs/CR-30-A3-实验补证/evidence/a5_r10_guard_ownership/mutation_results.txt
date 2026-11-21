@@ -1,0 +1,16 @@
+# A-5 R10 变异验证（M1~M6 + M7′，共 7 项可执行变异，全部真红）
+# 命令: 逐项改坏 TabScrollGuard.kt → :app:testDebugUnitTest --rerun-tasks --tests "com.screentrace.app.ui.TabScrollGuard*" → 确认红 → 无条件还原
+# 每项变异结束后均已还原实现（最终实现与提交 d9098cf 一致）
+
+M1  end 用目标页(target)当协程身份 → ownsToken(snapshot.target.toLong(), token)   RED（6 条用例同时红：T2/T4/T5/T6/T7/T8）
+M2  end 在非 owner 时也清空快照（去掉所有权校验）                                    RED（T2）
+M3  end 在非 owner 时把 owner 改回旧 token                                           RED（T2）
+M4  begin 不更新 owner（owner 写 NO_OWNER）                                          RED（T7）
+M5  begin 的 token 不递增（复用上一次 nextToken.get()）                              RED（T7）
+M6  end 返回 true 时不清空 programmatic/target                                       RED（T7）
+M7′ begin 写入的快照不自洽（owner = token + 1000）                                  RED（T7）
+
+RED_COUNT=7/7（全部为可执行变异，无编译红冒充、无非行为变异）
+
+# 说明：原 v2 设计的 M8（end 同时校验 index）已按 GPT 复审删除——新 API 无 index 参数，
+#       恢复它必然先改签名 → 编译失败 → 属禁止的「编译红冒充」；原 M7（改回多字段）已降级为结构性审查项 S1。

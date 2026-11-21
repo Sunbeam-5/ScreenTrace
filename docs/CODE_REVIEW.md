@@ -1834,3 +1834,51 @@ T1 保留 / **T2 保留（核心回归）** / **T3 修正时序** / T4 保留（
 ### 复审建议（已按此执行）
 
 「这次不要再让施工方只做文字解释，而是要求它把**状态机、API 和测试时序一起修订**。」→ 已出 v2 修订稿（`docs/CR-30-A5-R10-TabScrollGuard-所有权设计.md`），逐条对应见该文档 §9 对照表：T3 时序已改、`issuedState` 已删、状态改为不可变快照、`end` 改为 `end(token)`、§7-69 编号与验收文案已修正、**T8 已补 AppNav 静态调用链审查**（结论：横滑只走回写路径，`LaunchedEffect(mainPage)` 内 `pagerState.currentPage != target` 守卫使其**不进入 begin**，故横滑期间守卫恒 IDLE、跟手不受影响）、T6 已标注为状态机时序测试。**本轮仍未改任何业务代码、未动真机。**
+---
+
+## 补记 · A-5 R10 实施落地（2026-11-21 17:10，GPT 附条件通过设计后进入实现）
+
+GPT 对 R10 v2 设计的复审结论：**附条件通过，允许进入实现**（上一轮"退回修订"的 5 项必修已在 v3 全部落实，见设计文档 §10 对照表）。本轮实现**只做 token 化与状态模型**，不碰导航业务逻辑。
+
+### 实现内容（提交 `d9098cf`）
+
+- **所有权 token 化**：`begin(index): Long` 发放单调递增、永不复用的 owner token 并返回；`end(token): Boolean` **只有 token 命中 owner 才可结束守卫并决定是否对齐路由**；token 不匹配时**一个字段都不动**。旧实现用 target 页当协程身份，同目标连击时判据失效（旧协程抢权 + 清掉新协程守卫状态）——此为 P2 根因。
+- **不可变状态快照**：`GuardState(programmatic, target, owner)` 整体持有、整体替换；`@Volatile` 只剩**一个** state 字段。消除多字段撕裂读（原可读到「programmatic=true 但 target=-1」这类非法状态）。
+- **统一只读快照入口**：新增 `internal val snapshot: GuardState`，测试断言三要素**必须一次取值**（三个派生 getter 各自独立读，连读可能跨状态）。
+- **删除 `ownsTarget`**（Q1 裁决）：token 取代，纯函数改为 `ownsToken(owner, token)`。
+- **AppNav 两处调用点**（点 tab `:966`、routeScroll `:416`）各自传递 token，**其余逻辑零改动**；Pager 唯一真相源、点 tab 不直接写路由、导航动画与预加载策略、CR-28/Room/备份语义全部未动。
+
+### 测试
+
+- 新增 `TabScrollGuardOwnershipTest` **12 条**（T1~T8 + 4 条补充断言）：不同目标取代 / **同目标取代（P2 核心回归）** / **旧协程先结束（时序已按 v3 修正：`end(t1)` 必须 true 并释放回 IDLE）** / 新协程先结束旧 finally 后执行 / 连续三次同目标 / 取消异常路径 / 正常单次点击 / 横滑期间守卫不建立程序化状态 + 补充断言（token 单调递增、过期 token 快照不变、begin 快照自洽、ignoresWrite 与快照同源）。**每条基于 `guard.snapshot` 一次取值断言三要素。**
+- 既有 `TabScrollGuardTest` 适配新 API（6 → 7 条），**`ignoresWrite` 三条口径断言原样保留未放宽**。
+- **全量 618 测 / 0 fail / 0 skip**（测试类文件 82 个）。
+
+### 变异验证：M1~M6 + M7′ 共 **7 项可执行变异，全部真红**
+
+| 变异 | 命中 |
+|---|---|
+| M1 `end` 用**目标页**当协程身份（`ownsToken(snapshot.target.toLong(), token)`） | RED（6 条同时红） |
+| M2 `end` 在非 owner 时也清空快照 | RED（T2） |
+| M3 `end` 在非 owner 时把 owner 改回旧 token | RED（T2） |
+| M4 `begin` 不更新 owner | RED（T7） |
+| M5 `begin` 的 token 不递增 | RED（T7） |
+| M6 `end` 返回 true 时不清空 programmatic/target | RED（T7） |
+| M7′ `begin` 写入的快照不自洽（owner ≠ token） | RED（T7） |
+
+**无编译红冒充、无非行为变异**；每项改坏→跑→确认红→**无条件还原**（实现已还原并与提交一致，grep 复核 `ownsToken(snapshot.owner, token)`）。原 M8 已按 GPT 复审删除（新 API 无 index 参数，恢复它必编译失败）；原 M7 降级为结构性审查项 **S1**（单线程 JVM 单测无法稳定构造撕裂读，**不计入变异命中数**，如实标注）。
+
+### S1 结构性审查（通过）
+
+`@Volatile` 字段计数 = 1（仅 state）；只读出口（programmatic / target / owner / snapshot / ignoresWrite / end）**全部经由同一份快照**；`begin`/`end` **只做整体替换**。接线自查：`begin` 调用点仍只有两处（点 tab、routeScroll），无手势直接触发的入口。
+
+### 本轮新发现并如实登记（OBS-1）
+
+T8 收敛绝对化结论时发现：**「回写触发的路由变化满足 currentPage == target」这一假设在快速横滑下可能不成立**——`LaunchedEffect(mainPage)` 的重启与 Pager 手势进度不是原子过程，快速跨页横滑时可能出现 currentPage 已到第 2 页而 mainPage 仍为第 1 页 → `currentPage != target` 成立 → 进入回滚分支、**建立程序化 owner 并把用户正滑向的页拽回**。**本轮只登记不修**（改导航架构超出授权），实施后真机重点复核：快速连续横滑跨两页，检查 logcat 是否出现 `A5/routeScroll`（该事件只由回滚分支发射）。
+
+### 构建与边界
+
+- `./gradlew :app:assembleDebug` → **BUILD SUCCESSFUL**；APK SHA256 `0CC0171E45D29DFAD57C2F9DDC4CFBD6FAD2572BC2C0582BBC9400791BC486E4`（**本轮未安装真机**）。
+- 分支 `exp/a5-route-probe` 相对 `origin/main`（`6d07a5c`）：**ahead 21 / behind 0**，merge-base = `6d07a5c`。
+- **未合入 main、未启动完整 A-5 矩阵、未占用 Redmi/vivo 真机、未改 Pager 预加载/导航动画/CR-28/Room/备份**；A-5 R9 原始证据三轮全部保留。
+- **P2 是否已修复待真机复核确认**（Q6：代码评审通过后另申请 Redmi 跑 s5_same ≥3 轮，确认 seq1 `aligned=false`、seq2 `aligned=true`、`Route/align` 只出现在末击）。**不自行宣布 A-5 通过。**

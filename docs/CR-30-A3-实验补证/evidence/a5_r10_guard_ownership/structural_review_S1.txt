@@ -1,0 +1,14 @@
+# A-5 R10 结构性审查项 S1（撕裂读防线；不计入变异命中数）
+# 审查方式：代码审查 + grep 计数
+
+① TabScrollGuard.kt 内 @Volatile 字段计数 = 1（第 71-72 行：private var state = GuardState(...)）
+② 无第二个可变状态字段：class 内可变属性仅 state 一个；nextToken 为 AtomicLong 计数器（不改状态语义）、lock 为同步锁
+③ 只读出口全部经由这一份快照：programmatic(84) / target(87) / owner(90) / snapshot(97) / ignoresWrite(115) / end(128)
+   —— ignoresWrite 与 end 各自 val snapshot = state 单次取值，保证三要素同源
+④ begin(107) / end(130) 只做整体替换：state = GuardState(...)；无逐字段写入
+
+# 结论：S1 通过。撕裂读防线由「单一不可变快照 + 单次取值 + 整体替换」在结构上保证；
+#       单线程 JVM 单测无法稳定构造撕裂读，故该项不作为变异命中计数（如实标注，不虚报）。
+
+# 接线自查（T8 静态部分）：begin 的调用点仍只有两处 —— AppNav.kt:416（routeScroll）与 AppNav.kt:966（点 tab）；
+#       TabScrollGuard 内无任何由手势直接触发的 begin 入口。

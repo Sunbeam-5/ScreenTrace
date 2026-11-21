@@ -1,0 +1,7 @@
+# A-5 R10 实现构建产物
+# 构建: ./gradlew :app:assembleDebug → BUILD SUCCESSFUL
+# APK: app\build\outputs\apk\debug\app-debug.apk
+# bytes: 13202723
+# SHA256: 0CC0171E45D29DFAD57C2F9DDC4CFBD6FAD2572BC2C0582BBC9400791BC486E4
+# commit: d9098cf68ef7966d1802e5c13b65afe8ccecc011（A-5 R10 实现笔）
+# 注：本轮未安装真机、未做真机复核（Q6：代码评审通过后另申请 Redmi）
