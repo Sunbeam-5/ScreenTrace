@@ -34,4 +34,26 @@ object PerfProbe {
         if (!BuildConfig.DEBUG) return
         Log.d("CR30Probe", tag)
     }
+
+    // ---- A-5 因果实验探针（R2 修订：计数器与字符串构造全部限制在 Debug）----
+
+    /** 任务序号源：lazy 分配，Release 下不创建、不计数，恒返回 0。 */
+    private val a5Seq by lazy { java.util.concurrent.atomic.AtomicInteger(0) }
+
+    fun nextSeq(): Int {
+        if (!BuildConfig.DEBUG) return 0
+        return a5Seq.incrementAndGet()
+    }
+
+    /** A5 事件：字符串拼接在 Debug 守卫之后，Release 零分配。 */
+    fun a5(kind: String, target: Int, seq: Int) {
+        if (!BuildConfig.DEBUG) return
+        Log.d("CR30Probe", "A5/" + kind + "=" + target + "#" + seq)
+    }
+
+    /** A5 滚动收尾（含 TabScrollGuard.end 结果）。 */
+    fun a5Finally(target: Int, seq: Int, aligned: Boolean) {
+        if (!BuildConfig.DEBUG) return
+        Log.d("CR30Probe", "A5/scrollFinally=" + target + "#" + seq + " aligned=" + aligned)
+    }
 }
