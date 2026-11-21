@@ -1882,3 +1882,78 @@ T8 收敛绝对化结论时发现：**「回写触发的路由变化满足 curre
 - 分支 `exp/a5-route-probe` 相对 `origin/main`（`6d07a5c`）：**ahead 21 / behind 0**，merge-base = `6d07a5c`。
 - **未合入 main、未启动完整 A-5 矩阵、未占用 Redmi/vivo 真机、未改 Pager 预加载/导航动画/CR-28/Room/备份**；A-5 R9 原始证据三轮全部保留。
 - **P2 是否已修复待真机复核确认**（Q6：代码评审通过后另申请 Redmi 跑 s5_same ≥3 轮，确认 seq1 `aligned=false`、seq2 `aligned=true`、`Route/align` 只出现在末击）。**不自行宣布 A-5 通过。**
+
+---
+
+## A-5 R10 真机复核（Redmi 2407FRK8EC · 仅 120Hz）· 2026-11-21
+
+> 放行依据：GPT 复审「R10 代码实现通过 / 整体交付附条件通过 / P2 暂不关闭，等待 Redmi 真机复核」，
+> 明确放行范围 = **Redmi `GAQOHMNFQWFUPBQO`（2407FRK8EC）+ 仅 120Hz + 三种场景**；
+> 禁止 Redmi 60Hz、vivo 60/120、完整 A-5 矩阵、合入 main、修改 Pager 预加载/导航动画/CR-28 数据架构。
+> **vivo 全程未触碰；未启动矩阵；未合 main；未改业务代码。**
+
+### 门禁
+
+| 项 | 结果 |
+| --- | --- |
+| 设备身份 | Redmi 2407FRK8EC / `GAQOHMNFQWFUPBQO` / 1220×2712（各轮 `run_info.json`） |
+| APK 身份 | 装机 base.apk 实算 SHA256 = `0CC0171E45D29DFAD57C2F9DDC4CFBD6FAD2572BC2C0582BBC9400791BC486E4` ≡ 本地构建（实现提交 `d9098cf`），`sha256_match=true`（`gate/apk_identity_r10_build.json`） |
+| 刷新率 | 9 个有效轮次全部活动模式 120.00001Hz（modeId=3），`refresh_match_request=true` |
+| 恢复 | 每轮恢复设备原值 60/60 并回读校验，`restore_ok=true`（9/9） |
+| 证据 | `docs/CR-30-A3-实验补证/evidence/a5_r10_guard_ownership_real/`（9 有效 + 5 无效/对照轮次） |
+| SHA | `SHA256SUMS.txt` 重算 362 条，全量校验 **362/362 一致**（0 缺失 / 0 不一致） |
+
+### s5_same（P2 核心验收，3 轮）
+
+| 轮次 | seq1 收尾 | seq2 收尾 | Route/align | A5/routeScroll | 最终页 / 选中 Tab |
+| --- | --- | --- | --- | --- | --- |
+| r3 | `scrollCancel` → `aligned=false` | `scrollEnd` → `aligned=true` | 1 次，归属 seq2 | 无 | 统计 / 统计 |
+| r4 | `scrollEnd` → `aligned=false` | `scrollEnd` → `aligned=true` | 1 次，归属 seq2 | 无 | 统计 / 统计 |
+| r5 | `scrollCancel` → `aligned=false` | `scrollEnd` → `aligned=true` | 1 次，归属 seq2 | 无 | 统计 / 统计 |
+
+**3/3 轮满足 GPT 核心判据**。对照基线（R9 旧 APK 同场景）恰好相反：seq1 `aligned=true` + `Route/align=1`、seq2 `aligned=false`（原样保留在 `_invalid_rounds/`）。
+
+### s7_swipe_fast（OBS-1 检查，3 轮）
+
+| 轮次 | currentPage 序列 | selectMain 序列 | A5/routeScroll | 最终页 / 选中 Tab |
+| --- | --- | --- | --- | --- |
+| r3 | 1 → 2 | 统计 → 日历 | **无** | 日历 / 日历 |
+| r4 | 1 → 0 → 1 | 统计 → 今日 → 统计 | **无** | 统计 / 统计 |
+| r5 | 1 → 0 → 1 | 统计 → 今日 → 统计 | **无** | 统计 / 统计 |
+
+**3/3 轮未出现 `A5/routeScroll`** → **OBS-1 本轮未命中**（未观测到回滚滚动、未建立程序化 owner）；
+路由回写与 Pager 实际停留页逐页一致。**OBS-1 继续开放，不自行关闭。**
+
+### s8_swipe_interrupt（打断程序化滚动，3 轮）
+
+场景：今日页 → 点「日历」（程序化滚动 → 第 2 页）→ 120ms 后立即反向快滑。**判别性**：点击目标页与打断后 Pager 实际停留页不同。
+
+| 轮次 | 打断证据 | currentPage | guardIgnore | Route/align | 最终页 / 选中 Tab |
+| --- | --- | --- | --- | --- | --- |
+| r2 | `A5/scrollCancel=2#2` | 1 → 0 | `guardIgnore=1` | `align=1` | 今日 / 今日 |
+| r3 | `A5/scrollCancel=2#2` | 1 → 2 → 1 | `guardIgnore=1` | `align=2` | 统计 / 统计 |
+| r4 | `A5/scrollCancel=2#2` | 1 → 0 | `guardIgnore=1` | `align=1` | 今日 / 今日 |
+
+**3/3 轮**：打断成立、守卫正常收尾（`aligned=true`）、中间页回写被忽略（CR-22 口径）、
+**最终路由 = Pager 实际停留页且 ≠ 点击目标页（日历）**；均无 `A5/routeScroll`。
+
+### 本轮新发现并如实登记（OBS-2，只登记不修）
+
+s8 打断瞬间的 `Route/align` 对齐到**中间页**（r2/r4 → align=1=统计；r3 → align=2=日历），
+随后才被 Pager 实际停留页纠正（最终 selectMain=今日/统计）。表现为一次短暂的路由/标题抖动，
+属 CR-22 同类既有时序（对齐取的是取消瞬间的 `pagerState.currentPage`，可能正停在中间页）。
+**本轮只登记不修**（改导航架构超出授权），建议后续单独立项裁决。
+
+### 方法限制（如实登记，不掩盖）
+
+1. 屏宽 1220px + `HorizontalPager` 默认 `snapDistance=atMost(1)` → **单个人类手势无法跨两页**（需 ≥1.5 页宽 ≈1830px）；s7 的「跨两页」用**越界长拖**（单手势连过两个 50% 阈值，观测到 currentPage 1→0→1）+ 一次快滑构造，属**合成手势**，与人手不同。
+2. y=1200 的横滑被页面内控件吞掉（0 次页面变化），改用 y=700（实测有效）。
+3. adb 主机往返约 150ms/命令会错过 OBS-1 的亚帧窗口 → 被测手势改为**设备侧单条 shell 串行执行**（不回主机），串内嵌 `date +%s.%N` 记录设备端时刻（s8 点击→滑动间隔 76/64/51ms，落在程序化滚动动画窗口内）。
+4. **门禁采样时点修正**：本 ROM 面板 idle 态恒 60Hz，只有唤醒屏幕 + App 在前台才切到目标模式 → 门禁 dumpsys 改到**活动态**采样（门禁语义不变，仍要求活动模式唯一映射到目标 fps）。修正前的一轮按门禁判 INVALID、零采样，原样保留在 `_invalid_rounds/`。
+5. `adb input tap` 时间戳＝**主机发起命令时刻**，非真实手指触摸时间；录屏仅辅助证据。
+
+### 本轮结论与边界
+
+- **P2 的核心验收判据在真机成立**（s5_same 3/3 轮）。**是否关闭 P2 由 GPT 复审裁决，本轮不自行宣布。**
+- **OBS-1 本轮 3 轮未命中，继续开放**；**新登记 OBS-2（只登记不修）**。
+- 未合 main、未启动完整 A-5 矩阵、未碰 vivo、未改业务代码；A-5 R9 原始证据三轮全部保留。
