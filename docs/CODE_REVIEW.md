@@ -1772,3 +1772,18 @@ GPT 复审结论「4/4 修复成立」，遗留收敛为四件事，逐条完成
 - **④ `afterRows.maxOf` 空集合 P2**：改 `maxOfOrNull ?: 0`（全零 legacy 且无备份时删行后空集合不再抛异常致无谓回滚）+ 回归用例（不回滚、行删、`rebuilt`）。
 
 验证：`Cr28R2RegressionTest` 14 例；**四处行为变异全部真红**（M42 迁移条件恒假 / M43 相交含边界接触 / M44 restore 撤事务 / M45 maxOf 回退，各 1 红，无编译红冒充）；`--rerun-tasks` **598 测全绿 / 0 skip**。Redmi 真机复验：清洗值保持、`rebuild_log` 幂等空转、零崩溃。
+---
+
+## 补记 · A-5 R9 复审：P2 登记（TabScrollGuard 同目标连续点击的守卫所有权冲突）（2026-11-21 16:30）
+
+GPT 复审 R9 结论：**APK 身份对账通过、A5 专属探针六场景日志通过、Redmi 120Hz 六场景门禁与设置恢复记录通过——A-5 真机补验可以收口**；同时发现一条 **P2**：`TabScrollGuard` 对同目标连续点击的所有权判断存在缺陷。
+
+- **位置**：`app/src/main/java/com/screentrace/app/ui/TabScrollGuard.kt`、`app/src/main/java/com/screentrace/app/ui/AppNav.kt`、`app/src/test/java/com/screentrace/app/ui/TabScrollGuardTest.kt`。
+- **复现**：R9 v3 的 s5_same（连续两次点击统计页，目标 index 均为 1）。
+- **根因**：守卫**只用 target index 区分协程**，没有用点击序号区分所有权；`end(index)` 的 `target != index` 判据在「新旧点击目标相同」时失效。
+- **日志实证**（`evidence/a5_pilot_redmi_120hz_v3/s5_same_120hz_r1/logcat.txt`）：seq1 `scrollCancel → scrollFinally(aligned=true)` 并触发 `Route/align=1`——**旧协程抢到对齐权并清掉了新协程刚建立的守卫状态**；seq2 `scrollEnd → scrollFinally(aligned=false)`，**没有 Route/align**——真正的主人对齐权被剥夺。
+- **缺陷边界**：**只在「新旧点击目标相同」时穿透**；目标不同的五轮（s2/s3/s4/s6）旧逻辑靠 `target != index` 侥幸挡住——那是「用值判身份」的偶然正确，不是所有权语义的正确表达。
+- **危害评估**：s5_same 最终路由仍为统计页、**与视觉一致**（两次同目标、页面本就没离开），属「侥幸无害」；但旧协程在末击刚开始滚动时就执行了 `alignRouteToPager(pagerState.currentPage)`，写入的是**当时**的 Pager 位置——一旦时序叠加到 Pager 已过半翻页，就会写出与视觉不符的路由。**属潜在风险，未在 A-5 六轮中造成可见错误。**
+- **本轮处置**：**未修改任何导航业务代码**（本任务不授权改业务）。修复设计（token 所有权机制 + 状态转移表 + 8 条测试设计 + 7 项变异验证 + 最小 diff 计划）见 `docs/CR-30-A5-R10-TabScrollGuard-所有权设计.md`，**待 GPT 评审后再决定是否实施**。
+- **同时修正 R9 报告**：§5 表格中 s5_same 的 seq1 路径原写作「End→Finally(true)」（真值为 `scrollCancel→scrollFinally(aligned=true)`）已改正；新增 §5.1 澄清 **`aligned` = `TabScrollGuard.end(index)` 的 Boolean 返回值（守卫对齐所有权），不代表「Pager 当前页与目标页相等」**；新增 §5.2 登记本 P2。
+- **未越界**：未执行 Redmi 60Hz、未执行 vivo、未启动完整性能矩阵、未合入 main；A-5 R9 原始证据（v1 旧 APK 轮 / v2 坐标缺陷轮 / v3 身份对账轮）全部保留不覆盖不删除。
