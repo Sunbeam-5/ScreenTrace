@@ -78,6 +78,13 @@
         /** 当前守卫状态的所有者 token；NO_OWNER = 无守卫（可读，供测试与诊断）。 */
         val owner: Long
 
+        /**
+         * **统一只读快照入口**——测试断言三要素必须用它取一次快照。
+         * 三个派生 getter 各自独立读 state，依次调用时可能跨越状态变化；
+         * 需要「同一时刻的 programmatic/target/owner」时一律读本属性。
+         */
+        internal val snapshot: GuardState get() = state
+
         /** 开始一次程序化滚动，发放唯一 token 并返回它。 */
         fun begin(index: Int): Long
 
@@ -108,7 +115,11 @@
 
 ### 2.3 不可变状态快照（v2 修订：替代 v1 的多字段 @Volatile）
 
-    private data class GuardState(
+    /**
+     * 守卫状态快照。**`internal` 可见**：同模块测试可读、可断言；外部无法改写
+     * （字段全是 val，构造器随 internal 一起受限）。
+     */
+    internal data class GuardState(
         val programmatic: Boolean,
         val target: Int,
         val owner: Long
@@ -123,6 +134,9 @@
     val programmatic: Boolean get() = state.programmatic
     val target: Int get() = state.target
     val owner: Long get() = state.owner
+
+    // 注：上面三个 getter 各自独立读 state（跨状态变化时可能读到不同时刻的组合）；
+    //     需要同一时刻的三要素时用 snapshot（internal），不要逐个 getter 连读。
 
     fun begin(index: Int): Long = synchronized(lock) {
         val token = nextToken.incrementAndGet()
@@ -294,28 +308,79 @@ Compose 中真实的协程取消、`Pager` 动画互相中断与路由回写的�
       (a) FreshNavBar onSelect → tabGuard.begin(index)              // :966（点 tab）
       (b) LaunchedEffect(mainPage) 内 currentPage != target 时      // :416（路由回滚 / 二级页返回）
 
-**结论**：横滑只走 ①→②→③，而 ③ 的 `currentPage != target` 守卫使横滑**永远不调用 begin**。
-`alignRouteToPager()` 触发的 `selectMain` 同样受该守卫保护，**不会自激**产生新 owner。
-因此横滑期间守卫恒为 IDLE，`ignoresWrite` 恒 false → **跟手行为不受程序化守卫影响**。
+**结论（正常横滑时序）**：横滑只走 ①→②→③，而 ③ 的 `currentPage != target` 守卫使横滑
+**在正常时序下不调用 begin**。`alignRouteToPager()` 触发的 `selectMain` 同样受该守卫保护，
+**不会自激**产生新 owner。因此横滑期间守卫通常恒为 IDLE，`ignoresWrite` 恒 false →
+**跟手行为不受程序化守卫影响**。
 
-**残留风险（需在实施时复核，非本轮修改）**：若将来新增「绕过 Pager 直接改路由」的路径，
-③ 的守卫可能被绕过。实施时应在 `TabScrollGuard` 附近留一行注释指明
-「begin 只允许由点 tab 与路由回滚两处调用」。
+**收敛声明（GPT 复审要求，不使用绝对结论）**：
 
-### 4.5 变异验证计划（测试必须能变红）
+**不再使用「横滑永远不会调用 begin」这样的绝对说法。** 上面的推导成立于「`LaunchedEffect(mainPage)`
+重启的瞬间，Pager 的 `currentPage` 与该 effect 的 `target` 一致」这一前提；而
+`LaunchedEffect` 的重启与 Pager 手势进度**不是同一个原子过程**，快速滑动 / 连续跨页 / 路由状态更新
+与 effect 重启**可能交错**。因此正确的表述是：
 
-| 变异 | 改动 | 预期变红的用例 |
-|---|---|---|
-| M1 | `end` 去掉 token 校验，退回 `target != index` 口径 | **T2**（旧实现必红）、T4 |
-| M2 | `end` 在非 owner 时也清空快照 | T1、T3、T4 |
-| M3 | `end` 在非 owner 时把 owner 改回旧 token | T4 |
-| M4 | `begin` 不更新 owner（只改 target） | T2、T5 |
-| M5 | `begin` 的 token 不递增（复用上一次的） | token 唯一性断言、T5 |
-| M6 | `end` 返回 true 时不清空 programmatic/target | T7 |
-| M7 | `ignoresWrite` 改成读三个独立字段并容忍撕裂（模拟 v1 快照缺失） | 「快照一致性」补充断言 |
-| M8 | `end` 同时校验 index（旧 API 残留） | 「过期 token」补充断言、T3 |
+> **正常横滑时序下不建立程序化 owner；快速横滑存在时序窗口，不能排除意外建立 owner。**
 
-纪律要求：变异必须**改变可观测结果**（如 M1 必红 T2），不接受「非行为变异」与「编译红冒充」。
+**快速横滑的交错分析（`isScrollInProgress` / `currentPage` / 路由状态）**：
+
+    用户快速连续跨两页（今日 → 日历）时的可能序列：
+
+      t0 手指拖动，isScrollInProgress=true
+      t1 currentPage 0 → 1（过半）→ snapshotFlow 回写 index=1
+         → selectMain(Stats) → 路由状态待更新（mainPage 仍是 0 或 1）
+      t2 手指继续拖，currentPage 1 → 2（此时 mainPage 可能尚未重组到 1）
+      t3 LaunchedEffect(mainPage) 因路由状态更新而重启：
+         此刻 currentPage 已经是 2，而该 effect 的 target 取自 mainPage（可能是 1）
+         → **currentPage(2) != target(1) → 进入回滚分支 → begin(1) + animateScrollToPage(1)**
+         → **意外建立程序化 owner，且把用户正滑向的第 2 页拽回第 1 页**
+
+该窗口是否存在取决于「路由状态更新 → 重组 → effect 重启」相对「Pager 继续滚动」的相对时序，
+**本轮不修改导航架构、不引入 `isScrollInProgress` 门禁**（超出授权范围），如实登记为待观察项：
+
+| 编号 | 待观察项 | 性质 | 处置 |
+|---|---|---|---|
+| OBS-1 | 快速跨页横滑时 `LaunchedEffect(mainPage)` 的 `currentPage != target` 是否可能成立并触发回滚滚动、建立程序化 owner | **CR-17 注释里「回写触发的 mainPage 变化满足 currentPage == target」这一假设在快速横滑下可能不成立** | **本轮只登记不修**（改导航架构超出授权）；实施后真机重点检查「横滑是否意外建立 owner」；若成立另立条目裁决 |
+
+**实施后的接线自查（替代 UI 测试，作为 T8 的可执行部分）**：
+
+- 静态自查：`begin` 的调用点仍只有两处（点 tab、路由回滚），`TabScrollGuard` 内不留任何由手势直接触发的入口。
+- 真机自查（Q6 另申请设备后）：快速连续横滑跨两页，检查 logcat 是否出现 `A5/routeScroll`（该事件只由
+  `LaunchedEffect(mainPage)` 的回滚分支发射）——**若快速横滑出现 `A5/routeScroll`，即说明 OBS-1 命中**，
+  届时按 OBS-1 处置。
+- 本轮**不要求**引入 Compose UI 测试框架。
+
+
+### 4.5 变异验证计划（v3：只保留**可执行**变异）
+
+| 变异 | 改动 | 预期变红的用例 | 可执行性 |
+|---|---|---|---|
+| M1 | `end` 去掉 token 校验，退回 `target != index` 口径 | **T2**（旧实现必红）、T4 | 可执行 |
+| M2 | `end` 在非 owner 时也清空快照 | T1、T3、T4 | 可执行 |
+| M3 | `end` 在非 owner 时把 owner 改回旧 token | T4 | 可执行 |
+| M4 | `begin` 不更新 owner（只改 target） | T2、T5 | 可执行 |
+| M5 | `begin` 的 token 不递增（复用上一次的） | token 唯一性断言、T5 | 可执行 |
+| M6 | `end` 返回 true 时不清空 programmatic/target | T7 | 可执行 |
+| **M7′** | **`begin` 写入的快照不自洽**（`owner` 写成 `NO_OWNER` 或与 token 不符） | **T1、T2、T5、T7**（owner 断言） | **可执行**（改一个赋值，行为立刻可观察） |
+
+**M7′ 取代原 M7；原 M8 删除（v3 修订）**：
+
+- 原 M7（「把实现改回三个独立 `@Volatile` 字段」）**不是有效变异**——单线程 JVM 单测无法稳定
+  构造撕裂读，改回多字段后测试可能依旧全绿；**不允许仅把实现改回旧字段就声称变异被测试杀死**。
+- 原 M8（「`end` 同时校验 index」）在 `end(token)` 新 API 下**没有 index 参数**：要恢复它必须先改
+  方法签名与全部调用方 → **编译失败**，属于纪律明令禁止的「用编译失败冒充变异命中」→ **删除**。
+- 撕裂读防线改由**结构性审查项 S1** 承担（**不计入变异命中数**），见下。
+
+**结构性审查项 S1（不计入变异命中数）**
+
+- 审查内容：`TabScrollGuard` 内**只允许一个** `@Volatile` 字段（`state`）；不得再有第二个可变状态字段；
+  所有只读出口（`programmatic` / `target` / `owner` / `snapshot` / `ignoresWrite`）**都只读这一份快照**；
+  `begin` / `end` 只做**整体替换**。
+- 验证方式：代码审查 + grep 确认（`@Volatile` 计数、`state` 的写入点计数）。
+- **不作为变异命中计数**，因为 JVM 单线程下不可稳定观察——如实标注，不虚报命中数。
+
+**纪律要求**：变异必须**改变可观测结果**（如 M1 必红 T2），不接受「非行为变异」与「编译红冒充」；
+每项变异改坏 → 跑 → 确认红 → **无条件还原**。
 
 ### 4.6 与 A-5 证据链的衔接
 
@@ -329,7 +394,7 @@ Compose 中真实的协程取消、`Pager` 动画互相中断与路由回写的�
 
 | 文件 | 改动 | 估计 |
 |---|---|---|
-| `app/src/main/java/com/screentrace/app/ui/TabScrollGuard.kt` | 引入 `GuardState` 不可变快照 + `nextToken`；`begin(index): Long` 返回 token；**`end(token): Boolean`**；`programmatic`/`target`/`owner` 改为只读 val（读快照）；companion 纯函数 `ownsToken(owner, token)`；**移除 `ownsTarget`**（Q1 裁决：删除，token 取代；已 grep 确认仅本文件与既有测试引用，无生产调用方） | +48 / −22 |
+| `app/src/main/java/com/screentrace/app/ui/TabScrollGuard.kt` | 引入 `GuardState` 不可变快照 + `nextToken`；`begin(index): Long` 返回 token；**`end(token): Boolean`**；`programmatic`/`target`/`owner` 改为只读 val（读快照）；**新增 `internal val snapshot: GuardState` 统一只读快照入口**（测试断言三要素必须用它一次取值，不逐个 getter 连读）；companion 纯函数 `ownsToken(owner, token)`；**移除 `ownsTarget`**（Q1 裁决：删除，token 取代；已 grep 确认仅本文件与既有测试引用，无生产调用方） | +52 / −22 |
 | `app/src/main/java/com/screentrace/app/ui/AppNav.kt` | 2 处调用点：点 tab 处 `val guardToken = tabGuard.begin(index)`（:966）+ `tabGuard.end(guardToken)`（:979）；routeScroll 处 `val guardToken = tabGuard.begin(target)`（:416）+ `tabGuard.end(guardToken)`（:428）。**其余一行不动** | +4 / −4 |
 
 生产代码净改动 ≈ **2 文件、约 30 行**，不触碰任何业务分支逻辑、不改导航动画与预加载策略。
@@ -356,7 +421,7 @@ Compose 中真实的协程取消、`Pager` 动画互相中断与路由回写的�
    - §7 条数 **68 → 69**（需求文档头部同步登记该条）。
 2. 实现 `TabScrollGuard` 快照 + token 化（先生产后测试适配）。
 3. 新增 T1~T8 用例 → 全量单测 `--rerun-tasks` 保持全绿。
-4. **变异验证 M1~M8** 逐项验证会红（每项改坏→跑→确认红→无条件还原）。
+4. **变异验证 M1~M6 + M7′**（共 7 项**可执行**变异）逐项验证会红（每项改坏→跑→确认红→无条件还原）；**S1 结构性审查项**（撕裂读防线：单一 `@Volatile` 状态 + 只读出口只读该快照 + `begin`/`end` 整体替换）走代码审查 + grep，**不计入变异命中数**。
 5. 真机复核（**Q6：代码评审通过后单独申请 Redmi**）：s5_same 场景 ≥3 轮，确认 seq1 `aligned=false`、
    seq2 `aligned=true`、`Route/align` 只出现在末击。**本轮不申请、不擅自启动真机。**
 6. 分笔提交：文档一笔 → 实现+测试一笔 → 真机收口一笔（沿用 A-5 分支工作流）。
@@ -399,3 +464,16 @@ Compose 中真实的协程取消、`Pager` 动画互相中断与路由回写的�
 | T8 需补 AppNav 接线审查 | §4.4 给出静态调用链审查结论（横滑不调用 begin，附行号与关键守卫）；§4.2 边界二声明不引入 Compose UI 测试框架 | 已修 |
 | T6 明确为状态机时序测试 | §4.2 边界一 + §4.3 T6 标注 | 已修 |
 | 直接调用 begin/end ≠ 真实协程取消测试 | §4.2 边界一（真机复核归 Q6） | 已修 |
+
+## 10. v2 → v3 收口（GPT 附条件通过的四项编码前约束）
+
+| GPT 约束 | v3 落实位置 | 状态 |
+|---|---|---|
+| ① 增加统一状态快照读取接口，测试必须基于**同一快照**断言三个字段 | §2.2 新增 `internal val snapshot: GuardState`（一次取值）；§2.3 注释提醒「不要逐个 getter 连读」；§4.3 全部用例改用 `guard.snapshot` 一次取值后断言三要素 | 已落实 |
+| ② 修订 M7，使其成为真实可执行的变异测试，或明确改为结构性审查 | 原 M7（改回多字段）**删除**，改为**结构性审查项 S1**（单一 `@Volatile` + 只读出口同源 + 整体替换；代码审查 + grep，**不计入变异命中数**）；另**新增可执行的 M7′**（`begin` 写入快照不自洽 → 被 T1/T2/T5/T7 杀死） | 已落实 |
+| ③ 删除当前不可执行的 M8，不能用编译失败作为变异命中 | **M8 已删除**：新 API 无 index 参数，恢复它必然改签名 → 编译失败 → 属禁止的「编译红冒充」 | 已落实 |
+| ④ 收敛 T8 的绝对化结论，补充快速横滑时序分析 | §4.4 删除「永远不调用 begin」，改为「**正常横滑时序下不建立 owner；快速横滑存在时序窗口，不能排除意外建立 owner**」；补 `isScrollInProgress` / `currentPage` / 路由状态的交错分析，登记 **OBS-1**（CR-17 注释里「回写触发的 mainPage 变化满足 currentPage == target」在快速横滑下可能不成立）；给出实施后的静态自查 + 真机自查（看是否出现 `A5/routeScroll`） | 已落实 |
+
+**附：本轮实施新发现（超出 v2 设计预期，如实登记）**：OBS-1 是 v2 静态分析未覆盖的时序窗口。
+本轮**只登记不修**（改导航架构超出授权范围），实施后真机重点复核。
+
