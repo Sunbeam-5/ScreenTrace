@@ -74,60 +74,82 @@ def parse_wm(wm_text):
 
 
 def parse_display_refresh(text):
-    """R6 任务二：按显示设备结构分段解析，返回 (actual_fps|None, detail)。
+    """R7/P1：按显示设备结构分段解析，mActiveModeId **绑定目标设备**，返回 (actual_fps|None, detail)。
 
-    - 目标设备：DisplayDeviceInfo 块中 type INTERNAL 或名称 含 内置屏幕；必须唯一。
-    - 活动模式：该设备块内 modeId，经同块 supportedModes id→fps 映射；mActiveModeId
-      作为交叉核对（不一致→None）。缺字段/映射缺失/多内置屏 → None（无法确认）。
-    - PersistentDataStore.DisplayStates.RefreshRate 仅记为持久化偏好，绝不作活动率。
-    - mActiveSfDisplayMode / mActiveRenderFrameRate / renderFrameRate 记为渲染侧上下文。
+    规则（R7）：
+    - 以 DisplayDeviceInfo{ 为界分段；每段归属其前方设备；uniqueId 必须存在且非空。
+    - 目标设备：type INTERNAL 或名称含内置屏幕，必须唯一；外接/虚拟屏字段不得补全内置屏。
+    - mActiveModeId 必须取自**目标设备自己的分段**且恰好一个；全局存在无法归属的
+      mActiveModeId（孤儿）→ 无法确认。缺失/多值/归属不明 → None。
+    - 目标设备 modeId 与自身 mActiveModeId 必须一致；活动模式 id 必须在**该设备自身**
+      supportedModes 中唯一映射（不同设备同 id 不同 fps 时各用各的映射）。
+    - PersistentDataStore.DisplayStates.RefreshRate=持久化偏好，绝不作活动率；
+      SF/渲染率字段仅上下文。
     """
     detail = {}
-    # 分段：以 DisplayDeviceInfo{ 为界的设备块
     chunks = re.split(r"(?=DisplayDeviceInfo\{)", text)
     dev_chunks = [c for c in chunks if c.startswith("DisplayDeviceInfo{")]
-    internal = []
+    devices = []
     for c in dev_chunks:
         head = c[:c.find("\n") if "\n" in c else len(c)]
-        if ("type INTERNAL" in c[:2000]) or ("内置屏幕" in head):
-            internal.append(c)
-    detail["display_device_blocks"] = len(dev_chunks)
-    detail["internal_blocks"] = len(internal)
+        m_uid = re.search(r'uniqueId="([^"]*)"', c)
+        m_mode = re.search(r"\bmodeId (\d+)", c)
+        ms = re.search(r"supportedModes \[(.*?)\], colorMode", c)
+        devices.append({
+            "chunk": c,
+            "internal": ("type INTERNAL" in c[:3000]) or ("内置屏幕" in head),
+            "uniqueId": m_uid.group(1) if m_uid else None,
+            "modeId": m_mode.group(1) if m_mode else None,
+            "mode_map": dict(re.findall(r"\{id=(\d+), width=\d+, height=\d+, fps=([\d.]+)", ms.group(1))) if ms else {},
+            "actives": re.findall(r"mActiveModeId=(\S+)", c),
+        })
+    detail["display_device_blocks"] = len(devices)
     m_pds = re.search(r"PersistentDataStore:[\s\S]*?DisplayStates:[\s\S]*?RefreshRate=([\d.]+)", text)
     detail["PDS_DisplayStates.RefreshRate(持久化偏好，非活动率)"] = m_pds.group(1) if m_pds else None
     m_sf = re.search(r"mActiveSfDisplayMode=DisplayMode\{id=(\d+)[^}]*?peakRefreshRate=([\d.]+)", text)
     detail["mActiveSfDisplayMode(SF侧)"] = list(m_sf.groups()) if m_sf else None
     m_rfr = re.search(r"mActiveRenderFrameRate=([\d.]+)", text)
     detail["mActiveRenderFrameRate(渲染侧)"] = m_rfr.group(1) if m_rfr else None
+
+    # 孤儿 mActiveModeId（无法归属任何设备块）→ 无法确认
+    total_active = len(re.findall(r"mActiveModeId=", text))
+    bound_active = sum(len(d["actives"]) for d in devices)
+    detail["mActiveModeId_total"] = total_active
+    detail["mActiveModeId_bound_to_device_blocks"] = bound_active
+    if total_active != bound_active:
+        detail["reason"] = f"存在无法归属目标设备结构的 mActiveModeId（total={total_active} bound={bound_active}）"
+        return None, detail
+
+    internal = [d for d in devices if d["internal"]]
+    detail["internal_blocks"] = len(internal)
     if len(internal) != 1:
         detail["reason"] = f"目标内置显示设备不唯一（internal_blocks={len(internal)}），无法确认活动刷新率"
         return None, detail
-    dev = internal[0]
-    m_uid = re.search(r'uniqueId="([^"]+)"', dev)
-    detail["target_device"] = {"uniqueId": m_uid.group(1) if m_uid else None,
-                               "internal": True}
-    m_mode = re.search(r"modeId (\d+)", dev)
-    mode_id = m_mode.group(1) if m_mode else None
-    ms = re.search(r"supportedModes \[(.*?)\], colorMode", dev)
-    mode_map = dict(re.findall(r"\{id=(\d+), width=\d+, height=\d+, fps=([\d.]+)", ms.group(1))) if ms else {}
-    detail["device_modeId"] = mode_id
-    detail["device_supportedModes_id_fps"] = mode_map
-    m_am = re.search(r"mActiveModeId=(\S+)", text)
-    active_id = m_am.group(1) if m_am else None
-    detail["mActiveModeId(交叉核对)"] = active_id
-    if mode_id is None:
+    tgt = internal[0]
+    detail["target_device"] = {"uniqueId": tgt["uniqueId"], "internal": True}
+    if not tgt["uniqueId"]:
+        detail["reason"] = "目标设备 uniqueId 缺失或为空，无法确认活动刷新率"
+        return None, detail
+    if len(tgt["actives"]) != 1:
+        detail["reason"] = f"目标设备 mActiveModeId 缺失或多值（count={len(tgt['actives'])}），无法确认活动刷新率"
+        return None, detail
+    active_id = tgt["actives"][0]
+    detail["target_device"]["mActiveModeId"] = active_id
+    if tgt["modeId"] is None:
         detail["reason"] = "目标设备缺活动模式字段（modeId），无法确认活动刷新率"
         return None, detail
-    if active_id is not None and active_id != mode_id:
-        detail["reason"] = f"modeId({mode_id}) 与 mActiveModeId({active_id}) 不一致，无法唯一确认"
+    if active_id != tgt["modeId"]:
+        detail["reason"] = f"目标设备 modeId({tgt['modeId']}) 与自身 mActiveModeId({active_id}) 不一致，无法唯一确认"
         return None, detail
-    if mode_id not in mode_map:
-        detail["reason"] = f"活动模式 id={mode_id} 不在该设备 supportedModes 映射中，无法确认活动刷新率"
+    if tgt["modeId"] not in tgt["mode_map"]:
+        detail["reason"] = f"活动模式 id={tgt['modeId']} 不在该设备自身 supportedModes 映射中，无法确认活动刷新率"
         return None, detail
-    detail["active_mode_fps"] = mode_map[mode_id]
-    detail["semantics"] = ("活动物理显示模式＝设备块 modeId 经本设备 supportedModes 映射；"
-                           "PDS/模式列表/SF/渲染率仅上下文")
-    return float(mode_map[mode_id]), detail
+    detail["device_modeId"] = tgt["modeId"]
+    detail["device_supportedModes_id_fps"] = tgt["mode_map"]
+    detail["active_mode_fps"] = tgt["mode_map"][tgt["modeId"]]
+    detail["semantics"] = ("活动物理显示模式＝目标设备块 modeId 与自身 mActiveModeId 一致后，"
+                           "经该设备自身 supportedModes 映射；PDS/模式列表/SF/渲染率仅上下文")
+    return float(tgt["mode_map"][tgt["modeId"]]), detail
 
 
 def restore_refresh(serial, info, log):

@@ -176,8 +176,9 @@ def main():
     results.append(("t1/t2 正常完成（识别120.00001+设备身份+恢复+exit0）", ok, code, info))
 
     code, calls, tmp, info = run_case(script={"input|tap": FakeResult(rc=1, err=b"tap fail")})
-    ok = (code == 1 and info and info["status"] == "FAILED" and info["restore_ok"] is True)
-    results.append(("t3 Abort 后恢复 status=FAILED exit=1", ok, code, info))
+    ok = (code == 1 and info and info["status"] == "FAILED" and info["restore_ok"] is True
+          and info.get("restore_failures") is None)  # R5 断言恢复：恢复成功且无失败记录
+    results.append(("t3 Abort 后恢复 status=FAILED exit=1（R5: 恢复成功+无失败记录）", ok, code, info))
 
     code, calls, tmp, info = run_case(popen_raise=timeout_exc())
     ok = (code == 1 and info and info["status"] == "FAILED" and FakePopen.killed)
@@ -189,14 +190,15 @@ def main():
 
     code, calls, tmp, info = run_case(script={"settings|put|min_refresh_rate|60": FakeResult(rc=1, err=b"denied")})
     ok = (code == 1 and info and info["status"] == "FAILED" and info["restore_ok"] is False
+          and info["env"]["refresh_match_request"] is True  # R5 断言恢复：主体刷新率匹配
           and any(f["key"] == "min_refresh_rate" for f in info.get("restore_failures", [])))
-    results.append(("t5r 恢复put失败→FAILED+restore_failures", ok, code, info))
+    results.append(("t5r 恢复put失败→FAILED+restore_failures（R5: 主体匹配+恢复失败）", ok, code, info))
 
     code, calls, tmp, info = run_case(script={
         "settings|put|min_refresh_rate|60": TypeError("simulated TypeError on restore")})
-    ok = (code == 1 and info and info["status"] == "FAILED"
+    ok = (code == 1 and info and info["status"] == "FAILED" and info["restore_ok"] is False
           and any(f.get("stage") == "restore_exception" for f in info.get("restore_failures", [])))
-    results.append(("t6 恢复异常→FAILED+记录+exit=1", ok, code, info))
+    results.append(("t6 恢复异常→FAILED+restore_ok=False+记录 exit=1", ok, code, info))
 
     code, calls, tmp, info = run_case(script={"settings|get|min_refresh_rate": [FakeResult(out=b"null"), FakeResult(out=b"120"), FakeResult(out=b"null")]})
     ok = (any(c[:4] == ("shell", "settings", "delete", "system") for c in calls)
@@ -259,7 +261,7 @@ def main():
     results.append(("t18 INVALID+恢复值不一致→FAILED", ok, code, info))
 
     # t20 缺活动模式字段；t30 只有模式列表
-    dev_nomode = DEV_BASE.replace(b"modeId 3, ", b"").replace(b"mActiveModeId=3\n", b"")
+    dev_nomode = DEV_BASE.replace(b"modeId 3, ", b"")  # 仅删 modeId，保留 mActiveModeId（专测活动模式字段缺失）
     code, calls, tmp, info = run_case(script={"dumpsys|display": FakeResult(out=dev_nomode)})
     ok = (code == 1 and info and info["status"] == "INVALID" and no_taps(calls)
           and "活动模式字段" in str(info["env"]["display_parse"].get("reason", "")))
@@ -282,15 +284,15 @@ def main():
     # t12/t13/t14/t15（R5 保持）
     code, calls, tmp, info = run_case(script={
         "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(out=b"55")]})
-    ok = (code == 1 and info and info["status"] == "FAILED"
+    ok = (code == 1 and info and info["status"] == "FAILED" and info["restore_ok"] is False
           and any(f.get("stage") == "restore_readback_value" for f in info.get("restore_failures", [])))
-    results.append(("t12 恢复读回不一致→FAILED", ok, code, info))
+    results.append(("t12 恢复读回不一致→FAILED+restore_ok=False", ok, code, info))
 
     code, calls, tmp, info = run_case(script={
         "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(rc=1, err=b"gone")]})
-    ok = (code == 1 and info and info["status"] == "FAILED"
+    ok = (code == 1 and info and info["status"] == "FAILED" and info["restore_ok"] is False
           and any(f.get("stage") == "restore_readback_cmd" for f in info.get("restore_failures", [])))
-    results.append(("t13 恢复读回命令失败→FAILED", ok, code, info))
+    results.append(("t13 恢复读回命令失败→FAILED+restore_ok=False", ok, code, info))
 
     code, calls, tmp, info = run_case(patch_json=lambda *a, **k: (_ for _ in ()).throw(TypeError("sim write")))
     fw = list(Path(tmp).glob("*/FAILED_write.txt"))
@@ -298,10 +300,10 @@ def main():
     results.append(("t14 run_info 写入失败→exit=2+FAILED_write.txt", ok, code, info))
 
     code, calls, tmp, info = run_case(script={"settings|put|peak_refresh_rate|60": FakeResult(rc=1, err=b"denied")})
-    ok = (code == 1 and info and info["status"] == "FAILED"
+    ok = (code == 1 and info and info["status"] == "FAILED" and info["restore_ok"] is False
           and any(f["key"] == "peak_refresh_rate" for f in info.get("restore_failures", []))
-          and "restore_ok=True" in info["env"]["refresh_restore"]["min_refresh_rate"])
-    results.append(("t15 单键恢复失败→FAILED（他键成功）", ok, code, info))
+          and "restore_ok=True" in info["env"]["refresh_restore"]["min_refresh_rate"])  # R5: 他键恢复成功
+    results.append(("t15 单键恢复失败→FAILED+restore_ok=False（他键成功）", ok, code, info))
 
     # ---- 真实 fixture 用例 ----
     for name in ("dumpsys_redmi_idle_60hz.txt", "dumpsys_redmi_idle_120hz.txt",
@@ -362,6 +364,64 @@ def main():
     ok = (code == 1 and info and info["status"] == "FAILED" and no_taps(calls)
           and "raw write failed" in str(info.get("error")))
     results.append(("t45 原始证据写入失败→FAILED 零点击", ok, code, info))
+
+    # ---- R7-P1：mActiveModeId 设备绑定 ----
+    EXT_DIFF = ('DisplayDeviceInfo{"HDMI", uniqueId="local:9", 1x1, modeId 1, '
+                'supportedModes [{id=1, width=1, height=1, fps=24.0}], colorMode 0, type EXTERNAL}\n'
+                'mActiveModeId=2\n')  # 外接自身 modeId=1 与其 mActiveModeId=2 亦不一致（干扰源）
+    EXT_SAME_ID = ('DisplayDeviceInfo{"HDMI", uniqueId="local:9", 1x1, modeId 3, '
+                   'supportedModes [{id=3, width=1, height=1, fps=24.0}], colorMode 0, type EXTERNAL}\n'
+                   'mActiveModeId=3\n')
+
+    def run_invalid(name, dev_text, reason_part):
+        code, calls, tmp, info = run_case(script={"dumpsys|display": FakeResult(out=dev_text)})
+        ok = (code == 1 and info and info["status"] == "INVALID" and info["primary_status"] == "INVALID"
+              and no_taps(calls) and info["restore_ok"] is True
+              and "restore_ok=True" in info["env"]["refresh_restore"]["min_refresh_rate"]
+              and reason_part in str(info["env"]["display_parse"].get("reason", "")))
+        results.append((name, ok, code, info))
+
+    run_invalid("R7-1 mActiveModeId 缺失→INVALID 零点击+恢复", DEV_BASE.replace(b"mActiveModeId=3\n", b""), "mActiveModeId")
+    run_invalid("R7-2 目标设备 mActiveModeId×2→INVALID", DEV_BASE.replace(b"mActiveModeId=3\n", b"mActiveModeId=3\nmActiveModeId=3\n"), "缺失或多值")
+    run_invalid("R7-3 uniqueId 缺失→INVALID", DEV_BASE.replace(b'uniqueId=\"local:1\", ', b""), "uniqueId")
+    run_invalid("R7-6 内置 modeId≠自身 mActiveModeId→INVALID", DEV_BASE.replace(b"mActiveModeId=3", b"mActiveModeId=1"), "不一致")
+
+    # R7-4 外接在前（mActiveModeId 与内置不同）→ 内置正确绑定
+    code, calls, tmp, info = run_case(script={"dumpsys|display": FakeResult(out=EXT_DIFF.encode() + DEV_BASE)})
+    ok = (code == 0 and info and info["status"] == "OK"
+          and info["env"]["actual_active_display_fps"] == 120.00001
+          and info["env"]["display_parse"]["target_device"]["uniqueId"] == "local:1"
+          and info["env"]["display_parse"]["target_device"]["mActiveModeId"] == "3")
+    results.append(("R7-4 外接在前(异值)→内置正确绑定120.00001", ok, code, info))
+
+    # R7-5 外接在后 → 内置仍绑定
+    code, calls, tmp, info = run_case(script={"dumpsys|display": FakeResult(out=DEV_BASE + EXT_DIFF.encode())})
+    ok = (code == 0 and info and info["status"] == "OK"
+          and info["env"]["actual_active_display_fps"] == 120.00001)
+    results.append(("R7-5 外接在后→内置仍绑定", ok, code, info))
+
+    # R7-7 内置一致、外接 mActiveModeId 异值 → 不受干扰
+    code, calls, tmp, info = run_case(script={"dumpsys|display": FakeResult(out=DEV_BASE + EXT_DIFF.encode())})
+    ok = (code == 0 and info and info["env"]["display_parse"]["target_device"]["mActiveModeId"] == "3"
+          and info["env"]["actual_active_display_fps"] == 120.00001)
+    results.append(("R7-7 外接 mActiveModeId 异值不干扰内置", ok, code, info))
+
+    # R7-8 两设备同 modeId 不同 fps → 各用自身 supportedModes
+    code, calls, tmp, info = run_case(script={"dumpsys|display": FakeResult(out=EXT_SAME_ID.encode() + DEV_BASE)})
+    ok = (code == 0 and info and info["env"]["actual_active_display_fps"] == 120.00001)
+    results.append(("R7-8 同 modeId 不同 fps→按设备自身映射(120.00001)", ok, code, info))
+
+    # R7-10 真实 120Hz fixture 完整走 main
+    code, calls, tmp, info = run_case(script={
+        "dumpsys|display": FakeResult(out=fx("dumpsys_redmi_active_120hz.txt").encode("utf-8", "replace")),
+        "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(out=b"60")],
+        "settings|get|peak_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(out=b"60")]},
+        argv=["a5_run.py", "fake-serial", "120", "s1_single", "1"])
+    ok = (code == 0 and info and info["status"] == "OK" and info["restore_ok"] is True
+          and info["env"]["actual_active_display_fps"] == 120.00001
+          and "restore_ok=True" in info["env"]["refresh_restore"]["min_refresh_rate"]
+          and not no_taps(calls))
+    results.append(("R7-10 真实120Hz fixture 走 main→OK exit0+恢复+点击执行", ok, code, info))
 
     all_ok = True
     for name, ok, code, info in results:
