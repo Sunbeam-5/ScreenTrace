@@ -155,8 +155,33 @@ HeaderActionsTest、TabScrollGuardTest、AppViewModelSelectMainTest 等既有用
 行（与该口径 Janky 判定同一套帧时间）；max＝HISTOGRAM 最高非零桶上界（桶宽量化，另列
 桶值）；Janky 数量/比例＝汇总行。窗口＝gfxinfo reset→dump（12 次计划间隔 250ms 连点＋2s
 静置）；同设备、同步骤、轮序交替（base/combo 交替执行）；`peak_refresh_rate=60` 记录于
-run_info.json；点击计划/实际偏差 ≤1ms（monotonic 调度，逐击记录）。原始输出全文：
+run_info.json。原始输出全文：
 `evidence/a4c_perf/<build>_r<n>/{gfxinfo.txt,framestats.txt,run_info.json}`。
+
+**时间语义与调度偏差（R3 更正，撤回此前「点击计划/实际偏差 ≤1ms」表述）**：
+run_info 中 `actual_offset_ms` 为**主机侧发起 ADB 命令前的 monotonic 时刻**，
+**不等同于设备实际接收触摸事件的时间**（设备侧输入事件时间无法可靠取得，保留为
+主机调度指标，不虚构设备侧精确时间）。逐轮偏差与命令耗时（原始 run_info.json 核对）：
+
+| 轮 | 最大计划/发起偏差 | 最大 ADB tap 命令耗时 |
+|---|---|---|
+| base_clean_r1 | 64.5ms | 314.4ms |
+| base_clean_r2 | **76.1ms** | **325.9ms** |
+| base_clean_r3 | 0.9ms | 236.4ms |
+| a4c_combined_r1 | 33.0ms | 282.4ms |
+| a4c_combined_r2 | 1.0ms | 205.3ms |
+| a4c_combined_r3（无效轮） | 1.0ms | 108.7ms |
+| a4c_combined_r4 | 1.0ms | 213.7ms |
+| a4c_combined_r5 | 42.3ms | 292.2ms |
+| a4c_combined_r6 | 68.3ms | 317.8ms |
+
+- 单次 ADB tap 命令耗时最高 **325.9ms，超过 250ms 计划间隔**；超时后后续点击仍按
+  原计划时刻立即执行（计划队列不重排），**实际点击间隔被压缩**——本实验为「计划间隔
+  250ms 的连点压力场景」而非严格等距点击，两种构建同条件受同等压缩、组间可比，
+  与严格固定间隔的差异如实声明。
+- **266 帧低样本轮（combo_r2）敏感性**：纳入＝3770 帧 / Janky 4（0.11%）；剔除＝
+  3504 帧 / Janky 3（0.09%）；base 参照 2588 帧 / 3（0.12%）——**两种口径下结论均不变：
+  本次未观察到明显恶化**（不构成性能提升结论）。
 
 | 轮 | 构建 | 总帧 | Janky | p50 | p90 | p95 | p99 | max桶 |
 |---|---|---|---|---|---|---|---|---|
