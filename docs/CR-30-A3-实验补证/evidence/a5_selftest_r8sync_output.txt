@@ -1,0 +1,108 @@
+﻿# A-5 R8 同步后分支实测输出（本轮真实执行，非历史复制）
+# 执行时间: 2026-11-21 14:30:12
+# Python: Python 3.15.0
+# 平台: Windows-10-10.0.19045-SP0
+# 分支: exp/a5-route-probe @ 21b039a
+# 命令: python docs/CR-30-A3-实验补证/scripts/a5_run_selftest.py
+# 退出码: 0
+# ---- stdout ----
+[s1_single_120hz_r1] OK
+[s1_single_120hz_r1] FAILED: Abort('adb failed: tap0:stats rc=1')
+[s1_single_120hz_r1] FAILED: Abort('screenrecord timeout, killed, exit=-9')
+[s1_single_120hz_r1] FAILED: FileNotFoundError('adb gone')
+[s1_single_120hz_r1] FAILED: refresh_restore_failed
+[s1_single_120hz_r1] FAILED: refresh_restore_failed
+[s1_single_120hz_r1] OK
+[s1_single_120hz_r1] FAILED: Abort('adb failed: get peak_refresh_rate rc=1') | refresh_restore_failed
+[s1_single_120hz_r1] FAILED: Abort("resolution not verified: got 'Physical size: 1220x2712', expected one of ('PENDING_VERIFICATION',)")
+[s1_single_120hz_r1] FAILED: Abort('coordinate out of bounds: nav[today]=(99999,0) for 1220x2712')
+[s1_single_120hz_r1] INVALID: Abort("refresh mismatch: requested=120 settings_readback={'min_refresh_rate': '120', 'peak_refresh_rate': '120'} actual_active_fps=60.0 —— 不作为有效样本")
+[s1_single_120hz_r1] FAILED: Abort("refresh mismatch: requested=120 settings_readback={'min_refresh_rate': '120', 'peak_refresh_rate': '120'} actual_active_fps=60.0 —— 不作为有效样本") | refresh_restore_failed
+[s1_single_120hz_r1] FAILED: Abort("refresh mismatch: requested=120 settings_readback={'min_refresh_rate': '120', 'peak_refresh_rate': '120'} actual_active_fps=60.0 —— 不作为有效样本") | refresh_restore_failed
+[s1_single_120hz_r1] FAILED: Abort("refresh mismatch: requested=120 settings_readback={'min_refresh_rate': '120', 'peak_refresh_rate': '120'} actual_active_fps=60.0 —— 不作为有效样本") | refresh_restore_failed
+[s1_single_120hz_r1] INVALID: Abort('active display refresh unidentifiable: 目标设备缺活动模式字段（modeId），无法确认活动刷新率 —— 零采样')
+[s1_single_120hz_r1] INVALID: Abort('active display refresh unidentifiable: 目标内置显示设备不唯一（internal_blocks=2），无法确认活动刷新率 —— 零采样')
+[s1_single_120hz_r1] INVALID: Abort("settings readback mismatch: requested=120 readback={'min_refresh_rate': '55', 'peak_refresh_rate': '120'} —— 不作为有效样本")
+[s1_single_120hz_r1] FAILED: refresh_restore_failed
+[s1_single_120hz_r1] FAILED: refresh_restore_failed
+[s1_single_120hz_r1] FAILED
+[s1_single_120hz_r1] FAILED: refresh_restore_failed
+[s1_single_60hz_r1] INVALID: Abort("refresh mismatch: requested=60 settings_readback={'min_refresh_rate': '60', 'peak_refresh_rate': '60'} actual_active_fps=120.00001 —— 不作为有效样本")
+[s1_single_120hz_r1] INVALID: Abort('dumpsys display failed rc=1 —— 关键证据缺失，零采样')
+[s1_single_120hz_r1] INVALID: Abort('dumpsys display empty —— 关键证据缺失，零采样')
+[s1_single_120hz_r1] FAILED: Abort("dumpsys raw write failed: OSError('simulated raw write failure') —— 证据未落盘，零采样")
+[s1_single_120hz_r1] INVALID: Abort('active display refresh unidentifiable: 目标设备 mActiveModeId 缺失或多值（count=0），无法确认活动刷新率 —— 零采样')
+[s1_single_120hz_r1] INVALID: Abort('active display refresh unidentifiable: 目标设备 mActiveModeId 缺失或多值（count=2），无法确认活动刷新率 —— 零采样')
+[s1_single_120hz_r1] INVALID: Abort('active display refresh unidentifiable: 目标设备 uniqueId 缺失或为空，无法确认活动刷新率 —— 零采样')
+[s1_single_120hz_r1] INVALID: Abort('active display refresh unidentifiable: 目标设备 modeId(3) 与自身 mActiveModeId(1) 不一致，无法唯一确认 —— 零采样')
+[s1_single_120hz_r1] OK
+[s1_single_120hz_r1] OK
+[s1_single_120hz_r1] OK
+[s1_single_120hz_r1] OK
+[s1_single_120hz_r1] OK
+[s1_single_120hz_r1] INVALID: Abort("active display refresh unidentifiable: 活动模式 id=3 在该设备 supportedModes 出现 2 次（fps 条目=['60.0', '120.00001']），映射非唯一，无法确认——即使重复条目 fps 相同亦不放行 —— 零采样")
+[s1_single_120hz_r1] INVALID: Abort("active display refresh unidentifiable: 活动模式 id=3 在该设备 supportedModes 出现 2 次（fps 条目=['120.00001', '120.00001']），映射非唯一，无法确认——即使重复条目 fps 相同亦不放行 —— 零采样")
+[s1_single_120hz_r1] INVALID: Abort("active display refresh unidentifiable: 活动模式 id=3 在该设备 supportedModes 出现 3 次（fps 条目=['60.0', '120.00001', '120.00001']），映射非唯一，无法确认——即使重复条目 fps 相同亦不放行 —— 零采样")
+[s1_single_120hz_r1] OK
+[s1_single_120hz_r1] OK
+[PASS] t1/t2 正常完成（识别120.00001+设备身份+恢复+exit0）  (code=0)
+[PASS] t3 Abort 后恢复 status=FAILED exit=1（R5: 恢复成功+无失败记录）  (code=1)
+[PASS] t4a 录屏超时 kill→FAILED exit=1  (code=1)
+[PASS] t4b FileNotFoundError→FAILED exit=1  (code=1)
+[PASS] t5r 恢复put失败→FAILED+restore_failures（R5: 主体匹配+恢复失败）  (code=1)
+[PASS] t6 恢复异常→FAILED+restore_ok=False+记录 exit=1  (code=1)
+[PASS] t7 原值null→settings delete  (code=0)
+[PASS] t8 原值读取失败→跳过恢复  (code=1)
+[PASS] t9a vivo PENDING 拒绝零点击  (code=1)
+[PASS] t9b 越界坐标拒绝零点击  (code=1)
+[PASS] t10 防覆盖（材料保留）  (code=Abort:round dir exists with content (refusing to overwrite): D:\Personal\Temp\a5st_mw23vgbk\s1_single_120hz_r1)
+[PASS] t11/t23 活动率不符→INVALID 零点击（识别值=60断言）  (code=1)
+[PASS] t16 INVALID+恢复put失败→FAILED+primary保留  (code=1)
+[PASS] t17 INVALID+恢复读回失败→FAILED  (code=1)
+[PASS] t18 INVALID+恢复值不一致→FAILED  (code=1)
+[PASS] t20/t30 缺活动模式字段/仅模式列表→INVALID 零点击  (code=1)
+[PASS] t21/t34 双内置屏→INVALID 零点击  (code=1)
+[PASS] t22 settings 读回≠请求→INVALID 零点击  (code=1)
+[PASS] t12 恢复读回不一致→FAILED+restore_ok=False  (code=1)
+[PASS] t13 恢复读回命令失败→FAILED+restore_ok=False  (code=1)
+[PASS] t14 run_info 写入失败→exit=2+FAILED_write.txt  (code=2)
+[PASS] t15 单键恢复失败→FAILED+restore_ok=False（他键成功）  (code=1)
+[PASS] t40/41 真实fixture解析 dumpsys_redmi_idle_60hz.txt→识别120.00001+PDS仅上下文  (code=None)
+[PASS] t40/41 真实fixture解析 dumpsys_redmi_idle_120hz.txt→识别120.00001+PDS仅上下文  (code=None)
+[PASS] t40/41 真实fixture解析 dumpsys_redmi_active_60hz.txt→识别120.00001+PDS仅上下文  (code=None)
+[PASS] t40/41 真实fixture解析 dumpsys_redmi_active_120hz.txt→识别120.00001+PDS仅上下文  (code=None)
+[PASS] t32 PDS=120/活动=60→识别60（PDS 不冒充）  (code=None)
+[PASS] t33 内置屏身份缺失→INVALID  (code=None)
+[PASS] t35 modeId≠mActiveModeId→INVALID  (code=None)
+[PASS] t31 内置+外接→仍识别内置 120.00001  (code=None)
+[PASS] t42 真实fixture走main（请求60/实际120）→INVALID 零点击  (code=1)
+[PASS] t43 dumpsys 命令失败→INVALID 零点击  (code=1)
+[PASS] t44 dumpsys 空输出→INVALID 零点击  (code=1)
+[PASS] t45 原始证据写入失败→FAILED 零点击  (code=1)
+[PASS] R7-1 mActiveModeId 缺失→INVALID 零点击+恢复  (code=1)
+[PASS] R7-2 目标设备 mActiveModeId×2→INVALID  (code=1)
+[PASS] R7-3 uniqueId 缺失→INVALID  (code=1)
+[PASS] R7-6 内置 modeId≠自身 mActiveModeId→INVALID  (code=1)
+[PASS] R7-4 外接在前(异值)→内置正确绑定120.00001  (code=0)
+[PASS] R7-5 外接在后→内置仍绑定  (code=0)
+[PASS] R7-7 外接 mActiveModeId 异值不干扰内置  (code=0)
+[PASS] R7-8 同 modeId 不同 fps→按设备自身映射(120.00001)  (code=0)
+[PASS] R7-10 真实120Hz fixture 走 main→OK exit0+恢复+点击执行  (code=0)
+[PASS] R8-1 活动id×2(60/120)→INVALID 零点击+落盘  (code=1)
+[PASS] R8-2 活动id×2(同120)→INVALID（fps 相同亦不放行）  (code=1)
+[PASS] R8-3 活动id×3→INVALID  (code=1)
+[PASS] R8-4 非活动id重复/活动id唯一→允许且不受影响  (code=0)
+[PASS] R8-5 真实fixture dumpsys_redmi_idle_60hz.txt 唯一映射通过  (code=None)
+[PASS] R8-5 真实fixture dumpsys_redmi_idle_120hz.txt 唯一映射通过  (code=None)
+[PASS] R8-5 真实fixture dumpsys_redmi_active_60hz.txt 唯一映射通过  (code=None)
+[PASS] R8-5 真实fixture dumpsys_redmi_active_120hz.txt 唯一映射通过  (code=None)
+[PASS] R8-6 真实120Hz fixture 走 main→OK/exit0/恢复/落盘  (code=0)
+ALL PASS
+# ---- stderr ----
+python : [s1_single_120hz_r1] run_info WRITE FAILED: TypeError('sim write')
+所在位置 行:1 字符: 250
++ ...  HH:mm:ss'; python 'docs\CR-30-A3-实验补证\scripts\a5_run_selftest.py' >  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([s1_single_120h...or('sim write'):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
