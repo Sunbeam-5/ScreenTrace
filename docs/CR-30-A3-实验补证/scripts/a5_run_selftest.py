@@ -87,9 +87,13 @@ class Scripted:
 BASE = {
     "getprop": FakeResult(out=b"2407FRK8EC"),
     "wm size": FakeResult(out=b"Physical size: 1220x2712"),
-    "settings|get|min_refresh_rate": FakeResult(out=b"60"),
-    "settings|get|peak_refresh_rate": FakeResult(out=b"60"),
-    "dumpsys|display": FakeResult(out=b"junk RefreshRate=120.0 junk"),
+    "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(out=b"60")],
+    "settings|get|peak_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(out=b"60")],
+    "dumpsys|display": FakeResult(out=(
+        b'DisplayDeviceInfo{"built-in", uniqueId="local:1", 1220 x 2712, type INTERNAL}\n'
+        b'mActiveSfDisplayMode=DisplayMode{id=2, width=1220, peakRefreshRate=120.00001}\n'
+        b'mActiveRenderFrameRate=120.00001\n'
+        b'      RefreshRate=120.0\n')),
     "logcat|-d": FakeResult(out=b"CR30Probe: A5/tabClick=1#1\n"),
     "exec-out|cat": FakeResult(out=b"\x00\x00\x00\x18ftypmp42"),
 }
@@ -180,7 +184,7 @@ def main():
     results.append(("t6 恢复异常→落盘+FAILED+异常记录 exit=1", ok, code, info))
 
     # t7 原值 null→delete
-    code, calls, tmp, info = run_case(script={"settings|get|min_refresh_rate": FakeResult(out=b"null")})
+    code, calls, tmp, info = run_case(script={"settings|get|min_refresh_rate": [FakeResult(out=b"null"), FakeResult(out=b"120"), FakeResult(out=b"null")]})
     ok = (any(c[:4] == ("shell", "settings", "delete", "system") for c in calls)
           and "delete" in info["env"]["refresh_restore"]["min_refresh_rate"])
     results.append(("t7 原值 null→settings delete", ok, code, info))
@@ -216,22 +220,77 @@ def main():
           and (Path(tmp) / "s1_single_120hz_r1" / "old.txt").exists())
     results.append(("t10 防覆盖（材料保留）", ok, code, info))
 
-    # t11 2.5 实际显示模式不符→INVALID、零点击、exit≠0
-    code, calls, tmp, info = run_case(script={"dumpsys|display": FakeResult(out=b"RefreshRate=60.0")})
+    # t11/t23 实际活动刷新率不符→INVALID、零点击、exit≠0
+    code, calls, tmp, info = run_case(script={"dumpsys|display": FakeResult(out=(
+        b'type INTERNAL\nmActiveSfDisplayMode=DisplayMode{id=2, peakRefreshRate=120.00001}\n'
+        b'      RefreshRate=60.0\n'))})
     ok = (code == 1 and info and info["status"] == "INVALID" and info["env"]["refresh_match_request"] is False
           and not any((len(c) > 3 and c[2] == "tap") for c in calls))
-    results.append(("t11 实际模式不符→INVALID 零点击 exit=1", ok, code, info))
+    results.append(("t11/t23 活动率不符→INVALID 零点击 exit=1", ok, code, info))
+
+    # t16 INVALID + 恢复 put 失败→最终 FAILED、primary_status=INVALID 保留
+    code, calls, tmp, info = run_case(script={
+        "dumpsys|display": FakeResult(out=b'type INTERNAL\n      RefreshRate=60.0\n'),
+        "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(out=b"60")],
+        "settings|put|min_refresh_rate|60": FakeResult(rc=1, err=b"denied")})
+    ok = (code == 1 and info and info["status"] == "FAILED"
+          and info["primary_status"] == "INVALID"
+          and "refresh mismatch" in str(info.get("primary_error"))
+          and info["restore_ok"] is False
+          and any(f["key"] == "min_refresh_rate" for f in info.get("restore_failures", [])))
+    results.append(("t16 INVALID+恢复put失败→FAILED 保留 primary", ok, code, info))
+
+    # t17 INVALID + 恢复读回命令失败→FAILED
+    code, calls, tmp, info = run_case(script={
+        "dumpsys|display": FakeResult(out=b'type INTERNAL\n      RefreshRate=60.0\n'),
+        "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(rc=1, err=b"gone")]})
+    ok = (code == 1 and info and info["status"] == "FAILED" and info["primary_status"] == "INVALID"
+          and any(f.get("stage") == "restore_readback_cmd" for f in info.get("restore_failures", [])))
+    results.append(("t17 INVALID+恢复读回失败→FAILED", ok, code, info))
+
+    # t18 INVALID + 恢复读回值不一致→FAILED
+    code, calls, tmp, info = run_case(script={
+        "dumpsys|display": FakeResult(out=b'type INTERNAL\n      RefreshRate=60.0\n'),
+        "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(out=b"55")]})
+    ok = (code == 1 and info and info["status"] == "FAILED" and info["primary_status"] == "INVALID"
+          and any(f.get("stage") == "restore_readback_value" for f in info.get("restore_failures", [])))
+    results.append(("t18 INVALID+恢复值不一致→FAILED", ok, code, info))
+
+    # t20 dumpsys 缺活动刷新率字段→INVALID 零点击
+    code, calls, tmp, info = run_case(script={"dumpsys|display": FakeResult(out=(
+        b'type INTERNAL\nmActiveSfDisplayMode=DisplayMode{id=2, peakRefreshRate=120.00001}\n'))})
+    ok = (code == 1 and info and info["status"] == "INVALID"
+          and info["primary_status"] == "INVALID"
+          and "unidentifiable" in str(info.get("primary_error"))
+          and not any((len(c) > 3 and c[2] == "tap") for c in calls))
+    results.append(("t20 缺活动率字段→INVALID 零点击", ok, code, info))
+
+    # t21 多显示设备/多独立 RefreshRate 行→INVALID 零点击
+    code, calls, tmp, info = run_case(script={"dumpsys|display": FakeResult(out=(
+        b'type INTERNAL\n      RefreshRate=120.0\n      RefreshRate=60.0\n'))})
+    ok = (code == 1 and info and info["status"] == "INVALID"
+          and "独立 RefreshRate 行数量=2" in str(info["env"]["display_parse"].get("reason", ""))
+          and not any((len(c) > 3 and c[2] == "tap") for c in calls))
+    results.append(("t21 多显示设备/多活动率行→INVALID 零点击", ok, code, info))
+
+    # t22 settings 读回≠请求→INVALID 零点击（put 成功但读回不符）
+    code, calls, tmp, info = run_case(script={
+        "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"55"), FakeResult(out=b"60")]})
+    ok = (code == 1 and info and info["status"] == "INVALID"
+          and "settings readback mismatch" in str(info.get("primary_error"))
+          and not any((len(c) > 3 and c[2] == "tap") for c in calls))
+    results.append(("t22 settings 读回≠请求→INVALID 零点击", ok, code, info))
 
     # t12 恢复 put 成功、读回值不一致（min 键第 3 次 get=恢复读回）
     code, calls, tmp, info = run_case(script={
-        "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"60"), FakeResult(out=b"55")]})
+        "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(out=b"55")]})
     ok = (code == 1 and info and info["status"] == "FAILED" and info["restore_ok"] is False
           and any(f.get("stage") == "restore_readback_value" for f in info.get("restore_failures", [])))
     results.append(("t12 恢复读回不一致→FAILED exit=1", ok, code, info))
 
     # t13 恢复后读回命令失败
     code, calls, tmp, info = run_case(script={
-        "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"60"), FakeResult(rc=1, err=b"gone")]})
+        "settings|get|min_refresh_rate": [FakeResult(out=b"60"), FakeResult(out=b"120"), FakeResult(rc=1, err=b"gone")]})
     ok = (code == 1 and info and info["status"] == "FAILED" and info["restore_ok"] is False
           and any(f.get("stage") == "restore_readback_cmd" for f in info.get("restore_failures", [])))
     results.append(("t13 恢复读回命令失败→FAILED exit=1", ok, code, info))

@@ -72,6 +72,32 @@ def parse_wm(wm_text):
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
+def parse_display_refresh(text):
+    """R5-2：识别目标内置显示屏与其**活动**显示刷新率。
+
+    只认 DisplayDeviceInfo{\"内置屏幕\"（type INTERNAL）设备的**独立成行** RefreshRate=
+    值（DisplayManagerService 解析的当前显示刷新率）；supportedRefreshRates、
+    peakRefreshRate（模式列表）、mSupportedRefreshRates、mActiveSfDisplayMode、
+    mActiveRenderFrameRate、renderFrameRate 均为上下文另记，**不当作面板活动率**。
+    无法唯一识别 → (False, None, detail)。"""
+    detail = {}
+    internal = ('DisplayDeviceInfo{"内置屏幕"' in text) or ("type INTERNAL" in text)
+    detail["internal_display_found"] = internal
+    standalone = re.findall(r"^\s*RefreshRate=([\d.]+)\s*$", text, re.M)
+    detail["standalone_refreshrate_lines"] = standalone
+    m_sf = re.search(r"mActiveSfDisplayMode=DisplayMode\{id=(\d+)[^}]*?peakRefreshRate=([\d.]+)", text)
+    detail["mActiveSfDisplayMode"] = list(m_sf.groups()) if m_sf else None
+    m_rfr = re.search(r"mActiveRenderFrameRate=([\d.]+)", text)
+    detail["mActiveRenderFrameRate"] = m_rfr.group(1) if m_rfr else None
+    m_drr = re.search(r"renderFrameRate ([\d.]+)", text)
+    detail["displayDeviceInfo_renderFrameRate"] = m_drr.group(1) if m_drr else None
+    if not internal:
+        return False, None, {**detail, "reason": "未找到目标内置显示屏（DisplayDeviceInfo 内置屏幕/type INTERNAL）"}
+    if len(standalone) != 1:
+        return False, None, {**detail, "reason": f"独立 RefreshRate 行数量={len(standalone)}，无法唯一定位活动显示刷新率"}
+    return True, float(standalone[0]), detail
+
+
 def restore_refresh(serial, info, log):
     """R3/R4：恢复刷新率设置。只动成功读取过的键；null 原值→delete；失败→不覆盖；
     恢复后读回核验。返回 True=全部成功（或无可恢复键），False=存在任何失败/异常。
@@ -162,25 +188,36 @@ def main():
         must(serial, ["shell", "settings", "put", "system", "min_refresh_rate", hz], "set min_refresh_rate", log)
         must(serial, ["shell", "settings", "put", "system", "peak_refresh_rate", hz], "set peak_refresh_rate", log)
 
-        # ---- 2.5 刷新率验证：settings 读回与面板实际分开记录 ----
+        # ---- 2.5/R5-2 刷新率验证：settings 读回与面板活动率分开记录 ----
         rb = {}
         for key in ("min_refresh_rate", "peak_refresh_rate"):
             r = must(serial, ["shell", "settings", "get", "system", key], f"readback {key}", log)
             rb[key] = r.stdout.decode().strip()
         info["env"]["settings_readback"] = rb
+        if any(v != str(hz) for v in rb.values()):
+            info["status"] = "INVALID"
+            raise Abort(f"settings readback mismatch: requested={hz} readback={rb} —— 不作为有效样本")
         disp = adb(serial, "shell", "dumpsys", "display")
         disp_text = disp.stdout.decode("utf-8", "replace") if disp.returncode == 0 else ""
-        m = re.search(r"RefreshRate=([\d.]+)", disp_text)
-        actual = float(m.group(1)) if m else None
+        try:
+            (run_dir / "dumpsys_display.txt").write_text(disp_text, encoding="utf-8")  # 原始输出存证
+        except Exception as e:
+            log.append({"dumpsys_save_failed": repr(e)})
+        ok_disp, actual, detail = parse_display_refresh(disp_text)
+        info["env"]["display_parse"] = detail
         info["env"]["actual_display_refresh"] = actual
-        info["env"]["refresh_evidence"] = ("dumpsys display 'RefreshRate=' 行（面板实际模式证据）；"
-                                          "settings 读回≠面板实际，二者分开记录")
-        match = actual is not None and abs(actual - float(hz)) <= 1.0
+        info["env"]["refresh_evidence"] = ("dumpsys display 独立成行 RefreshRate=（内置屏活动显示刷新率）；"
+                                          "mActiveSfDisplayMode/mActiveRenderFrameRate/renderFrameRate "
+                                          "为渲染侧上下文另记；settings 读回≠面板实际，三者分开记录")
+        match = ok_disp and abs(actual - float(hz)) <= 1.0
         info["env"]["refresh_match_request"] = match
+        if not ok_disp:
+            info["status"] = "INVALID"
+            raise Abort(f"active display refresh unidentifiable: {detail} —— 不作为有效样本")
         if not match:
             info["status"] = "INVALID"
-            raise Abort(f"refresh mismatch/unknown: requested={hz} settings_readback={rb} "
-                        f"actual_display={actual} —— 不作为有效样本")
+            raise Abort(f"refresh mismatch: requested={hz} settings_readback={rb} "
+                        f"actual_active={actual} —— 不作为有效样本")
 
         time.sleep(0.5)
         must(serial, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"], "wakeup", log)
@@ -247,14 +284,17 @@ def main():
             info["status"] = "FAILED"
         info["error"] = f"UNEXPECTED: {e!r}"
     finally:
-        # ---- 2.1 恢复失败 fail-closed ----
+        # ---- R5-1：记录主体状态（保留原始失败原因），恢复失败一律 FAILED ----
+        info["primary_status"] = info["status"]
+        info["primary_error"] = info.get("error")
         try:
             restore_ok = restore_refresh(serial, info, log)
         except Exception as e:  # 双保险：绝不向外抛
             restore_ok = False
             info.setdefault("restore_failures", []).append({"key": "*", "stage": "restore_outer", "exception": repr(e)})
         info["restore_ok"] = restore_ok
-        if not restore_ok and info["status"] == "OK":
+        if not restore_ok:
+            # R5-1：不论原状态 OK/INVALID/FAILED，恢复失败→FAILED；primary_* 保留原失败原因
             info["status"] = "FAILED"
             info["error"] = ((info.get("error") or "") + " | refresh_restore_failed").strip(" |")
         # ---- 2.2 落盘失败 fail-closed ----
