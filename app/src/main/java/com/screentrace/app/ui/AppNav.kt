@@ -413,7 +413,7 @@ fun AppNav() {
                 // 同样不能回写路由，否则标题会闪一下中间页。
                 val seq = com.screentrace.app.uikit.PerfProbe.nextSeq()
                 com.screentrace.app.uikit.PerfProbe.a5("routeScroll", target, seq)
-                tabGuard.begin(target)
+                val guardToken = tabGuard.begin(target)
                 try {
                     com.screentrace.app.uikit.PerfProbe.event("Pager/scrollStart")
                     com.screentrace.app.uikit.PerfProbe.a5("scrollStart", target, seq)
@@ -425,7 +425,7 @@ fun AppNav() {
                     com.screentrace.app.uikit.PerfProbe.a5("scrollCancel", target, seq)
                     throw e
                 } finally {
-                    val aligned = tabGuard.end(target)
+                    val aligned = tabGuard.end(guardToken)
                     com.screentrace.app.uikit.PerfProbe.a5Finally(target, seq, aligned)
                     if (aligned) alignRouteToPager(pagerState.currentPage)
                 }
@@ -963,7 +963,7 @@ fun AppNav() {
                         // 结束后按 Pager 的停留页对齐一次（跨页时不经过中间页）。
                         val seq = com.screentrace.app.uikit.PerfProbe.nextSeq()
                         com.screentrace.app.uikit.PerfProbe.a5("tabClick", index, seq)
-                        tabGuard.begin(index)
+                        val guardToken = tabGuard.begin(index)
                         tabScope.launch {
                             try {
                                 com.screentrace.app.uikit.PerfProbe.event("Pager/scrollStart")
@@ -976,7 +976,7 @@ fun AppNav() {
                                 com.screentrace.app.uikit.PerfProbe.a5("scrollCancel", index, seq)
                                 throw e
                             } finally {
-                                val aligned = tabGuard.end(index)
+                                val aligned = tabGuard.end(guardToken)
                                 com.screentrace.app.uikit.PerfProbe.a5Finally(index, seq, aligned)
                                 if (aligned) alignRouteToPager(pagerState.currentPage)
                             }

@@ -1,5 +1,7 @@
 package com.screentrace.app.ui
 
+import java.util.concurrent.atomic.AtomicLong
+
 /**
  * CR-22 ①：点 tab 触发的**程序化滚动**守卫。
  *
@@ -25,41 +27,123 @@ package com.screentrace.app.ui
  *
  * **Pager 仍是唯一真相源**：对齐时写的是 `pagerState.currentPage`（Pager 此刻的位置），
  * 不是「用户点的页」——点 tab 依旧不直接写路由（CR-17 红线不变）。
+ *
+ * ## A-5 R10：所有权按「点击 token」判定（CR-30-A5-R10 / P2）
+ *
+ * 旧实现用 `target` 页索引充当协程身份（`end(index)` 只看 `target != index`）。
+ * 但**目标页不是协程身份**：**同目标连续点击**时（新旧两次点击 target 相同），
+ * 旧协程被新点击取消后进入 finally，判据失效 →
+ * ① 旧协程错误返回 true，抢到对齐权；
+ * ② 旧协程把新点击刚建立的 `programmatic`/`target` 守卫状态一并清掉，
+ *    新协程结束时反而拿不到对齐权。
+ * 真机证据（A-5 R9 v3 s5_same，连点两次统计页）：seq1 `scrollCancel→scrollFinally(aligned=true)`
+ * 且触发 `Route/align=1`，seq2 `scrollEnd→scrollFinally(aligned=false)` 且**没有 Route/align**。
+ *
+ * 修复：**每次 `begin` 发放一个单调递增、永不复用的唯一 token**；
+ * `end(token)` 只有 token 命中当前 owner 才可结束守卫并决定是否对齐路由，
+ * 旧协程的 finally **不得清除新协程的 programmatic/target、不得抢先对齐**。
+ *
+ * ## 状态读取的一致性
+ *
+ * 守卫状态用**一个不可变快照**（[GuardState]）整体持有、整体替换：
+ * `@Volatile` 只保证单字段可见性，多个独立可变字段组合起来**没有整体一致性**——
+ * 读取期间恰逢更新就可能读到「programmatic=true 但 target=-1」这种非法状态。
+ * 快照对象整体替换后，**任何一次读取拿到的都是某个时刻的合法完整状态**。
+ * 需要同一时刻的三要素时用 [snapshot] 取一次快照（三个派生 getter 各自独立读，
+ * 连读可能跨状态）。
  */
 class TabScrollGuard {
 
-    /** 程序化滚动进行中（点 tab / 路由回滚触发的滚动）。 */
+    /**
+     * 守卫状态快照。**`internal` 可见**：同模块测试可读、可断言；外部无法改写
+     * （字段全是 `val`，构造器随 `internal` 一起受限）。
+     */
+    internal data class GuardState(
+        val programmatic: Boolean,
+        val target: Int,
+        val owner: Long
+    )
+
+    /**
+     * 唯一的可变状态字段——**只允许这一个**（A-5 R10 结构性审查项 S1）。
+     * 读出口全部经由它，更新一律整体替换。
+     */
     @Volatile
-    var programmatic: Boolean = false
+    private var state = GuardState(programmatic = false, target = -1, owner = NO_OWNER)
+
+    /** token 生成器：单调递增、永不复用（A-5 R10）。 */
+    private val nextToken = AtomicLong(0)
+
+    /**
+     * `begin`/`end` 是「读快照 → 判断 → 换快照」的复合操作，需要互斥。
+     * 当前调用全在主线程，这是**纵深防御**：将来守卫被挪到后台线程时语义不依赖字段写入顺序。
+     */
+    private val lock = Any()
+
+    /** 程序化滚动进行中（点 tab / 路由回滚触发的滚动）。 */
+    val programmatic: Boolean get() = state.programmatic
 
     /** 本次程序化滚动要去的页索引；-1 = 无。 */
-    @Volatile
-    var target: Int = -1
+    val target: Int get() = state.target
 
-    /** 开始一次程序化滚动。 */
-    fun begin(index: Int) {
-        target = index
-        programmatic = true
+    /** 当前守卫状态的所有者 token；NO_OWNER = 无守卫（供测试与诊断）。 */
+    val owner: Long get() = state.owner
+
+    /**
+     * **统一只读快照入口**——测试断言三要素必须用它取一次快照。
+     * 三个派生 getter 各自独立读 state，依次调用时可能跨越状态变化；
+     * 需要「同一时刻的 programmatic/target/owner」时一律读本属性。
+     */
+    internal val snapshot: GuardState get() = state
+
+    /**
+     * 开始一次程序化滚动，发放唯一 owner token 并返回它。
+     *
+     * 发放新 token 即**取代**旧 owner：旧协程之后调用 `end(旧 token)` 一定返回 false，
+     * 一个字段都动不了。
+     */
+    fun begin(index: Int): Long = synchronized(lock) {
+        val token = nextToken.incrementAndGet()
+        state = GuardState(programmatic = true, target = index, owner = token)
+        token
     }
 
-    /** 这次 Pager 回写是否应被忽略（程序化滚动途中的**中间页**）。 */
-    fun ignoresWrite(index: Int): Boolean =
-        ignoresWrite(programmatic, target, index)
+    /**
+     * 这次 Pager 回写是否应被忽略（程序化滚动途中的**中间页**）。
+     */
+    fun ignoresWrite(index: Int): Boolean {
+        val snapshot = state // ← 只读一次快照，保证三要素同源
+        return ignoresWrite(snapshot.programmatic, snapshot.target, index)
+    }
 
     /**
      * 结束一次程序化滚动。
      *
-     * @return true = 这次滚动没有被更新的点击取代，该由本协程按停留页对齐路由；
-     *         false = 已被新的点击取代（标记留给那次处理），本协程不要动路由。
+     * @param token 本次 `begin` 返回的 owner token。
+     * @return true = token 命中当前 owner：该由本协程按停留页对齐路由；
+     *         false = 已被更新的点击取代（或 token 不匹配）：**不改任何状态**，
+     *                由那次点击自己收尾。
      */
-    fun end(index: Int): Boolean {
-        if (target != index) return false
-        programmatic = false
-        target = -1
+    fun end(token: Long): Boolean = synchronized(lock) {
+        val snapshot = state
+        if (!ownsToken(snapshot.owner, token)) return false // 不是主人：快照一个字段都不动
+        state = GuardState(programmatic = false, target = -1, owner = NO_OWNER)
         return true
     }
 
     companion object {
+        /** 无守卫状态的所有者 token。 */
+        const val NO_OWNER: Long = 0L
+
+        /**
+         * 纯函数口径：token 是否命中当前所有者（便于单测与变异验证）。
+         *
+         * token 唯一且充分——**不再校验 target**：旧实现用 target 页当身份，
+         * 同目标连点时判据失效；token 判定后，协程身份与「滚向哪一页」彻底分开。
+         */
+        fun ownsToken(owner: Long, token: Long): Boolean =
+            token != NO_OWNER && token == owner
+
         /**
          * 纯函数口径（便于单测与变异验证）：程序化滚动期间的回写是否忽略。
          *
@@ -69,12 +153,5 @@ class TabScrollGuard {
          */
         fun ignoresWrite(programmatic: Boolean, target: Int, index: Int): Boolean =
             programmatic && index != target
-
-        /**
-         * 纯函数口径：这次滚动结束是否由本次点击负责对齐路由。
-         *
-         * 被更新的点击取代时返回 false（那次点击自己会对齐，别抢）。
-         */
-        fun ownsTarget(target: Int, index: Int): Boolean = target == index
     }
 }
