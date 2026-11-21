@@ -1,0 +1,446 @@
+[
+ {
+  "scenario": "s1_single",
+  "all_pass": true,
+  "failed": [],
+  "intent_idx": [
+   1
+  ],
+  "a5_tabclick_idx": [
+   1
+  ],
+  "seqs": {
+   "1": [
+    [
+     "tabClick",
+     1,
+     null
+    ],
+    [
+     "scrollStart",
+     1,
+     null
+    ],
+    [
+     "scrollEnd",
+     1,
+     null
+    ],
+    [
+     "scrollFinally",
+     1,
+     "true"
+    ]
+   ]
+  },
+  "n_taps": 1,
+  "actual_fps": 120.00001,
+  "modeId": "3",
+  "mActiveModeId": "3",
+  "occurrences": 1,
+  "duplicates": {},
+  "before": [
+   "60",
+   "60"
+  ],
+  "restore": {
+   "min_refresh_rate": "put 60 -> after=60 restore_ok=True",
+   "peak_refresh_rate": "put 60 -> after=60 restore_ok=True"
+  },
+  "last_page": 1
+ },
+ {
+  "scenario": "s2_double",
+  "all_pass": true,
+  "failed": [],
+  "intent_idx": [
+   1,
+   2
+  ],
+  "a5_tabclick_idx": [
+   1,
+   2
+  ],
+  "seqs": {
+   "1": [
+    [
+     "tabClick",
+     1,
+     null
+    ],
+    [
+     "scrollStart",
+     1,
+     null
+    ],
+    [
+     "scrollCancel",
+     1,
+     null
+    ],
+    [
+     "scrollFinally",
+     1,
+     "false"
+    ]
+   ],
+   "2": [
+    [
+     "tabClick",
+     2,
+     null
+    ],
+    [
+     "scrollStart",
+     2,
+     null
+    ],
+    [
+     "scrollEnd",
+     2,
+     null
+    ],
+    [
+     "scrollFinally",
+     2,
+     "true"
+    ]
+   ]
+  },
+  "n_taps": 2,
+  "actual_fps": 120.00001,
+  "modeId": "3",
+  "mActiveModeId": "3",
+  "occurrences": 1,
+  "duplicates": {},
+  "before": [
+   "60",
+   "60"
+  ],
+  "restore": {
+   "min_refresh_rate": "put 60 -> after=60 restore_ok=True",
+   "peak_refresh_rate": "put 60 -> after=60 restore_ok=True"
+  },
+  "last_page": 2
+ },
+ {
+  "scenario": "s3_triple",
+  "all_pass": true,
+  "failed": [],
+  "intent_idx": [
+   1,
+   2,
+   0
+  ],
+  "a5_tabclick_idx": [
+   1,
+   2,
+   0
+  ],
+  "seqs": {
+   "1": [
+    [
+     "tabClick",
+     1,
+     null
+    ],
+    [
+     "scrollStart",
+     1,
+     null
+    ],
+    [
+     "scrollCancel",
+     1,
+     null
+    ],
+    [
+     "scrollFinally",
+     1,
+     "false"
+    ]
+   ],
+   "2": [
+    [
+     "tabClick",
+     2,
+     null
+    ],
+    [
+     "scrollStart",
+     2,
+     null
+    ],
+    [
+     "scrollCancel",
+     2,
+     null
+    ],
+    [
+     "scrollFinally",
+     2,
+     "false"
+    ]
+   ],
+   "3": [
+    [
+     "tabClick",
+     0,
+     null
+    ],
+    [
+     "scrollStart",
+     0,
+     null
+    ],
+    [
+     "scrollEnd",
+     0,
+     null
+    ],
+    [
+     "scrollFinally",
+     0,
+     "true"
+    ]
+   ]
+  },
+  "n_taps": 3,
+  "actual_fps": 120.00001,
+  "modeId": "3",
+  "mActiveModeId": "3",
+  "occurrences": 1,
+  "duplicates": {},
+  "before": [
+   "60",
+   "60"
+  ],
+  "restore": {
+   "min_refresh_rate": "put 60 -> after=60 restore_ok=True",
+   "peak_refresh_rate": "put 60 -> after=60 restore_ok=True"
+  },
+  "last_page": 0
+ },
+ {
+  "scenario": "s4_reverse",
+  "all_pass": true,
+  "failed": [],
+  "intent_idx": [
+   1,
+   0
+  ],
+  "a5_tabclick_idx": [
+   1,
+   0
+  ],
+  "seqs": {
+   "1": [
+    [
+     "tabClick",
+     1,
+     null
+    ],
+    [
+     "scrollStart",
+     1,
+     null
+    ],
+    [
+     "scrollCancel",
+     1,
+     null
+    ],
+    [
+     "scrollFinally",
+     1,
+     "false"
+    ]
+   ],
+   "2": [
+    [
+     "tabClick",
+     0,
+     null
+    ],
+    [
+     "scrollStart",
+     0,
+     null
+    ],
+    [
+     "scrollEnd",
+     0,
+     null
+    ],
+    [
+     "scrollFinally",
+     0,
+     "true"
+    ]
+   ]
+  },
+  "n_taps": 2,
+  "actual_fps": 120.00001,
+  "modeId": "3",
+  "mActiveModeId": "3",
+  "occurrences": 1,
+  "duplicates": {},
+  "before": [
+   "60",
+   "60"
+  ],
+  "restore": {
+   "min_refresh_rate": "put 60 -> after=60 restore_ok=True",
+   "peak_refresh_rate": "put 60 -> after=60 restore_ok=True"
+  },
+  "last_page": 0
+ },
+ {
+  "scenario": "s5_same",
+  "all_pass": true,
+  "failed": [],
+  "intent_idx": [
+   1,
+   1
+  ],
+  "a5_tabclick_idx": [
+   1,
+   1
+  ],
+  "seqs": {
+   "1": [
+    [
+     "tabClick",
+     1,
+     null
+    ],
+    [
+     "scrollStart",
+     1,
+     null
+    ],
+    [
+     "scrollCancel",
+     1,
+     null
+    ],
+    [
+     "scrollFinally",
+     1,
+     "true"
+    ]
+   ],
+   "2": [
+    [
+     "tabClick",
+     1,
+     null
+    ],
+    [
+     "scrollStart",
+     1,
+     null
+    ],
+    [
+     "scrollEnd",
+     1,
+     null
+    ],
+    [
+     "scrollFinally",
+     1,
+     "false"
+    ]
+   ]
+  },
+  "n_taps": 2,
+  "actual_fps": 120.00001,
+  "modeId": "3",
+  "mActiveModeId": "3",
+  "occurrences": 1,
+  "duplicates": {},
+  "before": [
+   "60",
+   "60"
+  ],
+  "restore": {
+   "min_refresh_rate": "put 60 -> after=60 restore_ok=True",
+   "peak_refresh_rate": "put 60 -> after=60 restore_ok=True"
+  },
+  "last_page": 1
+ },
+ {
+  "scenario": "s6_other",
+  "all_pass": true,
+  "failed": [],
+  "intent_idx": [
+   1,
+   2
+  ],
+  "a5_tabclick_idx": [
+   1,
+   2
+  ],
+  "seqs": {
+   "1": [
+    [
+     "tabClick",
+     1,
+     null
+    ],
+    [
+     "scrollStart",
+     1,
+     null
+    ],
+    [
+     "scrollEnd",
+     1,
+     null
+    ],
+    [
+     "scrollFinally",
+     1,
+     "false"
+    ]
+   ],
+   "2": [
+    [
+     "tabClick",
+     2,
+     null
+    ],
+    [
+     "scrollStart",
+     2,
+     null
+    ],
+    [
+     "scrollEnd",
+     2,
+     null
+    ],
+    [
+     "scrollFinally",
+     2,
+     "true"
+    ]
+   ]
+  },
+  "n_taps": 2,
+  "actual_fps": 120.00001,
+  "modeId": "3",
+  "mActiveModeId": "3",
+  "occurrences": 1,
+  "duplicates": {},
+  "before": [
+   "60",
+   "60"
+  ],
+  "restore": {
+   "min_refresh_rate": "put 60 -> after=60 restore_ok=True",
+   "peak_refresh_rate": "put 60 -> after=60 restore_ok=True"
+  },
+  "last_page": 2
+ }
+]

@@ -1,0 +1,39 @@
+--------- beginning of main
+         1795245914.942  7077  7077 D CR30Probe: A5/tabClick=1#1
+         1795245914.944  7077  7077 D CR30Probe: Pager/scrollStart
+         1795245914.944  7077  7077 D CR30Probe: A5/scrollStart=1#1
+         1795245914.973  7077  7077 D CR30Probe: Compose/FreshNavBar#4
+         1795245914.986  7077  7077 D CR30Probe: Compose/FreshNavBar#5
+         1795245915.004  7077  7077 D CR30Probe: Compose/FreshNavBar#6
+         1795245915.022  7077  7077 D CR30Probe: Compose/FreshNavBar#7
+         1795245915.038  7077  7077 D CR30Probe: Compose/FreshNavBar#8
+         1795245915.054  7077  7077 D CR30Probe: Compose/FreshNavBar#9
+         1795245915.070  7077  7077 D CR30Probe: Compose/FreshNavBar#10
+         1795245915.083  7077  7077 D CR30Probe: Compose/FreshNavBar#11
+         1795245915.099  7077  7077 D CR30Probe: Compose/FreshNavBar#12
+         1795245915.114  7077  7077 D CR30Probe: Route/currentPage=1
+         1795245915.114  7077  7077 D CR30Probe: Route/selectMain=com.screentrace.app.ui.AppPage$Stats@9d23b57
+         1795245915.117  7077  7077 D CR30Probe: Compose/AppNav#5
+         1795245915.117  7077  7077 D CR30Probe: Compose/Theme#5
+         1795245915.122  7077  7077 D CR30Probe: Compose/AppHeader#4
+         1795245915.134  7077  7077 D CR30Probe: AppNav/PullToRefreshCallsite#4
+         1795245915.135  7077  7077 D CR30Probe: Compose/CTO#3
+         1795245915.136  7077  7077 D CR30Probe: Compose/FreshNavBar#13
+         1795245915.142  7077  7077 D CR30Probe: Compose/DPO#4
+         1795245915.159  7077  7077 D CR30Probe: Compose/ScrollablePage#7
+         1795245915.160  7077  7077 D CR30Probe: Compose/Today#4
+         1795245915.206  7077  7077 D CR30Probe: Compose/ScrollablePage#8
+         1795245915.207  7077  7077 D CR30Probe: Compose/Stats#4
+         1795245915.259  7077  7077 D CR30Probe: Compose/ScrollablePage#9
+         1795245915.259  7077  7077 D CR30Probe: Compose/Calendar#5
+         1795245915.347  7077  7077 D CR30Probe: Compose/FreshNavBar#14
+         1795245915.364  7077  7077 D CR30Probe: A5/tabClick=1#2
+         1795245915.365  7077  7077 D CR30Probe: Pager/scrollEnd
+         1795245915.365  7077  7077 D CR30Probe: A5/scrollEnd=1#1
+         1795245915.365  7077  7077 D CR30Probe: A5/scrollFinally=1#1 aligned=true
+         1795245915.365  7077  7077 D CR30Probe: Route/align=1
+         1795245915.365  7077  7077 D CR30Probe: Pager/scrollStart
+         1795245915.365  7077  7077 D CR30Probe: A5/scrollStart=1#2
+         1795245915.365  7077  7077 D CR30Probe: Pager/scrollEnd
+         1795245915.365  7077  7077 D CR30Probe: A5/scrollEnd=1#2
+         1795245915.366  7077  7077 D CR30Probe: A5/scrollFinally=1#2 aligned=false

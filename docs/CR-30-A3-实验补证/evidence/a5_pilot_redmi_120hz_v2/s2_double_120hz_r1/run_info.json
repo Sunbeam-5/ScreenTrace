@@ -1,0 +1,112 @@
+{
+ "serial": "GAQOHMNFQWFUPBQO",
+ "hz_requested": "120",
+ "scenario": "s2_double",
+ "rep": "1",
+ "taps": [
+  {
+   "i": 0,
+   "target": "stats",
+   "x": 703,
+   "y": 2493,
+   "plan_offset_ms": 0.0,
+   "host_initiated_offset_ms": 0.0,
+   "deviation_ms": 0.0,
+   "cmd_duration_ms": 107.6
+  },
+  {
+   "i": 1,
+   "target": "calendar",
+   "x": 885,
+   "y": 2493,
+   "plan_offset_ms": 150.0,
+   "host_initiated_offset_ms": 150.3,
+   "deviation_ms": 0.3,
+   "cmd_duration_ms": 100.1
+  }
+ ],
+ "env": {
+  "model": "2407FRK8EC",
+  "wm_size": "Physical size: 1220x2712",
+  "nav": {
+   "today": [
+    503,
+    2493
+   ],
+   "stats": [
+    703,
+    2493
+   ],
+   "calendar": [
+    885,
+    2493
+   ]
+  },
+  "min_refresh_rate_before": "60",
+  "peak_refresh_rate_before": "60",
+  "settings_readback": {
+   "min_refresh_rate": "120",
+   "peak_refresh_rate": "120"
+  },
+  "display_parse": {
+   "display_device_blocks": 1,
+   "PDS_DisplayStates.RefreshRate(持久化偏好，非活动率)": "60.0",
+   "mActiveSfDisplayMode(SF侧)": [
+    "2",
+    "120.00001"
+   ],
+   "mActiveRenderFrameRate(渲染侧)": "120.00001",
+   "mActiveModeId_total": 1,
+   "mActiveModeId_bound_to_device_blocks": 1,
+   "internal_blocks": 1,
+   "target_device": {
+    "uniqueId": "local:4627039422300187648",
+    "internal": true,
+    "mActiveModeId": "3"
+   },
+   "device_mode_entries": [
+    [
+     "1",
+     "60.0"
+    ],
+    [
+     "2",
+     "144.00002"
+    ],
+    [
+     "3",
+     "120.00001"
+    ],
+    [
+     "4",
+     "90.0"
+    ]
+   ],
+   "device_modeId_counts": {
+    "1": 1,
+    "2": 1,
+    "3": 1,
+    "4": 1
+   },
+   "duplicate_mode_ids": {},
+   "active_mode_id_occurrences": 1,
+   "device_modeId": "3",
+   "active_mode_fps": "120.00001",
+   "semantics": "活动物理显示模式＝目标设备块 modeId 与自身 mActiveModeId 一致后，经该设备自身 supportedModes 映射；PDS/模式列表/SF/渲染率仅上下文"
+  },
+  "actual_active_display_fps": 120.00001,
+  "refresh_evidence": "dumpsys display 按显示设备分段解析（活动模式＝设备块 modeId→supportedModes 映射，mActiveModeId 交叉核对）；PDS.RefreshRate=持久化偏好；SF/渲染率字段仅上下文",
+  "refresh_match_request": true,
+  "refresh_restore": {
+   "min_refresh_rate": "put 60 -> after=60 restore_ok=True",
+   "peak_refresh_rate": "put 60 -> after=60 restore_ok=True"
+  }
+ },
+ "failures": [],
+ "status": "OK",
+ "video_bytes": 19498908,
+ "logcat_bytes": 3780,
+ "primary_status": "OK",
+ "primary_error": null,
+ "restore_ok": true
+}

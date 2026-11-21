@@ -1,0 +1,38 @@
+--------- beginning of main
+         1795245935.049  7438  7438 D CR30Probe: A5/tabClick=1#1
+         1795245935.050  7438  7438 D CR30Probe: Pager/scrollStart
+         1795245935.050  7438  7438 D CR30Probe: A5/scrollStart=1#1
+         1795245935.069  7438  7438 D CR30Probe: Compose/FreshNavBar#4
+         1795245935.088  7438  7438 D CR30Probe: Compose/FreshNavBar#5
+         1795245935.104  7438  7438 D CR30Probe: Compose/FreshNavBar#6
+         1795245935.122  7438  7438 D CR30Probe: Compose/FreshNavBar#7
+         1795245935.139  7438  7438 D CR30Probe: Compose/FreshNavBar#8
+         1795245935.156  7438  7438 D CR30Probe: Compose/FreshNavBar#9
+         1795245935.171  7438  7438 D CR30Probe: Compose/FreshNavBar#10
+         1795245935.191  7438  7438 D CR30Probe: Compose/FreshNavBar#11
+         1795245935.203  7438  7438 D CR30Probe: Route/currentPage=1
+         1795245935.203  7438  7438 D CR30Probe: Route/selectMain=com.screentrace.app.ui.AppPage$Stats@7dae898
+         1795245935.205  7438  7438 D CR30Probe: Compose/AppNav#5
+         1795245935.206  7438  7438 D CR30Probe: Compose/Theme#5
+         1795245935.210  7438  7438 D CR30Probe: Compose/AppHeader#4
+         1795245935.221  7438  7438 D CR30Probe: AppNav/PullToRefreshCallsite#4
+         1795245935.222  7438  7438 D CR30Probe: Compose/CTO#3
+         1795245935.223  7438  7438 D CR30Probe: Compose/FreshNavBar#12
+         1795245935.228  7438  7438 D CR30Probe: Compose/DPO#4
+         1795245935.246  7438  7438 D CR30Probe: Compose/ScrollablePage#7
+         1795245935.246  7438  7438 D CR30Probe: Compose/Today#4
+         1795245935.287  7438  7438 D CR30Probe: Compose/ScrollablePage#8
+         1795245935.288  7438  7438 D CR30Probe: Compose/Stats#4
+         1795245935.334  7438  7438 D CR30Probe: Compose/ScrollablePage#9
+         1795245935.335  7438  7438 D CR30Probe: Compose/Calendar#5
+         1795245935.417  7438  7438 D CR30Probe: Compose/FreshNavBar#13
+         1795245935.435  7438  7438 D CR30Probe: A5/tabClick=1#2
+         1795245935.437  7438  7438 D CR30Probe: Pager/scrollEnd
+         1795245935.437  7438  7438 D CR30Probe: A5/scrollEnd=1#1
+         1795245935.437  7438  7438 D CR30Probe: A5/scrollFinally=1#1 aligned=true
+         1795245935.437  7438  7438 D CR30Probe: Route/align=1
+         1795245935.437  7438  7438 D CR30Probe: Pager/scrollStart
+         1795245935.437  7438  7438 D CR30Probe: A5/scrollStart=1#2
+         1795245935.437  7438  7438 D CR30Probe: Pager/scrollEnd
+         1795245935.437  7438  7438 D CR30Probe: A5/scrollEnd=1#2
+         1795245935.437  7438  7438 D CR30Probe: A5/scrollFinally=1#2 aligned=false

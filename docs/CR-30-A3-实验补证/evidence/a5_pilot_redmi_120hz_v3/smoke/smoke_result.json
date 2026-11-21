@@ -1,0 +1,27 @@
+{
+ "need": {
+  "A5/tabClick": true,
+  "A5/scrollStart": true,
+  "A5/scrollEnd_or_Cancel": true,
+  "A5/scrollFinally": true
+ },
+ "seq_map": {
+  "1": [
+   "tabClick=1",
+   "scrollStart=1",
+   "scrollEnd=1",
+   "scrollFinally=1"
+  ]
+ },
+ "pager_events": [
+  "Pager/scrollStart",
+  "Pager/scrollEnd"
+ ],
+ "route_events": [
+  "Route/currentPage=0",
+  "Route/currentPage=1",
+  "Route/selectMain=com.screentrace.app.ui.AppPage$Stats@afb103b",
+  "Route/align=1"
+ ],
+ "pass": true
+}
