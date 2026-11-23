@@ -65,9 +65,23 @@ v1 已经给出正确的**方向**（A1：取消让权 + 稳定后对齐器）�
 |---|---|---|
 | v1 | 2026-11-23 上午 | 初版：当前时序、真机日志证据、竞态状态图、十场景、7 案对比、推荐 A1、单测设计、真机矩阵、回归要求、回滚 |
 | **v2** | 2026-11-23 下午 | 按 GPT 评审整改：① §1.5 取消原因三分类与可靠识别；② §6.3 对齐器所有权 9 条 + 代际机制；③ §6.4 统一入口 `commitRouteFromPager()`；④ §4.11 新增 10 个异步竞态测试场景；⑤ §7 补异步协调器测试实现方式；⑥ §8 强化真实手指优先；⑦ §0.3 新增 N9 / N10 禁止项 |
+| **v2.1** | 2026-11-23 晚 | **编码前终审定稿**：① **α 定为唯一方案**（§6.4.3：三个调用点全部经 `commitRouteFromPager()`，附 CR-17 冲突检查 —— 结论**无冲突**，CR-17 不需改；**A-01 关闭**）；② **日志字段语义定稿**（§6.6.1 六个不可混用概念 C1–C6 / §6.6.2 历史字段真实含义与兼容关系 / §6.6.3 打点格式定稿；**`aligned` 的真实含义 = C1 守卫所有权**，不是「对齐成功」）；③ **§1.5.5 三类取消的行为表定稿** + `userDragging` API **尚未验证**的如实声明；④ **§4.11 重写为 12 个场景**（每个含 **7 个必答字段** + 中间态断言 + 日志证据；新增 R11 端到端最终态、R12 组合不卡死；§4.12 断言增至 A1–A11）；⑤ **§8.6 真机证据纪律 E-1~E-10** |
 
 ---
 
+### 0.6 v2.1 编码前终审的结论摘要
+
+| 检查项 | 结论 | 位置 |
+|---|---|---|
+| 统一路由入口 | **α 定为唯一方案**：三个调用点（`snapshotFlow` 回写 / `finally` 对齐 / 稳定后对齐器）全部经 `commitRouteFromPager()`；**写入函数只有 1 个**，触发源有 3 个 | §6.4.3 |
+| CR-17 冲突 | **逐条检查，无冲突**；CR-17 条文**不需要改**，本设计不动 CR-17 | §6.4.3.1 |
+| A-01 | **关闭**（由 GPT v2.1 裁决 α） | §6.4.3 末 |
+| 日志字段 | 六个概念 C1–C6 **分离**；`aligned` 的真实含义**如实标注为「守卫所有权」**；新增 `owned` / `cause` / `stable` / `settledMatch` / `genValid` | §6.6.1 |
+| 历史字段兼容 | **没有任何一个历史字段的语义被改变**；`Route/align` 仍打在幂等短路之前 | §6.6.2 |
+| 取消原因 | 三分类**保留**；行为表定稿；`userDragging` 的 API **尚未验证**，未验证前不得声称已实现 | §1.5.5 |
+| 异步测试 | **12 个场景**，每个含 7 个必答字段；共性断言 A1–A11 | §4.11 / §4.12 |
+| 真机证据 | 纪律 E-1~E-10 定稿；**本轮不执行** | §8.6 |
+| 未改的东西 | 生产 Kotlin / Gradle / Manifest / Room / 备份 / 导航逻辑 **零改动**；CR-17 零改动 | 全篇 |
 ## 1. 当前时序
 
 ### 1.1 参与方与状态
@@ -220,6 +234,40 @@ finally {
 > **格式兼容性**：原有 `A5/scrollCancel=<index>#<seq>` 与 `Route/align=<page>` 是**前缀关系**，既有真机证据仍可按前缀比对；新格式**只追加后缀**，不改变既有字段的含义。
 ---
 
+#### 1.5.5 三类取消的后续行为（定稿 · GPT v2.1 · OBS-2-3）
+
+| 取消原因 | 是否派发稳定后对齐器 | 是否允许路由写入 | 代际是否推进 |
+|---|---|---|---|
+| **GESTURE**（用户手势接管） | **是** —— 按设计等待 Pager 稳定（OW-1 的唯一启动源） | **只能写最终 `settledPage`**（且必须同时满足 OW-7 双条件与 OW-4 代际有效） | **推进**（新用户意图 → 旧对齐器立即失效） |
+| **SUPERSEDED**（新程序化滚动取代） | **否** —— 旧对齐器**必须失效** | **由新操作决定**（新滚动的 `finally` 自己负责收尾） | **推进**（由新程序化滚动本身推进） |
+| **SCOPE**（协程作用域被取消） | **否** —— **不派发任何后台对齐任务** | **不允许旧作用域写入** | 不推进（作用域已不存在） |
+
+**每一条的依据**：
+
+| 行 | 依据 |
+|---|---|
+| GESTURE → 派发对齐器 | 手势接管后，**用户意图由手势决定**；旧协程已无对齐权，但路由又必须最终落到 Pager 停留页 → 需要一个**补偿性**写入者（OW-1 / OW-7 / OW-9） |
+| GESTURE → 只能写 `settledPage` | 过渡页不是真相；且必须 `currentPage == settledPage` 才算落定（OW-7） |
+| SUPERSEDED → 旧对齐器必须失效 | 新滚动会自己收尾；若旧对齐器仍活着，两次写入会竞争（OW-2 / OW-4） |
+| SUPERSEDED → 路由由新操作决定 | 路由的最终值应来自**最新**的那次操作，而不是被取代的旧操作 |
+| SCOPE → 不派发任何后台任务 | 作用域已随组合离开；派发任务等于**泄漏**（OW-5 / OW-6） |
+| SCOPE → 不允许旧作用域写入 | 旧作用域写路由会写到**已离开的界面**上 → 状态错乱 |
+| GESTURE / SUPERSEDED 推进代际 | 二者都是**新的意图**（用户手势 / 新导航）→ 旧对齐器必须立即失效（OW-3 / OW-4） |
+
+**保守处理的明确依据（GPT v2.1 要求写清）**：
+
+| 情况 | 处理 | 依据 |
+|---|---|---|
+| 取消原因**无法确定**（判定链走完仍不明确） | **保守按 GESTURE 处理**（派发补偿性对齐器），但打点**如实记 `unknown`** | 三类原因里只有 GESTURE 需要**补偿性写入**。误判为 GESTURE 的最坏后果 = **多一次幂等对齐**（幂等，不产生错误状态）；误判为 SUPERSEDED / SCOPE 的最坏后果 = **路由滞留**（标题与页面长期不一致）。**两个方向的错误代价不对称，必须倒向补偿。** |
+| `userDragging` API **不可用**（N-OBS-1 未通过） | 判定链第 3 条恒为 false → 所有取消都落入「无法确定」→ 一律保守按 GESTURE 处理 | 此时 GESTURE 与 SUPERSEDED 的区分能力下降，但**行为仍然安全**（补偿性对齐是幂等的）；代价是 SUPERSEDED 场景会多一次对齐尝试（幂等短路后不写） |
+
+**`userDragging` 的实现状态声明（必须如实）**：
+
+> **`userDragging` 的 API 尚未验证。** 候选为 `PagerState.interactionSource` 的拖动状态（`collectIsDraggedAsState`）；本项目 Compose BOM 2024.06 / foundation 版本上**尚未确认该 API 是否可用**。
+> **在编译验证通过之前，不得声称「已实现用户手势识别」**，也不得把「GESTURE 分类可用」写成既成事实。
+> 本设计把 `CancelCauseResolver` 抽成纯函数，正是为了让**「信号缺失 → 保守 GESTURE」这条降级路径可以被确定性测试**（§7.1 的 C2 / C8）。
+
+---
 ## 2. 原始真机日志证据
 
 ### 2.1 证据来源与等级
@@ -681,15 +729,17 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 | 现状 vs 期望 | 现状：在窗口期内写过渡值。期望：窗口期内**不写**，窗口结束后写最终稳定页 |
 ---
 
-### 4.11 异步竞态测试场景（GPT §4.4，v2 新增 10 个）
+### 4.11 异步竞态测试场景（GPT §4.4 · v2 重写为 12 个场景）
 
 > 纯函数 `shouldAlign()` 的表驱动测试**不能替代**这些场景：它只覆盖「一次判定」，不覆盖「跨挂起点的所有权交接」。以下每个场景都必须验证**中间态**是否发生了错误写入，而不只是「最终正确」。
+> **v2.1**：每个场景统一给出 **7 个必答字段**（初始状态 / 操作顺序 / 协程挂起点 / 状态变化 / 恢复时的有效性检查 / 预期路由写入次数 / 预期最终状态）+ 中间态断言 + 日志证据；并在 R1–R10 之外**新增 R11 / R12** 覆盖 GPT v2.1 点名的最后两项（最终对齐到实际停留页 / 组合场景不卡死）。
 
 **统一记号**：
 
 ```text
-  GEN   = 代际计数器（§3.2）；S = 稳定后对齐器；P = 程序化滚动协程
+  GEN   = 代际计数器（§6.3.3）；S = 稳定后对齐器；P = 程序化滚动协程
   TKN#n = 第 n 个 token；OWNER = 当前守卫所有者
+  路由写入次数 = 统一入口实际调用 viewModel.selectMain 的次数（Route/selectMain / Route/commit）
 ```
 
 ---
@@ -698,14 +748,15 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 
 | 项 | 内容 |
 |---|---|
-| 初始状态 | `ROUTE(0)`，Pager `currentPage=0`，`OWNER=NONE`，`GEN=5` |
-| 事件顺序 | ① 用户手势打断程序化滚动 → 取消原因 `gesture` → `GEN=6`，启动 S（捕获 gen=6）② S 挂起等待稳定 ③ 用户**再次点击「统计」** → `begin` 发放 TKN#9，`OWNER=#9`，**`GEN=7`** ④ 新滚动完成 → `Route/align=1:finally` ⑤ S 恢复执行 |
-| Token 所有权 | S 捕获的是旧代际；新点击的 TKN#9 成为 `OWNER` |
-| Pager 状态 | ④ 之后 `currentPage=1`、`settledPage=1`、静止 |
-| 预期路由 | **1（统计）** |
-| 是否允许写入 | S **不允许**写入（`GEN` 已从 6 变 7 → **代际失效**，INV-7）；新滚动的 `finally` **允许**写入 |
-| 中间态验证 | **S 恢复后不得产生任何 `Route/align`**；日志中 `A5/alignSkip=…:stale-generation` 恰好 1 次 |
-| 日志证据 | `A5/scrollCancel=2:gesture` → `A5/tabClick=1#3` → `A5/scrollEnd=1#3` → `A5/scrollFinally=1#3 aligned=true` → `Route/align=1:finally` → `A5/alignSkip=…:stale-generation` |
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、`settledPage=0`、静止；`OWNER=NONE`；`GEN=5` |
+| **操作顺序** | ① 点「日历」→ `begin` 发 TKN#8，`OWNER=#8`，**`GEN=6`**，启动 P ② P 挂起在 `animateScrollToPage` ③ 用户手势接管 → P 被取消，`cause=gesture`，**`GEN=7`**，启动 S（捕获 `gen0=7`）④ S 挂起等待稳定 ⑤ 用户**再次点「统计」** → `begin` 发 TKN#9，`OWNER=#9`，**`GEN=8`** ⑥ 新滚动完成 → `finally` 写 `Route/commit=1:finally` ⑦ S 恢复 |
+| **协程挂起点** | P：`animateScrollToPage` 内部（被手势取消）；S：`awaitStable` 的**第 1 个挂起点**（`snapshotFlow { isScrollInProgress }.first { !it }`） |
+| **状态变化** | ⑤ 之后 `GEN: 7 → 8`；`OWNER: NONE → #9`；Pager `currentPage: 0 → 1`、`settledPage: 0 → 1` |
+| **恢复时的有效性检查** | S 恢复后依次检查：① `currentGeneration() == gen0` → **7 ≠ 8 → 失效**，记 `A5/alignSkip=…:stale-generation` → **不写**；②（若继续）`isScrollInProgress == false`；③ `currentPage == settledPage` |
+| **预期路由写入次数** | **1 次**（仅 ⑥ 的新滚动 `finally`）；**S 的写入次数 = 0** |
+| **预期最终状态** | `ROUTE(1)`（统计）；Pager `currentPage=1`、`settledPage=1`、静止；标题与底部胶囊一致 |
+| **中间态断言** | ⑦ 之后，路由取值序列**不得**出现 2（日历）；`alignSkip` 恰好 **1** 次且原因为 `stale-generation`；`Route/align` 恰好 **1** 次且目标为 1 |
+| **日志证据** | `A5/scrollCancel=2:gesture` → `A5/gen=7` → `A5/tabClick=1#9` → `A5/scrollFinally=1#9 aligned=true owned=true cause=none stable=true settledMatch=true` → `Route/align=1:finally` → `Route/selectMain=Stats` → `A5/alignSkip=…:stale-generation` |
 
 ---
 
@@ -713,14 +764,17 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 
 | 项 | 内容 |
 |---|---|
-| 初始状态 | `ROUTE(0)`，Pager `currentPage=0`，`GEN=5` |
-| 事件顺序 | ① 第一次手势打断 → `gesture` → `GEN=6`，S1 启动（gen=6）② S1 等待中 ③ 用户**再次拖动** → `GEN=7`，（纯手势不 `begin`，但代际必须推进）④ S1 恢复 |
-| Token 所有权 | `OWNER=NONE`（纯手势路径不持有 token） |
-| Pager 状态 | ③ 之后 `currentPage` 正在变（1 → 0），未稳定 |
-| 预期路由 | 最终停在 0 → `ROUTE(0)` |
-| 是否允许写入 | S1 **不允许**写入（`GEN` 6→7 失效；且 `currentPage != settledPage` 也独立阻止） |
-| 中间态验证 | S1 恢复时**不得**产生 `Route/align`；路由在此期间**不得**跳到 1 |
-| 日志证据 | `A5/scrollCancel=2:gesture` → `A5/gen=7` → `A5/alignSkip=…:stale-generation` |
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、`settledPage=0`、静止；`OWNER=NONE`；`GEN=5` |
+| **操作顺序** | ① 点「日历」→ TKN#8，`GEN=6`，P 启动 ② 第一次手势接管 → P 取消，`cause=gesture`，**`GEN=7`**，S 启动（`gen0=7`）③ S 挂起 ④ 用户**再次横滑**（纯手势路径，不发 token）→ **代际推进点②** → **`GEN=8`** ⑤ Pager 落定于 0，S 恢复 |
+| **协程挂起点** | S：`awaitStable` 第 1 个挂起点；纯手势路径**没有** `begin`，代际由 `userDragging` 由 false→true 的检测推进 |
+| **状态变化** | ④ 之后 `GEN: 7 → 8`；Pager `currentPage` 在 1 与 0 之间变化，最终 `currentPage=0`、`settledPage=0` |
+| **恢复时的有效性检查** | ① `currentGeneration() == gen0` → **7 ≠ 8 → 失效** → `alignSkip=stale-generation` → **不写**；② 即使代际未推进，③ `currentPage == settledPage` 在过渡期内也不成立 → 双重拦截 |
+| **预期路由写入次数** | **≤ 1 次**（由 `snapshotFlow` 回写产生）；**S 的写入次数 = 0** |
+| **预期最终状态** | `ROUTE(0)`（今日）；Pager 停留在 0 |
+| **中间态断言** | 恢复后路由**不得**跳到 1（统计）再跳回 0 —— 一次抖动都不允许 |
+| **日志证据** | `A5/scrollCancel=2:gesture` → `A5/gen=7` → `A5/gen=8` → `A5/alignSkip=…:stale-generation`（或 `not-stable`） |
+
+> **R2 是代际机制的核心场景**：若代际只在「新程序化滚动」时推进（`userDragging` 不可用的降级情形），本场景的第二道拦截（`currentPage == settledPage`）仍必须拦住 —— 这条**双保险**是 N-OBS-2 要验证的内容。
 
 ---
 
@@ -728,14 +782,15 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 
 | 项 | 内容 |
 |---|---|
-| 初始状态 | `ROUTE(0)`，`GEN=5` |
-| 事件顺序 | ① 手势 A 打断 → `GEN=6`，S1（gen=6）启动 ② 手势 B 打断 → `GEN=7`，S2（gen=7）启动 ③ S2 先恢复并稳定 → 对齐到 `settledPage` ④ S1 后恢复 |
-| Token 所有权 | 均为 `NONE` |
-| Pager 状态 | ③ 时 `currentPage == settledPage` |
-| 预期路由 | `settledPage`（二者目标相同） |
-| 是否允许写入 | S2 **允许**（gen 最新）；S1 **不允许**（gen 过期） |
-| 中间态验证 | 整个过程 `Route/align` **恰好 1 次**，且来源标记为 `settle`；**不得**出现 2 次 |
-| 日志证据 | `A5/alignSkip=…:stale-generation`（S1）+ 1 次 `Route/align=…:settle` |
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、静止；`OWNER=NONE`；`GEN=5` |
+| **操作顺序** | ① 第一次手势取消 → `GEN=6`，启动 S1（`gen0=6`）② S1 挂起 ③ 第二次手势取消（另一次程序化滚动的取消）→ **`GEN=7`**，启动 S2（`gen0=7`）④ S1、S2 同时挂起等待稳定 ⑤ Pager 落定，两个协程依次恢复 |
+| **协程挂起点** | S1、S2 各自的 `awaitStable` 第 1 个挂起点 |
+| **状态变化** | `GEN: 5 → 6 → 7`；Pager `currentPage` 改变一次后落定 |
+| **恢复时的有效性检查** | S1：`currentGeneration()` = 7 ≠ `gen0=6` → **失效**；S2：`7 == gen0=7` → 继续 → 通过 `stable` 与 `settledMatch` 检查 → **允许写一次** |
+| **预期路由写入次数** | **恰好 1 次**（S2）；S1 **0 次** |
+| **预期最终状态** | `ROUTE` == Pager 落定页 |
+| **中间态断言** | `alignSkip` 恰好 **1** 次（且 `stale-generation`）；`Route/align` 恰好 **1** 次；**不得**出现两次写入竞争 |
+| **日志证据** | `A5/alignSkip=…:stale-generation`（S1）→ `A5/alignCommit=… gen=7 genValid=true`（S2）→ `Route/align=<落定页>:settle` |
 
 ---
 
@@ -743,29 +798,32 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 
 | 项 | 内容 |
 |---|---|
-| 初始状态 | `ROUTE(0)`，`GEN=5`，S 未启动 |
-| 事件顺序 | ① 手势打断 → `gesture` → `GEN=6`，S 启动（gen=6）② 用户**返回二级页 / 退出主页面** → 组合离开 → `tabScope` 取消 → S 的协程被取消 |
-| Token 所有权 | `OWNER` 已被 `end()` 清空 |
-| Pager 状态 | 组合已离开，Pager 不再存在 |
-| 预期路由 | **不做任何写入** |
-| 是否允许写入 | **不允许**（`scope` 取消；且 S 自身的协程已取消，不可能写入） |
-| 中间态验证 | S 的 `finally` **不得**启动任何新任务；**不得**留下后台协程；**不得**在 `viewModel` 已离开后调用 `selectMain` |
-| 日志证据 | `A5/scrollCancel=2:gesture` → 组合离开 → **无** `Route/align`、**无** `A5/alignSkip`（S 未到判定点） |
-
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、静止；`OWNER=NONE`；`GEN=5`；**组合即将离开** |
+| **操作顺序** | ① 点「日历」→ TKN#8，`GEN=6`，P 启动 ② 用户手势接管 → P 取消，`cause=gesture` ③ **用户立即按返回键退出主 tab** → `tabScope` 被取消 → ④ P 的 `finally` 执行，判定 `isActive == false` |
+| **协程挂起点** | P：`animateScrollToPage` 内部（被作用域取消）；**S 根本不会被创建** |
+| **状态变化** | `tabScope` 取消 → 所有子协程失效；`GEN` 不再推进（无新意图） |
+| **恢复时的有效性检查** | P 的 `finally`：`currentCoroutineContext().isActive == false` → **`cause=scope`** → **不写、不派发**（OW-1 / OW-6） |
+| **预期路由写入次数** | **0 次** |
+| **预期最终状态** | 无（页面已离开）；**不得**出现后台任务写路由 |
+| **中间态断言** | **不得**产生 `Route/align` / `Route/selectMain` / `Route/commit`；**不得**产生 `alignSkip`（作用域取消连对齐器都没派发，不该有 skip 记录）；`tabScope` 内**无活跃子任务** |
+| **日志证据** | `A5/scrollCancel=2:scope` → `A5/scrollFinally=2#8 aligned=true owned=true cause=scope stable=false settledMatch=false` → **（无任何 Route/*）** |
 ---
 
 #### R5 · 新导航完成后旧对齐器才恢复执行
 
 | 项 | 内容 |
 |---|---|
-| 初始状态 | `ROUTE(0)`，`GEN=5` |
-| 事件顺序 | ① 手势打断 → `GEN=6`，S（gen=6）启动 ② 用户点「日历」→ `begin` TKN#9，`GEN=7` ③ 新滚动完成 → `Route/align=2:finally`，路由=日历 ④ S 恢复（此时 Pager 已稳定在 2） |
-| Token 所有权 | `OWNER=#9` → 新滚动结束后 `NO_OWNER` |
-| Pager 状态 | `currentPage=2`、`settledPage=2`、静止 |
-| 预期路由 | **2（日历）** |
-| 是否允许写入 | S **不允许**（gen 6 ≠ 7）；新滚动 **允许** |
-| 中间态验证 | S 恢复后**不得**覆盖路由（即使 `settledPage` 与当前路由一致，也要证明「代际失效」而不是「恰好幂等」）；用 `A5/alignSkip=…:stale-generation` 区分二者 |
-| 日志证据 | `A5/tabClick=2#4` → `A5/scrollEnd=2#4` → `Route/align=2:finally` → `A5/alignSkip=…:stale-generation` |
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、静止；`OWNER=NONE`；`GEN=5` |
+| **操作顺序** | ① 手势取消 → `GEN=6`，S 启动（`gen0=6`）② S 挂起 ③ 用户点「统计」→ TKN#9，`OWNER=#9`，**`GEN=7`** ④ 新滚动**完成** → `finally` 写 `Route/commit=1:finally` ⑤ S 在新滚动完成**之后**才恢复 |
+| **协程挂起点** | S：`awaitStable` 第 1 个挂起点（在新滚动完成之前就被挂住） |
+| **状态变化** | `GEN: 6 → 7`；Pager `currentPage: 0 → 1` |
+| **恢复时的有效性检查** | ① `currentGeneration()` = 7 ≠ `gen0=6` → **失效** → `alignSkip=stale-generation` → **不写** |
+| **预期路由写入次数** | **1 次**（新滚动的 `finally`）；S **0 次** |
+| **预期最终状态** | `ROUTE(1)`（统计） |
+| **中间态断言** | S 恢复后**不得**产生任何写入；路由**不得**被拉回 0；`alignSkip` 恰好 1 次 |
+| **日志证据** | `Route/align=1:finally` → `Route/selectMain=Stats` → `A5/alignSkip=…:stale-generation` |
+
+> **R5 与 R1 的区别**：R1 的新点击发生在 S 挂起**期间**、S 在新滚动**完成前**恢复；R5 是新滚动**已完成**后 S 才恢复。两者的失效原因相同（代际过期），但**验证了失效不依赖恢复时机**。
 
 ---
 
@@ -773,14 +831,15 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 
 | 项 | 内容 |
 |---|---|
-| 初始状态 | `ROUTE(0)`，`GEN=5` |
-| 事件顺序 | ① 手势打断 → `GEN=6`，S（gen=6）启动 ② S 第一次检查：`isScrollInProgress == false` 但 `currentPage != settledPage` → **继续等** ③ 回弹结束 → `currentPage == settledPage` → S 恢复 |
-| Token 所有权 | `NONE` |
-| Pager 状态 | ② 时 `currentPage=1`、`settledPage=0`（仍在回弹） |
-| 预期路由 | 最终 `settledPage`（0 或 1，取决于回弹结果） |
-| 是否允许写入 | ② **不允许**（`currentPage != settledPage`）；③ **允许** |
-| 中间态验证 | ② 之后 S **不得**写路由；路由值在窗口期内**保持不变**（不得跳到 1） |
-| 日志证据 | `A5/alignSkip=…:not-settled`（①次）→ `Route/align=0:settle` |
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、`settledPage=0`、静止；`OWNER=NONE`；`GEN=5` |
+| **操作顺序** | ① 点「日历」→ TKN#8，`GEN=6`，P 启动 ② 手势接管 → P 取消，`cause=gesture`，`GEN=7`，S 启动（`gen0=7`）③ 用户松手，Pager 进入**回弹**：`isScrollInProgress=false` 但 `currentPage=1`、`settledPage=0` ④ S 恢复 |
+| **协程挂起点** | S：`awaitStable` 第 1 个挂起点（`isScrollInProgress` 变 false 时被唤醒） |
+| **状态变化** | `currentPage: 0 → 1`；`settledPage` 仍为 0（尚未落定） |
+| **恢复时的有效性检查** | ① 代际有效（`7 == gen0`）→ 继续；② `isScrollInProgress == false` → 通过；③ **`currentPage(1) != settledPage(0)` → 不稳定** → `alignSkip=not-stable` → **不写**，继续等待 |
+| **预期路由写入次数** | **0 次**（S）；随后由 `snapshotFlow` 回写或 S 的后续等待给出最终值 |
+| **预期最终状态** | `ROUTE` == Pager 最终落定页（回弹落定后） |
+| **中间态断言** | 回弹窗口内**不得**出现 `Route/align`（旧实现正是这里写了过渡值）；`alignSkip=not-stable` 恰好 1 次 |
+| **日志证据** | `A5/scrollCancel=2:gesture` → `A5/alignSkip=…:not-stable` →（落定后）`Route/align=<落定页>:settle` |
 
 ---
 
@@ -788,14 +847,17 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 
 | 项 | 内容 |
 |---|---|
-| 初始状态 | `ROUTE(0)`，`GEN=5` |
-| 事件顺序 | ① 手势打断 → `GEN=6`，S（gen=6）启动 ② S 恢复时 `isScrollInProgress == false`，但 `currentPage=1`、`settledPage=0`（Pager 处于「已停但未落定」的窗口，即 S10） |
-| Token 所有权 | `NONE` |
-| Pager 状态 | `currentPage != settledPage` |
-| 预期路由 | **等落定后**对齐到 `settledPage` |
-| 是否允许写入 | ② **不允许**（两个条件都必须满足）；落定后 **允许** |
-| 中间态验证 | ② 时路由**不得**变成 1；落定后必须变成 `settledPage` |
-| 日志证据 | `A5/alignSkip=…:not-settled` → 落定后 `Route/align=0:settle` |
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、`settledPage=0`、静止；`OWNER=NONE`；`GEN=5` |
+| **操作顺序** | ① 手势取消 → `GEN=6`，S 启动（`gen0=6`）② Pager 滚动结束，`isScrollInProgress=false`，但系统尚未提交新的 `settledPage` → `currentPage=2`、`settledPage=0` ③ S 的第 1 个挂起点被唤醒，第 2 个挂起点（等待 `currentPage == settledPage`）继续挂起 ④ 稍后 `settledPage` 更新为 2，S 恢复 |
+| **协程挂起点** | S：`awaitStable` 的**第 2 个挂起点**（`snapshotFlow { currentPage == settledPage }.first { it }`） |
+| **状态变化** | `currentPage: 0 → 2`；`settledPage: 0 → 2`（延迟提交） |
+| **恢复时的有效性检查** | ① 代际有效 → ② `isScrollInProgress == false` → ③ `currentPage(2) == settledPage(2)` → **允许写** |
+| **预期路由写入次数** | **1 次** |
+| **预期最终状态** | `ROUTE(2)`（日历） |
+| **中间态断言** | ② 与 ④ 之间**不得**有任何写入；不得写入 `currentPage` 尚未落定的中间值 |
+| **日志证据** | `A5/scrollFinally` 的 `settledMatch=false` → （落定后）`settledMatch=true` → `Route/align=2:settle` |
+
+> **R6 与 R7 的区别**：R6 是「**滚动还没停**」的窗口（`isScrollInProgress` 为 true），R7 是「**滚动已停但 `settledPage` 还没提交**」的窗口（`isScrollInProgress` 为 false）。两者都必须被 OW-7 的**双条件**拦住 —— 只看 `isScrollInProgress` 会在 R7 漏判。
 
 ---
 
@@ -803,29 +865,30 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 
 | 项 | 内容 |
 |---|---|
-| 初始状态 | `ROUTE(0)`，`OWNER=#7`（旧滚动进行中） |
-| 事件顺序 | ① 旧协程被取消（`catch` 执行）② **在 `finally` 之前**新点击发生 → `begin` 发放 TKN#8，`OWNER=#8` ③ 旧协程的 `finally` 执行 → `end(#7)` 返回 **false** |
-| Token 所有权 | `OWNER` 从 #7 变为 #8 |
-| Pager 状态 | 动画进行中 |
-| 预期路由 | 由新滚动决定 |
-| 是否允许写入 | 旧协程**不允许**（`end(#7)` false → 取消原因为 `superseded`）；**不得**派发稳定后对齐器 |
-| 中间态验证 | 旧协程**不得**因为「捕获到 CancellationException」就假设是手势 → **不得**启动 S；否则会与新滚动抢路由 |
-| 日志证据 | `A5/scrollCancel=2#7:superseded` → `A5/scrollFinally=2#7 aligned=false` → **无** `Route/align`、**无** S |
-
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、静止；`OWNER=NONE`；`GEN=5` |
+| **操作顺序** | ① 点「日历」→ TKN#8，`OWNER=#8`，`GEN=6`，P 启动 ② P 被手势取消 → 取消回调**尚未执行** `end(token)` ③ 用户立刻点「统计」→ `begin` 发 TKN#9，`OWNER=#9`，**`GEN=7`** ④ P 的 `finally` 恢复执行 → `end(TKN#8)` 返回 **false** → `cause=superseded` ⑤ S 不派发 |
+| **协程挂起点** | P：`animateScrollToPage` 内部（取消）；`finally` 内的 `end(token)` **不是挂起点**（同步调用） |
+| **状态变化** | `OWNER: #8 → #9`；`GEN: 6 → 7` |
+| **恢复时的有效性检查** | ① `end(TKN#8) == false` → `cause=superseded` → **不对齐、不派发**（OW-1）；② 代际已推进 → 即使派发也会被 OW-4 拦下（双保险） |
+| **预期路由写入次数** | P 的 `finally` **0 次**；新滚动完成后 **1 次**（`finally` 路径） |
+| **预期最终状态** | `ROUTE(1)`（统计） |
+| **中间态断言** | 旧 token **不得**产生 `Route/align`；`cause=superseded`；**不得**出现两次写入竞争 |
+| **日志证据** | `A5/scrollCancel=2:gesture` → `A5/tabClick=1#9` → `A5/scrollFinally=2#8 aligned=false owned=false cause=superseded stable=false settledMatch=false` → `Route/align=1:finally`（来自新滚动） |
 ---
 
 #### R9 · 旧 Token finally 晚于新 Token 执行
 
 | 项 | 内容 |
 |---|---|
-| 初始状态 | `ROUTE(0)`，`OWNER=#7` |
-| 事件顺序 | ① 新点击 → `begin` TKN#8，`OWNER=#8` ② 新滚动**先完成** → `end(#8)` true → `Route/align=1:finally` ③ 旧协程的 `finally` **之后**才执行 → `end(#7)` false |
-| Token 所有权 | `OWNER` 在 ② 后已回到 `NONE`；③ 的 `end(#7)` 仍应返回 false（token 不复用） |
-| Pager 状态 | 静止于新目标页 |
-| 预期路由 | 新目标页 |
-| 是否允许写入 | 旧协程**不允许**（token 不匹配）；**不得**派发 S |
-| 中间态验证 | `Route/align` **恰好 1 次**；旧协程的 finally **不得**产生第二次写 |
-| 日志证据 | `A5/scrollFinally=1#8 aligned=true` → `Route/align=1:finally` → `A5/scrollFinally=2#7 aligned=false` |
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、静止；`OWNER=NONE`；`GEN=5` |
+| **操作顺序** | ① 点「日历」→ TKN#8，`OWNER=#8`，`GEN=6`，P1 启动 ② P1 被手势取消，其 `finally` **被挂起**（调度延迟）③ 用户点「统计」→ TKN#9，`OWNER=#9`，`GEN=7`，P2 启动 ④ P2 完成 → 写 `Route/commit=1:finally` ⑤ **P1 的 `finally` 此刻才执行** → `end(TKN#8)` 返回 false |
+| **协程挂起点** | P1 的 `finally` 在异常路径上被挂起（协程调度点），P2 的完成先于它恢复 |
+| **状态变化** | `OWNER: #8 → #9`；`GEN: 6 → 7`；路由在 ④ 之后已是 1 |
+| **恢复时的有效性检查** | `end(TKN#8) == false` → `cause=superseded` → **不对齐**（OW-1）；代际也过期（双保险） |
+| **预期路由写入次数** | P1 **0 次**；P2 **1 次** |
+| **预期最终状态** | `ROUTE(1)`（统计），且**不再被旧协程改动** |
+| **中间态断言** | ⑤ 之后路由**不得**回到 0 或 2；总写入次数**恰好 1** |
+| **日志证据** | `A5/scrollFinally=1#9 aligned=true owned=true cause=none` → `Route/align=1:finally` → `A5/scrollFinally=2#8 aligned=false owned=false cause=superseded` |
 
 ---
 
@@ -833,28 +896,65 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 
 | 项 | 内容 |
 |---|---|
-| 初始状态 | `ROUTE(0)`，`GEN=5` |
-| 事件顺序 | ① 手势打断 → `GEN=6`，S（gen=6）启动 ② Pager 稳定，`currentPage == settledPage` ③ S 执行 → `commitRouteFromPager` ④ **稳定通知重复到达**（`snapshotFlow` 再发一次同值） |
-| Token 所有权 | `NONE` |
-| Pager 状态 | 静止，`currentPage=0`、`settledPage=0` |
-| 预期路由 | **0（今日）** |
-| 是否允许写入 | ④ **不允许**（幂等：路由已等于目标 → 不写） |
-| 中间态验证 | `Route/align` / `Route/selectMain` 的**写次数必须为 0 或 1**，且**不得**出现重复写；S 必须是**一次性**的（执行完即结束） |
-| 日志证据 | `Route/align` 至多 1 次；重复通知被 `distinctUntilChanged` 或幂等检查拦下并记 `A5/alignSkip=…:idempotent` |
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、静止；`OWNER=NONE`；`GEN=5` |
+| **操作顺序** | ① 手势取消 → `GEN=6`，S 启动（`gen0=6`）② Pager 落定，S 恢复并通过全部检查 → 写 1 次 ③ **稳定信号重复到达**（`snapshotFlow` 因其它原因再次发射、`first` 之外的额外通知、用户再次轻微拖动后回弹） |
+| **协程挂起点** | S：`awaitStable` 的两个 `first` 挂起点（**一次性语义**，`first` 之后协程即结束） |
+| **状态变化** | 无路由变化（重复稳定不改变 Pager） |
+| **恢复时的有效性检查** | ② 写入前：幂等检查 `current == target` → 第二次**短路**；③ 即使再次触发，`first` 已经结束协程，不会二次写 |
+| **预期路由写入次数** | **恰好 1 次** |
+| **预期最终状态** | `ROUTE` == Pager 落定页 |
+| **中间态断言** | `Route/selectMain` / `Route/commit` 出现次数**恰好 1**；不得出现第二次写入 |
+| **日志证据** | `Route/align=<落定页>:settle` → `Route/selectMain=<AppPage>` → `Route/commit=<idx>:settle`（**各恰好 1 次**） |
+---
+
+#### R11 · 用户手势后最终必须对齐到 Pager 实际停留页（端到端最终态）
+
+| 项 | 内容 |
+|---|---|
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、静止；`OWNER=NONE`；`GEN=5` |
+| **操作顺序** | ① 点「日历」（目标是 2）→ TKN#8，`GEN=6`，P 启动 ② 动画途中用户**向左滑到「统计」（1）并停住** → P 被取消，`cause=gesture`，`GEN=7`，S 启动（`gen0=7`）③ S 等待稳定 ④ Pager 落定于 1，S 恢复并写入 |
+| **协程挂起点** | S：`awaitStable` 第 1 个挂起点 → 第 2 个挂起点 → 写入 |
+| **状态变化** | `currentPage` 由 0 变到 1，中途经过中间页 2，最终回到 1；最终 `currentPage=1`、`settledPage=1` |
+| **恢复时的有效性检查** | ① 代际有效（无新意图）→ ② 静止 → ③ `currentPage == settledPage` → **允许写**；写入目标是 `settledPage`（= 1），**不是**点击目标 2 |
+| **预期路由写入次数** | **1 次**（目标 = 1） |
+| **预期最终状态** | `ROUTE(1)`（统计）—— **等于 Pager 实际停留页**，尽管点击目标是「日历」 |
+| **中间态断言** | 路由取值序列**不得**出现 2（日历）——「点击目标页」与「实际停留页」不同正是本场景的要点；**不得**出现 0 或过渡值 |
+| **日志证据** | `A5/scrollCancel=2:gesture` → `A5/alignCommit=… gen=7 genValid=true` → `Route/align=1:settle` → `Route/selectMain=Stats` |
+
+> **R11 是 OBS-2 的验收核心**：它直接验证「最终路由 == Pager 实际停留页」（INV-1），且验证旧协程**没有**把路由拉到中间页或点击目标页。
 
 ---
 
-### 4.12 十个异步场景的共性断言
+#### R12 · 取消动画 + 快速点击 + 手势的组合不得导致路由卡死
 
-| 断言 | 覆盖场景 |
+| 项 | 内容 |
 |---|---|
-| A1：**代际失效**后不得写入 | R1 / R2 / R3 / R5 |
-| A2：**作用域取消**后不得写入、不得派发 | R4 |
-| A3：**未稳定**时不得写入 | R6 / R7 |
-| A4：**幂等**：重复通知不产生重复写 | R10 |
-| A5：**中间态无错误写入**（不只是最终正确） | 全部 |
-| A6：**最终路由 == Pager 停留页** | 全部 |
-| A7：**旧 token 不得抢新 token 的收尾** | R8 / R9 |
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、静止；`OWNER=NONE`；`GEN=5`；**系统开启「移除动画」**（`reduceMotion == true` → 走 `scrollToPage` 分支） |
+| **操作顺序** | ① 点「日历」→ `scrollToPage(2)` 瞬时完成 ② 紧接着快速点「统计」→ TKN#9 ③ 在第 ② 步的 `finally` 之前插入一次手势拖动 ④ 三个动作的 `finally` 与取消回调交错执行 ⑤ 全部结束后观察路由 |
+| **协程挂起点** | 多个协程的 `finally` 与取消回调在同一个调度批次内交错；`reduceMotion` 分支没有动画挂起点 |
+| **状态变化** | `GEN` 多次推进；`OWNER` 多次变更；Pager `currentPage` 快速变化 |
+| **恢复时的有效性检查** | 每个 `finally` 独立判定：所有权（`end(token)`）+ 取消原因（`cause`）+ 代际；**只有一个**能同时通过并写入 |
+| **预期路由写入次数** | **恰好 1 次**（最后一次有效操作决定） |
+| **预期最终状态** | `ROUTE` == Pager 最终停留页；**无死锁、无卡死、无协程泄漏**；底部胶囊与标题一致 |
+| **中间态断言** | 路由**不得**停在中间页；**不得**出现 0 次写入（卡死）；**不得**出现大于 1 次的写入（竞争） |
+| **日志证据** | 连续的 `A5/scrollFinally` 中**有且仅有一条** `owned=true` 且伴随 `Route/align`；其余 `owned=false` 或 `cause` 不是 `none` |
+### 4.12 十二个异步场景的共性断言（v2.1）
+
+| 断言 | 含义 | 覆盖场景 |
+|---|---|---|
+| **A1** | **代际失效**后不得写入 | R1 / R2 / R3 / R5 |
+| **A2** | **作用域取消**后不得写入、**不得派发** | R4 |
+| **A3** | **未稳定**时不得写入（`isScrollInProgress` 或 `currentPage != settledPage`） | R6 / R7 |
+| **A4** | **幂等**：重复通知不产生重复写 | R10 |
+| **A5** | **中间态无错误写入**（不只是最终正确） | 全部 |
+| **A6** | **最终路由 == Pager 停留页** | 全部 |
+| **A7** | **旧 token 不得抢新 token 的收尾** | R8 / R9 |
+| **A8**（v2.1） | **取消原因互斥且可判定**：每一次取消都必须落到**唯一**一个 `cause`（`gesture` / `superseded` / `scope` / `unknown`），不得为空、不得同时成立 | R1 / R2 / R4 / R8 / R9 |
+| **A9**（v2.1） | **所有路由写入经统一入口**：`Route/commit` 的出现次数必须等于 `Route/selectMain` 的出现次数（α 方案，§6.4.3） | 全部 |
+| **A10**（v2.1） | **未派发的对齐器不得产生 `alignSkip`**（作用域取消连对齐器都没启动，不该有 skip 记录） | R4 |
+| **A11**（v2.1） | **组合场景不得卡死**：快速点击 + 手势 + 移除动画的组合下，写入次数**恰好 1**，且无协程泄漏 | R12 |
+
+---
 
 ## 5. 候选方案对比（v2）
 
@@ -1204,46 +1304,75 @@ v1 说「把对齐权交给稳定后对齐器」，但没写清**谁**有权启�
  */
 fun commitRouteFromPager(landed: Int, source: String) {
     val page = MAIN_PAGES.getOrNull(landed) ?: return
+    // 历史语义保留：对齐调用打在幂等短路**之前**（旧实现 AppNav.kt:392 即如此）
+    if (source == "finally" || source == "settle") {
+        PerfProbe.event("Route/align=$landed:$source")          // 语义：执行了一次对齐调用
+    }
     val current = AppPage.mainOf(viewModel.page.value)
     if (current == page) return                                  // 契约 1：幂等
-    PerfProbe.event("Route/commit=$landed:$source")             // 契约 4
+    PerfProbe.event("Route/selectMain=$page")                  // 语义：路由确实会被写（历史同名同义）
+    PerfProbe.event("Route/commit=$landed:$source")             // 新规范名：统一入口提交 + 来源
     viewModel.selectMain(page)                                  // 契约 2：只写路由
 }
 ```
 
-#### 6.4.3 三个调用点
+#### 6.4.3 三个调用点（α 已定稿：全部经唯一入口）
 
-| 调用点 | 何时调用 | `source` | 打点 |
+| 调用点 | 何时调用 | `source` | 说明 |
 |---|---|---|---|
-| 协程 `finally`（`cause == NONE`） | 正常收尾且 `shouldAlignAtFinally` 为真 | `finally` | `Route/commit=<page>:finally` |
-| 稳定后对齐器 | 取消路径（`cause == GESTURE`）且 `shouldAlignAtSettle` 为真 | `settle` | `Route/commit=<page>:settle` |
-| `snapshotFlow` 回写 | Pager 页变化 | `snapshot` | `Route/commit=<page>:snapshot` |
+| 协程 `finally`（`cause == NONE`） | 正常收尾且 `shouldAlignAtFinally` 为真 | `finally` | 程序化滚动的收尾对齐 |
+| 稳定后对齐器 | 取消路径（`cause == GESTURE`）且 `shouldAlignAtSettle` 为真 | `settle` | 手势补偿对齐 |
+| `snapshotFlow` 回写 | Pager 页变化（未被 `guardIgnore` 拦下） | `snapshot` | **跟随式回写**（α 方案新增接入） |
 
-**⚠️ 待 GPT 裁决的唯一架构点**：
+**α 方案已定稿（GPT v2.1 · OBS-2-1）**：**统一使用 `commitRouteFromPager()`，三个调用点全部经它写入**；`snapshotFlow` 回写**不再**直调 `viewModel.selectMain`。
 
-> `snapshotFlow` 回写是否也改走 `commitRouteFromPager()`？
+> **α 下的精确表述（消除「第二条路径」的歧义）**：
+> **写入函数只有 1 个**（`commitRouteFromPager`）；**触发源有 3 个**（`snapshotFlow` / `finally` / 稳定后对齐器）。
+> 三者都**只能**调用这一个函数，函数内部不区分来源地执行同一套幂等判断。
+> 因此「Pager → 路由」在**写入层面**只有一条路径；A-01 由此**关闭**。
 
-| 选项 | 做法 | 后果 |
+**八条硬性约束（GPT v2.1 逐条落地）**：
+
+| 编号 | 约束 | 落地方式 |
 |---|---|---|
-| **α（本文档推荐）** | 回写**也**走统一入口，`source=snapshot` | 全项目只有**一个**「Pager → 路由」写函数，幂等语义统一。**但** `Route/align` 打点语义会变——原有 `Route/align=<page>` 含义是「程序化滚动收尾对齐」，若回写也发 `Route/align`，历史真机证据不可比对。故**必须**把回写的新打点另起名为 `Route/commit`（如上表），只让 `finally` / `settle` 两条路径继续发 `Route/align` |
-| **β** | 回写**不**走统一入口，保持直调 `viewModel.selectMain` | `Route/align` 打点完全不变，历史证据可比性最好；但仍存在**两个**「Pager → 路由」写路径，GPT §4.3 的意图**未完全满足** |
+| **α-1** | `snapshotFlow` 的 Pager → 路由回写经过该入口 | 回写改为 `commitRouteFromPager(index, "snapshot")`；**不再**直调 `viewModel.selectMain` |
+| **α-2** | 程序化滚动稳定后的路由对齐也经过该入口 | `finally` 与对齐器都调 `commitRouteFromPager(landed, "finally" / "settle")` |
+| **α-3** | 所有路由写入执行**统一的幂等判断** | 幂等判断集中在入口内（读 `viewModel.page.value` 与目标页比较）；`AppViewModel.selectMain` 内部的二次去重**保留不动**（CR-17 ② 的既有实现，`AppViewModel.kt:645-647`） |
+| **α-4** | Pager 仍然是页面位置的**唯一真相源** | 入口入参 `landed` **一律取自 `pagerState`**；入口内**不读**路由状态来决定「去哪里」，只读它判断「要不要写」 |
+| **α-5** | 不允许增加**第二套路由状态** | 入口不缓存「上次对齐到哪」；不新增任何路由镜像字段（N9 / CB-2） |
+| **α-6** | 不允许从路由**反向驱动** Pager | 入口内**不得**出现 `scrollToPage` / `animateScrollToPage` / `currentPage =`（CB-1） |
+| **α-7** | 保持 CR-17 的**单向回写**原则 | 回写方向仍是 Pager → 路由；入口不引入反向边（见 §6.4.3.1 的冲突检查） |
+| **α-8** | 保留 `Route/commit` 与 `Route/align` 的日志区分，保证历史证据可比对 | 见 §6.6.2 / §6.6.3：两个打点各答一个问题，**历史字段语义不变** |
 
-**GPT 需要回答的问题**：`Pager → 路由` 是否**只允许一条**逻辑路径？
+#### 6.4.3.1 与 CR-17 的冲突检查（GPT v2.1 要求：先指出冲突，再解决）
 
-- 若答「是」→ 采用 **α**，并接受 `Route/commit` / `Route/align` 双打点名的过渡；
-- 若答「否，只要语义统一即可」→ 采用 **β**，本设计其余部分完全不变；
-- 若答「否，且不接受新增打点名」→ 采用 **β + 不发 `Route/commit`**，但**必须在文档里写明**「回写路径不做幂等声明」这一已知不对称（§5.3 的缺口由此保留，靠对齐器兜住）。
+**CR-17 的三条约束**：① Pager 是唯一真相源；② 点 tab 只 `animateScrollToPage`，**路由由 `snapshotFlow { currentPage }` 单向回写**；③ **禁止双向写**。
 
-> **在裁决之前，本文档按 α 描述实现要点，但把「回写是否接入统一入口」标注为未决，实施时以 GPT 的答复为准。**
+| CR-17 约束 | α 是否冲突 | 论证 |
+|---|---|---|
+| ① Pager 是唯一真相源 | **不冲突** | α 没有新增任何位置真相源；入口的 `landed` 全部来自 `pagerState` |
+| ② 路由由 `snapshotFlow { currentPage }` 单向回写 | **不冲突** | α **保留 `snapshotFlow` 作为回写的触发源**，只把「回写动作」改为经过统一入口；**触发源与写入点分离**不违反「由 snapshotFlow 回写」 |
+| ③ 禁止双向写 | **不冲突** | α 涉及的三条写入路径**方向仍是 Pager → 路由**，没有任何一条从路由反推 Pager（CB-1） |
 
-#### 6.4.4 三条禁止
+**结论：α 与 CR-17 无冲突，CR-17 不需要任何改动。**
+
+**但必须记录 CR-17 原文里一处需要澄清的地方**：CR-17 ② 描述的是「路由由 `snapshotFlow` 回写」这一**常态路径**，而 `finally` 的对齐路径在 R10 之前就已存在（`AppNav.kt:391-396` 的 `alignRouteToPager`）。α 并未增加新方向，只是把三条**既有**写入路径**收敛到一个函数**。因此：
+
+> **α 是对 CR-17 的「实现收敛」，不是对 CR-17 原则的修改。**
+> 需求文档的 CR-17 条文**不需要改**；本设计**不动** CR-17（与本轮「不得修改 CR-17 语义」的约束一致）。
+
+> **A-01 由此关闭**（见 `docs/CR-30-阶段A-未决问题清单.md` §1.3 的状态更新）。
+
+#### 6.4.4 禁止事项（CB-1 ~ CB-6）
 
 | 编号 | 禁止 | 理由 |
 |---|---|---|
-| CB-1 | 统一入口**不得**反向写 Pager | 违反 CR-17「单向」 |
-| CB-2 | 统一入口**不得**维护影子路由状态（缓存上次值） | 会与真实路由漂移，且违反 N9 |
+| CB-1 | 统一入口**不得**反向写 Pager（`scrollToPage` / `animateScrollToPage` / `currentPage =`） | 违反 CR-17「单向」与 α-6 |
+| CB-2 | 统一入口**不得**维护影子路由状态（缓存上次值） | 会与真实路由漂移，且违反 N9 / α-5 |
 | CB-3 | 统一入口**不得**把来源标记写进持久化字段 / 备份 | 会动备份格式，违反本轮边界 |
-
+| CB-4 | 统一入口**不得**在幂等短路时**跳过打点**的对齐语义（见 §6.6.3 的双打点约定） | 会改变 `Route/align` 的历史语义，破坏 R10 证据可比对 |
+| CB-5 | 任何调用点**不得**绕过统一入口直调 `viewModel.selectMain` | 否则幂等判断与打点口径再次分裂（α-3 的前提） |
+| CB-6 | 统一入口**不得**新增第二个路由真相源（例如把「已对齐页」缓存进 `remember`） | 违反 N9 / α-5 |
 ### 6.5 `ScrollAlignPolicy` 纯函数（与 §6.2 要点 3 同源）
 
 见 §6.2 要点 3。三个纯函数构成**全部**的决策点：
@@ -1269,6 +1398,84 @@ fun commitRouteFromPager(landed: Int, source: String) {
 | `A5/scrollStart` / `A5/scrollEnd` / `A5/scrollFinally` / `A5/tabClick` | 不变 | 不变 | 完全不变 |
 
 **为什么 `Route/align` 与 `Route/commit` 并存**：历史 R10 真机证据里 `Route/align=<page>` 是判定「对齐发生了几次、目标是谁」的依据，**不能改语义**。新增的 `Route/commit` 承载「统一入口被调用」的语义，两者的差异在 §8 的判据里逐条说明。
+
+#### 6.6.1 六个不可混用的概念（GPT v2.1 · OBS-2-2）
+
+| 编号 | 概念 | 精确定义 | 判据 | 历史字段对应 |
+|---|---|---|---|---|
+| **C1** | **Token / 守卫所有权** | 本协程的 token 是否**仍是** `TabScrollGuard` 的当前 owner | `tabGuard.end(token) == true` | `A5/scrollFinally=… aligned=<bool>` |
+| **C2** | **程序化滚动是否正常结束** | 本次滚动**没有**被 `CancellationException` 取消 | `cause == none` | **无历史字段**（v2.1 新增 `cause`） |
+| **C3** | **Pager 是否真正稳定** | 滚动已结束 **且** 当前页 == 稳定页 | `!isScrollInProgress && currentPage == settledPage` | **无历史字段**（v2.1 新增 `stable`） |
+| **C4** | **`currentPage` 是否等于 `settledPage`** | Pager 处于「过渡页」还是「已落定页」 | `currentPage == settledPage` | **无历史字段**（v2.1 新增 `settledMatch`） |
+| **C5** | **对齐器是否仍持有有效 generation** | 代际计数器自捕获以来未推进 | `scrollGeneration.current == gen0` | **无历史字段**（v2.1 新增 `genValid`） |
+| **C6** | **是否实际提交了路由** | 真的调用了 `viewModel.selectMain` 且未被幂等短路 | 入口内 `selectMain` 被调用 | `Route/selectMain=<AppPage>`（历史上**只有回写路径**有） |
+
+**最关键的一条纠错**：
+
+> **C1 ≠ C2 ≠ C3 ≠ C4 ≠ C5 ≠ C6。**
+> 历史字段 `aligned=true` **只**代表 **C1（所有权有效）** —— 它**不代表** C2 / C3 / C4 / C6。
+> 而在**取消路径**上 `aligned` **同样为 true**（token 仍归本协程，只是滚动被取消）—— **这正是 OBS-2 的成因**，也是 v1 文档「`aligned` = 对齐成功」这一表述的根源错误。
+
+#### 6.6.2 历史字段的真实含义与兼容关系（不得悄悄改变既有语义）
+
+| 历史字段 | **真实含义**（不是它字面像的意思） | v2.1 的处置 | 兼容关系 |
+|---|---|---|---|
+| `A5/scrollFinally=<idx>#<seq> aligned=<bool>` | `aligned` = **C1 守卫所有权有效**。**不是**「已对齐」、**不是**「滚动正常结束」、**不是**「路由写入成功」 | **保留原字段原位**，同一行**追加** `owned=` / `cause=` / `stable=` / `settledMatch=` 四个新字段；`aligned` 与 `owned` 同值，`aligned` 作为**历史别名**保留 | 历史脚本按 `aligned=` 抓取**完全不受影响**；新脚本改读 `owned=` / `cause=` / `stable=` |
+| `Route/align=<idx>` | 「**执行了一次** `alignRouteToPager` 调用」——**不等于**「路由真的变了」（现实现里打点在幂等检查**之前**，`AppNav.kt:392`） | **保留**：仍在入口的幂等短路**之前**打点，只追加 `:<src>` 后缀 | 历史语义**一字未改**；`Route/align` 继续回答「对齐调用发生了几次、目标是谁」 |
+| `Route/selectMain=<AppPage>` | 「路由**确实会被写**」（打点在 `if` 分支内，`AppNav.kt:451`） | **保留**：统一入口在真正写入前打同名同义打点；**覆盖面扩大**到 finally / settle 两条路径（历史只有回写路径有） | 历史语义不变；统计「对齐调用次数」必须用 `Route/align`，统计「路由写入次数」必须用 `Route/selectMain` / `Route/commit` |
+| `Route/currentPage=<idx>` | Pager 位置变化（每次 `snapshotFlow` 发射） | 不变 | 不变 |
+| `Route/guardIgnore=<idx>` | 中间页回写被守卫拦下 | 不变 | 不变 |
+| `A5/scrollCancel=<idx>#<seq>` | 滚动被取消 | **追加** `:<cause>` | 前缀兼容 |
+| `A5/scrollStart` / `A5/scrollEnd` / `A5/tabClick` / `A5/routeScroll` | 滚动开始 / 结束 / 点 tab / 回滚滚动 | 不变 | 不变 |
+
+> **明确声明**：v2.1 **没有**改变任何一个历史字段的语义。
+> 唯一的「位置调整」是把 `Route/align` 从 `alignRouteToPager` 挪进统一入口，**打点相对幂等判断的先后顺序保持不变**（仍在短路之前）。
+> 唯一的新增是 `Route/selectMain` 现在**也会**在 finally / settle 路径出现 —— 这是**覆盖面扩大**，不是语义改变。
+
+#### 6.6.3 v2.1 打点格式定稿
+
+| 打点 | 格式 | 发出时机 | 回答的问题 |
+|---|---|---|---|
+| `A5/scrollFinally` | `A5/scrollFinally=<idx>#<seq> aligned=<bool> owned=<bool> cause=<cause> stable=<bool> settledMatch=<bool>` | 每次程序化滚动收尾（finally） | C1 + C2 + C3 + C4 |
+| `A5/scrollCancel` | `A5/scrollCancel=<idx>#<seq>:<cause>` | 捕获 `CancellationException` 时 | 取消原因 |
+| `A5/alignSkip` | `A5/alignSkip=<idx>#<seq>:<reason>` | 对齐器判定为不许写时 | 为什么没写 |
+| `A5/gen` | `A5/gen=<value>` | 代际推进时 | 代际推进点是否生效 |
+| `A5/alignCommit` | `A5/alignCommit=<idx>#<seq> gen=<n> genValid=<bool>` | 对齐器通过全部检查、即将写入 | C5 的判定结果 |
+| `Route/align` | `Route/align=<idx>:<src>`（`src` ∈ `finally` / `settle`） | **对齐调用**发生（幂等短路之前） | 对齐调用了几次、目标是谁 |
+| `Route/selectMain` | `Route/selectMain=<AppPage>` | 路由**确实会被写** | 路由提交了几次 |
+| `Route/commit` | `Route/commit=<idx>:<src>`（`src` ∈ `finally` / `settle` / `snapshot`） | 路由**确实会被写** | 统一入口提交了几次、从哪个来源 |
+
+**`<cause>` 取值表**：
+
+| 取值 | 含义 | 判定来源 |
+|---|---|---|
+| `none` | 未被取消，正常收尾 | 未抛 `CancellationException` |
+| `gesture` | 用户手势接管 | `userDragging == true`（**该 API 可用性尚未验证**，见 §1.5.2 的 N-OBS-1） |
+| `superseded` | 被新的程序化滚动取代 | `tabGuard.end(token) == false` |
+| `scope` | 协程作用域被取消 | `currentCoroutineContext().isActive == false` |
+| `unknown` | 判定链走完仍不明确 → **保守按 `gesture` 处理**，但打点**如实记 `unknown`** | §1.5.3 的第 4 条 |
+
+**`<reason>`（`A5/alignSkip`）取值表**：
+
+| 取值 | 含义 | 对应所有权条款 |
+|---|---|---|
+| `stale-generation` | 代际已过期 | OW-4 |
+| `not-stable` | Pager 未稳定（`isScrollInProgress` 或 `currentPage != settledPage`） | OW-7 |
+| `not-owned` | 守卫所有权已失效 | OW-1 |
+| `scope` | 作用域已取消，不得派发 | OW-6 |
+| `idem` | 幂等：当前路由已等于目标页 | OW-9 |
+
+**统计口径表（防止再次混用）**：
+
+| 想回答的问题 | **必须**用 |
+|---|---|
+| 本次协程是不是守卫主人？ | `A5/scrollFinally … owned=`（旧脚本可用 `aligned=`） |
+| 本次滚动是不是被取消的？取消原因是什么？ | `A5/scrollFinally … cause=` / `A5/scrollCancel=…:<cause>` |
+| Pager 当时稳定了吗？ | `A5/scrollFinally … stable=`（= `!isScrollInProgress && currentPage == settledPage`） |
+| 当时是过渡页还是落定页？ | `A5/scrollFinally … settledMatch=` |
+| 对齐器代际还有效吗？ | `A5/alignCommit … genValid=` |
+| 对齐调用发生了几次？ | `Route/align=` |
+| 路由真的被写了几次？ | `Route/selectMain=` 或 `Route/commit=` |
 
 ### 6.7 与 CR-17 红线的关系
 
@@ -1552,6 +1759,29 @@ M1–M10 是 v1 的矩阵（全部保留）。v2 针对代际机制补充 3 个�
 - 若某个场景**无法稳定复现**（例如真机上手指速度过快），必须记录尝试次数与失败轮次，**不得**只留成功轮次；
 - **不得**在报告里把「v1 的失败现象消失」写成「已修复」—— 必须给出**修复前**与**修复后**的同场景逐行对照（R10 的 r2/r3/r4 日志就是修复前的原始证据）。
 
+### 8.6 真机证据纪律（GPT v2.1 · OBS-2-5 定稿）
+
+> **本轮不执行真机测试。** 以下八条是**将来**执行时的硬性纪律，逐条对应 GPT v2.1 的要求。
+
+| 编号 | 纪律 | 落地方式 | 违反时的后果 |
+|---|---|---|---|
+| **E-1** | **ADB 合成手势不得冒充真实手指测试** | 每轮 `run_info.json` 必须写 `gesture_kind: real_finger` / `synthetic`；**报告正文必须**标明本场景的证据等级 | 该轮**不得计入有效轮次**；报告结论无效 |
+| **E-2** | **`run_info.json` 必须记录 `gesture_kind`** | 同 E-1；缺字段即视为无效轮次 | 同上 |
+| **E-3** | **无效轮次必须保留** | 原样存入 `_invalid_rounds/`（R10 已建立的纪律），**不得**只留成功轮次 | 证据包视为**选择性呈现**，结论不采信 |
+| **E-4** | **每个场景至少三个有效轮次** | M1–M13 每场景 ≥ 3 个**有效**轮次；有效轮次的定义 = 手势类型符合要求 + 未发生未记录的干扰 + 关键打点齐全 | 该场景判为**未复核** |
+| **E-5** | **保留原始 logcat、UI XML、视频、设备信息与 SHA256SUMS** | 每场景一套：`logcat.txt` / `ui_final.xml` / `video.mp4` / `dumpsys_display.txt` / `run_info.json`；入库后**重算** SHA256SUMS（排除 `__pycache__` 与自引用文件） | 证据不可复算 → 该场景不采信 |
+| **E-6** | **Redmi 设备需负责人放行** | `GAQOHMNFQWFUPBQO`；所有 adb 命令**显式 `-s`**；未经放行**不得**连接 | 越权占用设备 |
+| **E-7** | **vivo 本轮禁止连接和触碰** | `10CEB40M5G001DK` **全程不连接、不触碰**；自动化任务在跑的机器不得并用 | 影响其它任务的自动化 |
+| **E-8** | **不得把 R10 的旧证据写成 OBS-2 修复后的验证证据** | R10 的 `s8_swipe_interrupt_120hz_r2/r3/r4` 是**修复前**的原始证据，只能作为「修复前对照」；修复后的证据**必须**是**修复后新采**的轮次，且轮次目录与 R10 的**物理分开** | 结论无效（等于用旧证据冒充新验证） |
+
+**两条容易被忽略的补充纪律**：
+
+| 编号 | 纪律 |
+|---|---|
+| **E-9** | 修复前后必须有**同场景逐行对照**：同一操作序列，修复前有 `Route/align=<中间页>`、修复后没有 —— 否则无法证明是本次修复起的作用 |
+| **E-10** | `capture_anim.py --slow` 结束时只重装 APK、**不重启 App**；之后操作前必须先 `am force-stop` + `monkey` 重启，否则会点到桌面 —— 证据会静默失真 |
+
+---
 ---
 
 ## 9. 对 R10 已通过场景的回归要求
