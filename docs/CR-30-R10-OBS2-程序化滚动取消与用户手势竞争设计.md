@@ -3,11 +3,12 @@
 | 项 | 值 |
 |---|---|
 | 编号 | CR-30-R10-OBS2 |
-| 版本 | **v2.2**（2026-11-23 GPT 阶段 A v2.2 复审整改；v1 / v2 / v2.1 见 §0.5 修订记录） |
+| 版本 | **v2.3**（2026-11-23 GPT 阶段 A v2.3 复审整改 · R12 测试契约可信度修复；v1 / v2 / v2.1 / v2.2 见 §0.5 修订记录） |
 | 阶段 | **阶段 A · 只出设计，未实施** |
 | GPT 评审结论 | **A1 方向通过**；补齐下列条件后**允许独立实施**（本轮只补设计，不编码） |
 | 关联 | `docs/CR-30-A5-R10-TabScrollGuard-所有权设计.md`（P2 已通过并真机验证）、`docs/CR-30-A3-实验补证/evidence/a5_r10_guard_ownership_real/` |
-| 基线 | 分支 `exp/a5-route-probe` @ **`71a230b`**（v2.1 编码前定稿后 HEAD = 本轮实际审查基线）；全量单测 **620 / 0 fail / 0 skip** |
+| 基线 | 分支 `exp/a5-route-probe` @ **`b9490e3`**（v2.2 编码前定稿后 HEAD = 本轮实际审查基线）；全量单测 **620 / 0 fail / 0 skip** |
+| 最后核对 | **2026-11-23**（v2.3 与未决清单 v2.3 / CODE_REVIEW / TODO 逐项对齐） |
 | 最后核对 | **2026-11-23**（v2.2 与 R11 v2.2 / 未决清单 v2.2 / CODE_REVIEW / TODO 逐项对齐） |
 | 本文档改动 | **无任何生产代码 / Gradle / Manifest / 导航行为改动** |
 
@@ -67,23 +68,27 @@ v1 已经给出正确的**方向**（A1：取消让权 + 稳定后对齐器）�
 | v1 | 2026-11-23 上午 | 初版：当前时序、真机日志证据、竞态状态图、十场景、7 案对比、推荐 A1、单测设计、真机矩阵、回归要求、回滚 |
 | **v2** | 2026-11-23 下午 | 按 GPT 评审整改：① §1.5 取消原因三分类与可靠识别；② §6.3 对齐器所有权 9 条 + 代际机制；③ §6.4 统一入口 `commitRouteFromPager()`；④ §4.11 新增 10 个异步竞态测试场景；⑤ §7 补异步协调器测试实现方式；⑥ §8 强化真实手指优先；⑦ §0.3 新增 N9 / N10 禁止项 |
 | **v2.1** | 2026-11-23 晚 | **编码前终审定稿**：① **α 定为唯一方案**（§6.4.3：三个调用点全部经 `commitRouteFromPager()`，附 CR-17 冲突检查 —— 结论**无冲突**，CR-17 不需改；**A-01 关闭**）；② **日志字段语义定稿**（§6.6.1 六个不可混用概念 C1–C6 / §6.6.2 历史字段真实含义与兼容关系 / §6.6.3 打点格式定稿；**`aligned` 的真实含义 = C1 守卫所有权**）；③ **§1.5.5 三类取消的行为表定稿** + `userDragging` API **尚未验证**的如实声明；④ **§4.11 重写为 12 个场景**（每个含 **7 个必答字段** + 中间态断言 + 日志证据；新增 R11 端到端最终态、R12 组合不卡死；§4.12 断言增至 A1–A11）；⑤ **§8.6 真机证据纪律 E-1~E-10** |
+| **v2.3** | 2026-11-23 夜 | **GPT 阶段 A v2.3 复审整改（R12 测试契约可信度修复）**：① **§7.4.3 重写 `RouteWriteRecorder` → `RouteAudit`**：删掉硬编码的 `viaUnifiedEntry = true` / `wrote = true`，改为 **5 类事件**（`EntryInvocation` / `CommitAttempt` / `CommitAccepted` / `CommitSkipped` / `StateMutation`）+ **三通道关系**（生产上报 / 独立状态观察 / 归因）；`viaUnifiedEntry` 降级为**归因结论**；新增「绕行检测」`unattributedMutations`；② **新增 §7.4.4 三层测试分层**（L1 对齐器单测 / L2 统一入口单测 / **L3 生产导航链路集成测试**）+ **§6.4.5 最小可测试性改造 P1~P4**（审计钩子 / 手势信号注入 / 代际来源 / 状态可观察）；③ **R12 拆成 R12-A（减少动画 · 瞬时滚动）与 R12-B（正常动画 · 取消交接）**（§7.4.5），并给出**等价性声明**（哪些仍需真机）；④ **§6.3.5 统一等待与退出规则**（新增**状态转移表**：`not-stable` **不再是退出原因**，改为继续等待，超时记 `settle-timeout`），§6.2 要点 2 伪代码、§4.11 R6 / R7 / R12、§7.4 断言**逐字对齐**；⑤ **新增 §6.3.6 三种触发源各自的 generation 校验规则**（`snapshotFlow` = `observed-at-emit`；`finally` = `captured-at-begin`；对齐器 = `captured-at-start`；新增 `GenSource` 与完整退出原因表）；⑥ **§7.4.6 重写 W-1 ~ W-10**：区分**五个写入口径**、新增「先写错再写对」的捕获机制；⑦ §4.12 断言扩至 **A1–A24**；⑧ §6.6.3 新增五条审计打点与 `genSrc` / `genBasis` 字段、`<reason>` 表重写；⑨ §7.6 新增 8 条必须变红的变异；⑩ §8.4 新增 V15~V18。**R1~R12 原有场景全部保留**；**F-09 / F-10 / A-02 保持开放**；**R12 仍未通过 GPT 复审** |
 | **v2.2** | 2026-11-23 夜 | **GPT 阶段 A v2.2 复审整改（编码前定稿）**：① **取消原因两段式拆分**（§1.5.5 / §6.2 要点 1）：`observedCause`（**观测事实**，仅日志与取证）与 `effectiveAction`（**实际动作**，**唯一**行为判据）；**UNKNOWN 记为 `unknown` 而不再伪装成 `GESTURE`**，映射为 `CONSERVATIVE_COMPENSATE`（**补偿**）—— 修掉 v2.1「保守补偿却触发不了补偿」的自相矛盾；② **OW-1 改写为读 `effectiveAction`**，§6.4.3 三个调用点、§1.5.3 判定链、§7.1 单测表、§4.11 / §4.12 测试表**全部同步**清理旧单字段判断；③ **新增 §6.3.5**：`CONSERVATIVE_COMPENSATE` 的 **7 项安全检查**（等稳定 / 查 currentPage 与 settledPage / 查 generation / 经统一入口 / 保留幂等 / 不写中间页 / 不写非落定值）+ **7 条退出条件 EX-1~EX-7** + **能保证 / 不能保证什么**（F-09 不可用时的如实声明）；④ **§7.4 重写为确定性竞态测试**（RT-1~RT-6：`runTest` + `TestScheduler` / `CompletableDeferred` 事件屏障 / 可控 fake Pager / **路由提交记录器** / **不得为制造时序污染生产代码**），新增 **§7.4.4 R12 七步确定性编排** 与 **W-1~W-10 路由写入历史断言**（generation 有效性 / 旧代际写入 / 落定一致 / 统一入口 / 非法中间态写入即失败）；⑤ **§4.12 断言增至 A1–A16**（新增 A12 观测与动作分离 / A13 UNKNOWN 必须能补偿 / A14 补偿路径不得放宽 / A15 判据只读 `effectiveAction` / A16 路由写入历史合法）；⑥ **F-09 / A-02 / F-10 保持开放**，`userDragging` 可用性**以实际编译验证为准** |
-### 0.6 v2.2 编码前定稿的结论摘要
+### 0.6 v2.3 编码前定稿的结论摘要
 
 | 检查项 | 结论 | 位置 |
 |---|---|---|
 | 统一路由入口 | **α 定为唯一方案**：三个调用点（`snapshotFlow` 回写 / `finally` 对齐 / 稳定后对齐器）全部经 `commitRouteFromPager()`；**写入函数只有 1 个**，触发源有 3 个 | §6.4.3 |
-| CR-17 冲突 | **逐条检查，无冲突**；CR-17 条文**不需要改**，本设计不动 CR-17 | §6.4.3.1 |
-| A-01 | **关闭**（由 GPT v2.1 裁决 α）；A-03 同批关闭 | §6.4.3 末 |
-| 日志字段 | 七个概念 C1–C7 **分离**；`aligned` 的真实含义**如实标注为「守卫所有权」**；新增 `owned` / `cause` / **`act`** / `stable` / `settledMatch` / `genValid` | §6.6.1 |
-| 历史字段兼容 | **没有任何一个历史字段的语义被改变**；`Route/align` 仍打在幂等短路之前；`act=` 是**追加**维度 | §6.6.2 |
-| 取消原因（v2.2 重写） | **两段式**：`observedCause`（观测事实，仅日志）/ `effectiveAction`（实际动作，唯一行为判据）；**UNKNOWN → `CONSERVATIVE_COMPENSATE`（补偿）**；行为判据**禁止**读观测字段 | §1.5.5 / §6.2 / §6.3.2 |
-| UNKNOWN 补偿边界 | **7 项安全检查**（等稳定 / 查 currentPage 与 settledPage / 查 generation / 经统一入口 / 保留幂等 / 不写中间页 / 不写非落定值）+ **7 条退出条件 EX-1~EX-7**；**能保证 / 不能保证什么**已如实写明 | §6.3.5 |
-| 异步测试（v2.2 重写） | **确定性竞态测试**：`runTest` + `TestScheduler` + `CompletableDeferred` 事件屏障 + 可控 fake Pager + **路由提交记录器**；**不得为制造时序污染生产代码** | §7.4 |
-| R12 断言 | **路由写入历史断言 W-1~W-10**：提交次数、generation 有效性、**旧 generation 写入必须为零**、落定一致、统一入口、最终结果、**非法中间态写入即失败** | §7.4.4 / §4.11 R12 |
-| 断言集 | 增至 **A1–A16**（A12~A16 为 v2.2 新增） | §4.12 |
-| 真机证据 | 纪律 E-1~E-10 定稿；**本轮不执行** | §8.6 |
-| 未决项（v2.2 保持开放） | **F-09**（`userDragging` 可用性，**编译验证**级别）、**F-10**（代际降级情形安全性，真机）、**A-02**（是否接受降级，⚪ 待产品决策）—— **本轮不关闭**；`userDragging` 可用性**以实际编译验证为准** | §1.5.5 / §6.3.5 |
+| CR-17 冲突 | **逐条检查，无冲突**；CR-17 条文**不需要改** | §6.4.3.1 |
+| 日志字段 | 七个概念 C1–C7 **分离**；`aligned` 的真实含义**如实标注为「守卫所有权」**；新增 `owned` / `cause` / **`act`** / `stable` / `settledMatch` / `genValid` / **`genSrc`** / **`genBasis`** | §6.6.1 / §6.6.3 |
+| 历史字段兼容 | **没有任何一个历史字段的语义被改变**；`Route/align` 仍打在幂等短路之前；`act=` / 审计打点均为**追加** | §6.6.2 |
+| 取消原因 | **两段式**：`observedCause`（观测事实，仅日志）/ `effectiveAction`（实际动作，唯一行为判据）；**UNKNOWN → `CONSERVATIVE_COMPENSATE`（补偿）** | §1.5.5 / §6.2 |
+| UNKNOWN 补偿边界 | **7 项安全检查** + **7 条退出条件 EX-1~EX-7**；能 / 不能保证什么已如实写明 | §6.3.5 |
+| **v2.3 · 记录器可信度** | **`RouteWriteRecorder` 已重写为 `RouteAudit`**：**删除** `viaUnifiedEntry = true` / `wrote = true` 硬编码；改为 **5 类事件** + **三通道**（生产上报 / 独立状态观察 / 归因）；`viaUnifiedEntry` 降级为**归因结论**；**绕行检测** = `unattributedMutations` 非空 | §7.4.3 |
+| **v2.3 · 生产链路覆盖** | **新增 L3 生产导航链路集成测试**（真实 `AppNav` + 真实 `HorizontalPager` + 真实路由 ViewModel）；L1 / L2 **不得**替代；**§6.4.5 给出最小可测试性改造 P1~P4**（P1 审计钩子为 L3 的**实施前置条件**） | §7.4.4 / §6.4.5 |
+| **v2.3 · R12 拆分** | **R12-A（减少动画 · 瞬时滚动）** 与 **R12-B（正常动画 · `animateScrollToPage` 取消交接）** 两个独立场景，**都必须在 L3 跑**；附**等价性声明**（真实手指时机 / 插值曲线 / `settledPage` 提交时机 / `userDragging` 识别**仍需真机**） | §7.4.5 / §4.11 |
+| **v2.3 · 等待与退出统一** | **状态转移表**：未落定 → **继续等待**（`not-stable` **不再是退出原因**）；退出只允许 `stale-generation` / `gesture-takeover` / `superseded` / `settle-timeout` / `scope-cancelled` / `not-owned` / `idem` / `no-page`；正文、伪代码、R6 / R7 / R12 **逐字一致** | §6.3.5.1 / §6.2 要点 2 |
+| **v2.3 · generation 校验** | **三种触发源分别定义**：`snapshotFlow` = `observed-at-emit`（**不预捕获**）、`finally` = `captured-at-begin`、对齐器 = `captured-at-start`；新增 `GenSource` | §6.3.6 |
+| **v2.3 · 断言** | **W-1 ~ W-10 重写**：区分**五个写入口径**；新增「**先写错再写对**」的捕获机制（W-10 对全序列判定）；共性断言扩至 **A1–A24** | §7.4.6 / §4.12 |
+| 真机证据 | 纪律 E-1~E-10 定稿；**v2.3 新增 V15~V18**（绕行检测 / 五口径分别报告 / 退出原因白名单 / 先写错再写对即失败）；**本轮不执行** | §8.4 / §8.6 |
+| 未决项 | **F-09**（`userDragging` 可用性，**编译验证**级别）、**F-10**（代际降级情形安全性，真机）、**A-02**（是否接受降级，⚪ 待产品决策）—— **本轮保持开放**；**A-04**（L3 依赖 P1 审计钩子，若不批准则 L3 不成立）—— 新登记，⚪ | §1.5.5 / §6.3.5.5 / §6.4.5.5 |
+| **R12 状态** | **⛔ 未通过 GPT 复审** —— v2.3 已按 OBS2-01~06 整改，**仍待 GPT 独立评审**，**不得**标记为完成 | §7.4 / §4.11 |
 | 未改的东西 | 生产 Kotlin / Gradle / Manifest / Room / 备份 / 导航逻辑 **零改动**；CR-17 零改动；R10 已关闭的 P2 不重开 | 全篇 |
 ## 1. 当前时序
 
@@ -847,40 +852,39 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 
 ---
 
-#### R6 · 用户手势结束时 Pager 尚未稳定
+#### R6 · 用户手势结束时 Pager 尚未稳定（**v2.3：未落定 = 继续等待，不是退出**）
 
 | 项 | 内容 |
 |---|---|
 | **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、`settledPage=0`、静止；`OWNER=NONE`；`GEN=5` |
-| **操作顺序** | ① 点「日历」→ TKN#8，`GEN=6`，P 启动 ② 手势接管 → P 取消，`cause=gesture`，`GEN=7`，S 启动（`gen0=7`）③ 用户松手，Pager 进入**回弹**：`isScrollInProgress=false` 但 `currentPage=1`、`settledPage=0` ④ S 恢复 |
-| **协程挂起点** | S：`awaitStable` 第 1 个挂起点（`isScrollInProgress` 变 false 时被唤醒） |
-| **状态变化** | `currentPage: 0 → 1`；`settledPage` 仍为 0（尚未落定） |
-| **恢复时的有效性检查** | ① 代际有效（`7 == gen0`）→ 继续；② `isScrollInProgress == false` → 通过；③ **`currentPage(1) != settledPage(0)` → 不稳定** → `alignSkip=not-stable` → **不写**，继续等待 |
-| **预期路由写入次数** | **0 次**（S）；随后由 `snapshotFlow` 回写或 S 的后续等待给出最终值 |
+| **操作顺序** | ① 点「日历」→ TKN#8，`GEN=6`，P 启动 ② 手势接管 → P 取消，`observedCause=gesture`，`effectiveAction=gesture_compensate`，`GEN=7`（`GenSource=GESTURE`），S 启动（`gen0=7`）③ 用户松手，Pager 进入**回弹**：`isScrollInProgress=false` 但 `currentPage=1`、`settledPage=0` ④ S 在等待循环中观察到「未落定」→ **继续等待** ⑤ 回弹落定：`currentPage=1`、`settledPage=1` → S 通过落定检查 → 提交 |
+| **协程挂起点** | S：`awaitStable` 的**落定等待循环**（`withTimeoutOrNull` 包裹的 `snapshotFlow`）；回弹未落定时**仍挂起**，**不返回** |
+| **状态变化** | `currentPage: 0 → 1`；`settledPage` 仍为 0（尚未落定）→ 随后落定为 1 |
+| **恢复时的有效性检查** | 每轮等待都重新判定：① scope 仍活跃 → ② 代际仍为 7（否则 `gesture-takeover` / `superseded` / `stale-generation` 退出）③ 未落定 → **继续等待**（**不退出、不写**）④ 落定 → 允许进入提交 |
+| **预期路由写入次数** | **回弹窗口内 0 次**；落定后由 `snapshotFlow` 回写或 S 的等待结束给出 |
 | **预期最终状态** | `ROUTE` == Pager 最终落定页（回弹落定后） |
-| **中间态断言** | 回弹窗口内**不得**出现 `Route/align`（旧实现正是这里写了过渡值）；`alignSkip=not-stable` 恰好 1 次 |
-| **日志证据** | `A5/scrollCancel=2:gesture` → `A5/alignSkip=…:not-stable` →（落定后）`Route/align=<落定页>:settle` |
+| **中间态断言** | 回弹窗口内**不得**出现任何状态变化；**不得**出现 `A5/alignSkip=…:not-stable`（v2.3：`not-stable` **不再是退出原因**）；**不得**写入 `currentPage=1` 这个尚未落定的值 |
+| **日志证据** | `A5/scrollCancel=2:gesture act=gesture_compensate` → （回弹未落定期间）`A5/commitAttempt … stable=false`（**诊断事件**，非退出）→（落定后）`Route/align=1:settle` 或 `Route/commit=1:snapshot` |
 
 ---
 
-#### R7 · Pager 稳定后 currentPage 与 settledPage 不一致
+#### R7 · Pager 稳定后 currentPage 与 settledPage 不一致（**v2.3：同样改为继续等待**）
 
 | 项 | 内容 |
 |---|---|
 | **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、`settledPage=0`、静止；`OWNER=NONE`；`GEN=5` |
-| **操作顺序** | ① 手势取消 → `GEN=6`，S 启动（`gen0=6`）② Pager 滚动结束，`isScrollInProgress=false`，但系统尚未提交新的 `settledPage` → `currentPage=2`、`settledPage=0` ③ S 的第 1 个挂起点被唤醒，第 2 个挂起点（等待 `currentPage == settledPage`）继续挂起 ④ 稍后 `settledPage` 更新为 2，S 恢复 |
-| **协程挂起点** | S：`awaitStable` 的**第 2 个挂起点**（`snapshotFlow { currentPage == settledPage }.first { it }`） |
+| **操作顺序** | ① 手势取消 → `GEN=6`（`GESTURE`），S 启动（`gen0=6`）② Pager 滚动结束，`isScrollInProgress=false`，但系统尚未提交新的 `settledPage` → `currentPage=2`、`settledPage=0` ③ S 观察到「未落定」→ **继续等待** ④ 系统提交 `settledPage=2` → S 通过落定检查 → 提交 |
+| **协程挂起点** | S：`awaitStable` 的落定等待循环（`currentPage != settledPage` 期间**保持挂起**） |
 | **状态变化** | `currentPage: 0 → 2`；`settledPage: 0 → 2`（延迟提交） |
-| **恢复时的有效性检查** | ① 代际有效 → ② `isScrollInProgress == false` → ③ `currentPage(2) == settledPage(2)` → **允许写** |
-| **预期路由写入次数** | **1 次** |
+| **恢复时的有效性检查** | ① 代际有效 → ② scope 活跃 → ③ `isScrollInProgress == false` 但 `currentPage(2) != settledPage(0)` → **未落定 → 继续等待** ④ `currentPage == settledPage` → 允许写 |
+| **预期路由写入次数** | **未落定期间 0 次**；落定后 **1 次** |
 | **预期最终状态** | `ROUTE(2)`（日历） |
-| **中间态断言** | ② 与 ④ 之间**不得**有任何写入；不得写入 `currentPage` 尚未落定的中间值 |
-| **日志证据** | `A5/scrollFinally` 的 `settledMatch=false` → （落定后）`settledMatch=true` → `Route/align=2:settle` |
+| **中间态断言** | 未落定期间**不得**有任何状态变化；**不得**写入 `currentPage` 尚未落定的中间值；**不得**出现 `alignSkip=not-stable` |
+| **日志证据** | `A5/scrollFinally … settledMatch=false` → （等待中）`A5/commitAttempt … stable=false` →（落定后）`settledMatch=true` → `Route/align=2:settle` |
 
-> **R6 与 R7 的区别**：R6 是「**滚动还没停**」的窗口（`isScrollInProgress` 为 true），R7 是「**滚动已停但 `settledPage` 还没提交**」的窗口（`isScrollInProgress` 为 false）。两者都必须被 OW-7 的**双条件**拦住 —— 只看 `isScrollInProgress` 会在 R7 漏判。
+> **R6 与 R7 的区别（v2.3 保持）**：R6 是「**滚动还没停**」的窗口（`isScrollInProgress` 为 true），R7 是「**滚动已停但 `settledPage` 还没提交**」的窗口（`isScrollInProgress` 为 false）。两者都必须被 OW-7 的**双条件**拦住 —— 且**都是「继续等待」而不是「立即退出」**。
 
----
-
+> **v2.3 与 v2.2 的差异**：v2.2 期望 R6 出现 `alignSkip=not-stable` 恰好 1 次（即**立即放弃**）；v2.3 改为**继续等待**，该日志**不应出现**。这与 §6.3.5.1 的状态转移表、§6.2 要点 2 的伪代码**逐字一致**。
 #### R8 · 取消事件与新 Token 创建交错
 
 | 项 | 内容 |
@@ -945,21 +949,41 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 
 ---
 
-#### R12 · 取消动画 + 快速点击 + 手势的组合不得导致路由卡死（v2.2 改为**确定性竞态测试**）
+#### R12 · 取消动画 + 快速点击 + 手势的组合不得导致路由卡死（**v2.3 拆成两个独立场景：R12-A / R12-B**）
+
+> **为什么拆（GPT v2.3 OBS2-03）**：v2.2 的 R12 设 `reduceMotion=true`、走 `scrollToPage()`，**没有动画挂起点** → 它**不能**证明 `animateScrollToPage()` 被取消时的协程交接行为。v2.3 把 R12 拆成**两个必须都跑**的场景：**R12-A（减少动画 · 瞬时滚动）** 与 **R12-B（正常动画 · 取消交接）**。
+> **两个场景都必须在 L3（生产导航链路集成测试）中执行**，L1 / L2 通过**不能**替代（§7.4.4）。
+
+##### R12-A · 减少动画开启（瞬时滚动分支）
 
 | 项 | 内容 |
 |---|---|
-| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、静止；`OWNER=NONE`；`GEN=5`；**系统开启「移除动画」**（`reduceMotion == true` → 走 `scrollToPage` 分支） |
-| **操作顺序** | ① 点「日历」→ `scrollToPage(2)` 瞬时完成 ② 紧接着快速点「统计」→ TKN#9 ③ 在第 ② 步的 `finally` 之前插入一次手势拖动 ④ 三个动作的 `finally` 与取消回调交错执行 ⑤ 全部结束后观察路由 |
-| **协程挂起点** | v2.2：**全部挂起点由测试显式控制** —— 三个 `CompletableDeferred` 事件屏障（`stable2` / `stable1` / `stableGesture`）+ `TestScheduler.advanceUntilIdle()` 推进。**不使用真实时间、不使用随机等待、不在生产代码里加测试专用分支**（RT-1 / RT-2 / RT-5） |
-| **状态变化** | `GEN` 多次推进；`OWNER` 多次变更；Pager `currentPage` 快速变化 |
-| **恢复时的有效性检查** | 每个 `finally` 独立判定：所有权（`end(token)`）+ `observedCause` → `effectiveAction` + 代际；**只有一个**能同时通过并写入 |
-| **预期路由写入次数** | **恰好 1 次**（最后一次有效操作决定） |
-| **预期最终状态** | `ROUTE` == Pager 最终停留页；**无死锁、无卡死、无协程泄漏**；底部胶囊与标题一致 |
-| **中间态断言** | 路由**不得**停在中间页；**不得**出现 0 次写入（卡死）；**不得**出现大于 1 次的写入（竞争） |
-| **路由写入历史断言**（v2.2 新增 · OBS2-04） | **W-1 ~ W-10**（§7.4.4）：提交次数恰好 1 / 不得 0 次 / 不得多于 1 次 / **每次提交 generation 均有效** / **不存在旧 generation 写入** / 落定一致 / 不得写中间页 / 必须经统一入口 / 最终结果 == Pager 停留页 / **不得有非法中间态写入** |
-| **日志证据** | 连续的 `A5/scrollFinally` 中**有且仅有一条** `owned=true` 且伴随 `Route/align`；其余 `owned=false` 或 `cause` 不是 `none`。**v2.2 追加**：该条必须同时带 `act=gesture_compensate` 或 `act=conservative_compensate`，且配套的 `A5/alignCommit … genValid=true` |
-### 4.12 十二个异步场景的共性断言（v2.2 扩至 A1–A16）
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、`settledPage=0`、静止；`OWNER=NONE`；`GEN=5`；`reduceMotion = true` |
+| **操作顺序** | ① 点「日历」→ `scrollToPage(2)` **瞬时完成**，`GEN=6`（`PROGRAMMATIC`）② 紧接着快速点「统计」→ `GEN=7`（`PROGRAMMATIC`），旧协程被取代 ③ 在第 ② 步的 `finally` 之前注入**用户手势接管** → `GEN=8`（`GESTURE`），派发对齐器，捕获 `gen0=8` ④ 三个动作的 `finally` 与取消回调按**确定顺序**交错执行 ⑤ 按序放行对齐器等待屏障 ⑥ 观察全部事件历史 |
+| **协程挂起点** | 对齐器等待屏障（`CompletableDeferred`）；`scrollToPage` 分支**无动画挂起点** |
+| **状态变化** | `GEN`：5→6→7→8；`OWNER` 多次变更；Pager `currentPage` 瞬时跳变（**无中间页序列**） |
+| **恢复时的有效性检查** | 每个 `finally` 独立判定：所有权 → `observedCause`/`effectiveAction` → 代际；**只有一个**能同时通过并写入 |
+| **预期路由写入次数** | **入口调用次数 ≥ 1**（可能 2~3 次）；**提交尝试次数 ≥ 1**；**被拒绝次数 ≥ 1**（幂等短路）；**实际状态变化次数恰好 1** |
+| **预期最终状态** | `ROUTE` == Pager 最终停留页；无死锁、无卡死、无协程泄漏；底部胶囊与标题一致 |
+| **中间态断言** | **W-1 ~ W-10 全部成立**（§7.4.6）；不得写中间页；不得存在旧代际写入；**先写错再写对即判失败** |
+| **日志证据** | `A5/entryInvoke` ≥ 1；`A5/commitAttempt` ≥ 1；`A5/commitSkip=…:idem` ≥ 1；`A5/stateMutation` **恰好 1 条**；`A5/commitAttempt … genValid=false` **0 条** |
+
+##### R12-B · 正常动画开启（`animateScrollToPage` 取消交接）
+
+| 项 | 内容 |
+|---|---|
+| **初始状态** | 同 R12-A，但 `reduceMotion = false` → 走 `animateScrollToPage` 分支，**存在动画挂起点** |
+| **操作顺序** | ① 点「日历」→ 启动 `animateScrollToPage(2)`，在**动画挂起点** `animationSuspend` **暂停** ② 注入**第二次 Tab 点击**「统计」→ 新滚动开始，`GEN++`（`PROGRAMMATIC`），**旧动画协程被取消 / 取代** ③ 注入**用户手势接管** → `GEN++`（`GESTURE`）④ 按**明确顺序**恢复：先旧动画协程的 `finally` → 再新动画协程 → 最后对齐器 ⑤ 记录**全部**路由提交尝试与状态变化 ⑥ 检查是否存在错误中间态写入 |
+| **协程挂起点** | ① `animationSuspend`（动画挂起点）② 旧动画协程的取消回调点 ③ 新动画协程的动画挂起点 ④ 对齐器等待屏障 ⑤ `finally` 内的 `end(token)`（**同步调用，不是挂起点**） |
+| **状态变化** | `GEN` 多次推进；Pager `currentPage` 经历**脚本化的中间页序列**（如 0→1→2），`settledPage` 延迟提交 |
+| **恢复时的有效性检查** | 每个恢复点独立判定：所有权 + 代际 + 稳定性 + 幂等；**旧动画协程恢复时其代际必然已过期** → 只能退出（`superseded` / `gesture-takeover`），**不得写入** |
+| **预期路由写入次数** | 入口调用次数 ≥ 1（可能 3~4 次，含被拒绝的）；**实际状态变化次数恰好 1** |
+| **预期最终状态** | `ROUTE` == Pager 最终停留页（**不是**点击目标页）；无死锁、无卡死 |
+| **中间态断言** | **W-1 ~ W-10 全部成立**；**旧动画协程恢复后不得写入**（旧代际）；**不得**出现 `currentPage` 的中间值被写入；**不得**出现「先写中间页、后来又写对」的序列 |
+| **日志证据** | 旧动画协程恢复后必须出现 `A5/alignSkip=…:superseded` 或 `:gesture-takeover`（**无任何 stateMutation**）；`A5/stateMutation` **恰好 1 条**，且其目标 == 最终停留页 |
+
+> **等价性声明**：场景 B 在 JVM 上**不能**证明「真实手指抢占动画的时机」「真实插值曲线」「`settledPage` 的真实提交时机」「`userDragging` 的真实识别」—— 这些**必须真机复核**（完整表见 §7.4.5.4，**不得**写成「测试已覆盖」）。
+### 4.12 十二个异步场景的共性断言（v2.3 扩至 A1–A24）
 
 | 断言 | 含义 | 覆盖场景 |
 |---|---|---|
@@ -979,6 +1003,14 @@ r2 / r4 里 `Route/align=1` 正是**把守卫刚刚忽略的中间页又写了�
 | **A14**（v2.2） | **补偿路径的安全检查不得放宽**：`conservative_compensate` 派发的对齐器**必须**与手势补偿一样过 OW-4 代际、OW-7 双条件、OW-9 幂等、统一入口四项检查（§6.3.5） | R2 / R12 |
 | **A15**（v2.2） | **行为判据只读 `effectiveAction`**：全文与实现中**不得**存在以 `observedCause`（`cause`）直接决定「是否派发对齐器 / 是否允许写入 / 代际是否推进」的判断（§6.2 要点 1 / §6.3.2 OW-1） | 全部 |
 | **A16**（v2.2） | **路由写入历史合法**：任何一次提交必须**同时**满足「generation 有效」+「`currentPage == settledPage`」+「经统一入口」；**任一不成立的提交即判失败**，即便最终页面正确（A5 的加强版，见 §7.4.4 的 W-4 / W-5 / W-10） | 全部 |
+| **A17**（v2.3） | **记录器不得自报成功**：测试替身**不得**提供可由测试直接赋值的「已走统一入口 / 已写入」字段；`viaUnifiedEntry` 必须由**归因**得出，`wrote` 必须由**独立状态观察**得出（TD-6） | 全部 |
+| **A18**（v2.3） | **五个写入口径必须分开统计**：入口调用次数 / 提交尝试次数 / 被拒绝次数 / 幂等短路次数 / 实际状态变化次数；**入口调用多次 ≠ 多次状态变化** | 全部 |
+| **A19**（v2.3） | **无未归因状态变化**：`unattributedMutations` 必须为空 —— 这是「绕过统一入口 / 直调 `selectMain`」的**唯一可靠信号**（W-8） | 全部（L3） |
+| **A20**（v2.3） | **L3 不得被 L1 / L2 替代**：三个触发源（`snapshotFlow` / `finally` / 稳定后对齐器）都必须在**生产导航链路集成测试**中被观察到经统一入口（TD-7） | R12-A / R12-B |
+| **A21**（v2.3） | **三种触发源各自的代际校验规则必须被分别验证**：`snapshotFlow` 记 `genBasis=observed-at-emit`；`finally` 记 `captured-at-begin`；对齐器记 `captured-at-start`；**不得**为 `snapshotFlow` 伪造 `genExpected`（§6.3.6） | 全部 |
+| **A22**（v2.3） | **等待与退出规则统一**：未落定（`isScrollInProgress` 或 `currentPage != settledPage`）时**继续等待**、**不得**退出、**不得**写入；只有代际失效 / 超时 / scope 取消才退出，且退出原因与 §6.3.6.4 一致 | R6 / R7 / R12-A / R12-B |
+| **A23**（v2.3） | **R12 必须覆盖两个分支**：瞬时滚动（`scrollToPage`）与正常动画取消（`animateScrollToPage`）**两个独立场景都要跑**，且都必须在 L3 中执行 | R12-A / R12-B |
+| **A24**（v2.3） | **等价性如实登记**：测试**不能**证明的行为（真实手指抢占时机、真实插值曲线、`settledPage` 真实提交时机、`userDragging` 识别）**必须**逐条列入真机复核清单，**不得**写成「测试已覆盖」（TD-8） | 真机矩阵 §8 |
 
 ---
 
@@ -1175,39 +1207,67 @@ when (action) {
 
 **`userDragging` 的信号来源（未验证，属 F-09 / N-OBS-1）**：候选为 `PagerState.interactionSource` 的拖动状态（`collectIsDraggedAsState`）。本项目 Compose BOM 2024.06 / foundation 版本上**必须先确认该 API 可用**（**以实际编译验证为准**）；不可用则 `observe` 的第 3 条恒为 false → 落到 `UNKNOWN` → `actionFor` 给出 `CONSERVATIVE_COMPENSATE`。此时**行为仍然正确**（补偿性对齐是幂等的），只是失去诊断精度。
 
-#### 要点 2 · 稳定后对齐器（取消路径专属，一次性）
+#### 要点 2 · 稳定后对齐器（取消路径专属，一次性 · **v2.3 统一等待与退出规则**）
+
+> **v2.3 权威版本**：本段伪代码与 §6.3.5.1 的**等待 / 退出状态转移表**、§6.3.6.4 的**退出原因表**必须逐字一致。
+> v2.2 的伪代码在发现不稳定时**直接 `return`**，与正文「继续等待」矛盾 —— **v2.3 已改正**（这是 GPT v2.3 OBS2-04 点名的问题）。
 
 ```kotlin
-// ui/AppNav.kt  新增
+// ui/AppNav.kt  新增（v2.3）
 fun startSettleAligner(gen0: Long) {
     tabScope.launch {
-        // 1) 等 Pager 静止
-        snapshotFlow { pagerState.isScrollInProgress }.first { !it }
-        // 2) 等「当前页 == 稳定页」——这一步同时挡住 S8 与 S10
-        snapshotFlow { pagerState.currentPage == pagerState.settledPage }.first { it }
-        // 3) 代际校验（v2 新增，§6.3）：过期即失效，不得写入
-        if (scrollGeneration.current != gen0) {
-            PerfProbe.a5("alignSkip", index, seq, "stale-generation")
+        // ── 第 1 段：等 Pager 落定（未落定 = 继续等，不是退出）──
+        val settled = withTimeoutOrNull(SETTLE_TIMEOUT_MS) {
+            snapshotFlow {
+                Triple(pagerState.isScrollInProgress, pagerState.currentPage, pagerState.settledPage)
+            }.first { (scrolling, current, settled) -> !scrolling && current == settled }
+            true
+        } ?: false
+
+        // ── 第 2 段：退出原因判定（顺序固定）──
+        if (!currentCoroutineContext().isActive) {
+            PerfProbe.a5("alignSkip", index, seq, "scope-cancelled")   // EX-4
             return@launch
         }
-        // 4) 再等一次静止（防止第 2 步与第 5 步之间又被手势打断）
-        if (pagerState.isScrollInProgress) return@launch
-        // 5) 幂等对齐（唯一入口，§6.4）
+        val genNow = scrollGeneration.value
+        if (genNow.value != gen0) {
+            // 来源决定原因：手势接管 / 新导航接管 / 来源不可判定
+            val reason = when (genNow.source) {
+                GenSource.GESTURE    -> "gesture-takeover"           // EX-1
+                GenSource.PROGRAMMATIC -> "superseded"               // EX-2
+                else                 -> "stale-generation"          // EX-3
+            }
+            PerfProbe.a5("alignSkip", index, seq, reason)
+            return@launch
+        }
+        if (!settled) {
+            PerfProbe.a5("alignSkip", index, seq, "settle-timeout")    // EX-5
+            return@launch
+        }
+
+        // ── 第 3 段：幂等对齐（唯一入口，§6.4）──
+        // 幂等短路、稳定性复验、代际复验都由入口内统一判定（§6.4.2）
         commitRouteFromPager(pagerState.settledPage, source = "settle")
     }
 }
 ```
 
-**为什么第 2 步不可省**：
+**为什么第 1 段不可省（且必须写成「等待」而不是「检查」）**：
 
-- S8（手势刚结束）：`isScrollInProgress` 已 false，但 `currentPage` 可能还在回弹途中 → `currentPage != settledPage` → 继续等；
-- S10（未稳定窗口）：同样 `currentPage != settledPage` → 继续等；
-- 只有 `currentPage == settledPage` 时，Pager 才**真的**停在某一页上，这时对齐才是有意义的。
+- S8（手势刚结束）：`isScrollInProgress` 已 false，但 `currentPage` 可能还在回弹途中 → `currentPage != settledPage` → **继续等**；
+- S10（未稳定窗口）：同样 `currentPage != settledPage` → **继续等**；
+- 只有 `currentPage == settledPage` 时，Pager 才**真的**停在某一页上，这时对齐才有意义；
+- **不能**因为「现在还没落定」就退出 —— 那正是 v2.2 的错误，会在用户滑动过程中放弃对齐 → **路由滞留**。
 
-**为什么第 3 步不可省**：第 2 步与第 5 步之间，用户可能又发起新手势或点了别的 tab。没有代际校验时，旧对齐器会在新动作之后补一次对齐，把路由拉回旧页 —— 这正是 §4.11 的 R1 / R2 要防的中间态错误写入。
+**为什么第 2 段的顺序固定**：
 
-**为什么第 4 步不可省**：第 2 步与第 5 步之间，用户可能又发起新手势。补一次静止检查，避免「刚稳定就又被拖走」的竞态。
+① **先查 scope**：作用域已取消时，派发任何任务都是泄漏（OW-6）；
+② **再查代际**：第 1 段可能等了很久，期间可能发生新手势 / 新导航 → 旧对齐器必须失效（OW-4）；
+③ **最后才判超时**：`settle-timeout` 意味着「等够了但没落定」，它**不解释**为什么没落定 —— 只有在前两项都正常时，它才是准确的原因。
 
+**为什么超时后不写**：等待超时的含义是「**没能确定** Pager 停在哪儿」；此时写任何值都是**猜**。放弃（不写）比写错好（§6.3.5.2）。
+
+> **测试中的确定性**：`withTimeoutOrNull` 在 `TestDispatcher` 上是**虚拟超时** —— 推进虚拟时间即可确定地触发，不依赖真实时间（满足 TD-3 / TD-4）。`SETTLE_TIMEOUT_MS` 在测试中可被**测试调度器**驱动，不需要 `Thread.sleep`。
 #### 要点 3 · 决策抽成纯函数（便于单测与变异验证）
 
 决策分成**两个纯函数**，分别对应两条写入路径：
@@ -1342,49 +1402,129 @@ v1 说「把对齐权交给稳定后对齐器」，但没写清**谁**有权启�
 | R8 / R9 token 归属 | OW-1（不越权） | 旧 token 无 `align` |
 | R10 重复触发 | OW-8 + OW-9 | 恰好一次写入 |
 
-### 6.3.5 `CONSERVATIVE_COMPENSATE` 的安全边界与退出条件（v2.2 · GPT v2.2 OBS2-02）
+### 6.3.5 `CONSERVATIVE_COMPENSATE` 的安全边界与退出条件（v2.2 起 · **v2.3 统一等待与退出规则**）
 
-**为什么单独一节**：`UNKNOWN` 的补偿是**「没看清原因也要兜住」**的路径。它比手势补偿更不确定，因此**必须**把「它能做什么、不能做什么、什么时候必须退出」写成**可检查的规则**，而不是一句「保守处理」。
+**为什么统一（GPT v2.3 OBS2-04）**：v2.2 的正文写「Pager 不稳定时**继续等待**，超过上限则放弃」，而 §6.2 要点 2 的伪代码却在发现不稳定时**直接 `return`**，R6 / R7 / R12 的期望又各自不同 —— 三者互相矛盾。**v2.3 以本节为唯一权威**：正文的等待语义、伪代码、§4.11 各场景的期望日志、§7.4 的测试断言**必须逐字一致**。
 
-**边界一 · 补偿路径必须逐条过完全部安全检查（与 `GESTURE_COMPENSATE` 同等，不得放宽）**：
+#### 6.3.5.1 边界一 · **等待与退出的统一状态转移表**（唯一权威）
+
+| 条件 | 是否继续等待 | 是否允许提交 | 退出原因 |
+|---|---|---|---|
+| **Pager 正在滚动**（`isScrollInProgress == true`） | **是**（继续等落定，受等待上限约束） | 否 | 超限 → `settle-timeout` |
+| **`currentPage != settledPage`** | **是**（继续等落定，受等待上限约束） | 否 | 超限 → `settle-timeout` |
+| **generation 失效**（`gen.value != gen0`） | **否** | 否 | `stale-generation`（来源不可判定时）／`gesture-takeover`（`GenSource == GESTURE`）／`superseded`（`GenSource == PROGRAMMATIC`） |
+| **新手势接管**（代际已推进，来源 = `GESTURE`） | **否** | 否 | `gesture-takeover` |
+| **新导航接管**（代际已推进，来源 = `PROGRAMMATIC`） | **否** | 否 | `superseded` |
+| **等待超时**（上限内始终未落定） | **否** | 否 | `settle-timeout` |
+| **scope 取消**（`isActive == false`） | **否** | 否 | `scope-cancelled` |
+
+> **读法**：**「未落定」不是退出条件，是等待条件**；**「代际失效 / 超时 / scope 取消」才是退出条件**。
+> v2.2 把「发现未稳定」直接当作退出（`alignSkip=not-stable`）是**语义错误** —— 它会把「用户还在滑动」误判成「放弃对齐」，从而**制造路由滞留**。v2.3 改为**继续等待**，只有达到等待上限才放弃（`settle-timeout`）。
+
+#### 6.3.5.2 等待上限
+
+| 项 | 规定 |
+|---|---|
+| 语义 | 「等 Pager 落定」的**最大等待时长**；超过即放弃（`settle-timeout`） |
+| 取值 | **实施时确定**（建议不短于一次完整吸附动画时长）；本轮**只定规则不定数值** |
+| 测试中的确定 | 由**测试调度器**的虚拟时间驱动 → `withTimeoutOrNull` 在 `TestDispatcher` 上是**虚拟超时**，**完全确定**、不依赖真实时间（满足 TD-3 / TD-4） |
+| 放弃 vs 写错 | **放弃永远优于写错**：等待超时后**不得**写入任何值 |
+
+#### 6.3.5.3 边界二 · 补偿路径必须逐条过完全部安全检查（与 `GESTURE_COMPENSATE` 同等，不得放宽）
 
 | 序 | 检查 | 不满足时的动作 | 依据 |
 |---|---|---|---|
-| 1 | **等 Pager 稳定**：必须等到 `!isScrollInProgress` | 继续等待，**不得**写入 | OW-7 |
-| 2 | **查 `currentPage` / `settledPage`**：必须 `currentPage == settledPage` | 继续等待，**不得**写入 | OW-7 / C3 / C4 |
-| 3 | **查 generation**：写入前必须 `scrollGeneration.current == gen0` | 记 `A5/alignSkip=…:stale-generation` 并**立即退出** | OW-4 / C5 |
+| 1 | **等 Pager 落定**：必须同时满足 `!isScrollInProgress` **且** `currentPage == settledPage` | **继续等待**（不是退出）；超时则 `settle-timeout` | OW-7 / §6.3.5.1 |
+| 2 | **查 `currentPage` / `settledPage`**：同上（与 1 是同一条件的两面） | 同上 | OW-7 / C3 / C4 |
+| 3 | **查 generation**：写入前必须 `scrollGeneration.value == gen0` | 记 `alignSkip=<退出原因>` 并**立即退出** | OW-4 / C5 / §6.3.6.4 |
 | 4 | **经统一入口**：写入必须走 `commitRouteFromPager(landed, "settle")` | 视为实现缺陷（**评审阻断项**） | §6.4 / α-1 / α-2 |
-| 5 | **保留幂等**：入口内仍比较当前路由页，相同则不写 | 不写（记 `A5/alignSkip=…:idem`） | OW-9 / α-3 |
+| 5 | **保留幂等**：入口内仍比较当前路由页，相同则不写 | 不写（记 `alignSkip=idem`，**合法短路**） | OW-9 / α-3 |
 | 6 | **不得写中间页**：落定的目标必须是 `settledPage`，**不是** `currentPage` | 视为实现缺陷 | OW-7 / RL-1 |
 | 7 | **不得写非落定值**：补偿写入**不得**引入任何未经 `settledPage` 证实的页码 | 视为实现缺陷 | §3.7 |
 
-> **检查 1~3 缺一不可**：任何一项不满足时，补偿对齐器的正确动作是「**继续等**或**退出**」，**绝不是**「写一个看起来合理的值」。
+> **检查 1~2 是「等待」而非「拒绝」**：不满足时正确动作是**继续等**，**绝不是**「写一个看起来合理的值」，也**不是**「立刻放弃」。只有**检查 3** 才是真正的立即退出条件。
 
-**边界二 · 退出条件（满足任一即退出，且不得写入）**：
+#### 6.3.5.4 边界三 · 退出条件清单（与 §6.3.6.4 同一张表，**两处必须一致**）
 
 | 编号 | 退出条件 | 触发时机 | 退出后的动作 | 依据 |
 |---|---|---|---|---|
-| **EX-1** | **新用户手势接管**：检测到 `userDragging` 由 false→true | 代际推进点 ② | 旧补偿对齐器**立即失效**（代际已变） | OW-3 / OW-4 / §6.3.3 |
-| **EX-2** | **新导航接管**：新的程序化滚动开始（`tabGuard.begin` 之后 `gen++`） | 代际推进点 ① | 旧补偿对齐器**立即失效** | OW-3 / OW-4 |
-| **EX-3** | **代际过期**：写入前比对发现 `scrollGeneration.current != gen0` | 写入前检查 3 | 记 `stale-generation` 并退出 | OW-4 |
-| **EX-4** | **作用域消失**：`tabScope` 被取消 | 协程取消 | **不写、不派发**；不得在已取消的作用域里启动任何任务 | OW-5 / OW-6 |
-| **EX-5** | **Pager 再次不稳定**：等待期间 `isScrollInProgress` 变 true 或 `currentPage != settledPage` | 等待循环 | 继续等待；**等待超过实现定义的上限则放弃**（放弃比写错好） | OW-7 / OW-8 |
-| **EX-6** | **幂等命中**：当前路由已等于 `settledPage` | 写入前检查 5 | 不写（记 `idem`） | OW-9 |
-| **EX-7** | **已有更新的写入发生**：本补偿写入之前，路由已被**新代际**写入 | 统一入口内 | 不写（幂等或代际失效） | OW-4 / OW-9 |
+| **EX-1** | **新用户手势接管** | 代际推进点 ② | 旧补偿对齐器**立即失效** | OW-3 / OW-4 / §6.3.6 |
+| **EX-2** | **新导航接管** | 代际推进点 ① | 旧补偿对齐器**立即失效** | OW-3 / OW-4 |
+| **EX-3** | **代际过期**（来源不可判定） | 写入前检查 3 | 记 `stale-generation` 并退出 | OW-4 |
+| **EX-4** | **作用域消失** | 协程取消 | **不写、不派发** | OW-5 / OW-6 |
+| **EX-5** | **等待落定超时** | 等待循环达上限 | 记 `settle-timeout` 并退出 | OW-7 / §6.3.5.2 |
+| **EX-6** | **幂等命中** | 入口内判定 | 不写（记 `idem`） | OW-9 |
+| **EX-7** | **已有更新的写入发生** | 统一入口内 | 不写（幂等或代际失效） | OW-4 / OW-9 |
 
 > **EX-1 / EX-2 与 EX-3 是同一件事的两个入口**：新意图一律通过**代际推进**让旧对齐器失效；因此**代际是唯一的失效通道**，`effectiveAction` 的取值**不参与**失效判断。
 > **退出必须是「安静地退出」**：记一条 `A5/alignSkip=…:<reason>` 即可，**不得**写路由、**不得**抛异常、**不得**留下后台任务。
-**边界三 · `CONSERVATIVE_COMPENSATE` 能保证什么、不能保证什么（F-09 不可用时的如实声明 · OBS2-05）**：
+
+#### 6.3.5.5 边界四 · `CONSERVATIVE_COMPENSATE` 能保证什么、不能保证什么（F-09 不可用时的如实声明 · OBS2-05）
 
 | 情形 | **能**保证 | **不能**保证 |
 |---|---|---|
-| F-09 **通过**（`userDragging` 可用） | `observedCause` 能区分 `GESTURE` / `SUPERSEDED` / `SCOPE` / `UNKNOWN`；补偿路径与手势路径**同权**；代际在「用户再次手势」时**也能**推进 | 不能保证「识别出的手势原因一定正确」（信号误报仍可能） |
-| F-09 **不通过**（`userDragging` 不可用） | `observedCause` 退化为 `UNKNOWN`（如实记录）；`effectiveAction` 恒为 `CONSERVATIVE_COMPENSATE`；**补偿路径照常执行全部 7 项安全检查**；路由**不会**因为「认不出原因」而滞留 | **不能**区分「手势接管」与「其他未知原因」；**不能**在日志里给出 `cause=gesture`；代际只能在**新程序化滚动**时推进 → **「用户再次手势」这条失效通道失效**，安全性退化为依赖 OW-7 双条件（此即 **F-10** 待真机复核的内容） |
+| F-09 **通过**（`userDragging` 可用） | `observedCause` 能区分 `GESTURE` / `SUPERSEDED` / `SCOPE` / `UNKNOWN`；补偿路径与手势路径**同权**；代际在「用户再次手势」时**也能**推进；退出原因可区分 `gesture-takeover` / `superseded` | 不能保证「识别出的手势原因一定正确」（信号误报仍可能） |
+| F-09 **不通过**（`userDragging` 不可用） | `observedCause` 退化为 `UNKNOWN`（如实记录）；`effectiveAction` 恒为 `CONSERVATIVE_COMPENSATE`；**补偿路径照常执行全部 7 项安全检查**；路由**不会**因为「认不出原因」而滞留 | **不能**区分「手势接管」与「其他未知原因」；**不能**在日志里给出 `cause=gesture`；**不能**产生 `GenSource.GESTURE` → 「用户再次手势」这条失效通道失效（安全性退化为依赖 OW-7 双条件）；退出原因**无法**区分 `gesture-takeover`（此即 **F-10** 待真机复核的内容） |
 
 > **本节不关闭 F-09 / A-02 / F-10**：F-09 仍是 🔵 待取证（**编译验证**级别），A-02 仍是 ⚪ 待产品决策，F-10 仍是 🔵 待取证（**真机**级别）。
 > **A-02 的问题原样保留**：「若 F-09 不可用，是否接受『代际只在程序化滚动时推进』的降级？还是把它升级为**实施前置条件**？」—— 本设计**不替产品决策**，只如实登记该降级的能力边界。
 > **本节的拆分不依赖 F-09 的结论**：无论 F-09 通过与否，`observedCause` / `effectiveAction` 的两段式结构、7 项安全检查、7 条退出条件**完全相同**。
+### 6.3.6 三种触发源各自的 generation 校验规则（v2.3 · GPT v2.3 OBS2-05）
 
+**为什么必须拆开写**：v2.2 的 W-4 / W-5 把 `genExpected` 与 `gen0` 套用在**全部**提交上。但 `snapshotFlow` 是**持续观察来源**，它**并不对应**某个「对齐器启动时捕获的 `gen0`」—— 把对齐器的代际语义套到它身上，是**制造不存在的 generation 关系**。v2.3 为三个触发源**分别**定义代际的来源、读取时刻、失效条件、提交前复验、拦截手段与记录方式。
+
+#### 6.3.6.1 三个触发源的对照表
+
+| 维度 | ① `snapshotFlow` 回写 | ② 正常滚动 `finally` | ③ 稳定后对齐器 |
+|---|---|---|---|
+| **1 · generation 从哪里获取** | **不预捕获**。每次发射时读取当前 `scrollGeneration.value`（**观测代际**） | 滚动**开始**时捕获 `gen0 = scrollGeneration.value` | 对齐器**启动**时捕获 `gen0 = scrollGeneration.value` |
+| **2 · 在哪个时刻读取** | 发射瞬间（进入回写处理之前） | 捕获于**滚动开始**；**校验于 `finally` 恢复时** | 捕获于**启动时刻**；**校验于写入前** |
+| **3 · 哪些变化会使其失效** | 观测之后发生的**任何**代际推进（新导航 / 新手势） | 代际推进（新导航 / 新手势） | 同左 |
+| **4 · 提交前如何再次校验** | 提交前**重读** `scrollGeneration.value`，与**观测瞬间**的值比对；不等 → **跳过本次回写**（不写） | `scrollGeneration.value != gen0` → 失效 → **不写** | `scrollGeneration.value != gen0` → 失效 → **不写** |
+| **5 · 如何阻止旧 generation 写入** | 观测与提交之间代际变了 → 该页是**旧观测**（通常是过渡页）→ 跳过；与既有 `guardIgnore` 中间页拦截**并存** | 代际校验不通过 → 记 `alignSkip=stale-generation`（或 `gesture-takeover` / `superseded`）→ **不写** | 同左 |
+| **6 · 如何记录提交时的 generation 和校验依据** | `Route/commit=<idx>:snapshot gen=<v> genSrc=<src> genBasis=observed-at-emit` | `Route/commit=<idx>:finally gen=<v> genSrc=<src> genBasis=captured-at-begin` | `Route/commit=<idx>:settle gen=<v> genSrc=<src> genBasis=captured-at-start` |
+
+#### 6.3.6.2 三条必须写清的区别
+
+1. **`snapshotFlow` 没有「启动时捕获的 gen0」**。它是**观察者**，不是「意图」。它的合法性判据是「**我观测到的那个代际，到我提交时还是不是当前代际**」，而不是「我启动时的代际还等不等于现在」。
+2. **`finally` 的 `gen0` 必须捕获于滚动开始**，不能捕获于 `finally` 时刻 —— 否则「在 `finally` 之前发生的新意图」会被误当成「自己的代际」，代际校验将永远通过。
+3. **对齐器的 `gen0` 捕获于启动时刻**，与 `finally` 的捕获点**不同** —— 这正是 R1 / R2 能被区分对待的原因。
+
+> **禁止**：为了统一测试字段而给 `snapshotFlow` **伪造**一个 `genExpected`。它的字段名必须如实反映取值点（`genBasis=observed-at-emit`）。
+
+#### 6.3.6.3 代际来源（`GenSource`）与退出原因
+
+| `GenSource` | 何时产生 | 说明 |
+|---|---|---|
+| `PROGRAMMATIC` | 新程序化滚动开始（`tabGuard.begin` 之后 `gen++`） | 新**导航**意图 |
+| `GESTURE` | 检测到用户手势接管（`userDragging` 由 false→true） | 新**用户**意图 |
+| `NONE` | 初始值 / 对齐器自身写入 | 不推进 |
+
+代际值之外必须**同时记录来源**，否则退出原因无法区分（见 §6.3.6.4）。
+
+#### 6.3.6.4 退出原因的完整表（**正文 / 伪代码 / 测试必须逐字一致**）
+
+| 退出原因 | 含义 | 触发条件 | 是否写路由 |
+|---|---|---|---|
+| `stale-generation` | 代际已推进且**来源不可判定** | `gen.value != gen0` 且 `gen.source ∉ {GESTURE, PROGRAMMATIC}` | 否 |
+| `gesture-takeover` | **用户手势接管** | `gen.value != gen0` 且 `gen.source == GESTURE` | 否 |
+| `superseded` | **新程序化导航接管** | `gen.value != gen0` 且 `gen.source == PROGRAMMATIC` | 否 |
+| `settle-timeout` | 等待落定**超时**（上限内始终未落定） | 等待循环达到实现定义的上限 | 否 |
+| `scope-cancelled` | 协程作用域被取消 | `isActive == false` | 否 |
+| `not-owned` | 启动时守卫所有权已失效 | 启动前 `end(token) == false` | 否 |
+| `idem` | **幂等短路**（目标页 == 当前路由页） | 入口内判定 | 否（**合法**短路） |
+| ~~`not-stable`~~ | **不再是退出原因** —— 未落定是「**继续等待**」（§6.3.5 边界一），降级为等待期的**诊断事件** | —— | —— |
+
+> **`not-stable` 的降级说明**：v2.2 用 `alignSkip=not-stable` 表示「发现未稳定 → 立即退出」。v2.3 统一为「**继续等待**」，因此它不再是退出原因；R6 的期望日志随之改写（§4.11 R6）。
+
+#### 6.3.6.5 降级情形（F-09 不可用）
+
+若 `userDragging` 信号不可用（**F-09 未通过**）：
+
+- 代际**只能在** `PROGRAMMATIC` 处推进 → **不会**产生 `GESTURE` 来源；
+- 因此「用户再次手势接管」**不会**使旧对齐器失效 → 安全性退化为依赖 **OW-7 双条件**（落定检查）；
+- 退出原因**无法**区分 `gesture-takeover` → 手势接管场景的退出原因会被记为 `superseded` 或 `stale-generation`；
+- **此降级情形必须由 F-10 真机复核覆盖**，并在报告中如实写明用的是哪种来源。
 ### 6.4 唯一的路由写入口 `commitRouteFromPager()`（v2 新增，GPT §4.3）
 
 #### 6.4.1 现状的问题
@@ -1485,6 +1625,86 @@ fun commitRouteFromPager(landed: Int, source: String) {
 | CB-4 | 统一入口**不得**在幂等短路时**跳过打点**的对齐语义（见 §6.6.3 的双打点约定） | 会改变 `Route/align` 的历史语义，破坏 R10 证据可比对 |
 | CB-5 | 任何调用点**不得**绕过统一入口直调 `viewModel.selectMain` | 否则幂等判断与打点口径再次分裂（α-3 的前提） |
 | CB-6 | 统一入口**不得**新增第二个路由真相源（例如把「已对齐页」缓存进 `remember`） | 违反 N9 / α-5 |
+### 6.4.5 生产导航链路的最小可测试性改造（v2.3 · GPT v2.3 OBS2-02 · **只描述方案，本轮不改代码**）
+
+#### 6.4.5.1 为什么必须改造
+
+v2.2 的测试把「是否经过统一入口」当成**前提**而不是**被测对象**：它给 `SettleAligner` 注入一个 `commit` 函数，然后在测试里断言「这个注入函数被调用了」。这**无法回答**「生产代码里，那三个触发源**是不是真的**都走了 `commitRouteFromPager()`」。
+
+要回答这个问题，**生产代码必须能自证**：入口在做出判定的**那一刻**，把它**真实的判定结果**报出来。
+
+#### 6.4.5.2 四个改造点
+
+| 改造点 | 目的 | 形态 | 对业务判定的影响 | 对生产的开销 |
+|---|---|---|---|---|
+| **P1 审计钩子** `RouteAuditSink` | 让集成测试观察到统一入口的**真实判定结果** | 生产代码内一个 `internal` 空实现钩子（默认 no-op），入口在各判定点**只旁路上报** | **零** —— 不参与判定、不返回任何判定结果 | 每次入口调用一次空接口调用（可被内联折叠） |
+| **P2 手势信号注入** `GestureSignal` | 让集成测试能注入「用户手势接管」而不依赖真实手指 | 生产从 `PagerState.interactionSource` 派生；测试直接触发 | **零** —— 信号源可替换，判定不变 | 一次状态读取 |
+| **P3 代际来源** `GenSource` | 让退出原因能区分 `gesture-takeover` / `superseded` | `scrollGeneration` 由 `Long` 改为 `(value, source)` | **零** —— 只增元数据，推进点不变 | 一次结构体写 |
+| **P4 路由状态可观察** | 让记录器能**独立**捕获状态变化（而非入口自报） | `viewModel.page` 已是 `StateFlow` → **无需改造** | — | — |
+
+#### 6.4.5.3 P1 的接口形态（草图，**不进入本轮实现**）
+
+```kotlin
+// ui/AppNav.kt（或新文件 ui/RouteAuditSink.kt）
+/**
+ * 路由写入审计钩子：**只上报，不参与判定**。
+ *
+ * 生产环境为 no-op 实现；测试环境注入记录实现。
+ * 契约：
+ *  1. 钩子的返回值一律为 Unit —— 它**不得**回答「是否允许写入」；
+ *  2. 钩子**不得**读取被测状态来补充事件（那等于伪造）；
+ *  3. 钩子事件必须携带**生产代码当时读到的真实值**。
+ */
+internal interface RouteAuditSink {
+    fun onEntryInvoked(source: String, targetIndex: Int, gen: Long, genSource: GenSource, genBasis: String)
+    fun onCommitAttempt(targetIndex: Int, routeBefore: AppPage, routeAfter: AppPage, stable: Boolean, currentPage: Int, settledPage: Int, gen: Long, genValid: Boolean)
+    fun onCommitAccepted(targetIndex: Int, gen: Long, genSource: GenSource, genBasis: String)
+    fun onCommitSkipped(reason: String)
+}
+
+internal object NoopRouteAuditSink : RouteAuditSink {
+    override fun onEntryInvoked(source: String, targetIndex: Int, gen: Long, genSource: GenSource, genBasis: String) = Unit
+    override fun onCommitAttempt(targetIndex: Int, routeBefore: AppPage, routeAfter: AppPage, stable: Boolean, currentPage: Int, settledPage: Int, gen: Long, genValid: Boolean) = Unit
+    override fun onCommitAccepted(targetIndex: Int, gen: Long, genSource: GenSource, genBasis: String) = Unit
+    override fun onCommitSkipped(reason: String) = Unit
+}
+```
+
+**入口内的用法**（示意）：
+
+```kotlin
+fun commitRouteFromPager(landed: Int, source: String) {
+    val gen = scrollGeneration.value
+    audit.onEntryInvoked(source, landed, gen.value, gen.source, gen.basisFor(source))
+    val page = MAIN_PAGES.getOrNull(landed) ?: run { audit.onCommitSkipped("no-page"); return }
+    if (source == "finally" || source == "settle") {
+        PerfProbe.event("Route/align=$landed:$source")
+    }
+    val current = AppPage.mainOf(viewModel.page.value)
+    if (current == page) { audit.onCommitSkipped("idem"); return }        // 幂等短路（契约 1）
+    audit.onCommitAttempt(landed, current, page, stable = pagerIsSettled(), currentPage = ..., settledPage = ..., gen = gen.value, genValid = genStillValid(gen))
+    if (!genStillValid(gen)) { audit.onCommitSkipped("stale-generation"); return }   // 代际校验
+    if (!pagerIsSettled()) { audit.onCommitSkipped("not-stable"); return }          // 稳定性校验
+    audit.onCommitAccepted(landed, gen.value, gen.source, gen.basisFor(source))
+    viewModel.selectMain(page)                                  // 契约 2：只写路由
+}
+```
+
+> 注意：**审计钩子的调用点在判定前后各一次**，因此「被拒绝」与「被接受」都能如实上报；而**状态是否真的变了**，由测试侧独立观察路由状态流判定（§7.4.3 的 C-b 通道），**不由钩子自报**。
+
+#### 6.4.5.4 三条纪律
+
+1. **钩子不参与判定**：不得出现「钩子返回 false 就不写」这类写法；
+2. **钩子不补充事实**：不得让钩子去读别处状态「凑」出一个事件；
+3. **生产默认 no-op**：生产环境不注入实现 → 零行为差异、零额外持久化、**不进备份**（来源标记只进打点，契约 4 不变）。
+
+#### 6.4.5.5 若不批准 P1
+
+则**生产导航链路集成测试（L3）无法成立** —— 因为「是否经过统一入口」将**不可观测**。此时：
+
+- 不得用「替身自报」的方式凑一个 L3（那正是 v2.2 的缺陷）；
+- 必须把「L3 不可成立」**登记为新的未决项**（本轮先按 `A-04` 占位，见未决清单 §1.3）；
+- R12 的验收依据将退化为「日志核对」（弱验证），且**必须在报告中如实标注**。
 ### 6.5 `ScrollAlignPolicy` 纯函数（与 §6.2 要点 3 同源）
 
 见 §6.2 要点 3。三个纯函数构成**全部**的决策点：
@@ -1563,18 +1783,23 @@ fun commitRouteFromPager(landed: Int, source: String) {
 > 唯一的「位置调整」是把 `Route/align` 从 `alignRouteToPager` 挪进统一入口，**打点相对幂等判断的先后顺序保持不变**（仍在短路之前）。
 > 唯一的新增是 `Route/selectMain` 现在**也会**在 finally / settle 路径出现 —— 这是**覆盖面扩大**，不是语义改变。
 
-#### 6.6.3 v2.2 打点格式定稿
+#### 6.6.3 v2.3 打点格式定稿
 
 | 打点 | 格式 | 发出时机 | 回答的问题 |
 |---|---|---|---|
 | `A5/scrollFinally` | `A5/scrollFinally=<idx>#<seq> aligned=<bool> owned=<bool> cause=<observedCause> act=<effectiveAction> stable=<bool> settledMatch=<bool>` | 每次程序化滚动收尾（finally） | C1 + C2 + **C7** + C3 + C4 |
-| `A5/scrollCancel` | `A5/scrollCancel=<idx>#<seq>:<observedCause> act=<effectiveAction>` | 捕获 `CancellationException` 时 | **观测到的取消原因**（`observedCause`）与**将要采取的动作**（`effectiveAction`） |
-| `A5/alignSkip` | `A5/alignSkip=<idx>#<seq>:<reason>` | 对齐器判定为不许写时 | 为什么没写 |
-| `A5/gen` | `A5/gen=<value>` | 代际推进时 | 代际推进点是否生效 |
-| `A5/alignCommit` | `A5/alignCommit=<idx>#<seq> gen=<n> genValid=<bool> act=<effectiveAction>` | 对齐器通过全部检查、即将写入 | C5 的判定结果 + 本次写入由哪种动作触发 |
+| `A5/scrollCancel` | `A5/scrollCancel=<idx>#<seq>:<observedCause> act=<effectiveAction>` | 捕获 `CancellationException` 时 | **观测到的取消原因**与**将要采取的动作** |
+| `A5/alignSkip` | `A5/alignSkip=<idx>#<seq>:<reason>` | 对齐器判定为不许写时 | 为什么没写（**v2.3 原因表见下**） |
+| `A5/gen` | `A5/gen=<value> src=<genSource>`，代际推进时发一条 | 代际推进时 | 代际推进点是否生效 + **推进来源** |
+| `A5/alignCommit` | `A5/alignCommit=<idx>#<seq> gen=<n> genSrc=<src> genBasis=<basis> genValid=<bool> act=<effectiveAction>` | 对齐器通过全部检查、即将写入 | C5 的判定结果 + 本次写入由哪种动作触发 |
 | `Route/align` | `Route/align=<idx>:<src>`（`src` ∈ `finally` / `settle`） | **对齐调用**发生（幂等短路之前） | 对齐调用了几次、目标是谁 |
 | `Route/selectMain` | `Route/selectMain=<AppPage>` | 路由**确实会被写** | 路由提交了几次 |
-| `Route/commit` | `Route/commit=<idx>:<src>`（`src` ∈ `finally` / `settle` / `snapshot`） | 路由**确实会被写** | 统一入口提交了几次、从哪个来源 |
+| `Route/commit` | `Route/commit=<idx>:<src> gen=<n> genSrc=<src> genBasis=<basis>`（`src` ∈ `finally` / `settle` / `snapshot`） | 路由**确实会被写** | 统一入口提交了几次、从哪个来源、**依据哪个代际取值点** |
+| **新增** `A5/entryInvoke` | `A5/entryInvoke=<idx>:<src> gen=<n> genSrc=<src> genBasis=<basis>` | 统一入口**被调用**的那一刻 | **入口调用次数**（与状态变化次数分开统计） |
+| **新增** `A5/commitAttempt` | `A5/commitAttempt=<idx>:<src> gen=<n> genValid=<bool> stable=<bool> current=<c> settled=<s>` | 入口通过参数合法性、进入幂等与安全判定 | **提交尝试次数** + 判定时的真实读数 |
+| **新增** `A5/commitAccepted` | `A5/commitAccepted=<idx>:<src> gen=<n> genSrc=<src> genBasis=<basis>` | 通过全部合法性校验、即将写入 | **被接受**的提交（含其代际依据） |
+| **新增** `A5/commitSkip` | `A5/commitSkip=<idx>:<src>:<reason>` | 因幂等或安全条件被拒 | **被拒绝次数**与原因 |
+| **新增** `A5/stateMutation` | `A5/stateMutation=<from>→<to> gen=<n>` | **由独立状态观察者捕获**（不是入口自报） | **实际状态变化次数**与发生时的代际 |
 
 **`<observedCause>` 取值表（观测事实 · 唯一真源）**：
 
@@ -1596,40 +1821,61 @@ fun commitRouteFromPager(landed: Int, source: String) {
 | `no_align_superseded` | 被取代：不对齐、不派发 | 否 | `superseded` |
 | `no_align_scope` | 作用域取消：不对齐、不派发、不启动任何任务 | 否 | `scope` |
 
-**`<reason>`（`A5/alignSkip`）取值表**：
+**`<reason>`（`A5/alignSkip` / `A5/commitSkip`）取值表（v2.3 重写）**：
 
-| 取值 | 含义 | 对应所有权条款 |
+| 取值 | 含义 | 对应条款 | 是否退出 |
+|---|---|---|---|
+| `stale-generation` | 代际已推进且来源不可判定 | OW-4 / §6.3.6.4 | 是 |
+| `gesture-takeover` | **用户手势接管**（`GenSource == GESTURE`） | EX-1 / OW-4 | 是 |
+| `superseded` | **新程序化导航接管**（`GenSource == PROGRAMMATIC`） | EX-2 / OW-4 | 是 |
+| `settle-timeout` | 等待 Pager 落定**超时** | EX-5 / §6.3.5.2 | 是 |
+| `scope-cancelled` | 作用域已取消，不得派发 | EX-4 / OW-6 | 是 |
+| `not-owned` | 守卫所有权已失效（启动时） | OW-1 | 是（未启动） |
+| `idem` | 幂等：当前路由已等于目标页 | OW-9 | 是（**合法短路**） |
+| `no-page` | 目标索引无对应页面（`MAIN_PAGES.getOrNull` 为 null） | §6.4.2 | 是 |
+| ~~`not-stable`~~ | **不再是退出原因** —— 未落定 = **继续等待**；若需记录，改用 `A5/commitAttempt … stable=false`（诊断事件，不是退出） | §6.3.5.1 | 否 |
+**审计事件与生产日志的对应（v2.3 新增）**：
+
+| 审计事件（§7.4.3） | 生产日志 | 谁产生 |
 |---|---|---|
-| `stale-generation` | 代际已过期 | OW-4 |
-| `not-stable` | Pager 未稳定（`isScrollInProgress` 或 `currentPage != settledPage`） | OW-7 |
-| `not-owned` | 守卫所有权已失效 | OW-1 |
-| `scope` | 作用域已取消，不得派发 | OW-6 |
-| `idem` | 幂等：当前路由已等于目标页 | OW-9 |
+| `EntryInvocation` | `A5/entryInvoke=<idx>:<src> gen=… genSrc=… genBasis=…` | **生产入口**（函数入口处） |
+| `CommitAttempt` | `A5/commitAttempt=<idx>:<src> gen=… genValid=… stable=… current=… settled=…` | **生产入口**（判定前） |
+| `CommitAccepted` | `A5/commitAccepted=<idx>:<src> gen=… genSrc=… genBasis=…` | **生产入口**（判定后） |
+| `CommitSkipped` | `A5/commitSkip=<idx>:<src>:<reason>` | **生产入口**（拒绝分支） |
+| `StateMutation` | `A5/stateMutation=<from>→<to> gen=…` | **独立状态观察者**（订阅路由状态流） |
 
-**统计口径表（防止再次混用）**：
+**统计口径表（防止再次混用 · v2.3 扩为五个写入口径）**：
 
 | 想回答的问题 | **必须**用 |
 |---|---|
 | 本次协程是不是守卫主人？ | `A5/scrollFinally … owned=`（旧脚本可用 `aligned=`） |
 | 本次滚动是不是被取消的？**观测原因**是什么？ | `A5/scrollFinally … cause=` / `A5/scrollCancel=…:<observedCause>` |
 | 这次**实际采取的动作**是什么？ | `A5/scrollFinally … act=` / `A5/scrollCancel=… act=` |
-| Pager 当时稳定了吗？ | `A5/scrollFinally … stable=`（= `!isScrollInProgress && currentPage == settledPage`） |
+| Pager 当时稳定了吗？ | `A5/scrollFinally … stable=` / `A5/commitAttempt … stable=` |
 | 当时是过渡页还是落定页？ | `A5/scrollFinally … settledMatch=` |
-| 对齐器代际还有效吗？ | `A5/alignCommit … genValid=` |
-| 对齐调用发生了几次？ | `Route/align=` |
+| 对齐器代际还有效吗？ | `A5/alignCommit … genValid=` / `A5/commitAttempt … genValid=` |
+| **统一入口被调用了几次？** | `A5/entryInvoke=` 计数（**不是** `Route/align` 计数 —— 后者只在 finally / settle 两条路径打） |
+| **提交尝试了几次？** | `A5/commitAttempt=` 计数 |
+| **被拒绝了几次？** | `A5/commitSkip=` 计数 |
+| **幂等短路了几次？** | `A5/commitSkip=…:idem` 计数 |
+| **路由状态真的变了几次？** | `A5/stateMutation=` 计数（**唯一权威**） |
 | 路由真的被写了几次？ | `Route/selectMain=` 或 `Route/commit=` |
 
-**路由写入历史的可核对来源（v2.2 新增 · 对应 OBS2-04 的真机侧）**：
+**路由写入历史的可核对来源（v2.3 更新 · 对应 OBS2-04）**：
 
 | 要核对的项 | 生产日志来源 |
 |---|---|
-| 每次提交的 **generation** | `A5/alignCommit … gen=`（代际推进见 `A5/gen=`） |
-| 提交**前**的 generation 有效性 | `A5/alignCommit … genValid=` |
-| 提交时的 `currentPage` / `settledPage` | `Route/currentPage=` + `A5/scrollFinally … settledMatch=` |
-| 是否**经统一入口** | `Route/commit=` 与 `Route/selectMain=` **成对出现**（A9） |
-| 最终提交结果 | `Route/selectMain=<AppPage>` |
-| 是否存在**旧 generation 写入** | `A5/alignCommit` 中 `genValid=false` 的条目**必须为零** |
-
+| **统一入口调用次数** | `A5/entryInvoke=` 计数 |
+| **提交尝试次数** | `A5/commitAttempt=` 计数 |
+| **被拒绝 / 幂等短路次数** | `A5/commitSkip=`（按 `reason` 分类） |
+| **实际状态变化次数** | `A5/stateMutation=` 计数 |
+| 每次提交的 **generation** | `A5/commitAccepted … gen=`（推进点见 `A5/gen=`） |
+| 提交**前**的 generation 有效性 | `A5/commitAttempt … genValid=` |
+| 该来源的代际**取值点** | `genBasis=`（`observed-at-emit` / `captured-at-begin` / `captured-at-start`，见 §6.3.6） |
+| 提交时的 `currentPage` / `settledPage` | `A5/commitAttempt … current=… settled=…` |
+| 是否**经统一入口** | `A5/stateMutation` 的每一条都必须能对应到一条 `A5/commitAccepted`（**对应不上 = 绕行**） |
+| 最终提交结果 | `Route/selectMain=<AppPage>` + `A5/stateMutation=<from>→<to>` |
+| 是否存在**旧 generation 写入** | `A5/commitAttempt … genValid=false` 的条目**必须为零** |
 ### 6.7 与 CR-17 红线的关系
 
 CR-17 定的是：「**点 tab 只 `animateScrollToPage`，路由由 `snapshotFlow { currentPage }` 单向回写，禁止双向写**」。
@@ -1721,20 +1967,26 @@ CR-17 定的是：「**点 tab 只 `animateScrollToPage`，路由由 `snapshotFl
 
 新增一条：`begin` 之后 `end(旧 token)` 返回 false 且**不改动任何字段**（已有覆盖则不重复加）。
 
-### 7.4 异步竞态测试的实现方式（GPT §4.4 核心 · v2.2 改为**确定性**竞态测试）
+### 7.4 异步竞态测试的实现方式（GPT §4.4 核心 · v2.3 = **可信度修复**：测试必须能约束生产实现）
 
 §4.11 的 R1–R12 是**跨挂起点的所有权交接**问题，纯函数表驱动（§7.1 / §7.2）只能覆盖「一次判定」，覆盖不了「等待 → 状态变化 → 恢复 → 是否还能写」。
 
-**v2.2 的硬性要求（GPT v2.2 OBS2-03 / OBS2-04）**：
+**v2.3 的核心问题（GPT v2.3 指出）**：v2.2 的测试**大量依赖测试替身自报成功** —— `RouteWriteRecorder` 把 `viaUnifiedEntry` 与 `wrote` **硬编码为 `true`**，于是「W-8 必须经统一入口」与「实际写入」这两条断言**可以无条件通过**。这样的测试**不能约束生产实现**：把生产代码改成绕过统一入口直接 `selectMain()`，测试依然全绿。
+
+**v2.3 的修复方向**：把「谁在说成功」从**测试替身**换成**被测生产代码本身**，并把断言对象从「最终页面」换成**完整事件历史**。
+
+**v2.3 的硬性要求**：
 
 | 编号 | 要求 | 本节落地 |
 |---|---|---|
 | **RT-1** | **确定性**：可重复、不依赖真实时间、不依赖随机等待 | `runTest` + `StandardTestDispatcher` / `UnconfinedTestDispatcher`；**禁止** `Thread.sleep` / `delay(真实时长)` / 随机延时 |
-| **RT-2** | **可控的挂起点** | 每个等待点由测试用 `CompletableDeferred` **显式**放行，不靠「等一会儿」 |
+| **RT-2** | **可控的挂起点** | 每个等待点由测试用 `CompletableDeferred` **显式**放行 |
 | **RT-3** | **可控的 Pager** | `FakePagerProbe` 提供可写的 `currentPage` / `settledPage` / `isScrollInProgress` |
-| **RT-4** | **可追踪的路由提交记录器** | `RouteWriteRecorder` 记录**每一次**提交尝试（§7.4.3） |
-| **RT-5** | **不为制造时序引入生产复杂度** | 测试专用挂起点**只存在于测试代码**；生产代码**不得**为测试新增 `testOnly` 分支、调试钩子或额外状态 |
-| **RT-6** | **断言中间态** | 每个场景断言**提交历史**（不只是最终路由） |
+| **RT-4** | **可追踪的路由提交记录器** | **v2.3 重写**：`RouteAudit` 记录 **5 类事件**（§7.4.3），且**每条事件的字段都来自被测代码的实际上报** |
+| **RT-5** | **不得为制造时序污染生产代码** | 测试专用挂起点**只存在于测试代码**；生产代码**不得**为测试新增 `testOnly` 分支、调试钩子或额外状态 |
+| **RT-6** | **断言中间态** | 每个场景断言**完整事件历史**（不只是最终路由） |
+| **RT-7**（v2.3 新增） | **不得由替身自报成功** | 记录器**没有任何**可由测试直接赋值的「成功」字段；`viaUnifiedEntry` 是**归因结论**而非输入 |
+| **RT-8**（v2.3 新增） | **必须覆盖生产导航链路** | 新增 **L3 生产导航链路集成测试**（§7.4.4），**不得**用 L1 / L2 替代 |
 
 #### 7.4.1 第一步 · 抽出可注入的对齐器宿主
 
@@ -1767,18 +2019,19 @@ internal class SettleAligner(
 | 生产接线 | 测试接线 |
 |---|---|
 | `pager` = 真实 `PagerState` 的适配器 | `pager` = 可变的 fake（测试直接改字段） |
-| `awaitStable` = 两个 `snapshotFlow { }.first { }` | `awaitStable` = 在测试调度器上挂起，直到 `CompletableDeferred` 被放行 |
+| `awaitStable` = 落定等待循环（**v2.3 已按 §6.3.6 统一**，见 §6.2 要点 2） | `awaitStable` = 在测试调度器上挂起，直到 `CompletableDeferred` 被放行 |
 | `currentGeneration` = 读取 `scrollGeneration` | 同样读同一个计数器（fake 与生产共用） |
-| `commit` = `commitRouteFromPager(landed, "settle")` | 记录到 `RouteWriteRecorder`（**中间态断言的抓手**） |
+| `commit` = `commitRouteFromPager(landed, "settle")` | **v2.3：仍注入记录器**，但记录器**只能上报被测代码的结果**，见 §7.4.3 |
 
-> **RT-5 的落实**：`SettleAligner` 的依赖**全部是构造参数**，生产与测试用**同一份实现**，**不需要**在生产代码里加任何测试专用分支。测试专用挂起点（`CompletableDeferred`）只存在于测试源码。
+> **RT-5 的落实**：`SettleAligner` 的依赖**全部是构造参数**，生产与测试用**同一份实现**，**不需要**在生产代码里加任何测试专用分支。
+> **v2.3 补注**：v2.2 的这段宿主伪代码里「发现不稳定就 `return`」与正文「继续等待」**矛盾**（GPT v2.3 OBS2-04）。**权威版本以 §6.2 要点 2 与 §6.3.6 的统一状态转移表为准**，本段将在实施时按其改写；本节保留 v2.2 形态仅为说明「宿主长什么样」。
 #### 7.4.2 第二步 · 确定性调度骨架（TestDispatcher / runTest / 事件屏障）
 
 ```kotlin
 // app/src/test/java/.../SettleAlignerRaceTest.kt
 @Test
-fun R1_对齐器等待期间再次点击Tab_旧对齐器不得写入() = runTest {
-    val recorder = RouteWriteRecorder()
+fun R12A_减少动画_瞬时滚动_旧代际不得写入() = runTest {
+    val audit = RouteAudit()
     val gen = GenerationCounter()
     val pager = FakePagerProbe()
     val stable = CompletableDeferred<Unit>()          // ← 事件屏障：测试显式放行
@@ -1788,141 +2041,388 @@ fun R1_对齐器等待期间再次点击Tab_旧对齐器不得写入() = runTest
         currentGeneration = { gen.value },
         pager = pager,
         awaitStable = { stable.await() },
-        commit = { page, src -> recorder.record(page, src, gen.value, pager, gen0) },
-        onSkip = { recorder.skip(it) }
+        commit = { page, src -> audit.onInjectedCommit(page, src) },   // 仅 L1 使用
+        onSkip = { audit.skip(it) }
     )
-
-    // ① 手势打断 → observedCause=GESTURE → effectiveAction=GESTURE_COMPENSATE → 启动对齐器（捕获 gen0）
-    val gen0 = gen.value
-    backgroundScope.launch { aligner.run(gen0) }
-    testScheduler.advanceUntilIdle()                 // 对齐器停在 stable.await()
-
-    // ② 等待期间再次点击 tab → 新滚动开始 → gen++
-    gen.bump()
-    testScheduler.advanceUntilIdle()
-
-    // ③ 放行「Pager 已稳定」→ 唤醒对齐器
-    stable.complete(Unit)
-    testScheduler.advanceUntilIdle()
-
-    // 中间态断言：旧对齐器**不得**产生任何写入
-    assertTrue(recorder.writes.isEmpty(), "旧对齐器不得写入，实际：${recorder.writes}")
-    assertEquals(listOf("stale-generation"), recorder.skips)
+    ...
 }
 ```
 
 **确定性从哪来**：
 
-| 不确定性来源 | v2.2 的消除方式 |
+| 不确定性来源 | v2.3 的消除方式 |
 |---|---|
 | 「等一会儿让协程跑起来」 | `testScheduler.advanceUntilIdle()` —— 推进到**所有**可推进的任务都跑完，位置**确定** |
 | 「等 Pager 稳定」靠真实时间 | `CompletableDeferred<Unit>` 事件屏障 —— 测试**自己**决定何时稳定 |
-| 「两个 finally 谁先执行」靠运气 | `advanceUntilIdle()` 的推进顺序是**确定的**；需要交错时用两个独立屏障**分别**放行 |
-| 「可能写了几次」 | `RouteWriteRecorder` 记录**全部**提交尝试（含被幂等短路的），断言的是**历史**而不是**终态** |
+| 「两个 finally 谁先执行」靠运气 | `advanceUntilIdle()` 的推进顺序是**确定的**；需要交错时用多个独立屏障**分别**放行 |
+| 「动画进行到哪一步了」靠运气 | 场景 B 用**动画挂起点屏障**（`animationSuspend`）把 `animateScrollToPage` 卡在指定帧序位置 |
+| 「到底写了几次」靠替身自报 | **v2.3**：`RouteAudit` 的状态变化**由独立状态观察者捕获**，不由入口自报（§7.4.3） |
 
 > **TD-3 仍然有效**：虚拟时间测试**不得**使用 `Thread.sleep` / `delay(真实时长)`；一切等待通过 `advanceUntilIdle()` 或显式挂起点。
-#### 7.4.3 第三步 · 可追踪的路由提交记录器（OBS2-04）
 
-**这是 v2.2 新增的核心工具**：把「路由到底被写了几次、每次写的是什么、是不是合法中间态」变成**可断言的历史**。
+#### 7.4.3 第三步 · **v2.3 重写**：可信的路由提交记录器（OBS2-01）
+
+##### 7.4.3.1 v2.2 的缺陷（必须先说清）
+
+v2.2 的 `RouteWriteRecorder` 里有两行：
 
 ```kotlin
-// app/src/test/java/.../RouteWriteRecorder.kt
-internal data class RouteWriteAttempt(
-    val seq: Int,                  // 第几次提交尝试（自增）
-    val page: Int,                 // 写入的目标页
-    val src: String,               // 来源：finally / settle / snapshot
-    val genAtWrite: Long,          // **提交时**的 generation
-    val genExpected: Long,         // 启动时捕获的 generation（gen0）
-    val genValid: Boolean,         // 提交前 generation 是否仍然有效
-    val currentPage: Int,          // 提交时的 currentPage
-    val settledPage: Int,          // 提交时的 settledPage
-    val settledMatch: Boolean,     // currentPage == settledPage
-    val viaUnifiedEntry: Boolean,  // 是否经 commitRouteFromPager
-    val wrote: Boolean             // 是否真的写入（false = 被幂等短路）
+viaUnifiedEntry = true,   // ← 硬编码
+wrote = true,             // ← 硬编码
+```
+
+这两行是**记录器替被测代码宣布成功**。后果：
+
+1. **W-8（必须经统一入口）可以无条件通过** —— 记录器自己说「是的，走了统一入口」；
+2. **实际写入断言可以无条件通过** —— 记录器自己说「是的，状态变了」；
+3. 因此**把生产代码改成绕过统一入口直接 `selectMain()`，测试依然全绿** —— 测试**没有约束生产实现的能力**。
+
+##### 7.4.3.2 v2.3 的五类事件
+
+每类事件的字段**必须来自被测代码的实际上报**，或来自**独立的观察者**；**记录器不得自行赋值**。
+
+```kotlin
+// app/src/test/java/.../RouteAudit.kt
+
+/** ① 统一入口**实际被调用** —— 由生产入口在函数入口处上报。 */
+data class EntryInvocation(
+    val seq: Int,
+    val source: String,            // finally / settle / snapshot
+    val targetIndex: Int,
+    val genValue: Long,            // 调用瞬间读到的代际值
+    val genSource: GenSource,       // 调用瞬间读到的代际来源
+    val genBasis: String            // 取值点说明（见 §6.3.6）
 )
 
-internal class RouteWriteRecorder {
-    val writes = mutableListOf<RouteWriteAttempt>()
-    val skips = mutableListOf<String>()
+/** ② 一次提交尝试 —— 入口通过参数合法性后、进入幂等与安全判定时上报。 */
+data class CommitAttempt(
+    val seq: Int,
+    val entrySeq: Int,              // 关联到哪一次 EntryInvocation
+    val targetIndex: Int,
+    val routeBefore: AppPage,       // 判定前的路由页
+    val routeAfter: AppPage,        // 判定后的路由页（未写入时 == routeBefore）
+    val stable: Boolean,            // Pager 是否落定（生产代码当时的判定）
+    val currentPage: Int,
+    val settledPage: Int,
+    val genValue: Long,
+    val genValid: Boolean,          // 提交前代际是否仍有效
+    val genSource: GenSource
+)
 
-    fun record(page: Int, src: String, gen: Long, pager: PagerProbe, gen0: Long) {
-        writes += RouteWriteAttempt(
-            seq = writes.size + 1,
-            page = page, src = src,
-            genAtWrite = gen, genExpected = gen0,
-            genValid = (gen == gen0),
-            currentPage = pager.currentPage, settledPage = pager.settledPage,
-            settledMatch = pager.currentPage == pager.settledPage,
-            viaUnifiedEntry = true, wrote = true
-        )
-    }
-    fun skip(reason: String) { skips += reason }
+/** ③ 通过合法性校验 → 允许写入。 */
+data class CommitAccepted(
+    val attemptSeq: Int,
+    val targetIndex: Int,
+    val genValue: Long,
+    val genSource: GenSource,
+    val genBasis: String,           // 该来源的代际校验依据（§6.3.6）
+    val stable: Boolean
+)
+
+/** ④ 被拒绝：因幂等短路或安全条件不满足。 */
+data class CommitSkipped(
+    val attemptSeq: Int,
+    val reason: SkipReason          // IDEM / NOT_STABLE / STALE_GENERATION / NOT_OWNED / NO_PAGE
+)
+
+/** ⑤ **实际发生路由状态变化** —— 由**独立观察路由状态流**捕获，不由入口自报。 */
+data class StateMutation(
+    val seq: Int,
+    val from: AppPage,
+    val to: AppPage,
+    val observedAt: Long,            // 观察到的单调序号
+    val genAtMutation: Long          // 发生变更时的代际值（由状态观察者读取）
+)
+```
+
+##### 7.4.3.3 记录器与被测入口如何建立关系
+
+关系由**三条独立通道**构成，缺一条就会出现「替身自证」：
+
+| 通道 | 谁产生 | 内容 | 为什么需要它 |
+|---|---|---|---|
+| **C-a · 生产上报** | **生产代码**在统一入口的各判定点调用审计钩子（§6.4.5 的 **P1**） | ① `EntryInvocation` ② `CommitAttempt` ③ `CommitAccepted` ④ `CommitSkipped` | 只有**生产代码**能权威地说「我做了这个判定」。测试替身无权代答 |
+| **C-b · 状态观察** | **测试**独立订阅路由状态流（`viewModel.page`，已是 `StateFlow`，**无需改造**） | ⑤ `StateMutation` | 捕获**真实发生**的状态变化；**绕行写入同样会被捕获**，这是检测绕行的关键 |
+| **C-c · 归因** | **记录器**用 ①~⑤ 做**交叉核对** | `unattributedMutations` 等派生结论 | 把「状态变了」与「这次变化有统一入口背书」对应起来 |
+
+**归因算法（`RouteAudit` 的核心）**：
+
+```kotlin
+internal class RouteAudit {
+    val entries   = mutableListOf<EntryInvocation>()
+    val attempts  = mutableListOf<CommitAttempt>()
+    val accepted  = mutableListOf<CommitAccepted>()
+    val skipped   = mutableListOf<CommitSkipped>()
+    val mutations = mutableListOf<StateMutation>()
+
+    /**
+     * 未被归因的状态变化：**状态变了，但没有任何一条 CommitAccepted 能背书**。
+     * 这是「绕过统一入口」的**唯一可靠信号** —— 因为它不依赖任何自报字段。
+     */
+    val unattributedMutations: List<StateMutation>
+        get() = mutations.filter { m ->
+            accepted.none { a ->
+                a.targetIndex == m.to.mainIndex && a.genValue == m.genAtMutation
+            }
+        }
+
+    /** 入口调用次数 / 提交尝试次数 / 被拒绝次数 / 幂等短路次数 / 实际状态变化次数 —— 五个口径分开统计 */
+    val entryInvocationCount get() = entries.size
+    val commitAttemptCount   get() = attempts.size
+    val rejectedCount        get() = skipped.size
+    val idempotentSkipCount  get() = skipped.count { it.reason == SkipReason.IDEM }
+    val stateMutationCount   get() = mutations.size
 }
 ```
 
-> **记录器的两个纪律**：
-> ① **只记录，不改变行为** —— 记录器是测试替身，**不得**反过来影响被测逻辑；
-> ② **记录全部尝试**（含被幂等短路与被跳过的），这样「本该写却没写」也能被断言 —— 这正是 A10（未派发的对齐器不得产生 `alignSkip`）的抓手。
-#### 7.4.4 第四步 · **R12 的确定性编排与路由写入历史断言**（OBS2-03 / OBS2-04）
+##### 7.4.3.4 「viaUnifiedEntry」不再是可填字段
 
-**R12 = 取消动画 + 快速点击 + 手势的组合不得导致路由卡死**（§4.11）。
+v2.2 的 `viaUnifiedEntry: Boolean` 是**测试可填的布尔量** —— 这就是伪造入口。v2.3 把它降级为**归因结论**：
 
-| 步骤 | 编排动作（**全部为确定性动作**） | 挂起点 / 屏障 | 状态变化 |
-|---|---|---|---|
-| ① | 初始：`ROUTE=0`，`Pager(current=0, settled=0)`，`OWNER=NONE`，`GEN=5`，`reduceMotion=true`（走 `scrollToPage` 分支，无动画挂起点） | — | — |
-| ② | 点「日历」→ `scrollToPage(2)` 瞬时完成；`tabGuard.begin(2)` → `GEN=6` | `stable2` 屏障（等待稳定） | `GEN` 推进 |
-| ③ | 紧接着点「统计」→ `tabGuard.begin(1)` → `GEN=7`，旧协程被取代 | `stable1` 屏障 | `OWNER` 变更、`GEN` 再推进 |
-| ④ | 在 ③ 的 `finally` 之前插入一次手势拖动：`observedCause=GESTURE`（或 `UNKNOWN`，取决于 F-09）→ `effectiveAction` ∈ {`GESTURE_COMPENSATE`, `CONSERVATIVE_COMPENSATE`} → 派发对齐器，捕获 `gen0=7` | `stableGesture` 屏障 | 代际捕获 |
-| ⑤ | 三个动作的 `finally` 与取消回调**交错**执行：`advanceUntilIdle()` 推进到**确定**的批次 | — | `GEN` / `OWNER` 多次变更 |
-| ⑥ | 依次放行三个屏障（顺序**由测试固定**） | `stable2` / `stable1` / `stableGesture` | 对齐器被逐一唤醒 |
-| ⑦ | 观察 `recorder.writes` | — | — |
+```text
+  经统一入口的写入  ≡  存在一条 CommitAccepted，其 targetIndex 与目标页一致
+                        且其 genValue 与该 StateMutation 的 genAtMutation 一致
 
-**路由写入历史断言（逐条必须成立）**：
+  viaUnifiedEntry(m) ≡  m ∈ accepted 的背书集合
 
-| 编号 | 断言 | 判定方式 |
+  绕行写入          →  产生 StateMutation，但没有对应 CommitAccepted
+
+                    →  m 落入 unattributedMutations
+
+                    →  W-8 判定失败（与「记录器自称」无关）
+```
+
+> **测试不能通过填一个布尔量让 W-8 通过**：它必须让生产代码**真的**走到那个判定点。
+
+##### 7.4.3.5 如何证明「某次提交没有发生状态变化」
+
+两条交叉证据，缺一不可：
+
+| 证据 | 来源 | 说明 |
 |---|---|---|
-| **W-1** | **提交次数恰好 1** | `recorder.writes.count { it.wrote } == 1` |
-| **W-2** | **不得 0 次**（0 次 = 路由卡死） | `recorder.writes.count { it.wrote } >= 1` |
-| **W-3** | **不得多于 1 次**（多于 1 次 = 写入竞争） | `recorder.writes.count { it.wrote } <= 1` |
-| **W-4** | **每一次提交的 generation 都有效** | `recorder.writes.all { it.genValid }` —— **存在任何 `genValid == false` 的提交即判失败** |
-| **W-5** | **不存在旧 generation 写入** | 每条提交的 `genAtWrite` **必须等于**其 `genExpected`（`gen0`）；任何 `genAtWrite != genExpected` 即判失败 |
-| **W-6** | **落定一致** | 唯一那次写入必须满足 `settledMatch == true` 且 `page == settledPage` |
-| **W-7** | **不得写中间页** | `page` 不得是 Pager 从未停留过的中间页 |
-| **W-8** | **必须经统一入口** | `recorder.writes.all { it.viaUnifiedEntry }`（A9：与 `Route/commit` 计数相等） |
-| **W-9** | **最终提交结果 == Pager 最终停留页** | `recorder.writes.last().page == pager.settledPage`（A6） |
-| **W-10** | **不得有非法中间态写入** | 任一提交同时满足「`genValid == false`」或「`settledMatch == false`」或「`page != settledPage`」→ **该次提交即判失败**（A5 / A16） |
+| 入口侧 | `CommitSkipped(reason = IDEM)` + `CommitAttempt.routeBefore == routeAfter` | 入口在**写入前后**各读一次路由页；两者相同 → **没有发生状态变化** |
+| 观察侧 | `mutations` 中**没有**对应条目 | 独立状态观察者**没有**观察到任何变化 |
 
-> **W-4 / W-5 / W-10 是 OBS2-04 的核心**：它们断言的**不是最终页面对不对**，而是**「有没有在不该写的时候写」**。一个「先写错再写对」的实现会在这三条上变红，而只断言最终页面的测试**看不出**。
+> 只有两条证据**同时成立**，才允许断言「这次提交没有造成状态变化」。
+> v2.2 的 `wrote = true` 硬编码**没有任何一条**这样的证据 —— 它只是一句声明。
 
-**与真机日志的对应（§6.6.3 的核对表）**：`W-4` ↔ `A5/alignCommit … genValid=`；`W-5` ↔ `A5/alignCommit … gen=`；`W-8` ↔ `Route/commit` 与 `Route/selectMain` 成对；`W-9` ↔ `Route/selectMain=<AppPage>`。
-#### 7.4.5 十二个场景的测试编排与断言（v2.2 补齐 R11 / R12）
+##### 7.4.3.6 记录器的三条纪律
 
-| 场景 | 测试名 | 编排要点 | 中间态断言 | 最终断言 |
+1. **只观察，不参与判定**：记录器**不得**决定任何写入是否发生；所有判定都在生产代码里（入口的幂等 / 代际 / 稳定性检查）。
+2. **不得自报成功**：记录器**不得**提供任何可由测试直接赋值的「成功 / 已走入口 / 已写入」字段；一切此类字段的取值只能由**归因**或**独立观察**得出。
+3. **保留全部历史**：被拒绝的事件与幂等短路**必须入账**；「本该写却没写」「先写错再写对」只有在**全量历史**上才能被发现。
+#### 7.4.4 第四步 · **三层测试分层与三个触发源的生产链路覆盖**（OBS2-02）
+
+v2.2 的验证主体是「给 `SettleAligner` 注入一个 `commit` 函数」—— 这**只能证明对齐器调用了注入的函数**，**不能证明生产导航链路真的统一使用 `commitRouteFromPager()`**。v2.3 把验证拆成三层，并明确**不得用前两层替代第三层**。
+
+##### 7.4.4.1 三层分工
+
+| 层 | 名称 | 被测对象 | 替身范围 | **能**证明 | **不能**证明 |
+|---|---|---|---|---|---|
+| **L1** | 对齐器单元测试 | `SettleAligner` + `ScrollAlignPolicy` + `CancelCauseResolver`（纯函数） | fake Pager；注入的 `commit` | 等待 / 代际 / 稳定性 / 幂等**判定逻辑**正确；退出原因正确 | **不能**证明生产链路真的经统一入口；**不能**证明触发源没绕行 |
+| **L2** | 统一入口单元测试 | `commitRouteFromPager()` | fake 路由状态 / fake ViewModel | 入口自身的幂等短路、只写路由不打 Pager、打点顺序、拒绝路径 | **不能**证明三个触发源都经过它 |
+| **L3** | **生产导航链路集成测试** | **真实 `AppNav` + 真实 `HorizontalPager` + 真实 `PagerState` + 真实路由 ViewModel** | **只替换「时间」与「手势注入点」**；**不替换路由状态、不替换 Pager** | 触发源**是否真的**经统一入口；是否绕行；是否越代际写；是否写中间页 | **不能**证明真实手指手势的时序（需真机，见 §7.4.5 的等价性表） |
+
+> **铁律**：**L1 / L2 全绿不代表 L3 可以不做**。L1 与 L2 可以在**注入替身**的环境下通过，而生产代码的绕行恰恰发生在「替身看不见的地方」。
+
+##### 7.4.4.2 L3 的最小可测试性改造（只描述方案，本轮不改代码）
+
+L3 要成立，生产代码只需要**四个**可测试性改造点，全部**不改变任何业务判定**：
+
+| 改造点 | 目的 | 形态 | 对业务判定的影响 | 对生产的开销 |
 |---|---|---|---|---|
-| R1 | 对齐器等待期间再次点 tab | 启动对齐器 → `gen++` → 放行稳定 | `writes` 为空；`skips == ["stale-generation"]` | 新滚动的写入存在且目标正确 |
-| R2 | 对齐器等待期间再次手势 | 启动对齐器 → `gen++` → 放行稳定 | `writes` 为空；路由不得跳到中间页 | 路由 == 停留页 |
-| R3 | 新旧对齐器同时等待 | 启动两个对齐器（不同 gen0）→ 两次 `gen++` → 放行 | **恰好一次** `stale-generation` | 只有最新代际的写入 |
-| R4 | 作用域取消 | `scope.cancel()` 后触发取消路径 | `writes` 为空；**不得**有 `alignSkip` | 无后台任务（`scope` 无活跃子任务） |
-| R5 | 取消后新滚动正常完成 | 取消 → 新点击 → 新滚动 `finally` | 新滚动的写入**只有一次** | 路由 == 新目标 |
-| R6 | 未稳定窗口 | pager 报告 `currentPage != settledPage` | `writes` 为空 | 稳定后由回写或对齐器给出 |
-| R7 | 稳定后又被拖走 | 稳定 → `isScrollInProgress` 变 true | `writes` 为空 | 路由 == 最终停留页 |
-| R8 | 旧 token 不得抢收尾 | 新 token 发放后旧协程 `finally` | 旧协程无写入 | 新 token 独占收尾 |
-| R9 | 同目标连点 | 同目标连续两次 | 旧 token 无写入 | 写入恰好一次 |
-| R10 | 重复触发幂等 | 同一事件触发两次 | — | 写入恰好一次（OW-8 + OW-9） |
-| **R11** | 手势后最终对齐到停留页（端到端） | 手势打断 → 放行稳定 → 对齐器写入 | `writes` 恰好 1 条且 `settledMatch == true` | `writes.last().page == pager.settledPage` |
-| **R12** | 取消动画 + 快速点击 + 手势 | **见 §7.4.4 的七步确定性编排** | **W-1 ~ W-10 全部成立** | 路由 == Pager 最终停留页；无死锁 / 卡死 / 协程泄漏 |
+| **P1 审计钩子** `RouteAuditSink` | 让 L3 观察到统一入口的**真实判定结果** | 生产代码内一个 `internal` 空实现钩子（默认 no-op），入口在各判定点**只旁路上报** | **零**（不参与判定，不返回任何判定结果） | 每次入口调用一次空接口调用（可被内联） |
+| **P2 手势信号注入** `GestureSignal` | 让 L3 能注入「用户手势接管」而不依赖真实手指 | 生产从 `PagerState.interactionSource` 派生；测试直接触发 | **零**（信号源可替换，判定不变） | 一次状态读取 |
+| **P3 代际来源** `GenSource` | 让退出原因能区分 `gesture-takeover` / `superseded` | `scrollGeneration` 由 `Long` 改为 `(value, source)` | **零**（只增元数据，推进点不变） | 一次结构体写 |
+| **P4 路由状态可观察** | 让记录器能独立捕获状态变化（而非入口自报） | `viewModel.page` 已是 `StateFlow` → **无需改造** | — | — |
 
-#### 7.4.6 五条测试纪律
+**为什么 P1 是 L3 的实施前置条件**：若入口不暴露判定结果，L3 只能看到「路由变了」和「日志」，**无法区分**「经统一入口的合法写入」与「绕过入口的非法写入」—— 这正是 v2.2 的缺陷。
+> **若负责人拒绝 P1**：L3 **无法成立**，本项只能退回为「日志核对」的弱验证，并**必须登记为新的未决项**（见 §7.4.7 的纪律 TD-7）。**不得**用「替身自报」的方式凑一个 L3。
+
+**P1 钩子的三条纪律**：
+1. 钩子**只能上报**，**不得**参与任何判定（不得返回「是否允许写入」之类的结论）；
+2. 钩子**不得**读取被测状态来「补充」事件（那才是伪造）；
+3. 钩子事件必须携带**生产代码当时读到的真实值**（代际值与来源、`stable` 布尔、目标页、`settledPage`）。
+
+##### 7.4.4.3 三个触发源在 L3 中如何被实际触发与验证
+
+| 触发源 | 在 L3 中如何被触发（**不替换路由与 Pager**） | 如何证明它**经过**统一入口 | 如何证明它**没有**绕行 |
+|---|---|---|---|
+| **① `snapshotFlow` 回写** | 真实 `HorizontalPager` 的 `currentPage` 变化（由测试驱动的 `scrollToPage` 产生） | `EntryInvocation.source == "snapshot"` → 随后有 `CommitAttempt` → `CommitAccepted` → `StateMutation` | 若该路径改为直调 `selectMain()`：状态会变，但**没有** `EntryInvocation(source="snapshot")` → 该 `StateMutation` 落入 `unattributedMutations` → **W-8 失败** |
+| **② 正常滚动 `finally`** | 点 tab → 真实 `animateScrollToPage` / `scrollToPage` 完成 → `finally` 执行 | `EntryInvocation.source == "finally"` + 完整事件链 | 同上；若 `finally` 路径绕过入口，同样出现未归因状态变化 |
+| **③ 稳定后对齐器** | 通过 **P2 `GestureSignal`** 注入一次「用户手势接管」（生产侧等价于 `userDragging` false→true），触发取消路径与对齐器派发 | `EntryInvocation.source == "settle"` + 完整事件链 | 同上；对齐器绕行同样被捕获 |
+
+**L3 必须能发现的六类错误（GPT v2.3 OBS2-02 逐条对应）**：
+
+| # | 错误 | 断言如何发现 |
+|---|---|---|
+| 1 | 任一触发源**绕过统一入口** | `unattributedMutations` 非空 → W-8 失败 |
+| 2 | 任一触发源**直接调用 `selectMain()`** | 同上（直调不产生 `EntryInvocation`） |
+| 3 | 任一触发源**绕过 generation 校验** | 出现的 `CommitAccepted` 其 `genValid == false`，或 `StateMutation.genAtMutation` 小于该次来源应有的代际 → W-4 / W-5 失败 |
+| 4 | 任一触发源**绕过 Pager 稳定性校验** | `CommitAccepted.stable == false`，或 `targetIndex != settledPage` → W-6 失败 |
+| 5 | **同一目标重复提交导致重复状态变化** | `stateMutationCount >= 2` 且目标相同 → W-3 失败（幂等短路失效） |
+| 6 | **旧协程在新导航接管后仍写入路由** | `StateMutation.genAtMutation` < 当前代际 → W-5 失败 |
+
+##### 7.4.4.4 L3 与 L1 / L2 的关系（不得互相替代）
+
+```text
+  L3（生产导航链路集成测试）
+    ├─ 内部包含 L2 的入口语义（幂等 / 只写路由 / 打点）—— 但在**真实链路**里跑
+    ├─ 内部包含 L1 的对齐器判定 —— 但对齐器拿的是**真实 PagerState**
+    └─ 额外证明 L1 / L2 **证明不了**的东西：
+         · 三个触发源是否真的都经统一入口
+         · 是否有任何路径绕过入口直调 selectMain
+         · 真实 Pager 的 currentPage / settledPage 序列是否被正确处理
+
+  反过来：L1 / L2 **不得**被用来
+         · 声称「统一入口已被生产链路遵守」
+         · 声称「没有绕行」
+         · 替代 L3 作为 R12 的验收依据
+```
+#### 7.4.5 第五步 · **R12 拆成两个独立场景**（OBS2-03）
+
+v2.2 的 R12 设置 `reduceMotion=true` 并使用 `scrollToPage()`，**没有动画挂起点** —— 它只能证明**瞬时滚动**分支，**不能证明 `animateScrollToPage()` 被取消时的协程交接行为**。v2.3 拆成两个**独立**场景：
+
+##### 7.4.5.1 场景 A · 减少动画开启（瞬时滚动分支）
+
+| 项 | 内容 |
+|---|---|
+| **初始状态** | `ROUTE(0)`；Pager `currentPage=0`、`settledPage=0`、静止；`OWNER=NONE`；`GEN=5`；`reduceMotion = true` → 走 `scrollToPage` 分支 |
+| **操作顺序** | ① 点「日历」→ `scrollToPage(2)` **瞬时完成**，`tabGuard.begin` → `GEN=6`（`PROGRAMMATIC`）② 紧接着快速点「统计」→ `tabGuard.begin(1)` → `GEN=7`，旧协程被取代 ③ 在第 ② 步的 `finally` 之前注入一次**用户手势接管** → `GEN=8`（`GESTURE`），派发对齐器，捕获 `gen0=8` ④ 三个动作的 `finally` 与取消回调按**确定顺序**交错执行 ⑤ 按序放行对齐器等待屏障 ⑥ 观察全部事件历史 |
+| **协程挂起点** | 对齐器等待屏障（`CompletableDeferred`）；`scrollToPage` 分支**无动画挂起点**（这正是本场景与场景 B 的差别） |
+| **状态变化** | `GEN`：5→6→7→8；`OWNER` 多次变更；Pager `currentPage` 瞬时跳变（无中间页序列） |
+| **恢复时的有效性检查** | 每个 `finally` 独立判定：所有权 → `observedCause`/`effectiveAction` → 代际；**只有一个**能同时通过并写入 |
+| **预期路由写入次数** | **入口调用次数 ≥ 1**（可能有 2~3 次）；**实际状态变化次数恰好 1** |
+| **预期最终状态** | `ROUTE` == Pager 最终停留页；无死锁、无卡死、无协程泄漏 |
+| **中间态断言** | 不得写中间页；不得存在旧代际写入；**先写错再写对即判失败**（W-10 对全序列判定） |
+
+##### 7.4.5.2 场景 B · 正常动画开启（`animateScrollToPage` 取消交接）
+
+| 项 | 内容 |
+|---|---|
+| **初始状态** | 同场景 A，但 `reduceMotion = false` → 走 `animateScrollToPage` 分支，**存在动画挂起点** |
+| **操作顺序** | ① 点「日历」→ 启动 `animateScrollToPage(2)`，在**动画挂起点** `animationSuspend` **暂停**（`CompletableDeferred` 屏障）② 注入**第二次 Tab 点击**「统计」→ 新滚动开始，`GEN++`（`PROGRAMMATIC`），**旧动画协程被取消 / 取代** ③ 注入**用户手势接管** → `GEN++`（`GESTURE`）④ 按**明确顺序**恢复：先旧动画协程的 `finally` → 再新动画协程 → 最后对齐器 ⑤ 记录**全部**路由提交尝试与状态变化 ⑥ 检查是否存在错误中间态写入 |
+| **协程挂起点** | ① `animationSuspend`（动画挂起点，fake 动画提供）② 旧动画协程的取消回调点 ③ 新动画协程的动画挂起点 ④ 对齐器等待屏障 ⑤ `finally` 内的 `end(token)`（**同步调用，不是挂起点**） |
+| **状态变化** | `GEN` 多次推进；Pager `currentPage` 经历**脚本化的中间页序列**（如 0→1→2），`settledPage` 延迟提交 |
+| **恢复时的有效性检查** | 每个恢复点独立判定：所有权 + 代际 + 稳定性 + 幂等；**旧动画协程恢复时其代际必然已过期** → 只能退出，**不得写入** |
+| **预期路由写入次数** | 入口调用次数 ≥ 1（可能 3~4 次，含被拒绝的）；**实际状态变化次数恰好 1** |
+| **预期最终状态** | `ROUTE` == Pager 最终停留页（**不是**点击目标页）；无死锁、无卡死 |
+| **中间态断言** | **旧动画协程恢复后不得写入**（旧代际）；**不得**出现 `currentPage` 的中间值被写入；**不得**出现"先写中间页、后来又写对"的序列 |
+
+##### 7.4.5.3 两个场景的分工
+
+| 场景 | 覆盖的分支 | 特有价值 | 不可替代的部分 |
+|---|---|---|---|
+| **A（减少动画）** | `scrollToPage` 瞬时分支 | 代际推进 / 所有权交接 / 幂等 / 统一入口 | **没有**动画协程的取消交接 |
+| **B（正常动画）** | `animateScrollToPage` 动画分支 | **动画协程被取消时的 `finally` 交接**；中间页序列；`settledPage` 延迟提交 | 不覆盖瞬时分支 |
+
+> **两个场景都必须跑**：只跑 A 等于没测动画取消，只跑 B 等于没测瞬时分支。**不得**因为「B 太难写」而只保留 A —— **R1~R12 的难度要求不得降低**。
+
+##### 7.4.5.4 **等价性声明**：测试能证明什么、什么仍需真机（GPT v2.3 明确要求）
+
+| 行为 | **测试能确定性证明的** | **仍需真机验证的** | 原因 |
+|---|---|---|---|
+| 协程取消 → `finally` → 判定的执行顺序 | ✅ | — | 协程调度由 `TestScheduler` 精确控制 |
+| 代际推进 / 失效 / 旧代际写入被拦 | ✅ | — | 纯应用层逻辑，与 Compose 无关 |
+| 统一入口被遵守、无绕行 | ✅（L3） | — | 由生产代码上报 + 状态归因判定 |
+| 幂等短路、只写路由不打 Pager | ✅（L2 + L3） | — | 纯应用层逻辑 |
+| Pager 稳定性双条件（`!isScrollInProgress && currentPage == settledPage`） | ✅（用 fake 脚本化状态序列） | ✅ 真机复核一次 | fake **不覆盖** Compose 真实的插值与提交时机 |
+| **`MutatorMutex` 的抢占时机** | ⚠️ **以「取消旧协程」显式建模** | ✅ **必须真机** | 真实触摸事件的抢占时机由 Compose 内部决定，JVM 无法复现 |
+| **动画逐帧推进与 `currentPage` 中间值序列** | ⚠️ **脚本化的中间页序列** | ✅ **必须真机** | fake 用**假定**的中间值，不覆盖真实插值曲线 |
+| **`settledPage` 的提交时机** | ⚠️ 由 fake 显式控制 | ✅ **必须真机** | Compose 内部何时提交 `settledPage` 未在 JVM 暴露 |
+| **`userDragging` 的真实识别** | ❌ **不可在 JVM 测** | ✅ **真机 + F-09 编译验证** | 依赖真实触摸与 Compose 交互源 |
+| 移除动画分支（`scrollToPage`） | ✅ | ✅ 真机复核一次 | — |
+| **真机上「用户再次手势」这条失效通道** | ❌（F-09 不可用时 JVM 无法产生 GESTURE 来源） | ✅ **必须真机（= F-10）** | 与 §6.3.3 的降级说明一致 |
+
+> **诚实性要求**：上表右列的每一项都**不得**被写成「测试已覆盖」。真机复核矩阵（§8）必须对应补上这些项。
+#### 7.4.6 第六步 · **v2.3 重写：路由写入历史断言 W-1 ~ W-10**（OBS2-06）
+
+##### 7.4.6.1 五个计数口径必须分开统计
+
+| 口径 | 计数器 | 含义 | 场景 A 典型值 | 场景 B 典型值 |
+|---|---|---|---|---|
+| **统一入口调用次数** | `audit.entryInvocationCount` | `commitRouteFromPager()` **被调用**了几次 | 2~3 | 3~4 |
+| **提交尝试次数** | `audit.commitAttemptCount` | 通过参数合法性、进入幂等与安全判定的次数 | = 入口调用次数 | = 入口调用次数 |
+| **被拒绝次数** | `audit.rejectedCount` | 因幂等或安全条件被拒的次数 | ≥ 1 | ≥ 1 |
+| **幂等短路次数** | `audit.idempotentSkipCount` | 其中因「目标 == 当前路由页」被拒的次数 | ≥ 1 | ≥ 1 |
+| **实际状态变化次数** | `audit.stateMutationCount` | **路由状态真正改变**的次数 | **恰好 1** | **恰好 1** |
+
+> **核心口径（必须写进实施说明与真机报告）**：
+> **入口调用多次 ≠ 发生多次状态变化。**
+> `snapshotFlow` 与对齐器先后提交**同一目标**时：可以存在**多次入口调用**、**多次提交尝试**；后续相同目标**应由幂等机制短路**；**实际状态变化不应重复发生**。
+
+##### 7.4.6.2 断言表
+
+| 编号 | 断言 | 判定方式（v2.3） |
+|---|---|---|
+| **W-1** | **入口调用次数 ≥ 1**（不得为 0，否则说明根本没走统一入口） | `audit.entryInvocationCount >= 1` —— **不要求恰好 1**：三个触发源本就可能多次调用入口 |
+| **W-2** | **实际状态变化次数 ≥ 1**（0 次 = 路由卡死） | `audit.stateMutationCount >= 1` |
+| **W-3** | **实际状态变化次数恰好 1**（> 1 = 重复提交 / 竞争写入 / 幂等失效） | `audit.stateMutationCount == 1`，且该次变更的 `to` == Pager 最终停留页 |
+| **W-4** | **每一次状态变化的代际均有效** | 每个 `StateMutation` 都必须能背书到一条 `CommitAccepted`，且该 Accepted 的 `genValid == true` —— **存在任何 `genValid == false` 的 Accepted 即判失败** |
+| **W-5** | **不存在旧代际写入** | 每个 `StateMutation.genAtMutation` **不得小于**其来源应有的代际期望值；且 `accepted.all { it.genValid }`。**新手势接管后旧协程写入**与**新导航接管后旧协程写入**都由本条覆盖 |
+| **W-6** | **落定一致**：写入目标必须等于写入瞬间的 `settledPage`，且此刻 `currentPage == settledPage` | 每个 `CommitAccepted` 必须 `stable == true` 且 `targetIndex == settledPage` —— **Pager 未落定写入**由本条覆盖 |
+| **W-7** | **不得写中间页** | 任何 `StateMutation.to` 不得是 Pager 从未停留过的页；任何 `CommitAccepted` 不得满足 `targetIndex == currentPage != settledPage` |
+| **W-8** | **必须经统一入口**（**v2.3 重写：不再依赖任何自报字段**） | `audit.unattributedMutations.isEmpty()` **且** `audit.stateMutationCount == audit.accepted.size`（每个状态变化都有一条 Accepted 背书） |
+| **W-9** | **最终提交结果 == Pager 最终停留页** | `audit.mutations.last().to.mainIndex == pager.settledPage` |
+| **W-10** | **不得有非法中间态写入 / 不得「先写错再写对」** | 对 `audit.mutations` **全序列**逐条判定：任一条满足「`genValid == false`」或「`stable == false`」或「`targetIndex != settledPage`」或「未被归因」→ **该次状态变化即判失败**；**即使随后又写对了正确页，也判失败** |
+
+##### 7.4.6.3 W 系列覆盖的七类错误（GPT v2.3 OBS2-06 逐条对应）
+
+| 错误 | 由哪条断言覆盖 |
+|---|---|
+| 错误中间页写入 | W-7（+ W-6 / W-10） |
+| 旧 generation 写入 | W-4 / W-5 |
+| Pager 未落定写入 | W-6（+ W-10） |
+| 绕过统一入口 | W-8（未归因状态变化） |
+| 新手势接管后旧协程写入 | W-5（场景 B） |
+| 新导航接管后旧协程写入 | W-5（场景 A / B） |
+| **先写错再写对** | **W-10（全序列判定，不做「只看最后一次」的宽容）** |
+
+##### 7.4.6.4 **如何捕获「先写错再写对」**
+
+一个错误实现完全可能：先写中间页 → 稍后写对最终页。若断言只看**最终页面**，它会**蒙混过关**。v2.3 用四条机制堵死：
+
+| # | 机制 | 说明 |
+|---|---|---|
+| 1 | **记录全部状态变化** | `StateMutation` 是**流式**的，不是「最后一次」；`stateMutationCount` 能看出发生过 ≥ 2 次 |
+| 2 | **W-10 对全序列逐条判定** | 任何一次非法变更**单独**即可判失败，不因后续修正而赦免 |
+| 3 | **保留被拒绝事件** | 「本该写却被幂等短路」也入账（`CommitSkipped(IDEM)`），因此「写了一次错的、第二次被幂等挡住」同样暴露 |
+| 4 | **必须变红的变异用例**（§7.6） | 把 `settledPage` 换成 `currentPage` → **W-6 / W-7 / W-10** 必须变红；去掉幂等短路 → **W-3 / W-8** 必须变红；`finally` 路径改为直调 `selectMain` → **W-8** 必须变红 |
+
+> **判定原则**：**「最后对了」不等于「过程合法」**。路由写入是**有副作用**的操作，过程本身就是被测对象。
+#### 7.4.7 第七步 · 十二个场景的编排与断言（v2.3 补齐 R12-A / R12-B）
+
+| 场景 | 层级 | 测试名 | 编排要点 | 中间态断言 | 最终断言 |
+|---|---|---|---|---|---|
+| R1 | L1 | 对齐器等待期间再次点 tab | 启动对齐器 → `gen++` → 放行稳定 | `mutations` 为空；`skips == ["stale-generation"]` | 新滚动的写入存在且目标正确 |
+| R2 | L1 | 对齐器等待期间再次手势 | 启动对齐器 → `gen++`（`GESTURE`）→ 放行稳定 | `mutations` 为空；路由不得跳到中间页 | 路由 == 停留页 |
+| R3 | L1 | 新旧对齐器同时等待 | 启动两个对齐器（不同 gen0）→ 两次 `gen++` → 放行 | **恰好一次** `stale-generation` | 只有最新代际的写入 |
+| R4 | L1 | 作用域取消 | `scope.cancel()` 后触发取消路径 | `mutations` 为空；**不得**有 `alignSkip` | 无后台任务 |
+| R5 | L1 | 取消后新滚动正常完成 | 取消 → 新点击 → 新滚动 `finally` | 新滚动的写入**只有一次** | 路由 == 新目标 |
+| R6 | L1 | 未稳定窗口 | pager 报告 `currentPage != settledPage` | **等待期间** `mutations` 为空；**不得**出现 `alignSkip=not-stable`（v2.3：未稳定是**等待**不是退出） | 落定后由回写或对齐器给出 |
+| R7 | L1 | 稳定后又被拖走 | 稳定 → `isScrollInProgress` 变 true | `mutations` 为空 | 路由 == 最终停留页 |
+| R8 | L1 | 旧 token 不得抢收尾 | 新 token 发放后旧协程 `finally` | 旧协程无写入 | 新 token 独占收尾 |
+| R9 | L1 | 同目标连点 | 同目标连续两次 | 旧 token 无写入 | 写入恰好一次 |
+| R10 | L1 | 重复触发幂等 | 同一事件触发两次 | — | 状态变化恰好一次（OW-8 + OW-9） |
+| R11 | L1 + L2 | 手势后最终对齐到停留页 | 手势打断 → 放行稳定 → 对齐器写入 | `mutations` 恰好 1 条且 `stable == true` | `mutations.last().to` == `pager.settledPage` |
+| **R12-A** | **L3** | **减少动画 · 瞬时滚动** | §7.4.5.1 七步 | **W-1 ~ W-10 全部成立** | 路由 == Pager 停留页；无死锁 / 卡死 |
+| **R12-B** | **L3** | **正常动画 · 取消交接** | §7.4.5.2 七步 | **W-1 ~ W-10 全部成立** | 路由 == Pager 停留页（≠ 点击目标页）；旧动画协程**无**写入 |
+
+> **v2.3 的层级要求**：**R12-A / R12-B 必须在 L3（生产导航链路集成测试）里跑**，L1 / L2 的通过**不能**替代。
+> **R1 ~ R12 的原有场景全部保留**，v2.3 只是把 R12 拆成两个独立场景并提高其断言强度，**没有删除任何困难场景**。
+
+#### 7.4.8 八条测试纪律
 
 | 编号 | 纪律 |
 |---|---|
-| **TD-1** | 每个场景**必须**断言中间态（`recorder.writes` 的内容与时机），不能只断言最终路由 —— 否则「先写错再写对」的实现会蒙混过关 |
+| **TD-1** | 每个场景**必须**断言中间态（`audit` 的完整事件历史），不能只断言最终路由 —— 否则「先写错再写对」的实现会蒙混过关 |
 | **TD-2** | 必须**逐个场景**用 `@Test` 命名（不用一个大循环），失败信息要能直接定位到 R 编号 |
 | **TD-3** | 虚拟时间测试**不得**使用 `Thread.sleep` / `delay(真实时长)`；一切等待通过 `advanceUntilIdle()` 或显式挂起点 |
-| **TD-4**（v2.2） | **可重复性**：同一测试**连续运行 10 次结果必须完全一致**；禁止随机等待、禁止依赖线程调度运气、禁止依赖真实时间 |
-| **TD-5**（v2.2） | **不得为制造时序污染生产代码**：测试专用挂起点 / 屏障 / 记录器**只允许存在于测试源码**；生产代码**不得**新增 `testOnly` 分支、调试钩子或仅为测试服务的状态 |
-
-> **TD-5 的评审口径**：实施 PR 的 diff 中，**生产代码不得出现** `testOnly` / `debug` / `forTest` 之类的条件分支；若发现，说明是用生产复杂度换测试时序，**评审不通过**。
+| **TD-4** | **可重复性**：同一测试**连续运行 10 次结果必须完全一致**；禁止随机等待、禁止依赖线程调度运气、禁止依赖真实时间 |
+| **TD-5** | **不得为制造时序污染生产代码**：测试专用挂起点 / 屏障**只允许存在于测试源码**；生产代码**不得**新增 `testOnly` 分支、调试钩子或仅为测试服务的状态（§6.4.5 的 P1~P3 是**唯一**例外，且它们**不参与判定**） |
+| **TD-6**（v2.3） | **不得由替身自报成功**：测试替身**不得**提供可由测试直接赋值的「已走统一入口 / 已写入」字段；此类结论必须由**归因**或**独立状态观察**得出（§7.4.3.4） |
+| **TD-7**（v2.3） | **三层不得互相替代**：L1 / L2 全绿**不得**被用来声称「统一入口已被生产链路遵守」；该结论**只能**由 L3 给出。若 P1 审计钩子未获批准，**必须**登记为新的未决项，**不得**用替身自报凑一个 L3 |
+| **TD-8**（v2.3） | **等价性必须如实登记**：测试**不能**证明的行为（真实手指抢占时机、真实插值曲线、`settledPage` 真实提交时机、`userDragging` 识别）**必须**逐条列入真机复核清单，**不得**写成「测试已覆盖」（§7.4.5.4） |
 ### 7.5 Compose 集成测试（`app/src/test` + Robolectric，或 `androidTest`）
 
 用真实的 `HorizontalPager` + `PagerState`（不 mock），构造出 S1 / S2 / S4 三种时序，断言**最终路由**：
@@ -1966,9 +2466,16 @@ internal class RouteWriteRecorder {
 | **去掉「一次取消最多一个对齐器」（OW-2）** | **R3** |
 | **去掉 `scope` 分支的不派发（OW-6）** | **R4** |
 | **把 `settledPage` 换回 `currentPage`（回写路径）** | X2 / X3 |
+| **把统一入口的幂等短路去掉** | **W-3 / W-8**（状态变化次数变 2；出现未归因变化） |
+| **把 `finally` 路径改为直调 `viewModel.selectMain`（绕过统一入口）** | **W-8**（出现未归因状态变化） |
+| **把 `snapshotFlow` 回写路径改为直调 `viewModel.selectMain`（绕过统一入口）** | **W-8** |
+| **把对齐器的 `settledPage` 换回 `currentPage`（写中间页）** | **W-6 / W-7 / W-10**（必须变红，**不能**只让最终页断言变红） |
+| **把「未落定 → 继续等待」改回「未落定 → 立即返回」** | **A22 / R6 / R7** |
+| **把 `snapshotFlow` 的代际校验去掉（不再比对观测代际）** | **W-4 / W-5 / A21** |
+| **把 `finally` 的 `gen0` 捕获点从「滚动开始」改到「finally 时刻」** | **W-4 / W-5 / A21**（代际校验将永远通过） |
+| **把代际来源抹掉（`GenSource` 恒为 `NONE`）** | **A22**（退出原因无法区分 `gesture-takeover` / `superseded`） |
 
-> **加粗的六条是 v2.2 新增的变异**：前两条锁「UNKNOWN 必须能补偿」与「判据只读 `effectiveAction`」，后四条锁「路由写入历史必须合法」（OBS2-04）。
-> **没有这些变异，R1–R12 就只是「看起来测了」**：一个「先写错再写对」的实现完全可以在最终页面上通过，却会在 W-4 / W-5 / W-10 上变红。
+> **v2.3 新增八条变异（加粗部分）**：它们锁的是「**测试能否约束生产实现**」—— 前两条锁幂等与统一入口，中间两条锁「写中间页」与「未落定就放弃」，最后两条锁三种触发源各自的代际校验与退出原因的来源。**这八条不变红，就说明测试仍然是「替身自证」。**
 
 ---
 ## 8. 真机复核矩阵（v2）
@@ -2031,6 +2538,10 @@ M1–M10 是 v1 的矩阵（全部保留）。v2 针对代际机制补充 3 个�
 | **V12** | `Route/commit` 与 `Route/align` 的关系必须在报告中说明：每个 `Route/align` 都应伴随一个同页的 `Route/commit`（α 已定稿，**不是**「若采用 α」而是「必须」） |
 | **V13**（v2.2 新增） | 全部轮次中 **`A5/alignCommit … genValid=false` 的出现次数必须为 0** —— 即**不存在旧 generation 的写入**（真机侧的 W-4 / W-5 对应项） |
 | **V14**（v2.2 新增） | 全部轮次中 `Route/commit` 与 `Route/selectMain` 的**出现次数必须相等**且**成对**（统一入口，对应 A9 / W-8）；`A5/alignCommit` 中 `genValid=true` 的条目数**必须等于**真正发生写入的次数 |
+| **V15**（v2.3 新增） | 每个 `A5/stateMutation` 都必须能对应到一条同目标、同代际的 `A5/commitAccepted`；**对应不上的条目数必须为 0**（真机侧的「绕行」检测，对应 W-8 / A19） |
+| **V16**（v2.3 新增） | **五个写入口径必须分别报告**：`A5/entryInvoke` 计数（入口调用）、`A5/commitAttempt` 计数（提交尝试）、`A5/commitSkip` 计数（被拒绝）、其中 `:idem` 计数（幂等短路）、`A5/stateMutation` 计数（**实际状态变化**）。**「入口调用次数」与「状态变化次数」不得混为一谈** |
+| **V17**（v2.3 新增） | `A5/commitSkip` / `A5/alignSkip` 的 `reason` **不得出现 `not-stable`** —— 未落定是**等待**不是退出（§6.3.5.1）；退出原因只允许 `stale-generation` / `gesture-takeover` / `superseded` / `settle-timeout` / `scope-cancelled` / `not-owned` / `idem` / `no-page` |
+| **V18**（v2.3 新增） | 若报告中出现「先写错再写对」（即 `A5/stateMutation` ≥ 2 条），**该轮判为失败**，不得只报告最终页面正确 |
 
 ### 8.5 复核的诚实性要求
 
