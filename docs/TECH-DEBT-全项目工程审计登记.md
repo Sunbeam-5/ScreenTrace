@@ -3,8 +3,9 @@
 | 项 | 值 |
 |---|---|
 | 编号 | CR-30-TD（Gemini 全项目审计登记） |
+| 版本 | **v2**（2026-11-23 按 GPT 评审 §五 整改，**只改 TD-10**；修订记录见 §0.4） |
 | 阶段 | **阶段 A · 只登记，不修** |
-| 基线 | 分支 `exp/a5-route-probe` @ `ead51d6`；全量单测 **620 / 0 fail / 0 skip** |
+| 基线 | 分支 `exp/a5-route-probe` @ `2824ff0`；全量单测 **620 / 0 fail / 0 skip** |
 | 范围 | 10 项技术债务，每项记录 **7 个属性**：当前代码事实 / 风险是否已实际复现 / 优先级与理由 / 影响范围 / 建议验证方式 / 是否需立即修 / 与其他任务的依赖关系 |
 | 本文档改动 | **无任何生产代码 / Gradle / Manifest / 备份格式改动** |
 | 重要声明 | 本登记中**多数项未实测**：凡未实测的一律标「**否（未实测）**」，**不得**被当成结论使用 |
@@ -41,9 +42,16 @@
 | TD-07 | WebDAV URL 路径编码 | 否（当前路径不含特殊字符） | **P2** | 否（支持自定义目录名前必修） |
 | TD-08 | WebDAV Basic Auth 的 HTTPS 边界 | 否 | **P2** | 否 |
 | TD-09 | GitHub Actions CI | **是（保障缺失本身）** | **P2** | 否 |
-| TD-10 | QUERY_ALL_PACKAGES 发行政策 | 否（功能需要，政策未评估） | **P1** | 否（上架 Play 前必修） |
+| TD-10 | QUERY_ALL_PACKAGES 发行政策 | 否（功能需要；Play 发行资格**未确认**·审核风险**较高**；F-Droid **未评估**） | **P1** | 否（上架 Play 前必修） |
 
 ---
+
+### 0.4 修订记录
+
+| 版本 | 时间 | 变更 |
+|---|---|---|
+| v1 | 2026-11-23 上午 | 初版：10 项技术债务登记，每项 7 个属性；TD-10 分渠道分析（GitHub Releases / F-Droid / Google Play / 国内渠道） |
+| **v2** | 2026-11-23 下午 | 按 GPT 评审 §五 整改，**只改 TD-10**：① Play 的「中高匹配度 / 不是必然被拒」**下调**为「发行资格尚未确认 + 较高审核风险」；② 新增两项必做分析（举证「广泛应用可见性为核心功能所必需」+ 分析「更窄范围查询能否满足需求」）；③ 明确**不得**因「屏幕使用时间统计工具」身份自动认定合规；④ F-Droid 由「⚠️ 可行」改为 **B1–B7 逐项核查**（含自由软件许可 / 依赖库来源 / 构建可复现性 / 第三方服务 / Shizuku 依赖 / 权限-功能关系 / 当前纳入政策）；⑤ **Play 权限审核风险与 F-Droid 纳入风险彻底分开**分别评级；⑥ 新增核查项一律按纪律标注「未实测」；⑦ 补充代码事实（LICENSE = Apache-2.0、展示名/图标三级回退链、依赖坐标清单、仓库无 fastlane 元数据）。**其余 9 项一字未改。** |
 
 ## TD-01 · Release 构建 / R8 / 正式签名
 
@@ -638,62 +646,156 @@
 
 ## TD-10 · QUERY_ALL_PACKAGES 发行政策
 
+> **v2 修订说明（2026-11-23，按 GPT 评审 §五 整改）**
+>
+> 1. 原「Google Play：中高匹配度、**不是必然被拒**」的判断**下调**为「**发行资格尚未确认** + **较高审核风险**」；
+> 2. Google Play 渠道**新增两项必做分析**：举证「广泛应用可见性是核心功能所必需」+ 分析「更窄范围查询是否可以满足需求」；
+> 3. F-Droid 渠道由「⚠️ 可行」改为**逐项核查**（7 项，见 §TD-10.B）；
+> 4. **Google Play 的权限审核风险与 F-Droid 的审核风险彻底分开**，分别评级、分别给证据；
+> 5. 明确**不预判**任何渠道的通过 / 拒绝；**不得**因为「屏幕使用时间统计工具」这一身份就自动认定符合 Play 政策。
+>
+> **本轮只修订登记文本，不改 Manifest、不改权限、不改代码。**
+
 ### 当前代码事实
 
 | 事实 | 依据 |
 |---|---|
-| `AndroidManifest.xml` 声明 `<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />` | `AndroidManifest.xml:37-38` |
-| 同时还声明了 `<queries>`（`MAIN` + `LAUNCHER` intent）—— Android 11+ 包可见性的常规做法 | 同上 |
-| Manifest 注释给出的理由：「屏幕使用时间里有大量**时长很长却没有桌面入口**的包 —— 系统服务、互联组件、桌面小部件（实测 `com.xiaomi.mi_connect_service` 占 8 次通知，界面只能显示成包名和一个系统默认图标）。只有 QUERY_ALL_PACKAGES 才能拿到它们的名称与图标」 | Manifest 注释 |
-| **但同一段注释的前半句自相矛盾**：「不用 QUERY_ALL_PACKAGES，避免申请一个过宽的权限」 —— 这是历史遗留（前半句对应的是 `<queries>` 方案，后半句是后来的决策） | Manifest 注释 |
-| 代码已具备**降级能力**：查不到 `ApplicationInfo` 时退回显示包名 | 既有实现（注释自述） |
+| `AndroidManifest.xml` 声明 `<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />` | `AndroidManifest.xml:37-39` |
+| 同时还声明了 `<queries>`（`MAIN` + `LAUNCHER` intent）—— Android 11+ 包可见性的常规做法 | `AndroidManifest.xml:23-28` |
+| Manifest 注释给出的理由：「屏幕使用时间里有大量**时长很长却没有桌面入口**的包 —— 系统服务、互联组件、桌面小部件（实测 `com.xiaomi.mi_connect_service` 占 8 次通知，界面只能显示成包名和一个系统默认图标）。只有 QUERY_ALL_PACKAGES 才能拿到它们的名称与图标」 | `AndroidManifest.xml:30-36` |
+| **但同一段注释的前半句自相矛盾**：「不用 QUERY_ALL_PACKAGES，避免申请一个过宽的权限」 —— 这是历史遗留（前半句对应的是 `<queries>` 方案，后半句是后来的决策） | `AndroidManifest.xml:18-22` |
+| 代码已具备**降级能力**：查不到 `ApplicationInfo` 时退回显示包名 | `data/AppLabelResolver.kt:26-28` |
+| 展示名回退链是**三级**的：`PackageManager.getApplicationLabel` → 内置映射表 `data/parse/AppNames.kt` → 裸包名 | `AppLabelResolver.kt:26-28` + `AppNames.kt:6-8` |
+| 图标同样有回退：`PackageManager.getApplicationIcon` 失败 → 首字母占位 | `uikit/AppIcon.kt:24,43-45` |
+| 权限全景（5 项）：`PACKAGE_USAGE_STATS`（使用情况访问）、`moe.shizuku.manager.permission.API_V23`（Shizuku 授权）、`INTERNET` + `ACCESS_NETWORK_STATE`（仅云同步用）、`QUERY_ALL_PACKAGES` | `AndroidManifest.xml:6-39` |
+| 首次启动引导存在（`completeOnboarding`），是未来插入权限同意流程的挂载点 | `ui/AppViewModel.kt:515` / `ui/AppNav.kt:347` |
+
+> **v2 新增的事实意义**：回退链是**三级**而非一级，说明「没有 `QUERY_ALL_PACKAGES` 时的实际损失」= **图标退化为占位符** + **部分包名退化为裸包名字符串**。这正是 §TD-10.A 里「更窄范围查询能否满足需求」分析的**事实基础** —— 不能只凭 Manifest 注释的一句话断言「必需」。
 
 ### 风险是否已实际复现
 
-**否**。功能上确实需要它（不声明则排行页退化成包名列表）；但**发行政策层面尚未评估、未申请、未上架**。
+**否**（功能层面确实需要它，不声明则排行页退化成包名列表）。
+
+但**两个渠道的审核风险都尚未评估**：
+
+| 渠道 | 风险状态 |
+|---|---|
+| Google Play（权限审核） | **发行资格尚未确认；审核风险较高**（见 §TD-10.A） |
+| F-Droid（纳入审核） | **未评估** —— 七项逐项核查尚未做（见 §TD-10.B） |
 
 ### 优先级与理由
 
-**P1**。
+**P1**（**不变**）。
 
-- 这是**发行阻塞项**，不是运行期 bug —— 不会让 App 变慢或变错；
-- 但 Google Play 的同意流程**需要改产品**（新增首次启动说明 + 同意状态存储 + 隐私政策同步），**周期长**，必须提前启动；
-- 拖到最后 = 上架被拒 / 被要求修改 / 临时下架。
+> **v2 说明**：GPT §5 要求下调的是**结论强度**（「中高匹配度 / 不是必然被拒」→「尚未确认 + 较高审核风险」），**不是**优先级。TD-10 依然是**发行阻塞项**：不上架不阻塞开发，一旦决定上架 Play 就必须先解决（同意流程 + 隐私政策 + 权限声明），周期长。因此**优先级保持 P1**，但**渠道结论由「乐观」改为「未确认」**。
 
-### 分渠道分析（**不预判 Play 一定通过或拒绝**）
+---
 
-| 渠道 | 政策现状 | 需要的材料 | 与本项目的匹配度 | 结论 |
+### 分渠道分析
+
+#### 渠道 A · Google Play —— 权限审核风险：**较高（发行资格尚未确认）**
+
+**v2 修订**：原表中的「中高匹配度 / 不是必然被拒」判断偏乐观，已整体替换为以下结论。
+
+| 项 | v2 结论 |
+|---|---|
+| **发行资格** | **尚未确认**。`QUERY_ALL_PACKAGES` 受 Play「允许权限」政策约束，本项目**当前尚未**完成资格论证，也未提交权限声明表 |
+| **审核风险** | **较高**。触发审核的正是「这个权限是否为核心功能所必需」与「是否可用更窄查询替代」这两个问题，而本项目**尚未**完成这两项论证 |
+| **举证义务** | **必须证明「广泛应用可见性」是核心功能所必需的**。举证材料不能只有 Manifest 注释，需要：① 核心功能与该权限的对应关系；② 没有它时用户可见的功能损失；③ 设备上的实测证据 |
+| **替代方案分析** | **必须分析「更窄范围查询」是否可以满足需求**。若存在可接受的窄方案，则「必需性」举证自动失败 |
+| **身份豁免** | **不得**因为「应用是屏幕使用时间统计工具」就自动认定符合政策。工具身份本身**不构成**政策豁免 |
+| **结论** | **不预判** Google Play 一定接受或一定拒绝。在两项必做分析完成之前，**任何方向的结论都不成立** |
+
+**必做分析 1 · 举证「广泛应用可见性是核心功能所必需」**
+
+| 证据项 | 当前状态 | 说明 |
+|---|---|---|
+| 核心功能与权限的对应关系 | **已有论证雏形** | Manifest 注释 + `AppLabelResolver` / `AppIcon` 的三级回退链说明了「不用则退化为包名 + 占位图标」 |
+| 用户可见的功能损失 | **部分实测** | Manifest 注释称实测 `com.xiaomi.mi_connect_service` 占 8 次通知；**该数据未随本项目留档**，需重跑并归档 |
+| 跨厂商覆盖情况 | **未实测** | 仅在小米系设备上观察过；其它厂商是否有同等比例的「无桌面入口」包**未知** |
+| 降级后的可用性评估 | **未做** | 「包名 + 占位图标」的可接受度未做过用户侧评估 |
+
+**必做分析 2 · 「更窄范围查询」能否满足需求**
+
+本项目当前的窄方案基线是 `<queries>` + `MAIN/LAUNCHER`（`AndroidManifest.xml:23-28`）。要回答的是：**只保留 LAUNCHER 查询，是否足以支撑核心功能？**
+
+| 步骤 | 内容 | 当前状态 |
+|---|---|---|
+| 1 | 枚举「有前台时长但无 LAUNCHER 入口」的包在典型设备上的数量与时长占比 | **未实测**（需在 Redmi + 至少一台非小米设备上各采一轮） |
+| 2 | 评估这些包在 UI 中的占比（排行页 / 应用列表 / 统计页） | **未做** |
+| 3 | 评估其它公开途径能否替代（系统 API、厂商特有接口、用户手动配置名单） | **未调研** |
+| 4 | 给出结论：窄方案「可接受 / 不可接受 / 分场景接受」 | **未做** |
+
+> **必须记录的诚实性要求**：若第 1 步的结果显示「无入口包」占比很小，**必须如实写明**，并重新评估是否应当直接移除 `QUERY_ALL_PACKAGES`。**不允许**为了保住权限而事后修饰数据。
+
+**需要的材料**：Play Console **权限声明表**（用途说明）+ 应用内**同意界面** + 隐私政策中说明读取包名 / 图标。
+
+#### 渠道 B · F-Droid —— 审核风险：**未评估（逐项核查）**
+
+**v2 修订**：不得写成「通常接受 `QUERY_ALL_PACKAGES`」。下表逐项核查，每项都给出「已知事实 / 待核查 / 当前判断」。
+
+| # | 核查项 | 本项目已知事实 | 待核查内容 | 当前判断 |
 |---|---|---|---|---|
-| **Google Play** | `QUERY_ALL_PACKAGES` 受 Play「允许权限」政策约束：仅限**核心功能**用途，且必须**在应用内披露 + 提供用户同意流程** | Play Console **权限声明表**（用途说明）+ 应用内**同意界面** + 隐私政策中说明读取包名 / 图标 | **中高**：本应用核心功能就是「哪个 App 用了多久」，属于合理用途；但**当前没有同意流程** | **不是必然被拒**，但**必须补同意流程 + 权限声明**，否则大概率被拒或被要求修改 |
-| **GitHub Releases** | 无政策审核 | 无 | 完全可用 | ✅ 无障碍，但分发的是 APK → **需要可安装的签名包**（依赖 TD-01；当前 release 未签名） |
-| **F-Droid** | 有**元数据**审核；原则上反对「不必要的」权限，但通常**接受** `QUERY_ALL_PACKAGES`，要求在元数据里**解释用途**并偏好最少权限 | `fastlane/metadata/android/<lang>/full_description.txt` 等写明用途；建议附截图说明「无桌面入口应用只能显示包名」 | **中**：需要一份**诚实**的元数据说明；可能要说明「可降级到只用 LAUNCHER queries」的方案 | ⚠️ 可行，但**元数据必须写清楚**，否则可能被要求移除该权限 |
-| **国内渠道**（小米 / 华为 / 应用宝等） | 各自的软著 / 备案 / 隐私合规要求 | 软著、备案、隐私政策 | 取决于发行主体与主体资质 | **待定**，需按实际发行渠道逐个确认 |
+| B1 | **自由软件许可** | 仓库根目录存在 `LICENSE`，内容为 **Apache License 2.0**（已核实） | ① 自身许可是否满足 F-Droid 的自由软件要求；② 是否有「保留所有权利 / 禁止使用」之类的附加限制；③ 仓库是否声明版权人与年份 | **自身许可满足**；附加限制未查 |
+| B2 | **依赖库来源** | 直接依赖坐标：`androidx.core` / `activity-compose` / `lifecycle-runtime-ktx` / `lifecycle-viewmodel-compose` / `compose.ui` / `compose.ui-graphics` / `compose.ui-tooling-preview` / `material3` / `room-runtime` / `room-ktx` / `work-runtime-ktx` / `datastore-preferences` / `documentfile` / `androidx.security:security-crypto:1.1.0-alpha06` / `kotlinx-serialization-json` / `okhttp:4.12.0` / `dev.rikka.shizuku:api:13.1.5` + `dev.rikka.shizuku:provider:13.1.5`；均来自 Google Maven 与 Maven Central | ① 逐个依赖的许可证是否兼容 Apache-2.0；② `dev.rikka.shizuku` 的许可与**是否需要额外二进制组件**；③ `security-crypto` 使用 **alpha 版本**是否构成稳定性问题 | **未逐项核查**；`alpha` 依赖已识别 |
+| B3 | **构建可复现性** | Gradle Kotlin DSL；`compileSdk=34` / `minSdk=26` / `targetSdk=34` / `versionName=0.1.0`；KSP + Room | ① 是否存在私有仓库、密钥、签名配置引用；② Gradle 依赖是否全部可从公开仓库获取；③ 构建是否依赖本地环境（SDK 路径、JDK 版本）；④ 构建脚本与版本目录是否完整入库 | **未核查**；已知 `app/build.gradle.kts` 内**无** `signingConfig` / `buildTypes` / `isMinifyEnabled` 声明（与 TD-01 实测一致） |
+| B4 | **第三方服务依赖** | `INTERNET` 权限注释明确「**仅云同步**（WebDAV / Google Drive）使用。核心功能全离线，骨架阶段不发起任何网络请求」；WebDAV 地址与凭据由**用户自填** | ① 是否存在任何遥测 / 广告 / 崩溃上报 / 统计 SDK；② 云同步是否**完全可选**且默认关闭；③ Google Drive 通道当前是「远期规划」还是已实现 | **未核查**；代码事实显示核心功能离线、无第三方 SDK |
+| B5 | **Shizuku 依赖及其发行方式** | 主采集通道依赖 **Shizuku**（`moe.shizuku.manager.permission.API_V23` + `dev.rikka.shizuku:provider`）；应用**不能自带** Shizuku，用户必须另行安装并授权 | ① F-Droid 对「必须由用户另行安装的外部组件」的处理惯例；② 无 Shizuku 时应用是否仍可用（有无纯降级通道）；③ 元数据中如何描述该前置依赖 | **未核查**；已识别「外部必需组件」这一形态 |
+| B6 | **Android 权限与实际功能关系** | 声明 5 项权限：`PACKAGE_USAGE_STATS` / `moe.shizuku...API_V23` / `INTERNET` / `ACCESS_NETWORK_STATE` / `QUERY_ALL_PACKAGES` | ① 逐条权限 → 功能的对应关系表；② 是否有可裁剪的权限（如 `INTERNET` 是否可延后到启用同步时再申请）；③ `QUERY_ALL_PACKAGES` 在 F-Droid 语境下的**独立**论证（**不得**直接复用 Play 的论证结论） | **未核查** |
+| B7 | **F-Droid 当前纳入政策** | 仓库内**无** F-Droid 相关配置（已核实：无 `fastlane/metadata`、无 `fdroid` 目录） | ① F-Droid 现行纳入标准与 anti-feature 清单；② 本项目是否命中任何 anti-feature；③ 当前是否具备可提交状态（描述、截图、变更日志、构建说明） | **未核查**；已确认仓库当前不具备 F-Droid 元数据 |
+
+**F-Droid 渠道结论（v2）**：**在 B1–B7 全部核查完成前，不给出「可行 / 不可行」的结论**。目前能确认的只有两点：① 自身许可为 Apache-2.0（B1）；② 核心功能全离线、无第三方 SDK（B4 的代码事实）。其余五项均为**未核查**。
+
+#### 渠道 C · GitHub Releases
+
+无政策审核，完全可用。分发的是 APK → **需要可安装的签名包**（依赖 TD-01；当前 release 未签名）。**该渠道不受 Play / F-Droid 的权限审核影响。**
+
+#### 渠道 D · 国内渠道（小米 / 华为 / 应用宝等）
+
+各自的软著 / 备案 / 隐私合规要求，软著、备案、隐私政策。取决于发行主体与主体资质。**待定**，需按实际发行渠道逐个确认。**该渠道的风险独立于 Play 与 F-Droid。**
+
+---
+
+### 两类审核风险的分离声明（GPT §5.2）
+
+| 风险类型 | 触发点 | 影响渠道 | 判定依据 | 能否互相替代 |
+|---|---|---|---|---|
+| **权限审核风险** | `QUERY_ALL_PACKAGES` 是否为核心功能所必需、是否可用更窄查询替代 | **仅 Google Play** | Play「允许权限」政策 + 权限声明表 | **不能** |
+| **发行资格 / 纳入风险** | 许可、依赖来源、构建可复现性、第三方服务、外部组件、权限-功能关系、纳入政策 | **仅 F-Droid** | F-Droid 纳入标准 + anti-feature 清单 | **不能** |
+| **签名 / 产物风险** | 能否产出可安装的正式签名包 | GitHub Releases（以及任何分发渠道） | 构建与签名配置（TD-01） | 与上两者**正交** |
+| **合规风险** | 软著 / 备案 / 隐私合规 | **仅国内渠道** | 各商店与监管要求 | 与上三者**正交** |
+
+> **结论**：**Play 通过 ≠ F-Droid 可纳入，反之亦然**。两条渠道必须**分别**取证、分别下结论。本登记此前把二者并列成一张「匹配度」表，掩盖了两者在**触发点与判定依据**上的根本差异 —— v2 已拆分。
 
 ### 影响范围
 
 - `AndroidManifest.xml`（权限声明本身）；
 - **首次启动流程**（新增同意界面，与现有 `completeOnboarding()` 衔接）；
 - 隐私政策 / 应用内隐私说明；
-- 各渠道的**商店元数据**。
+- 各渠道的**商店元数据**（Play 权限声明表 / F-Droid `fastlane/metadata` / GitHub Releases 说明）；
+- **F-Droid 特有的**：构建可复现性说明、依赖清单与许可清单、Shizuku 前置依赖说明。
 
 ### 建议验证方式
 
 | 编号 | 动作 | 通过标准 |
 |---|---|---|
 | V1 | **先确认现状**：复核是否已有隐私政策页与首次启动引导（`completeOnboarding` 的内容） | 明确「有 / 没有」，作为后续工作量基线 |
-| V2 | **做可降级设计**：把「不使用 QUERY_ALL_PACKAGES」做成**用户可选开关**（默认开，并解释收益） | 代码已具备退化能力（显示包名），把选择权交给用户 |
-| V3 | **写 Play Console 权限声明** | 逐字说明「用于显示各应用的使用时长、名称与图标」，与屏幕使用时间的核心功能对应 |
-| V4 | **写 F-Droid / GitHub Releases 的元数据** | 与 V3 同源，说明用途 + 提供截图 |
-| V5 | **不要**在补齐同意流程前上架 Play | — |
+| V2 | **Play 举证分析**：完成 §TD-10.A「必做分析 1」的四项取证 | 四项证据齐全且**留档**，含跨厂商采样 |
+| V3 | **Play 替代方案分析**：完成 §TD-10.A「必做分析 2」的四步 | 给出明确结论；若结论是「窄方案可接受」→ **必须重新评估是否移除该权限** |
+| V4 | **F-Droid 逐项核查**：完成 B1–B7 | 每项有明确结论与依据；B1 / B4 可直接引用代码事实，其余需补证 |
+| V5 | **做可降级设计**：把「不使用 `QUERY_ALL_PACKAGES`」做成**用户可选开关**（默认开，并解释收益） | 代码已具备退化能力（包名 + 占位图标 + 内置名称表），把选择权交给用户 |
+| V6 | **写 Play Console 权限声明** | 逐字说明「用于显示各应用的使用时长、名称与图标」，并附 V2 / V3 的结论 |
+| V7 | **写 F-Droid / GitHub Releases 的元数据** | 与 V6 同源说明用途 + 提供截图；F-Droid 另需 B1–B7 的结论摘要 |
+| V8 | **不要**在 V2 / V3 完成前上架 Play | —— |
 
 ### 是否需立即修
 
-**否**（不阻塞开发）。但**必须在计划上架 Google Play 之前完成**（预计需新增 UI 流程）。
+**否**（不阻塞开发）。但**必须在计划上架 Google Play 之前完成**（预计需新增 UI 流程），且 F-Droid 渠道需在 B1–B7 完成前不提交纳入申请。
 
 ### 与其他任务的依赖关系
 
-- 与 **TD-01**（正式签名）强相关 —— GitHub Releases 分发需要可安装的签名包；
-- 与 **TD-09**（CI）相关 —— 发布构建最好由 CI 产出同一份可归档产物；
+- 与 **TD-01**（正式签名）强相关 —— GitHub Releases 分发需要可安装的签名包；F-Droid 的构建可复现性（B3）同样依赖签名配置的明确化；
+- 与 **TD-09**（CI）相关 —— 发布构建最好由 CI 产出同一份可归档产物（F-Droid B3 也要求构建可复现）；
 - 与 **TD-05**（AppViewModel 拆分）相关 —— 同意流程的状态应落在新拆出的设置 / 偏好组件里，而不是继续塞进 `AppViewModel`；
 - 与 **R11 的 UI 诚实化**不冲突（不同域）。
 
@@ -726,7 +828,7 @@
 2. **只有 TD-09 是「已复现」**，且复现的是「**保障缺失**」本身，不是某个具体 bug；
 3. **TD-02 / TD-03 的内存数字是估算量级**，不是实测峰值；
 4. **TD-01 只实测了「release 任务存在」**，没有构建过 release、没有验证混淆后能否启动 / 采集 / 备份 / 恢复；
-5. **TD-10 的渠道结论是政策匹配度分析**，不是法律意见，也不是任何渠道的审核结果；
+5. **TD-10 的渠道结论不是任何渠道的审核结果**：Play 侧 =「发行资格尚未确认 + 审核风险较高」，F-Droid 侧 =「七项核查未做，结论尚未成立」——两者**分别**成立，**不预判**任一渠道的通过 / 拒绝；
 6. **TD-04 的「链接期错误逃过 catch」是基于代码结构的推断**，未构造实际异常验证；
 7. **TD-07 的三个风险点是代码审阅结论**，未构造含特殊字符的路径实测；
 8. 真机相关的验证项（TD-01 V2、TD-02 低端机对照、TD-07 V4）**都需要 Redmi 放行**，本阶段**未占用设备**；
@@ -749,7 +851,12 @@
 | WebDAV 未做 URL 编码 | `WebDavProvider.buildUrl` / `ensureDirsFor` / `parsePropfindEntries` |
 | WebDAV 未做 scheme 检查 | `WebDavProvider.request` 无条件 `Credentials.basic` |
 | 无 CI | `.github/**` glob 结果为空 |
-| `QUERY_ALL_PACKAGES` 声明与自相矛盾的注释 | `AndroidManifest.xml:37-38` 及其上下文注释 |
+| `QUERY_ALL_PACKAGES` 声明与自相矛盾的注释 | `AndroidManifest.xml:37-39` 及其上下文注释（`:18-22` 为矛盾的前半句） |
+| 展示名 / 图标的三级回退链 | `AppLabelResolver.kt:26-28`（`getApplicationLabel` → `AppNames.kt` 内置表 → 裸包名）、`uikit/AppIcon.kt:43-45`（`getApplicationIcon` → 首字母占位） |
+| 自身自由软件许可 | 仓库根目录 `LICENSE` = **Apache License 2.0**（已核实内容） |
+| 直接依赖坐标清单（TD-10 B2） | `app/build.gradle.kts:62-103`（androidx 全家桶 + Room + WorkManager + DataStore + kotlinx-serialization + okhttp + `androidx.security:security-crypto:1.1.0-alpha06` + `dev.rikka.shizuku:api/provider:13.1.5`） |
+| 无 F-Droid 元数据（TD-10 B7） | 全仓库 glob `**/fastlane/**` 结果为空 |
+| 无自定义签名 / 构建类型（TD-10 B3） | `app/build.gradle.kts` 内无 `signingConfig` / `buildTypes` / `isMinifyEnabled` 声明 |
 | Room / 备份版本 | `ScreenTraceDatabase.kt`（version = 8）、`BackupModels.kt:172`（SCHEMA_VERSION = 6） |
 
 
