@@ -1,0 +1,38 @@
+PROBE 输出记录（App 自己的 UsageDumpParser 跑真实 dump + 合成最小复现）
+生成时间: 2026-11-23 10:4x (Asia/Shanghai)
+运行方式: Gradle 单测临时探针（跑完已从仓库移出，副本见 app/build/probe/RealDumpProbeTest.kt）
+
+------------------------------------------------------------
+【探针 1】把真机 dump 喂进 App 自己的解析器（today=null 与 today=2026-11-23 两种模式）
+------------------------------------------------------------
+PROBE checkin=322989 human=696251
+PROBE ===== today=null =====
+PROBE   day 2026-11-23 screenMin=1 screenUnlockMin=1 unlocks=0 launches=7 longest=1
+PROBE   appUsage 2026-11-23 com.screentrace.app totalMs=69000 min=1.15 launches=2
+PROBE   appUsage 2026-11-23 com.miui.home totalMs=4000 min=0.07 launches=3
+PROBE   appUsage 2026-11-23 moe.shizuku.privileged.api totalMs=3000 min=0.05 launches=2
+PROBE   hourMinutes 2026-11-23 sum=1  [0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0]
+PROBE   screenSessions=2 keyguard=0
+PROBE   todayScreenSession 1795401524000 -> 1795401540000 min=0.27
+PROBE   todayScreenSession 1795401541000 -> 1795401601000 min=1.0
+PROBE ===== today=2026-11-23 =====
+PROBE   day 2026-11-23 screenMin=1 screenUnlockMin=1 unlocks=0 launches=7 longest=1
+PROBE   appUsage 2026-11-23 com.screentrace.app totalMs=4519000 min=75.32 launches=2
+PROBE   appUsage 2026-11-23 com.miui.home totalMs=5000 min=0.08 launches=1
+PROBE   appUsage 2026-11-23 moe.shizuku.privileged.api totalMs=3000 min=0.05 launches=1
+
+→ 结论 1：10:38 之后拿到的 dump（checkin 段已变「无数据」）解析出来是正常的（亮屏 1 分钟、
+          屏迹 1.15 / 75.32 分钟）。**库里那个 1440 分钟不是这次拉取算出来的**，
+          它来自 10:31 那次「checkin+data」的拉取，且入库是「取大」，不会被后来的小值改回去。
+
+------------------------------------------------------------
+【探针 2】合成最小复现：24h checkin 区间 + 屏迹 totalTimeUsed=86400000ms（=24h）
+------------------------------------------------------------
+PROBE2 interval hours=24.0
+PROBE2 days=[]                                  ← 该日没有任何屏幕指标（screenMin 缺失）
+PROBE2 appUsage 2026-11-23 com.screentrace.app totalMs=86400000 min=1440.0 launches=2
+PROBE2 sanity dropped=[] appRowsAfter=1 hourAfter=0
+                                                          ↑ IngestSanity 没有丢弃这行
+
+→ 结论 2：与真机库里 2026-11-23 屏迹 = 1440 分钟**完全一致**。
+          且 IngestSanity.check(...) dropped=[] —— 两道门禁都没拦住。
