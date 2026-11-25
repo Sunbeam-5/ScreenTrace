@@ -223,7 +223,8 @@ object BackupCodec {
     const val SCHEMA_VERSION = 7
 
     private val json = Json {
-        prettyPrint = true
+        // TD-03：关闭 prettyPrint 将导出体积与 String 内存峰值减半（decode 仍兼容旧版 pretty 备份）
+        prettyPrint = false
         encodeDefaults = true
         ignoreUnknownKeys = true
     }

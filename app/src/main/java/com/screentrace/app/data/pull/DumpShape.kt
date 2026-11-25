@@ -73,11 +73,8 @@ internal data class DumpShape(
          * - `beginTime=<数字>` 是 CSV 的区间头，明文用 `timeRange="…"`；
          * - `screen-interactive: Nx for N`（**无引号、纯数字毫秒**）也是 CSV 独有。
          */
-        private val CHECKIN_MARKERS = listOf(
-            Regex("""(^|\n)Days:"""),
-            Regex("""beginTime=\d+"""),
-            Regex("""screen-interactive: \d+x for \d+\s*$""", RegexOption.MULTILINE)
-        )
+        private val CHECKIN_BEGIN_TIME = Regex("""beginTime=\d+""")
+        private val CHECKIN_SCREEN_LINE = Regex("""screen-interactive: \d+x for \d+\s*$""")
 
         /** 明文 dump 独有的段落头。 */
         private val PLAIN_MARKERS = listOf(
@@ -97,18 +94,35 @@ internal data class DumpShape(
             "type=NOTIFICATION_INTERRUPTION"
         )
 
+        /** TD-02：单遍 lineSequence() 扫描替代最多 13 遍全文扫描，语义与旧实现 100% 等价。 */
         fun of(text: String): DumpShape {
-            val hasData = USAGE_DATA_MARKERS.any(text::contains)
-            return DumpShape(
-                bytes = text.length,
-                kind = when {
-                    text.isBlank() -> Kind.EMPTY
-                    CHECKIN_MARKERS.any { it.containsMatchIn(text) } -> Kind.CHECKIN
-                    PLAIN_MARKERS.any(text::contains) -> Kind.PLAIN
-                    else -> Kind.UNKNOWN
-                },
-                hasUsageData = hasData
-            )
+            if (text.isBlank()) return DumpShape(bytes = text.length, kind = Kind.EMPTY, hasUsageData = false)
+            var isCheckin = false
+            var isPlain = false
+            var hasData = false
+            for (line in text.lineSequence()) {
+                if (!hasData && USAGE_DATA_MARKERS.any(line::contains)) {
+                    hasData = true
+                }
+                if (!isCheckin) {
+                    if (line.startsWith("Days:") ||
+                        (line.contains("beginTime=") && CHECKIN_BEGIN_TIME.containsMatchIn(line)) ||
+                        (line.contains("screen-interactive:") && CHECKIN_SCREEN_LINE.containsMatchIn(line))
+                    ) {
+                        isCheckin = true
+                    }
+                }
+                if (!isCheckin && !isPlain && PLAIN_MARKERS.any(line::contains)) {
+                    isPlain = true
+                }
+                if (isCheckin && hasData) break
+            }
+            val kind = when {
+                isCheckin -> Kind.CHECKIN
+                isPlain -> Kind.PLAIN
+                else -> Kind.UNKNOWN
+            }
+            return DumpShape(bytes = text.length, kind = kind, hasUsageData = hasData)
         }
     }
 }

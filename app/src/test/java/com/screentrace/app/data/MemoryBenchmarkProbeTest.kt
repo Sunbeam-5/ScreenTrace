@@ -62,7 +62,7 @@ class MemoryBenchmarkProbeTest {
         val out = (decoded as BackupCodec.DecodeResult.Ok).file
         assertEquals(5_000, out.unlockEvent.size)
         assertEquals(10_000, out.notificationEvent.size)
-        assertTrue("prettyPrint 放大倍数应大于 1.0", ratio > 1.0)
+        assertTrue("TD-03 紧凑导出体积应与 compact 一致（比值 ≤ 1.05）", ratio <= 1.05)
     }
 
     @Test

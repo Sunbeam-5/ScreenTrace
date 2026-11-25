@@ -199,39 +199,50 @@ object UsageDumpParser {
         var currentUser = 0
         var current: RawInterval? = null
         for (line in checkinText.lineSequence()) {
-            USER_HEADER.find(line)?.let { currentUser = it.groupValues[1].toInt() }
-            val rangeMatch = RANGE.find(line)
-            val evMatch = EV_CHECKIN.find(line)
-            val screenMatch = SCREEN_CHECKIN.find(line)
-            val pkgMatch = PKG_CHECKIN.find(line)
+            if (line.contains("user=")) {
+                USER_HEADER.find(line)?.let { currentUser = it.groupValues[1].toInt() }
+            }
             when {
-                rangeMatch != null -> {
-                    current = RawInterval(
-                        user = currentUser,
-                        beginMs = rangeMatch.groupValues[1].toLong(),
-                        endMs = rangeMatch.groupValues[2].toLong()
-                    )
-                    intervals.add(current!!)
+                line.contains("beginTime=") -> {
+                    val rangeMatch = RANGE.find(line)
+                    if (rangeMatch != null) {
+                        current = RawInterval(
+                            user = currentUser,
+                            beginMs = rangeMatch.groupValues[1].toLong(),
+                            endMs = rangeMatch.groupValues[2].toLong()
+                        )
+                        intervals.add(current!!)
+                    }
                 }
                 // 尾部 Broadcast/Notification/安装包列表段不混读（§2.2）
-                evMatch != null -> {
-                    val type = EventTypes.normalize(evMatch.groupValues[2])
-                    if (type != null) {
-                        checkinEvents.add(
-                            RawEvent(
-                                evMatch.groupValues[1].toLong(),
-                                type,
-                                evMatch.groupValues[3],
-                                CHANNEL.find(line)?.groupValues?.get(1),
-                                currentUser
+                line.contains("type=") && line.contains("time=") -> {
+                    val evMatch = EV_CHECKIN.find(line)
+                    if (evMatch != null) {
+                        val type = EventTypes.normalize(evMatch.groupValues[2])
+                        if (type != null) {
+                            val ch = if (line.contains("channelId=")) CHANNEL.find(line)?.groupValues?.get(1) else null
+                            checkinEvents.add(
+                                RawEvent(
+                                    evMatch.groupValues[1].toLong(),
+                                    type,
+                                    evMatch.groupValues[3],
+                                    ch,
+                                    currentUser
+                                )
                             )
+                        }
+                    }
+                }
+                line.contains("screen-interactive:") -> {
+                    SCREEN_CHECKIN.find(line)?.let { current?.screenAggMs = it.groupValues[2].toLong() }
+                }
+                line.contains("totalTimeUsed=") -> {
+                    PKG_CHECKIN.find(line)?.let { pkgMatch ->
+                        current?.pkgs?.add(
+                            PkgAgg(pkgMatch.groupValues[1], pkgMatch.groupValues[2].toLong(), pkgMatch.groupValues[4].toInt())
                         )
                     }
                 }
-                screenMatch != null -> current?.screenAggMs = screenMatch.groupValues[2].toLong()
-                pkgMatch != null -> current?.pkgs?.add(
-                    PkgAgg(pkgMatch.groupValues[1], pkgMatch.groupValues[2].toLong(), pkgMatch.groupValues[4].toInt())
-                )
             }
         }
 
@@ -242,55 +253,62 @@ object UsageDumpParser {
         var inDaily = false
         var humanUser = 0
         for (line in humanText.lineSequence()) {
-            val trimmed = line.trim()
-            USER_HEADER.find(line)?.let {
-                humanUser = it.groupValues[1].toInt()
-                inDaily = false // 新 user 块，旧 In-memory 段终止
+            if (line.contains("user=")) {
+                USER_HEADER.find(line)?.let {
+                    humanUser = it.groupValues[1].toInt()
+                    inDaily = false // 新 user 块，旧 In-memory 段终止
+                }
             }
-            if (trimmed == "In-memory daily stats") {
+            if (line.contains("In-memory daily stats") && line.trim() == "In-memory daily stats") {
                 inDaily = true
                 humanTodayPkgs.getOrPut(humanUser) { mutableListOf() }
                 continue
             }
-            // 窗口边界只认 In-memory 段内的那一行：`Last 24 hour events` 也带 timeRange，
-            // 且写在前面，不过它的窗口对分摊同样有效——只是 daily 段会覆盖它，取更准的那个。
             if (inDaily) {
-                HUMAN_RANGE.find(line)?.let {
-                    val s = LocalDateTime.parse(it.groupValues[1], HUMAN_RANGE_TIME)
-                        .atZone(zone).toInstant().toEpochMilli()
-                    val e = LocalDateTime.parse(it.groupValues[2], HUMAN_RANGE_TIME)
-                        .atZone(zone).toInstant().toEpochMilli()
-                    if (e > s) humanRanges[humanUser] = s to e
+                if (line.contains("In-memory weekly") && line.trimStart().startsWith("In-memory weekly")) {
+                    inDaily = false
+                } else {
+                    // 窗口边界只认 In-memory 段内的那一行
+                    if (line.contains("timeRange=")) {
+                        HUMAN_RANGE.find(line)?.let {
+                            val s = LocalDateTime.parse(it.groupValues[1], HUMAN_RANGE_TIME)
+                                .atZone(zone).toInstant().toEpochMilli()
+                            val e = LocalDateTime.parse(it.groupValues[2], HUMAN_RANGE_TIME)
+                                .atZone(zone).toInstant().toEpochMilli()
+                            if (e > s) humanRanges[humanUser] = s to e
+                        }
+                    }
+                    if (line.contains("totalTimeUsed=")) {
+                        val pkgMatch = PKG_HUMAN.find(line)
+                        if (pkgMatch != null) {
+                            val launches = if (line.contains("appLaunchCount=")) {
+                                LAUNCH_COUNT.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                            } else {
+                                0
+                            }
+                            humanTodayPkgs.getOrPut(humanUser) { mutableListOf() }.add(
+                                PkgAgg(pkgMatch.groupValues[1], durMs(pkgMatch.groupValues[2]), launches)
+                            )
+                        }
+                    }
                 }
             }
-            if (inDaily && trimmed.startsWith("In-memory weekly")) inDaily = false
-            if (inDaily) {
-                val pkgMatch = PKG_HUMAN.find(line)
-                if (pkgMatch != null) {
-                    humanTodayPkgs.getOrPut(humanUser) { mutableListOf() }.add(
-                        PkgAgg(
-                            pkgMatch.groupValues[1],
-                            durMs(pkgMatch.groupValues[2]),
-                            // 缺字段 = 系统记为 0（不是「拿不到」）：日级启动数另由
-                            // ACTIVITY_RESUMED 计数给出，这里只用于应用级展示
-                            LAUNCH_COUNT.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            if (line.contains("time=\"") && line.contains("type=")) {
+                val evMatch = EV_HUMAN.find(line)
+                if (evMatch != null) {
+                    val type = EventTypes.normalize(evMatch.groupValues[2])
+                    if (type != null) {
+                        val ch = if (line.contains("channelId=")) CHANNEL.find(line)?.groupValues?.get(1) else null
+                        humanEvents.add(
+                            RawEvent(
+                                LocalDateTimeMs(evMatch.groupValues[1], zone),
+                                type,
+                                evMatch.groupValues[3],
+                                ch,
+                                humanUser
+                            )
                         )
-                    )
-                }
-            }
-            val evMatch = EV_HUMAN.find(line)
-            if (evMatch != null) {
-                val type = EventTypes.normalize(evMatch.groupValues[2])
-                if (type != null) {
-                    humanEvents.add(
-                        RawEvent(
-                            LocalDateTimeMs(evMatch.groupValues[1], zone),
-                            type,
-                            evMatch.groupValues[3],
-                            CHANNEL.find(line)?.groupValues?.get(1),
-                            humanUser
-                        )
-                    )
+                    }
                 }
             }
         }

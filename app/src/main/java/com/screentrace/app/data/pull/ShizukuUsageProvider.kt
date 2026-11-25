@@ -59,13 +59,16 @@ class ShizukuUsageProvider(
 
         // 两路 dump 都**不致命**：任何一路拿到能用的数据就够。单路失败先记下来，
         // 只有两路都没有可用数据时才按通道不可用处理（交给协调器降级）。
+        // TD-02：先判 checkin 形态，无用则立即释放引用后再拉 4MB 明文，避免两路同时驻留堆内存。
         val checkinAttempt = runCatching { shell.exec(ShizukuShell.CHECKIN_CMD) }
-        val checkin = checkinAttempt.getOrDefault("")
+        val checkinRaw = checkinAttempt.getOrDefault("")
+        val checkinShape = withContext(Dispatchers.Default) { DumpShape.of(checkinRaw) }
+        val useCheckinPre = checkinShape.looksLikeCheckin
+        val checkin = if (useCheckinPre) checkinRaw else ""
         val human = runCatching { shell.exec(ShizukuShell.PLAIN_CMD) }.getOrDefault("")
 
-        // 形态判定 + 解析都在 Default 上：4MB 文本的 `contains` 扫描与逐行解析都不该占用调用线程
+        // 形态判定 + 解析都在 Default 上：4MB 文本的扫描与逐行解析都不该占用调用线程
         return withContext(Dispatchers.Default) {
-            val checkinShape = DumpShape.of(checkin)
             val humanShape = DumpShape.of(human)
 
             // 真机实测（小米 2407FRK8EC / Android 16 / HyperOS 3）：

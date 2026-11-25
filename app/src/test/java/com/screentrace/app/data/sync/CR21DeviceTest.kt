@@ -499,8 +499,8 @@ class CR21DeviceTest {
         val localId = settings.getOrCreateDeviceId()
         val uploaded = provider.remote[SyncPaths.manualPath(localId)]!!.decodeToString()
         // CR-28：合并按来源分量落库，导出各带各的行——本机 400 与并入的旧数据 60 都在
-        assertTrue("云端备份必须已含本机分量", uploaded.contains("\"screenMin\": 400"))
-        assertTrue("云端备份必须已含合并进来的旧数据", uploaded.contains("\"screenMin\": 60"))
+        assertTrue("云端备份必须已含本机分量", uploaded.contains("\"screenMin\":400"))
+        assertTrue("云端备份必须已含合并进来的旧数据", uploaded.contains("\"screenMin\":60"))
     }
 
     @Test
