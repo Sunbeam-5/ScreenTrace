@@ -34,9 +34,9 @@
 | 编号 | 债务项 | 风险已复现？ | 优先级 | 需立即修 |
 |---|---|---|---|---|
 | TD-01 | Release 构建 / R8 / 正式签名 | 否（**2026-11-25 补齐基线**：`isMinifyEnabled=true` + 精确 ProGuard 规则 + `keystore.properties`/环境变量签名接线；`assembleRelease` 2.3MB 产物与 `testReleaseUnitTest` 648/648 全绿；正式 keystore 仍由负责人仓库外提供） | **P1** | 否（发布前补签名密钥） |
-| TD-02 | Shizuku 大文本峰值内存 | 否（**2026-11-25 TD-Batch2 已治理**：`5843f05` 基准 4MB=900.9ms/98294KB；现改 `DumpShape` 单遍扫 + `ShizukuUsageProvider` 错峰释放无用 checkin + `UsageDumpParser` 预筛） | **P2** | 否 |
-| TD-03 | 备份 JSON 序列化峰值内存 | 否（**2026-11-25 TD-Batch2 已治理**：`5843f05` 基准 `prettyPrint=1.99x`（2.29MB vs 1.15MB）；现关闭 `prettyPrint` 减半体积，解码双向兼容） | **P2** | 否 |
-| TD-04 | Shizuku AIDL 版本兼容 | 否（当前版本正常） | **P1** | 否（升级依赖时必修） |
+| TD-02 | Shizuku 大文本峰值内存 | 否（**2026-11-25 TD-Batch2 已闭环** `67dc71c`：4MB dump `900.9ms/98,294KB → 813.9ms/9,554KB`，堆增量 **-90.3%**） | **P2** | 否 |
+| TD-03 | 备份 JSON 序列化峰值内存 | 否（**2026-11-25 TD-Batch2 已闭环** `67dc71c`：关闭 `prettyPrint`，15k 事件备份 `2.29MB → 1.15MB` **-49.8%**，双向兼容） | **P2** | 否 |
+| TD-04 | Shizuku AIDL 版本兼容 | 否（**2026-11-25 TD-Batch3 已加固** `ShizukuAidlCompat`：隔离 `moe.shizuku.server.*` 并捕获 `LinkageError` 平滑降级至 UsageStats） | **P1** | 否（已隔离） |
 | TD-05 | AppViewModel 职责过多 | 否（可维护性债务） | **P3** | 否 |
 | TD-06 | BackupRepository 职责过多 | 否（可维护性债务） | **P3** | 否 |
 | TD-07 | WebDAV URL 路径编码 | 否（**2026-11-25 TD-Batch1 已闭环** `5843f05`：`WebDavUrlCodec` 逐段编码 + RFC 3986 path 解码，`MockWebServer` 实测通过） | **P2** | 否 |

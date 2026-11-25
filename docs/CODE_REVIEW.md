@@ -2406,3 +2406,21 @@ checkin dump 头部 `Currently Active:com.screentrace.app`；今日 `day_summary
 | 行为变异验证（M-TD1 ~ M-TD4） | **通过** | 全部变红后无条件还原 |
 | TD-02 / TD-03 实测基准 | **已取证** | `TD-03`：`prettyBytes=2,290,354` vs `compactBytes=1,148,902`（`ratio=1.99x`，`encodeMs=76.3ms`）；`TD-02`：4MB 明文 dump（40,819 事件）耗时 `900.9ms`、堆增量 `98,294 KB`（~96 MB），证实两项内存优化具备明确收益 |
 | Redmi（`GAQOHMNFQWFUPBQO`）回归 | **通过** | WebDAV `http://192.168.1.2:8080/dav/` 立即展示明文风险提示、改 `https://` 提示消失；前后台切回 `WaitTime: 66ms`，0 crash；全程未触碰 vivo |
+
+---
+
+## TD-Batch2 与双机回归审阅收口补记（2026-11-25，HEAD `67dc71c`）
+
+> 审阅基线：`main` HEAD `67dc71c`（对比 `5843f05`，共 10 个变更文件：7 个代码/单测文件 + `docs/CODE_REVIEW.md` + `docs/TECH-DEBT-全项目工程审计登记.md` + `docs/TODO.md`）
+> 审阅结论：**通过（无 P0 / P1 / P2 问题，TD-02 / TD-03 内存与解析治理达标，Redmi + vivo 双机实测全通过）**
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 与仓库红线 | **通过** | Room schema/DAO/聚合/备份 schemaVersion=7 与 `README.md` 零改动；`CR21DeviceTest` 同步适配紧凑 JSON 断言，旧版 pretty 备份与新版紧凑备份双向兼容 |
+| 单元测试（Debug / Release） | **通过** | 双变体均为 **100 suites / 687 tests / 0 fail / 0 error / 0 skip**；新增 `MemoryOptimizationRegressionTest` 全绿，**M-TD5 ~ M-TD7 全红后还原** |
+| TD-03 实测收益 | **显著达标** | 15k 事件合成备份由 `2,290,354` bytes（`1.99x`，`76.3ms`）降至 `1,148,902` bytes（`1.00x`，`62.1ms`），**体积 -49.8%** |
+| TD-02 实测收益 | **显著达标** | 4MB 明文 dump（40,819 条事件）由 `900.9ms / 98,294 KB` 降至 `813.9ms / 9,554 KB`，**堆增量 -90.3%** |
+| Redmi（`GAQOHMNFQWFUPBQO`）冒烟 | **通过** | 冷启动中位 `596ms`、热启动 `28ms`、`TOTAL PSS 302594 KB`；「关于与诊断」立即拉取命中 `checkin 无数据，本次明文主导` 新路径，0 crash |
+| vivo（`10CEB40M5G001DK`，负责人授权）实测 | **通过** | `360.0dp` 窄屏 `1.0x`/`1.3x`/`1.5x` 下 `DatePicker` 周日列 `[1050,1330][1218,1498]` 左右对称零截断；冷启动中位 `919ms`、热启动 `141ms`、`TOTAL PSS 182019 KB`；诊断与 WebDAV 明文提示正常，0 crash |
