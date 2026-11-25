@@ -6,8 +6,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,7 +21,6 @@ import com.screentrace.app.uikit.rememberReduceMotion
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.tooling.preview.Preview
@@ -31,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import com.screentrace.app.contract.DailyPoint
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.ExtremesInfo
-import com.screentrace.app.contract.PeriodType
 import com.screentrace.app.contract.Summary
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.theme.FreshType
@@ -65,8 +61,6 @@ fun StatsScreen(
     selection: DateSelection,
     onApplySelection: (DateSelection) -> Unit,
     onRetry: () -> Unit,
-    /** §5.11 入口：进入周期总结（周/月/年）二级页。 */
-    onOpenPeriod: (PeriodType) -> Unit = {},
     /** 切主页面时变化，用于收起柱图浮层（Pager 常驻，组合不销毁）。 */
     resetKey: Any? = null
 ) {
@@ -85,7 +79,6 @@ fun StatsScreen(
             data = state.data,
             selection = selection,
             onApplySelection = onApplySelection,
-            onOpenPeriod = onOpenPeriod,
             resetKey = resetKey
         )
         state.loading -> LoadingSkeleton()
@@ -103,7 +96,6 @@ private fun StatsContent(
     data: StatsData,
     selection: DateSelection,
     onApplySelection: (DateSelection) -> Unit,
-    onOpenPeriod: (PeriodType) -> Unit = {},
     resetKey: Any? = null
 ) {
     val palette = LocalFreshPalette.current
@@ -199,9 +191,7 @@ private fun StatsContent(
             )
         }
     }
-
-    // §5.11 入口：本周 / 本月 / 本年总结（按当前日期给出周期名，三段都能直接进）
-    PeriodEntryCard(onOpenPeriod = onOpenPeriod)
+    // CR-30 §7-64：周期总结入口已统一收敛至日历页，统计页不再重复摆放。
 }
 
 /** CR-07 §5.2：平均线图例（虚线示例 + 「日均 X小时Y分」），放在图表下方。 */
@@ -256,56 +246,6 @@ private fun FadeText(
 private val STATS_WEEKDAYS = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
 private fun dateWithWeekday(date: java.time.LocalDate): String =
     "${date.monthValue}月${date.dayOfMonth}日 · ${STATS_WEEKDAYS[date.dayOfWeek.value - 1]}"
-
-/**
- * 周期总结入口卡：一行一个周期，右侧写明当前周期窗口。
- *
- * 为什么把三个入口都摆出来而不是只给「本周总结」：用户想看的往往是「本月怎么样」，
- * 进去再切一次周期就是多余的一步；三行各自写明日期范围，也不会点错。
- */
-@Composable
-private fun PeriodEntryCard(onOpenPeriod: (PeriodType) -> Unit) {
-    val palette = LocalFreshPalette.current
-    val today = LocalDate.now()
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.surface)
-            .padding(vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Text(
-            text = "周期总结",
-            style = FreshType.sectionTitle,
-            color = palette.onSurface,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-        )
-        PeriodType.entries.forEach { type ->
-            val range = type.natural(today)
-            val span = "${range.start.monthValue}月${range.start.dayOfMonth}日–" +
-                "${range.end.monthValue}月${range.end.dayOfMonth}日"
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .transformSource(cornerRadius = 16.dp, containerColor = palette.surface)
-                    .clickable { onOpenPeriod(type) }
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "${type.label}总结",
-                    style = FreshType.body,
-                    color = palette.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(text = span, style = FreshType.label, color = palette.onSurfaceVariant)
-                Text(text = "›", style = FreshType.sectionTitle, color = palette.onSurfaceVariant)
-            }
-        }
-    }
-}
 
 @Preview(widthDp = 360, showBackground = true)
 @Composable

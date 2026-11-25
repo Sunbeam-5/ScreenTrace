@@ -273,7 +273,6 @@ object BackupCodec {
         val missing = buildList {
             if (file.schemaVersion < 2) add("事件明细（解锁 / 通知）")
             if (file.schemaVersion < 3) add("会话区间（恢复后亮屏时长沿用原值）")
-            if (file.schemaVersion < 4) add("应用限额")
             if (file.schemaVersion < 5) add("设备标识（按未知设备处理）")
         }
         return BackupSummary(

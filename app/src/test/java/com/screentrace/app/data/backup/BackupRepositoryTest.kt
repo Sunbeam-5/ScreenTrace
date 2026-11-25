@@ -70,7 +70,7 @@ class BackupRepositoryTest {
     }
 
     @Test
-    fun `导出包含八张表的全部行`() = runBlocking {
+    fun `导出不再包含已废除的应用限额 恢复旧备份兼容忽略 app_limit`() = runBlocking {
         seed()
         val file = repo.buildFile("0.1.0")
         assertEquals(BackupCodec.SCHEMA_VERSION, file.schemaVersion)
@@ -80,7 +80,15 @@ class BackupRepositoryTest {
         assertEquals(1, file.pullLog.size)
         assertEquals(1, file.unlockEvent.size)
         assertEquals(1, file.screenSession.size)
-        assertEquals(1, file.appLimit.size)
+        assertEquals("CR-30 §7-30 新导出 appLimit 必须为空", 0, file.appLimit.size)
+
+        // 旧备份带 app_limit 恢复时不报错、且忽略不写入本机 app_limit
+        val legacyFile = file.copy(
+            appLimit = listOf(AppLimitDto("com.legacy", 45, true))
+        )
+        db.appLimitDao().deleteAll()
+        repo.restore(legacyFile, BackupRepository.Strategy.OVERWRITE, importSettings = false)
+        assertEquals(0, db.appLimitDao().getAll().size)
     }
 
     @Test
@@ -103,7 +111,7 @@ class BackupRepositoryTest {
         assertEquals(1, db.hourUsageDao().getAll().size)
         assertEquals(1, db.unlockEventDao().getAll().size)
         assertEquals(1, db.screenSessionDao().getAll().size)
-        assertEquals(1, db.appLimitDao().getAll().size)
+        assertEquals(0, db.appLimitDao().getAll().size)
         assertEquals(
             360,
             db.daySummaryDao().get("2026-11-10")?.screenUnlockMin

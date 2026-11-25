@@ -60,6 +60,15 @@ fun isTransientNotice(message: String): Boolean =
 /** 短时提示带序号：连发同文案也要重启 2.5s 计时（`LaunchedEffect` 的 key 会变）。 */
 data class TransientNotice(val text: String, val seq: Int)
 
+/** CR-30 阶段 B（§7-64）：设置首页分类入口，点入对应三级子页。 */
+enum class SettingsCategory(val title: String, val subtitle: String) {
+    DATA("采集与数据", "每日目标、后台拉取与权限状态"),
+    BACKUP("备份与同步", "本地导出恢复与云端同步"),
+    REMINDERS("周期总结提醒", "每周一与每月 1 日提醒查看总结"),
+    APPEARANCE("外观与阈值", "主题配色、自定义壁纸与低使用阈值"),
+    ABOUT("关于与说明", "数据口径、覆盖范围与版本信息")
+}
+
 /** 页面路由（不引入 navigation 库——§6 依赖白名单不含它，单层二级页用状态即可）。 */
 sealed interface AppPage {
     object Today : AppPage
@@ -204,7 +213,9 @@ class AppViewModel(
     /** 批 8b：机密凭据（WebDAV 授权密码等，EncryptedSharedPreferences）。 */
     private val syncCredentials: com.screentrace.app.data.sync.SyncCredentials? = null,
     /** §5.4 批 E：壁纸文件读写；单测/预览不传，只走内存态。 */
-    private val wallpaperStore: WallpaperStore? = null
+    private val wallpaperStore: WallpaperStore? = null,
+    /** CR-30 §7-30：周期总结提醒开关改动后同步 WorkManager 非精确调度。 */
+    private val onReminderConfigChanged: ((com.screentrace.app.data.reminder.ReminderConfig) -> Unit)? = null
 ) : ViewModel() {
 
     // ---- 日期筛选（§5.6 / CR-15 B：两份互相独立的状态）----
@@ -227,6 +238,19 @@ class AppViewModel(
 
     private val _page = mutableStateOf<AppPage>(AppPage.Today)
     val page: State<AppPage> = _page
+
+    /** CR-30 §7-64：设置页当前选中的三级分类；null 表示停留在设置分类首页。 */
+    private val _settingsCategory = mutableStateOf<SettingsCategory?>(null)
+    val settingsCategory: State<SettingsCategory?> = _settingsCategory
+
+    private val _weeklyReminderEnabled = mutableStateOf(false)
+    val weeklyReminderEnabled: State<Boolean> = _weeklyReminderEnabled
+
+    private val _monthlyReminderEnabled = mutableStateOf(false)
+    val monthlyReminderEnabled: State<Boolean> = _monthlyReminderEnabled
+
+    private val _reminderHour = mutableStateOf(com.screentrace.app.data.reminder.ReminderConfig.DEFAULT_HOUR)
+    val reminderHour: State<Int> = _reminderHour
 
     private val _notice = mutableStateOf<String?>(null)
     val notice: State<String?> = _notice
@@ -627,7 +651,43 @@ class AppViewModel(
         viewModelScope.launch {
             runCatching { store.wallpaper.collect { _wallpaperConfig.value = it } }
         }
+        // CR-30 §7-30：周期总结提醒（默认关闭）
+        viewModelScope.launch {
+            runCatching { store.weeklyReminderEnabled.collect { _weeklyReminderEnabled.value = it } }
+        }
+        viewModelScope.launch {
+            runCatching { store.monthlyReminderEnabled.collect { _monthlyReminderEnabled.value = it } }
+        }
+        viewModelScope.launch {
+            runCatching { store.reminderHour.collect { _reminderHour.value = it } }
+        }
     }
+
+    fun setWeeklyReminderEnabled(enabled: Boolean) {
+        if (enabled == _weeklyReminderEnabled.value) return
+        _weeklyReminderEnabled.value = enabled
+        val config = currentReminderConfig()
+        onReminderConfigChanged?.invoke(config)
+        settings?.let { store ->
+            viewModelScope.launch { runCatching { store.setWeeklyReminderEnabled(enabled) } }
+        }
+    }
+
+    fun setMonthlyReminderEnabled(enabled: Boolean) {
+        if (enabled == _monthlyReminderEnabled.value) return
+        _monthlyReminderEnabled.value = enabled
+        val config = currentReminderConfig()
+        onReminderConfigChanged?.invoke(config)
+        settings?.let { store ->
+            viewModelScope.launch { runCatching { store.setMonthlyReminderEnabled(enabled) } }
+        }
+    }
+
+    private fun currentReminderConfig() = com.screentrace.app.data.reminder.ReminderConfig(
+        weeklyEnabled = _weeklyReminderEnabled.value,
+        monthlyEnabled = _monthlyReminderEnabled.value,
+        hour = _reminderHour.value
+    )
 
     /** 日历「低于 x 小时」阈值。改完必须重算：卡片标题与计数都来自 extremes。 */
     fun setLowThresholdMin(value: Int) {
@@ -685,7 +745,19 @@ class AppViewModel(
     }
 
     fun openSettings() {
+        _settingsCategory.value = null
         _page.value = AppPage.Settings(returnTo = AppPage.mainOf(_page.value))
+    }
+
+    fun openSettingsCategory(category: SettingsCategory) {
+        _settingsCategory.value = category
+    }
+
+    /** CR-30 §7-30：从周期总结通知直进「日历 → 周期总结」对应周期。 */
+    fun openPeriodFromReminder(type: PeriodType) {
+        _periodType.value = type
+        _page.value = AppPage.Period(returnTo = AppPage.Calendar)
+        loadPeriod()
     }
 
     /** CR-01：详情路由入口（批 6d 给双卡接线时启用）。 */
@@ -703,6 +775,10 @@ class AppViewModel(
 
     fun goBack() {
         val current = _page.value
+        if (current is AppPage.Settings && _settingsCategory.value != null) {
+            _settingsCategory.value = null
+            return
+        }
         // 离开排行页时把口径恢复成默认的「今天」：否则下次从今日页点「查看全部」
         // 还会带着上一次的周期窗口（副标题写着「11月1日–11月12日」，数字却对不上卡片）。
         if (current is AppPage.Ranking && rankingScope != null) {

@@ -78,6 +78,14 @@ import java.time.ZoneId
 import java.time.YearMonth
 
 /**
+ * CR-30 §7-64：日历月视图仅在翻离当前自然月时展示「今天」快捷按钮。
+ */
+internal fun shouldShowTodayButton(
+    calendarMonth: YearMonth,
+    currentMonth: YearMonth = YearMonth.now()
+): Boolean = calendarMonth != currentMonth
+
+/**
  * 日历页（§5.7，顺序固定）：① 连续记录 tonal 卡（56dp 图标块 + 34sp 大数字 +
  * 「最长 N 天 · 始于 X」）→ ② 月/年 SegmentedControl → ③ 日历卡（月视图独立
  * 38dp 方块格子、可翻月、点击格子显真实日期/记录状态/时长——0 分钟与无记录文案
@@ -235,11 +243,35 @@ private fun CalendarContent(
                     selectedEpochDay = null; selectedMinutes = null // 复审 P2-A：翻月清残留选中
                     onMonthChange(calendarMonth.minusMonths(1))
                 }
-                Text(
-                    text = "${calendarMonth.year} 年 ${calendarMonth.monthValue} 月",
-                    style = FreshType.sectionTitle,
-                    color = palette.onSurface
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "${calendarMonth.year} 年 ${calendarMonth.monthValue} 月",
+                        style = FreshType.sectionTitle,
+                        color = palette.onSurface
+                    )
+                    // CR-30 §7-64：翻离当月才显示「今天」快速回跳按钮
+                    val currentMonth = YearMonth.now()
+                    if (shouldShowTodayButton(calendarMonth, currentMonth)) {
+                        Text(
+                            text = "今天",
+                            style = FreshType.label,
+                            color = palette.primary,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(palette.primary.copy(alpha = 0.12f))
+                                .semantics { role = Role.Button }
+                                .clickable {
+                                    selectedEpochDay = null
+                                    selectedMinutes = null
+                                    onMonthChange(currentMonth)
+                                }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
                 MonthArrow(isNext = true) {
                     selectedEpochDay = null; selectedMinutes = null
                     onMonthChange(calendarMonth.plusMonths(1))

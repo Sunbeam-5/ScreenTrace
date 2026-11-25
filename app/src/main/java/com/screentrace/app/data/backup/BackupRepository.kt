@@ -210,7 +210,8 @@ class BackupRepository(
             unlockEvent = top.unlockEvent,
             notificationEvent = top.notificationEvent,
             screenSession = top.screenSession,
-            appLimit = db.appLimitDao().getAll().map { AppLimitDto(it.pkg, it.limitMin, it.enabled) },
+            // CR-30 §7-30：应用限额已废除，新导出固定为空列表（旧备份保留字段可反序列化并忽略）
+            appLimit = emptyList(),
             // §5.1「顶层必须保留稳定 device.id」：device() 缺失时也要写出导出主体身份
             device = info?.let { BackupDevice(it.id, it.nickname, it.model) } ?: BackupDevice(src, "", ""),
             sources = sources,
@@ -323,11 +324,6 @@ class BackupRepository(
                 "screen_session",
                 listOf("start_ms", "end_ms", "kind", "source_device_id"),
                 flatSessions.map { (src, it) -> listOf("${it.startMs}", "${it.endMs}", it.kind, src) }
-            ),
-            csv(
-                "app_limit",
-                listOf("pkg", "limit_min", "enabled"),
-                file.appLimit.map { listOf(it.pkg, "${it.limitMin}", "${it.enabled}") }
             )
         )
     }
@@ -368,7 +364,6 @@ class BackupRepository(
         db.unlockEventDao().deleteAll()
         db.notificationEventDao().deleteAll()
         db.screenSessionDao().deleteAll()
-        db.appLimitDao().deleteAll()
         db.screenEvidenceDao().deleteAll()
         db.usageWindowDao().deleteAll()
 
@@ -396,11 +391,8 @@ class BackupRepository(
                 rows.screenEvidence.size + rows.usageWindow.size
         }
         insertPullLog(file.pullLog)
-        db.appLimitDao().upsert(
-            file.appLimit.map { AppLimitEntity(it.pkg, it.limitMin, it.enabled) }
-        )
-
-        total += file.pullLog.size + file.appLimit.size
+        // CR-30 §7-30：旧备份里的 app_limit 兼容读取后忽略，不写入也不报错
+        total += file.pullLog.size
         return RestoreResult(added = total, updated = 0, skipped = 0, settingsRestored = false)
     }
 
@@ -548,13 +540,7 @@ class BackupRepository(
         pullRows.forEach { db.pullLogDao().insert(it) }
         report += BackupMerge.Report(added = pullRows.size)
 
-        val limitPlan = BackupMerge.appLimits(
-            local = db.appLimitDao().getAll().map { AppLimitDto(it.pkg, it.limitMin, it.enabled) },
-            backup = file.appLimit
-        )
-        db.appLimitDao().upsert(limitPlan.rows.map { AppLimitEntity(it.pkg, it.limitMin, it.enabled) })
-        report += limitPlan.report
-
+        // CR-30 §7-30：app_limit 兼容读取后忽略（不写入本机，也不报错）
         return RestoreResult(report.added, report.updated, report.skipped, settingsRestored = false)
     }
 

@@ -141,91 +141,177 @@ fun SettingsScreen(
     /** 批 8b：云端同步入口（真机反馈 #3：配置挪二级页，本页一行入口）。 */
     cloudSummary: String = "",
     onOpenCloudSync: () -> Unit = {},
-    onNotice: (String) -> Unit = {}
+    onNotice: (String) -> Unit = {},
+    /** CR-30 §7-64：设置分类首页 + 三级子页（null = 分类首页）。 */
+    selectedCategory: SettingsCategory? = null,
+    onSelectCategory: (SettingsCategory) -> Unit = {},
+    /** CR-30 §7-30：周期总结提醒（每周一 / 每月 1 日，默认关闭）。 */
+    weeklyReminderEnabled: Boolean = false,
+    onWeeklyReminderChange: (Boolean) -> Unit = {},
+    monthlyReminderEnabled: Boolean = false,
+    onMonthlyReminderChange: (Boolean) -> Unit = {},
+    reminderHour: Int = 20
 ) {
-    GoalGroup(
-        dailyGoalMin = dailyGoalMin,
-        onDailyGoalChange = onDailyGoalChange,
-        pullFrequency = pullFrequency,
-        onPullFrequencyChange = onPullFrequencyChange,
-        lastPulledAt = lastPulledAt,
-        pulling = pulling,
-        onPullNow = onPullNow
-    )
-
-    PermissionGroup(
-        channelStatuses = channelStatuses,
-        onRefreshStatuses = onRefreshStatuses,
-        coverage = coverage,
-        onOpenAppCategories = onOpenAppCategories,
-        appVersion = appVersion,
-        buildReport = buildReport,
-        onNotice = onNotice
-    )
-
-    // 诚实待办：功能未实现前不画可点击控件（§6），但要让用户知道它在路上
-    SettingsGroup("提醒与限额") {
-        val palette = LocalFreshPalette.current
-        Text(text = "尚未开放", style = FreshType.body, color = palette.onSurfaceVariant)
-        Text(
-            text = "到量提醒与应用每日限额会在后续版本提供，届时才申请通知权限。" +
-                "本应用不做强制锁机或拦截。",
-            style = FreshType.label,
-            color = palette.onSurfaceVariant
+    if (selectedCategory == null) {
+        SettingsCategoryHome(
+            dailyGoalMin = dailyGoalMin,
+            pullFrequency = pullFrequency,
+            cloudSummary = cloudSummary,
+            weeklyReminderEnabled = weeklyReminderEnabled,
+            monthlyReminderEnabled = monthlyReminderEnabled,
+            reminderHour = reminderHour,
+            themeVariant = themeVariant,
+            darkTheme = darkTheme,
+            appVersion = appVersion,
+            onSelectCategory = onSelectCategory
         )
+        return
     }
 
-    BackupGroup(
-        appVersion = appVersion,
-        onBuildJson = onBuildBackupJson,
-        onBuildCsv = onBuildCsv,
-        onExportWarning = onBackupCompatWarning,
-        onDecode = onDecodeBackup,
-        onRestore = onRestoreBackup,
-        cloudSummary = cloudSummary,
-        onOpenCloudSync = onOpenCloudSync,
-        onNotice = onNotice
-    )
+    when (selectedCategory) {
+        SettingsCategory.DATA -> {
+            GoalGroup(
+                dailyGoalMin = dailyGoalMin,
+                onDailyGoalChange = onDailyGoalChange,
+                pullFrequency = pullFrequency,
+                onPullFrequencyChange = onPullFrequencyChange,
+                lastPulledAt = lastPulledAt,
+                pulling = pulling,
+                onPullNow = onPullNow
+            )
+            PermissionGroup(
+                channelStatuses = channelStatuses,
+                onRefreshStatuses = onRefreshStatuses,
+                coverage = coverage,
+                onOpenAppCategories = onOpenAppCategories,
+                appVersion = appVersion,
+                buildReport = buildReport,
+                onNotice = onNotice
+            )
+        }
 
-    SettingsGroup("AI 分析") {
-        val palette = LocalFreshPalette.current
-        Text(text = "尚未开放 · 默认关闭", style = FreshType.body, color = palette.onSurfaceVariant)
-        Text(
-            text = "上线后可自行填写 endpoint、模型名与 API Key，只把聚合统计发出去，" +
-                "不发送事件明细与包名。当前版本没有任何联网分析能力。",
-            style = FreshType.label,
-            color = palette.onSurfaceVariant
-        )
+        SettingsCategory.BACKUP -> {
+            BackupGroup(
+                appVersion = appVersion,
+                onBuildJson = onBuildBackupJson,
+                onBuildCsv = onBuildCsv,
+                onExportWarning = onBackupCompatWarning,
+                onDecode = onDecodeBackup,
+                onRestore = onRestoreBackup,
+                cloudSummary = cloudSummary,
+                onOpenCloudSync = onOpenCloudSync,
+                onNotice = onNotice
+            )
+        }
+
+        SettingsCategory.REMINDERS -> {
+            ReminderGroup(
+                weeklyEnabled = weeklyReminderEnabled,
+                onWeeklyChange = onWeeklyReminderChange,
+                monthlyEnabled = monthlyReminderEnabled,
+                onMonthlyChange = onMonthlyReminderChange,
+                reminderHour = reminderHour,
+                onNotice = onNotice
+            )
+        }
+
+        SettingsCategory.APPEARANCE -> {
+            ThresholdGroup(
+                lowThresholdMin = lowThresholdMin,
+                onLowThresholdChange = onLowThresholdChange
+            )
+            AppearanceGroup(
+                themeVariant = themeVariant,
+                onOpenStyleSheet = onOpenStyleSheet,
+                customThemeEnabled = customThemeEnabled,
+                onOpenCustomTheme = onOpenCustomTheme,
+                darkTheme = darkTheme,
+                onDarkThemeChange = onDarkThemeChange,
+                dynamicColor = dynamicColor,
+                onDynamicColorChange = onDynamicColorChange,
+                wallpaperConfig = wallpaperConfig,
+                wallpaperMessage = wallpaperMessage,
+                blurSupported = blurSupported,
+                onWallpaperPicked = onWallpaperPicked,
+                onWallpaperDimChange = onWallpaperDimChange,
+                onWallpaperBlurChange = onWallpaperBlurChange,
+                onWallpaperColorScopeChange = onWallpaperColorScopeChange,
+                onClearWallpaper = onClearWallpaper,
+                onConsumeWallpaperMessage = onConsumeWallpaperMessage,
+                wallpaperBitmap = wallpaperBitmap,
+                onOpenWallpaperEditor = onOpenWallpaperEditor
+            )
+        }
+
+        SettingsCategory.ABOUT -> {
+            AboutGroup(coverage = coverage, appVersion = appVersion)
+            SettingsGroup("AI 分析") {
+                val palette = LocalFreshPalette.current
+                Text(text = "默认关闭 · 当前无联网分析", style = FreshType.body, color = palette.onSurfaceVariant)
+                Text(
+                    text = "后续版本若启用需由你自行配置模型端点与 API Key，且仅发送聚合统计。",
+                    style = FreshType.label,
+                    color = palette.onSurfaceVariant
+                )
+            }
+        }
     }
+}
 
-    ThresholdGroup(
-        lowThresholdMin = lowThresholdMin,
-        onLowThresholdChange = onLowThresholdChange
+@Composable
+private fun SettingsCategoryHome(
+    dailyGoalMin: Int,
+    pullFrequency: PullFrequency,
+    cloudSummary: String,
+    weeklyReminderEnabled: Boolean,
+    monthlyReminderEnabled: Boolean,
+    reminderHour: Int,
+    themeVariant: ThemeVariant,
+    darkTheme: Boolean,
+    appVersion: String,
+    onSelectCategory: (SettingsCategory) -> Unit
+) {
+    val palette = LocalFreshPalette.current
+    val reminderSummary = when {
+        weeklyReminderEnabled && monthlyReminderEnabled -> "周/月均已开启 · $reminderHour:00"
+        weeklyReminderEnabled -> "每周一 $reminderHour:00"
+        monthlyReminderEnabled -> "每月 1 日 $reminderHour:00"
+        else -> "全部关闭"
+    }
+    val summaries = mapOf(
+        SettingsCategory.DATA to "目标 ${dailyGoalMin / 60}h · ${pullFrequency.label}",
+        SettingsCategory.BACKUP to cloudSummary.ifEmpty { "本地导出 / 恢复" },
+        SettingsCategory.REMINDERS to reminderSummary,
+        SettingsCategory.APPEARANCE to "${themeVariant.label} · ${if (darkTheme) "深色" else "浅色"}",
+        SettingsCategory.ABOUT to "v$appVersion"
     )
-
-    AppearanceGroup(
-        themeVariant = themeVariant,
-        onOpenStyleSheet = onOpenStyleSheet,
-        customThemeEnabled = customThemeEnabled,
-        onOpenCustomTheme = onOpenCustomTheme,
-        darkTheme = darkTheme,
-        onDarkThemeChange = onDarkThemeChange,
-        dynamicColor = dynamicColor,
-        onDynamicColorChange = onDynamicColorChange,
-        wallpaperConfig = wallpaperConfig,
-        wallpaperMessage = wallpaperMessage,
-        blurSupported = blurSupported,
-        onWallpaperPicked = onWallpaperPicked,
-        onWallpaperDimChange = onWallpaperDimChange,
-        onWallpaperBlurChange = onWallpaperBlurChange,
-        onWallpaperColorScopeChange = onWallpaperColorScopeChange,
-        onClearWallpaper = onClearWallpaper,
-        onConsumeWallpaperMessage = onConsumeWallpaperMessage,
-        wallpaperBitmap = wallpaperBitmap,
-        onOpenWallpaperEditor = onOpenWallpaperEditor
-    )
-
-    AboutGroup(coverage = coverage, appVersion = appVersion)
+    SettingsGroup("设置分类") {
+        SettingsCategory.entries.forEach { cat ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .semantics {
+                        role = Role.Button
+                        contentDescription = "${cat.title}，${summaries[cat]}"
+                    }
+                    .clickable { onSelectCategory(cat) }
+                    .padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(text = cat.title, style = FreshType.body, color = palette.onSurface)
+                    Text(text = cat.subtitle, style = FreshType.label, color = palette.onSurfaceVariant)
+                }
+                Text(
+                    text = "${summaries[cat]} ›",
+                    style = FreshType.label,
+                    color = palette.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------- 目标与同步
@@ -752,6 +838,93 @@ private fun AppearanceGroup(
                 kotlinx.coroutines.delay(2500L)
                 onConsumeWallpaperMessage()
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- 周期总结提醒（CR-30 §7-30）
+
+@Composable
+private fun ReminderGroup(
+    weeklyEnabled: Boolean,
+    onWeeklyChange: (Boolean) -> Unit,
+    monthlyEnabled: Boolean,
+    onMonthlyChange: (Boolean) -> Unit,
+    reminderHour: Int,
+    onNotice: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val palette = LocalFreshPalette.current
+    var hasPermission by remember {
+        mutableStateOf(
+            com.screentrace.app.data.reminder.PeriodReminderScheduler.hasNotificationPermission(context)
+        )
+    }
+    var pendingEnableTarget by remember { mutableStateOf<String?>(null) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasPermission = granted
+        if (granted) {
+            when (pendingEnableTarget) {
+                "WEEK" -> onWeeklyChange(true)
+                "MONTH" -> onMonthlyChange(true)
+            }
+        } else {
+            onNotice("未授予通知权限，无法发送周期总结提醒")
+        }
+        pendingEnableTarget = null
+    }
+
+    fun toggleWithPermission(target: String, nextValue: Boolean, apply: (Boolean) -> Unit) {
+        if (!nextValue) {
+            apply(false)
+            return
+        }
+        val granted = com.screentrace.app.data.reminder.PeriodReminderScheduler
+            .hasNotificationPermission(context)
+        hasPermission = granted
+        if (granted) {
+            apply(true)
+        } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            pendingEnableTarget = target
+            permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    SettingsGroup("周期总结提醒") {
+        Text(
+            text = "仅在周期完整结束后提醒查看统计总结；无有效数据时不发送通知。",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+        SettingSwitchRow(
+            label = "每周总结提醒（周一 $reminderHour:00）",
+            checked = weeklyEnabled,
+            onCheckedChange = { toggleWithPermission("WEEK", it, onWeeklyChange) }
+        )
+        SettingSwitchRow(
+            label = "每月总结提醒（每月 1 日 $reminderHour:00）",
+            checked = monthlyEnabled,
+            onCheckedChange = { toggleWithPermission("MONTH", it, onMonthlyChange) }
+        )
+        StatusLine(
+            text = if (hasPermission) "通知权限已开启" else "通知权限未开启（开启开关时申请）",
+            ok = hasPermission
+        )
+        if (!hasPermission) {
+            SecondaryButton(
+                text = "去系统设置开启通知权限",
+                onClick = {
+                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    runCatching { context.startActivity(intent) }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

@@ -291,8 +291,7 @@ internal fun RestoreSheet(
             SummaryLine(
                 "记录条数",
                 "日 ${summary.dayCount} · 应用 ${summary.appRows} · 时段 ${summary.hourRows} · " +
-                    "会话 ${summary.sessionRows} · 解锁 ${summary.unlockRows} · 通知 ${summary.notificationRows} · " +
-                    "限额 ${summary.limitRows}"
+                    "会话 ${summary.sessionRows} · 解锁 ${summary.unlockRows} · 通知 ${summary.notificationRows}"
             )
             SummaryLine("是否含设置", if (summary.hasSettings) "是" else "否")
             if (summary.missingTables.isNotEmpty()) {
@@ -307,7 +306,7 @@ internal fun RestoreSheet(
 
             StrategyOption(
                 title = "合并本地（推荐）",
-                description = "同日数据取较大值、事件按秒去重、限额以备份为准，不清空现有数据。",
+                description = "同日数据取较大值、事件按主键去重，不清空现有数据。",
                 selected = !overwrite,
                 onClick = {
                     overwrite = false
@@ -323,7 +322,7 @@ internal fun RestoreSheet(
             )
             if (overwrite) {
                 Text(
-                    text = "⚠ 覆盖会清空本机八张表（含会话区间与限额）。确认前请先导出一份当前备份。",
+                    text = "⚠ 覆盖会清空本机统计数据（含会话区间）。确认前请先导出一份当前备份。",
                     style = FreshType.label,
                     color = palette.error
                 )

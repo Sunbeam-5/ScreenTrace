@@ -305,6 +305,35 @@ class SettingsStore(
         it[SYNC_LAST_MESSAGE] = message
     }
 
+    // ---- CR-30 §7-30：周期总结提醒（每周一 / 每月 1 日 20:00，默认全部关闭）----
+
+    val weeklyReminderEnabled: Flow<Boolean> = dataStore.data.map { it[WEEKLY_REMINDER_ENABLED] ?: false }
+    suspend fun setWeeklyReminderEnabled(enabled: Boolean) = dataStore.edit {
+        it[WEEKLY_REMINDER_ENABLED] = enabled
+    }
+
+    val monthlyReminderEnabled: Flow<Boolean> = dataStore.data.map { it[MONTHLY_REMINDER_ENABLED] ?: false }
+    suspend fun setMonthlyReminderEnabled(enabled: Boolean) = dataStore.edit {
+        it[MONTHLY_REMINDER_ENABLED] = enabled
+    }
+
+    val reminderHour: Flow<Int> = dataStore.data.map {
+        (it[REMINDER_HOUR] ?: com.screentrace.app.data.reminder.ReminderConfig.DEFAULT_HOUR).coerceIn(0, 23)
+    }
+    suspend fun setReminderHour(hour: Int) = dataStore.edit {
+        it[REMINDER_HOUR] = hour.coerceIn(0, 23)
+    }
+
+    val lastWeeklyReminderKey: Flow<String?> = dataStore.data.map { it[LAST_WEEKLY_REMINDER_KEY] }
+    suspend fun setLastWeeklyReminderKey(key: String) = dataStore.edit {
+        it[LAST_WEEKLY_REMINDER_KEY] = key
+    }
+
+    val lastMonthlyReminderKey: Flow<String?> = dataStore.data.map { it[LAST_MONTHLY_REMINDER_KEY] }
+    suspend fun setLastMonthlyReminderKey(key: String) = dataStore.edit {
+        it[LAST_MONTHLY_REMINDER_KEY] = key
+    }
+
     companion object {
         /** §5.8 设置默认值：每日目标 240 分钟（与 AppViewModel.DEFAULT_GOAL_MIN 一致）。 */
         const val DEFAULT_GOAL_MIN = 240
@@ -341,6 +370,12 @@ class SettingsStore(
         // CR-20 ②：壁纸主色与配色范围（不 JSON 备份）
         private val WALLPAPER_SEED = intPreferencesKey("wallpaper_seed")
         private val WALLPAPER_COLOR_SCOPE = stringPreferencesKey("wallpaper_color_scope")
+        // CR-30 §7-30：周期总结提醒（默认关闭）
+        private val WEEKLY_REMINDER_ENABLED = booleanPreferencesKey("weekly_reminder_enabled")
+        private val MONTHLY_REMINDER_ENABLED = booleanPreferencesKey("monthly_reminder_enabled")
+        private val REMINDER_HOUR = intPreferencesKey("reminder_hour")
+        private val LAST_WEEKLY_REMINDER_KEY = stringPreferencesKey("last_weekly_reminder_key")
+        private val LAST_MONTHLY_REMINDER_KEY = stringPreferencesKey("last_monthly_reminder_key")
     }
 }
 

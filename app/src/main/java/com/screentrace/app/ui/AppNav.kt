@@ -136,7 +136,10 @@ private fun remainingPages(target: Int, pagerState: androidx.compose.foundation.
     androidx.compose.material3.ExperimentalMaterial3Api::class
 )
 @Composable
-fun AppNav() {
+fun AppNav(
+    launchPeriodType: com.screentrace.app.contract.PeriodType? = null,
+    onConsumeLaunchPeriod: () -> Unit = {}
+) {
     com.screentrace.app.uikit.PerfProbe.tick("Compose/AppNav")
     val context = LocalContext.current
     val container = (context.applicationContext as? ScreenTraceApp)?.container
@@ -157,6 +160,12 @@ fun AppNav() {
                     // 在用户看来就是「改了没用」。
                     onPullFrequencyChanged = { frequency ->
                         PullScheduler.ensureScheduled(context.applicationContext, frequency)
+                    },
+                    onReminderConfigChanged = { cfg ->
+                        com.screentrace.app.data.reminder.PeriodReminderScheduler.sync(
+                            context.applicationContext,
+                            cfg
+                        )
                     }
                 )
             } else {
@@ -198,6 +207,18 @@ fun AppNav() {
     }
     val dynamicColor by viewModel.dynamicColor
     val page by viewModel.page
+    val settingsCategory by viewModel.settingsCategory
+    val weeklyReminderEnabled by viewModel.weeklyReminderEnabled
+    val monthlyReminderEnabled by viewModel.monthlyReminderEnabled
+    val reminderHour by viewModel.reminderHour
+
+    // CR-30 §7-30：点击周期总结通知直达「日历 → 周期总结」对应周期
+    LaunchedEffect(launchPeriodType) {
+        if (launchPeriodType != null) {
+            viewModel.openPeriodFromReminder(launchPeriodType)
+            onConsumeLaunchPeriod()
+        }
+    }
     // CR-15 B：今日页与统计页各自持有日期状态，互不影响
     val todaySelection by viewModel.todaySelection
     val statsSelection by viewModel.statsSelection
@@ -636,8 +657,6 @@ fun AppNav() {
                                     selection = statsSelection,
                                     onApplySelection = { viewModel.applySelection(it) },
                                     onRetry = viewModel::reload,
-                                    // §5.11 入口：统计页底部「本周/本月/本年总结」
-                                    onOpenPeriod = viewModel::openPeriod,
                                     // 离开统计页时收起前三名浮层
                                     resetKey = mainPage
                                 )
@@ -739,7 +758,7 @@ fun AppNav() {
                                     }
                                 )
                                 is AppPage.Settings -> AppHeader(
-                                    title = "设置",
+                                    title = settingsCategory?.title ?: "设置",
                                     subtitle = null,
                                     onBack = viewModel::goBack
                                 )
@@ -836,7 +855,14 @@ fun AppNav() {
                                         "未配置"
                                     },
                                     onOpenCloudSync = viewModel::openCloudSync,
-                                    onNotice = viewModel::showNotice
+                                    onNotice = viewModel::showNotice,
+                                    selectedCategory = settingsCategory,
+                                    onSelectCategory = viewModel::openSettingsCategory,
+                                    weeklyReminderEnabled = weeklyReminderEnabled,
+                                    onWeeklyReminderChange = viewModel::setWeeklyReminderEnabled,
+                                    monthlyReminderEnabled = monthlyReminderEnabled,
+                                    onMonthlyReminderChange = viewModel::setMonthlyReminderEnabled,
+                                    reminderHour = reminderHour
                                 )
                                 is AppPage.CloudSync -> CloudSyncScreen(
                                     webdavUrl = webdavUrl,

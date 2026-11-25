@@ -4,6 +4,8 @@ import android.app.Application
 import android.util.Log
 import com.screentrace.app.data.prefs.PullFrequency
 import com.screentrace.app.data.pull.PullScheduler
+import com.screentrace.app.data.reminder.PeriodReminderScheduler
+import com.screentrace.app.data.reminder.ReminderConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,6 +45,14 @@ class ScreenTraceApp : Application() {
                 .getOrDefault(PullFrequency.DAILY)
             runCatching { PullScheduler.ensureScheduled(this@ScreenTraceApp, frequency) }
                 .onFailure { Log.w(TAG, "后台拉取任务排程失败，已降级为「打开 App 时拉取」", it) }
+
+            val weekly = runCatching { container.settings.weeklyReminderEnabled.first() }.getOrDefault(false)
+            val monthly = runCatching { container.settings.monthlyReminderEnabled.first() }.getOrDefault(false)
+            val hour = runCatching { container.settings.reminderHour.first() }
+                .getOrDefault(ReminderConfig.DEFAULT_HOUR)
+            val reminderConfig = ReminderConfig(weeklyEnabled = weekly, monthlyEnabled = monthly, hour = hour)
+            runCatching { PeriodReminderScheduler.sync(this@ScreenTraceApp, reminderConfig) }
+                .onFailure { Log.w(TAG, "周期总结提醒排程失败", it) }
         }
     }
 
