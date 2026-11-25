@@ -2364,3 +2364,28 @@ checkin dump 头部 `Currently Active:com.screentrace.app`；今日 `day_summary
 
 **本轮到此停止，等待 GPT 独立评审（复审 R12 测试契约是否真能约束生产实现）。**
 
+---
+
+## CR-30 阶段 E 审阅收口补记（2026-11-25，HEAD `8f5ed49`）
+
+> 审阅基线：`main` HEAD `8f5ed49`（对比 `7e13f2e`，共 26 个变更文件：25 个代码/单测文件 + `docs/TODO.md`）
+> 审阅结论：**通过（无 P0 / P1 问题，CR-30 阶段 A–E 与 TD-01 / TD-09 全部闭环）**
+
+### 1. 硬约束与构建验证复核
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 数据架构冻结 | **通过** | `Entities.kt`、`Daos.kt`、`Migrations.kt`、`IngestPipeline.kt`、`SessionUnion.kt`、`BackupRepository.kt`、`RoomUsageRepository.kt`、`UsageCalculator.kt` 均零改动 |
+| 仓库与 Compose 红线 | **通过** | `README.md` 未改动；零 `android.widget.Toast`；零整页 `Crossfade`/`AnimatedContent`；数字与单位同 `Text` 保持不变 |
+| 单元测试（Debug / Release） | **通过** | 双变体均为 **95 suites / 675 tests / 0 fail / 0 error / 0 skip**；新增 4 组单测全绿 |
+| 行为变异验证（M-E1 ~ M-E4） | **通过** | M-E1（空 dump ≠ 失败）、M-E2（通道恢复自动补拉）、M-E3（`MERGE` 中途失败 9 表原子回滚）、M-E4a/b（无记录读屏语义 + 1.5x 字号钳制）全部变红后无条件还原 |
+| Release 构建与 R8 | **通过** | `app-debug.apk`（13,147,731 bytes）、`app-release-unsigned.apk`（2,431,982 bytes）构建通过 |
+| Redmi（`GAQOHMNFQWFUPBQO`）真机冒烟 | **通过** | 冷启动 3 次 `610/571/596ms`（中位 `596ms`）、热启动 `28ms`、`TOTAL PSS 302594 KB`、「关于与诊断」三区块完整、TalkBack 与 `font_scale 1.3/1.5` 无崩溃且已复位 `1.0`、logcat 0 crash；全程未触碰 vivo |
+
+### 2. 非阻塞观察项（登记至下一批技术债顺带收尾）
+
+| 级别 | 位置 | 问题描述 | 处置计划 |
+|---|---|---|---|
+| **P2** | `ui/AppNav.kt`（`ON_RESUME`）+ `ui/AppViewModel.kt:972` | 失败后 60 秒冷却期内去授权再切回前台，`pullOnOpen()` 会先置 `_pulling = true` 并命中 `FAILURE_RETRY_MS` 返回 `Throttled`，并发的 `refreshDiagnosticsInternal` 若恰好读到 `_pulling.value == true` 会跳过 `retryPull()` 自动补拉 | 并入下一批技术债（TD-07/08 批次）顺手修复 |
+| **P3** | `ui/SettingsScreen.kt:515`、`ui/TodayScreen.kt:139` | `@OptIn(ExperimentalLayoutApi::class)` 挂在 `FlowRow(` 表达式上（Kotlin 1.9.24 放行，升级 Kotlin 2.0 会报目标不合法） | 同批次挪至外层 `@Composable fun` 声明 |
+| **P3** | `docs/TODO.md` | Redmi 真机冒烟未单独记录「手动停 Shizuku → 降级 → 重启恢复自动补拉」的交互留痕 | 下一轮真机冒烟时补测一条并留痕 |
