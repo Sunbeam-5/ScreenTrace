@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -18,6 +20,51 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // TD-01：正式签名材料放在仓库外（环境变量优先，其次根目录 gitignored 的 keystore.properties）。
+    // 未提供签名凭据时 release 仍可正常构建 app-release-unsigned.apk 用于 R8 / 回归验证。
+    val keystorePropsFile = rootProject.file("keystore.properties")
+    val keystoreProps = Properties().apply {
+        if (keystorePropsFile.isFile) keystorePropsFile.inputStream().use { load(it) }
+    }
+    fun signingValue(envKey: String, propKey: String): String? =
+        System.getenv(envKey)?.takeIf { it.isNotBlank() }
+            ?: keystoreProps.getProperty(propKey)?.takeIf { it.isNotBlank() }
+
+    val releaseStorePath = signingValue("SCREENTRACE_KEYSTORE_PATH", "storeFile")
+    val releaseStorePassword = signingValue("SCREENTRACE_KEYSTORE_PASSWORD", "storePassword")
+    val releaseKeyAlias = signingValue("SCREENTRACE_KEY_ALIAS", "keyAlias")
+    val releaseKeyPassword = signingValue("SCREENTRACE_KEY_PASSWORD", "keyPassword")
+    val hasReleaseSigning = !releaseStorePath.isNullOrBlank() &&
+        !releaseStorePassword.isNullOrBlank() &&
+        !releaseKeyAlias.isNullOrBlank() &&
+        !releaseKeyPassword.isNullOrBlank() &&
+        file(releaseStorePath).isFile
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStorePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
     }
 
     buildFeatures {

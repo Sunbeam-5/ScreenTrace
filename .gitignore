@@ -19,3 +19,9 @@ shot*.png
 # 验证脚本的 Python 字节码缓存，不入库
 __pycache__/
 *.pyc
+
+# TD-01：正式签名材料必须保留在仓库外，严禁入库
+*.jks
+*.keystore
+keystore.properties
+release-signing.properties
