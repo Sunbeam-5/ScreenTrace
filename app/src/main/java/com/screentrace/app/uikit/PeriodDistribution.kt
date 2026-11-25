@@ -20,6 +20,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.screentrace.app.ui.AccessibilityDescriptions
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -70,8 +74,12 @@ fun PeriodDistribution(
             EmptyState(title = "暂无时段数据")
         } else {
             // 首末段外侧 18dp、内侧 8dp；段间距 3dp
+            val periodSummary = AccessibilityDescriptions.periodDistributionSummary(values, percents)
             Row(
-                modifier = Modifier.fillMaxWidth().height(36.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .clearAndSetSemantics { contentDescription = periodSummary },
                 horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 val lastVisible = values.indices.last { values[it] > 0 }

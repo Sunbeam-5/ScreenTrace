@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -246,6 +247,8 @@ fun AppNav(
     val lastPulledAt by viewModel.lastPulledAt
     val pullFrequency by viewModel.pullFrequency
     val channelStatuses by viewModel.channelStatuses
+    val collectionVerdict by viewModel.collectionVerdict
+    val diagnosticSnapshot by viewModel.diagnosticSnapshot
     val appCategories by viewModel.appCategories
     val onboardingDone by viewModel.onboardingDone
     val customThemeSeed by viewModel.customThemeSeed
@@ -339,6 +342,12 @@ fun AppNav(
             viewModel.refreshChannelStatuses()
         }
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    DisposableEffect(Unit) {
+        val dispose = com.screentrace.app.data.pull.ShizukuAuth.observeEvents {
+            viewModel.onChannelStateChanged()
+        }
+        onDispose(dispose)
     }
 
     ScreenTimeTheme(
@@ -598,22 +607,44 @@ fun AppNav(
                     // 三页各放一份既重复又会各自播一遍展开动画）。
                     // 底部固定留 12dp：没有提示条时就是标题与首卡之间的呼吸位，
                     // 有提示条时它随展开动画把内容整体下推，不会出现「啪地跳一格」。
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .padding(bottom = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    val stripVerdict = collectionVerdict
+                    val showStrip = stripVerdict?.showOnMainScreen == true || (stripVerdict == null && pulling)
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        // （批 6g 三轮）全局筛选胶囊条已移除：顶部标题栏副标题本来就
-                        // 显示当前区间，跨页常驻的「有记录 x 天」条被真机反馈点名；
-                        // 恢复「今天」用日期弹层里的「今天」快捷项。
-                        AnimatedVisibility(
-                            visible = pulling,
-                            enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                            exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .widthIn(max = 600.dp)
+                                .padding(horizontal = 20.dp)
+                                .padding(bottom = if (showStrip) 12.dp else 0.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            PullingBar()
+                            AnimatedVisibility(
+                                visible = showStrip,
+                                enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                                exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                            ) {
+                                if (stripVerdict != null) {
+                                    DataStatusStrip(
+                                        verdict = stripVerdict,
+                                        onAction = { action ->
+                                            when (action) {
+                                                com.screentrace.app.data.pull.CollectionQuickAction.RETRY_PULL ->
+                                                    viewModel.retryPull()
+                                                com.screentrace.app.data.pull.CollectionQuickAction.REQUEST_AUTHORIZATION,
+                                                com.screentrace.app.data.pull.CollectionQuickAction.OPEN_DIAGNOSTICS ->
+                                                    viewModel.openDiagnostics()
+                                                com.screentrace.app.data.pull.CollectionQuickAction.NONE -> Unit
+                                            }
+                                        },
+                                        onOpenDiagnostics = viewModel::openDiagnostics
+                                    )
+                                } else {
+                                    PullingBar()
+                                }
+                            }
                         }
                     }
 
@@ -863,6 +894,8 @@ fun AppNav(
                                     onNotice = viewModel::showNotice,
                                     selectedCategory = settingsCategory,
                                     onSelectCategory = viewModel::openSettingsCategory,
+                                    collectionVerdict = collectionVerdict,
+                                    diagnosticSnapshot = diagnosticSnapshot,
                                     weeklyReminderEnabled = weeklyReminderEnabled,
                                     onWeeklyReminderChange = viewModel::setWeeklyReminderEnabled,
                                     monthlyReminderEnabled = monthlyReminderEnabled,
@@ -928,8 +961,11 @@ fun AppNav(
             }
 
             // ---- 全局提示条：CR-30 阶段 D 单槽优先级替换（ERROR > INFO > SUCCESS），绝不叠放 ----
+            val suppressPullErrorBanner = isRootPage(page) &&
+                collectionVerdict?.showOnMainScreen == true &&
+                collectionVerdict?.state == com.screentrace.app.data.pull.DataCollectionState.FAILED
             val activeFeedback = resolveActiveFeedback(
-                pullError = pullError,
+                pullError = if (suppressPullErrorBanner) null else pullError,
                 persistentNotice = notice,
                 transientNotice = transientNotice
             )
@@ -938,6 +974,7 @@ fun AppNav(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
+                    .widthIn(max = 600.dp)
                     .padding(horizontal = 20.dp)
                     .padding(top = 108.dp)
             ) {
@@ -972,6 +1009,7 @@ fun AppNav(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .widthIn(max = 600.dp)
                     .navigationBarsPadding()
                     .padding(horizontal = 24.dp)
                     .padding(bottom = if (isRoot) 84.dp else 24.dp)

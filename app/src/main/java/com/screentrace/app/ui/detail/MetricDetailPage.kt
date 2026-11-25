@@ -9,6 +9,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.style.TextOverflow
+import com.screentrace.app.ui.AccessibilityDescriptions
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -102,7 +107,7 @@ fun MetricDetailPage(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(CONTENT_HEIGHT)
+                .heightIn(min = CONTENT_HEIGHT, max = 360.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(palette.surface)
                 .padding(horizontal = 12.dp, vertical = 16.dp)
@@ -184,9 +189,11 @@ private fun MetricDataTable(
             rows.forEach { row ->
                 val countText = row.count?.toString()
                     ?: MetricTable.emptyLabel(row.coverage, single)
+                val rowDesc = AccessibilityDescriptions.metricTableRowSummary(row, detail.metric, single)
                 Row(
                     Modifier
                         .fillMaxWidth()
+                        .clearAndSetSemantics { contentDescription = rowDesc }
                         .padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -203,6 +210,7 @@ private fun MetricDataTable(
                         color = if (row.hasRecord) palette.onSurface else palette.onSurfaceVariant,
                         textAlign = TextAlign.End,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(0.85f)
                     )
                     Column(

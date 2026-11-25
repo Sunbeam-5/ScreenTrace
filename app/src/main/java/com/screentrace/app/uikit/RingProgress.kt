@@ -25,6 +25,8 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.sp
 import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
@@ -111,9 +113,11 @@ fun RingProgress(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text = caption, style = FreshType.label, color = palette.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
+            val fontScale = LocalDensity.current.fontScale
+            val scaledSp = RingMath.scaledNumberFontSp(FreshType.heroNumber.fontSize.value, fontScale)
             RollingNumberText(
                 text = UsageCalculator.formatClock(usageMinutes),
-                style = FreshType.heroNumber,
+                style = FreshType.heroNumber.copy(fontSize = scaledSp.sp),
                 color = palette.onSurface,
                 maxLines = 1
             )

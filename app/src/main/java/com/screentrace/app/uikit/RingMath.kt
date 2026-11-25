@@ -41,4 +41,14 @@ object RingMath {
                 "$caption $usage，目标 ${UsageCalculator.formatDuration(goalMinutes)}，完成 ${usageMinutes * 100 / goalMinutes}%"
         }
     }
+
+    /**
+     * CR-30 阶段 E（§7-68）：大字号缩放（1.3x–1.5x）时对固定 184dp 圆环内中心数字做柔和钳制。
+     * - `fontScale <= 1.2f`：原样返回 [baseSp]（1.0x 视觉零改动）；
+     * - `fontScale > 1.2f`：等效视觉字号上限不超过 `baseSp * 1.22f`，防止顶破圆环内径。
+     */
+    fun scaledNumberFontSp(baseSp: Float, fontScale: Float): Float {
+        if (baseSp <= 0f || fontScale <= 1.2f) return baseSp
+        return (baseSp * 1.22f / fontScale).coerceAtLeast(baseSp * 0.65f)
+    }
 }

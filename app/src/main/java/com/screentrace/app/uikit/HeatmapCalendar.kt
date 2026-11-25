@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -147,7 +148,7 @@ private fun heatmapCellDescription(cell: CalendarLevel): String {
 fun HeatmapLegend(modifier: Modifier = Modifier) {
     val palette = LocalFreshPalette.current
     Row(
-        modifier = modifier,
+        modifier = modifier.clearAndSetSemantics { contentDescription = "年视图热力图例：由浅到深表示当日使用时长逐步增加" },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {

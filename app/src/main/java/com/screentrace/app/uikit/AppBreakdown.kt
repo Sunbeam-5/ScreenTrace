@@ -29,6 +29,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.screentrace.app.ui.AccessibilityDescriptions
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -59,8 +64,12 @@ fun AppBreakdownSection(
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // 色带：高 14、每段圆角 7、段间距 3，按分钟权重
+        val barSummary = AccessibilityDescriptions.appBreakdownSummary(rows)
         Row(
-            modifier = Modifier.fillMaxWidth().height(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(14.dp)
+                .clearAndSetSemantics { contentDescription = barSummary },
             horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             rows.forEach { row ->
@@ -87,7 +96,11 @@ fun AppBreakdownSection(
 private fun BreakdownRowItem(row: BreakdownRow, dotColor: Color) {
     val palette = LocalFreshPalette.current
     Row(
-        modifier = Modifier.fillMaxWidth().height(34.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 34.dp)
+            .semantics(mergeDescendants = true) {}
+            .padding(vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -140,7 +153,13 @@ private fun DayNightBar(dayPercent: Int?) {
     }
     val left = split.dayPercent
     val right = split.nightPercent
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val dayNightDesc = AccessibilityDescriptions.dayNightBarSummary(dayPercent)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clearAndSetSemantics { contentDescription = dayNightDesc },
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

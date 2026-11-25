@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -134,8 +136,10 @@ private fun TodayContent(
         val showOver = shouldShowOverChip(usageMin, dailyGoalMin)
         val showCompare = shouldShowCompare(data.compare)
         if (showOver || showCompare) {
-            androidx.compose.foundation.layout.Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 if (showOver) {
                     StatusChip(text = overTargetChipText(overMinutes), kind = ChipKind.OVER)

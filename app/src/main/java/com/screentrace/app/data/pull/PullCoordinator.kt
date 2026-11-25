@@ -133,7 +133,7 @@ class PullCoordinator(
                     if (!ingested.ok) {
                         return PullOutcome.Failure(
                             status = ProviderStatus.TEMPORARILY_UNAVAILABLE,
-                            message = ingested.message ?: "入库失败",
+                            message = ingested.message,
                             keptOldData = hasOldData()
                         )
                     }
@@ -211,6 +211,46 @@ class PullCoordinator(
         providers.map { it.channel to it.status() }
 
     /**
+     * CR-30 阶段 E（§7-67）：设置页「关于与诊断」与八态仲裁器共用的只读诊断快照。
+     * 仅执行只读查询，绝不修改 CR-28 数据表与拉取/入库口径。
+     */
+    suspend fun diagnosticSnapshot(): PullDiagnosticSnapshot {
+        val statuses = channelStatuses()
+        val coverage = historyCoverage()
+        val latest = db.pullLogDao().latest()
+        val okTimestamps = db.pullLogDao().okMs()
+        val failedTimestamps = db.pullLogDao().failedMs()
+        val lastOkAtMs = okTimestamps.maxOrNull()
+        val today = java.time.Instant.ofEpochMilli(clock()).atZone(zone).toLocalDate()
+        val windowStart = today.minusDays(6)
+        val okDays = okTimestamps.map {
+            java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate()
+        }.toSet()
+        val recentFailed = failedTimestamps.filter {
+            val d = java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate()
+            !d.isBefore(windowStart) && !d.isAfter(today)
+        }
+        val gapDates = recentFailed
+            .map { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
+            .distinct()
+            .filterNot { it in okDays }
+            .sorted()
+        val hasDaySummary = db.daySummaryDao().getAll().isNotEmpty()
+        val hasAnyData = hasDaySummary || db.appUsageDao().allNames().isNotEmpty()
+        return PullDiagnosticSnapshot(
+            channelStatuses = statuses,
+            coverage = coverage,
+            latestLog = latest,
+            lastOkAtMs = lastOkAtMs,
+            recentFailedCount7d = recentFailed.size,
+            recentGapDates = gapDates,
+            hasAnyData = hasAnyData,
+            hasDaySummary = hasDaySummary,
+            isPartialHistory = isPartialHistory(coverage)
+        )
+    }
+
+    /**
      * 系统只保留约 10 个滚动日（§2.1）：首次拉取窗口必然短于此，属「部分历史」。
      *
      * 「今天」必须取自**注入的 clock**，不能直接 `LocalDate.now()`：
@@ -267,3 +307,16 @@ fun PullOutcome.asPullResult(): PullResult = when (this) {
     PullOutcome.AlreadyRunning -> PullResult(ok = false, message = "正在拉取中，请稍候")
     is PullOutcome.Failure -> PullResult(ok = false, message = message)
 }
+
+/** CR-30 阶段 E（§7-67）：设置页「关于与诊断」与八态仲裁器的只读诊断快照。 */
+data class PullDiagnosticSnapshot(
+    val channelStatuses: List<Pair<PullChannel, ProviderStatus>>,
+    val coverage: HistoryCoverage,
+    val latestLog: PullLogEntity?,
+    val lastOkAtMs: Long?,
+    val recentFailedCount7d: Int,
+    val recentGapDates: List<LocalDate>,
+    val hasAnyData: Boolean,
+    val hasDaySummary: Boolean,
+    val isPartialHistory: Boolean
+)

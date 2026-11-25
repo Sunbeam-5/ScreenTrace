@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -211,7 +213,12 @@ private fun UnlockInsights(detail: MetricDetail) {
 @Composable
 private fun InsightRow(label: String, value: String) {
     val palette = LocalFreshPalette.current
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Text(
             text = label,
             style = FreshType.body,
@@ -327,9 +334,11 @@ private fun NotificationAppRow(
     barColor: Color
 ) {
     val palette = LocalFreshPalette.current
+    val rowDesc = AccessibilityDescriptions.notificationAppRowSummary(app.name, app.interruptions, app.seen)
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .semantics(mergeDescendants = true) { contentDescription = rowDesc }
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)

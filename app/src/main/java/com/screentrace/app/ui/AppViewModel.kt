@@ -66,7 +66,7 @@ enum class SettingsCategory(val title: String, val subtitle: String) {
     BACKUP("备份与同步", "本地导出恢复与云端同步"),
     REMINDERS("周期总结提醒", "每周一与每月 1 日提醒查看总结"),
     APPEARANCE("外观与阈值", "主题配色、自定义壁纸与低使用阈值"),
-    ABOUT("关于与说明", "数据口径、覆盖范围与版本信息")
+    ABOUT("关于与诊断", "采集状态诊断、双通道恢复、数据口径与版本")
 }
 
 /** 页面路由（不引入 navigation 库——§6 依赖白名单不含它，单层二级页用状态即可）。 */
@@ -422,6 +422,17 @@ class AppViewModel(
     private val _lastPulledAt = mutableStateOf<Long?>(null)
     val lastPulledAt: State<Long?> = _lastPulledAt
 
+    /** CR-30 阶段 E（§7-67）：数据采集八态仲裁结论与详细诊断快照。 */
+    private val _diagnosticSnapshot =
+        mutableStateOf<com.screentrace.app.data.pull.PullDiagnosticSnapshot?>(null)
+    val diagnosticSnapshot: State<com.screentrace.app.data.pull.PullDiagnosticSnapshot?> =
+        _diagnosticSnapshot
+
+    private val _collectionVerdict =
+        mutableStateOf<com.screentrace.app.data.pull.DataCollectionVerdict?>(null)
+    val collectionVerdict: State<com.screentrace.app.data.pull.DataCollectionVerdict?> =
+        _collectionVerdict
+
     init {
         observeSettings()
         loadWallpaper()
@@ -455,6 +466,7 @@ class AppViewModel(
         val coordinator = pulls ?: return
         viewModelScope.launch {
             _pulling.value = true
+            recomputeCollectionVerdict()
             // `finally` 不是洁癖：applyPullOutcome 里的 historyCoverage()/loadAll() 都在
             // runCatching 之外，一旦抛异常（或协程被取消）`_pulling` 会永久停在 true，
             // 顶部「正在拉取使用记录」条与今日页的读取中状态就再也不消失。
@@ -464,6 +476,7 @@ class AppViewModel(
                 applyPullOutcome(outcome, coordinator)
             } finally {
                 _pulling.value = false
+                recomputeCollectionVerdict()
             }
         }
     }
@@ -473,12 +486,14 @@ class AppViewModel(
         val coordinator = pulls ?: return
         viewModelScope.launch {
             _pulling.value = true
+            recomputeCollectionVerdict()
             try {
                 val outcome = runCatching { coordinator.pull() }
                     .getOrElse { PullOutcome.Failure(com.screentrace.app.data.pull.ProviderStatus.TEMPORARILY_UNAVAILABLE, it.message ?: "拉取失败", false) }
                 applyPullOutcome(outcome, coordinator)
             } finally {
                 _pulling.value = false
+                recomputeCollectionVerdict()
             }
         }
     }
@@ -575,6 +590,7 @@ class AppViewModel(
                 loadAll()
             }
         }
+        refreshDiagnosticsInternal(coordinator, triggerAutoRecovery = false)
     }
 
     /** 主题/目标从 DataStore 同步到界面（批 6a 已持久化，6b 接上）。 */
@@ -753,6 +769,13 @@ class AppViewModel(
         _settingsCategory.value = category
     }
 
+    /** CR-30 阶段 E（§7-67）：从主页面轻量状态条直达设置页「关于与诊断」。 */
+    fun openDiagnostics() {
+        openSettings()
+        _settingsCategory.value = SettingsCategory.ABOUT
+        refreshChannelStatuses()
+    }
+
     /** CR-30 §7-30：从周期总结通知直进「日历 → 周期总结」对应周期。 */
     fun openPeriodFromReminder(type: PeriodType) {
         _periodType.value = type
@@ -908,13 +931,78 @@ class AppViewModel(
         onPullFrequencyChanged?.invoke(frequency)
     }
 
-    /** 设置页可见/回到前台时重探两条通道（§5.8 授权状态必须真实）。 */
+    /** 设置页可见/回到前台时重探两条通道与诊断快照（§5.8 / §7-67 授权状态必须真实）。 */
     fun refreshChannelStatuses() {
         val coordinator = pulls ?: return
         viewModelScope.launch {
-            _channelStatuses.value = runCatching { coordinator.channelStatuses() }
-                .getOrDefault(emptyList())
+            refreshDiagnosticsInternal(coordinator, triggerAutoRecovery = true)
         }
+    }
+
+    /** CR-30 阶段 E（§7-67）：Shizuku binder 到达/断开或授权回调实时触发的状态回流。 */
+    fun onChannelStateChanged() {
+        refreshChannelStatuses()
+    }
+
+    private suspend fun refreshDiagnosticsInternal(
+        coordinator: PullCoordinator,
+        triggerAutoRecovery: Boolean
+    ) {
+        val prevStatuses = _channelStatuses.value
+        val prevState = _collectionVerdict.value?.state
+        val snapshot = runCatching { coordinator.diagnosticSnapshot() }.getOrNull()
+        val currStatuses = snapshot?.channelStatuses
+            ?: runCatching { coordinator.channelStatuses() }.getOrDefault(emptyList())
+        _channelStatuses.value = currStatuses
+        if (snapshot != null) {
+            _diagnosticSnapshot.value = snapshot
+            _coverage.value = snapshot.coverage
+            if (snapshot.lastOkAtMs != null) {
+                _lastPulledAt.value = snapshot.lastOkAtMs
+            }
+        }
+        recomputeCollectionVerdict()
+        if (triggerAutoRecovery && prevStatuses.isNotEmpty()) {
+            val transition = com.screentrace.app.data.pull.evaluateChannelTransition(
+                previous = prevStatuses,
+                current = currStatuses,
+                previousState = prevState
+            )
+            transition.noticeMessage?.let { showNotice(it) }
+            if (transition.recoveredForAutoPull && !_pulling.value) {
+                retryPull()
+            }
+        }
+    }
+
+    private fun recomputeCollectionVerdict() {
+        val snapshot = _diagnosticSnapshot.value
+        val statuses = snapshot?.channelStatuses ?: _channelStatuses.value
+        val shizuku = statuses.firstOrNull { it.first == PullChannel.SHIZUKU }?.second
+        val usageStats = statuses.firstOrNull { it.first == PullChannel.USAGE_STATS }?.second
+        val latest = snapshot?.latestLog
+        val hasAny = snapshot?.hasAnyData ?: (
+            _todayState.value.data != null ||
+                _statsState.value.data != null ||
+                _rankingState.value.data != null
+            )
+        val hasDaySummary = snapshot?.hasDaySummary ?: (_todayState.value.data != null)
+        val signal = com.screentrace.app.data.pull.DataCollectionSignal(
+            pulling = _pulling.value,
+            shizukuStatus = shizuku,
+            usageStatsStatus = usageStats,
+            hasAnyData = hasAny,
+            hasDaySummary = hasDaySummary,
+            latestPullOk = latest?.ok,
+            latestCollectionStatus = latest?.collectionStatus,
+            latestPullNote = latest?.note ?: _pullError.value,
+            lastOkPullAtMs = snapshot?.lastOkAtMs ?: _lastPulledAt.value,
+            nowMs = System.currentTimeMillis(),
+            staleThresholdMs = com.screentrace.app.data.pull.staleThresholdMsFor(_pullFrequency.value),
+            isPartialHistory = snapshot?.isPartialHistory ?: false,
+            recentGapDays = snapshot?.recentGapDates?.size ?: 0
+        )
+        _collectionVerdict.value = com.screentrace.app.data.pull.resolveDataCollectionState(signal)
     }
 
     /** 打开应用分类管理（§5.8「权限与数据」组）。 */

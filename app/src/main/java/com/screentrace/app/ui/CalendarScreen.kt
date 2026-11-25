@@ -46,6 +46,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.screentrace.app.contract.CalendarLevel
@@ -204,6 +206,10 @@ private fun CalendarContent(
             .transformSource(cornerRadius = 28.dp, containerColor = palette.surface)
             .clip(CircleShape)
             .background(palette.surface)
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                contentDescription = "本周总结，查看周、月、年周期总结"
+            }
             .clickable { onOpenPeriod(PeriodType.WEEK) }
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -220,7 +226,12 @@ private fun CalendarContent(
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )
-        Text(text = "›", style = FreshType.sectionTitle, color = palette.onSurfaceVariant)
+        Text(
+            text = "›",
+            style = FreshType.sectionTitle,
+            color = palette.onSurfaceVariant,
+            modifier = Modifier.clearAndSetSemantics {}
+        )
     }
 
     // ② 月/年 segmented
@@ -244,13 +255,18 @@ private fun CalendarContent(
                     onMonthChange(calendarMonth.minusMonths(1))
                 }
                 Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
                 ) {
                     Text(
                         text = "${calendarMonth.year} 年 ${calendarMonth.monthValue} 月",
                         style = FreshType.sectionTitle,
-                        color = palette.onSurface
+                        color = palette.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     // CR-30 §7-64：翻离当月才显示「今天」快速回跳按钮
                     val currentMonth = YearMonth.now()
@@ -259,16 +275,20 @@ private fun CalendarContent(
                             text = "今天",
                             style = FreshType.label,
                             color = palette.primary,
+                            maxLines = 1,
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .background(palette.primary.copy(alpha = 0.12f))
-                                .semantics { role = Role.Button }
+                                .semantics {
+                                    role = Role.Button
+                                    contentDescription = "回到本月"
+                                }
                                 .clickable {
                                     selectedEpochDay = null
                                     selectedMinutes = null
                                     onMonthChange(currentMonth)
                                 }
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
                         )
                     }
                 }

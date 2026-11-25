@@ -42,6 +42,9 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import com.screentrace.app.ui.AccessibilityDescriptions
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
@@ -118,7 +121,13 @@ fun CapsuleBarChart(
     val safeIndex = TrendSelectionMath.step(selectedIndex, 0, count)
     val selectedPoint = points[safeIndex]
 
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    val chartSummary = AccessibilityDescriptions.trendChartSummary(points, average)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = chartSummary },
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
         TrendDetailPanel(
             point = selectedPoint,
             apps = topAppsPerDay[selectedPoint.date].orEmpty()
@@ -297,6 +306,7 @@ private fun TrendDetailPanel(point: DailyPoint, apps: List<AppUsage>) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(palette.chipSurface)
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {

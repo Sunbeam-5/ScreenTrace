@@ -45,6 +45,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -150,7 +157,10 @@ fun SettingsScreen(
     onWeeklyReminderChange: (Boolean) -> Unit = {},
     monthlyReminderEnabled: Boolean = false,
     onMonthlyReminderChange: (Boolean) -> Unit = {},
-    reminderHour: Int = 20
+    reminderHour: Int = 20,
+    /** CR-30 阶段 E（§7-67）：「关于与诊断」所需的八态结论与诊断快照（默认 null 兼容既有调用）。 */
+    collectionVerdict: com.screentrace.app.data.pull.DataCollectionVerdict? = null,
+    diagnosticSnapshot: com.screentrace.app.data.pull.PullDiagnosticSnapshot? = null
 ) {
     if (selectedCategory == null) {
         SettingsCategoryHome(
@@ -247,6 +257,17 @@ fun SettingsScreen(
         }
 
         SettingsCategory.ABOUT -> {
+            CollectionDiagnosticsGroup(
+                verdict = collectionVerdict,
+                snapshot = diagnosticSnapshot,
+                channelStatuses = channelStatuses,
+                coverage = coverage,
+                lastPulledAt = lastPulledAt,
+                pulling = pulling,
+                onPullNow = onPullNow,
+                onRefreshStatuses = onRefreshStatuses,
+                onNotice = onNotice
+            )
             AboutGroup(coverage = coverage, appVersion = appVersion)
             SettingsGroup("AI 分析") {
                 val palette = LocalFreshPalette.current
@@ -491,14 +512,18 @@ private fun PermissionGroup(
             },
             ok = shizuku == ProviderStatus.AVAILABLE
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             SecondaryButton(text = "重新检测", onClick = onRefreshStatuses)
             if (shizuku != ProviderStatus.AVAILABLE) {
                 SecondaryButton(
-                    text = "请求授权",
+                    text = if (shizuku == ProviderStatus.NOT_INSTALLED) "打开 Shizuku" else "请求授权",
                     onClick = {
                         val requested = ShizukuAuth.request()
-                        if (!requested) {
+                        if (!requested && !ShizukuAuth.launchShizukuApp(context)) {
                             onNotice("Shizuku 服务未运行，请先安装并启动 Shizuku")
                         }
                     }
@@ -622,14 +647,11 @@ private fun ReportExportSheet(
                 style = FreshType.label,
                 color = palette.onSurfaceVariant
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "隐藏应用名称", style = FreshType.body, color = palette.onSurface)
-                Switch(checked = hideNames, onCheckedChange = { hideNames = it })
-            }
+            SettingSwitchRow(
+                label = "隐藏应用名称",
+                checked = hideNames,
+                onCheckedChange = { hideNames = it }
+            )
             Text(
                 text = "开启后应用只显示为「应用 1」「应用 2」，保留占比与颜色。",
                 style = FreshType.label,
@@ -963,6 +985,150 @@ private fun ReminderGroup(
     }
 }
 
+// ---------------------------------------------------------------- 数据采集诊断（CR-30 阶段 E）
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CollectionDiagnosticsGroup(
+    verdict: com.screentrace.app.data.pull.DataCollectionVerdict?,
+    snapshot: com.screentrace.app.data.pull.PullDiagnosticSnapshot?,
+    channelStatuses: List<Pair<PullChannel, ProviderStatus>>,
+    coverage: HistoryCoverage?,
+    lastPulledAt: Long?,
+    pulling: Boolean,
+    onPullNow: () -> Unit,
+    onRefreshStatuses: () -> Unit,
+    onNotice: (String) -> Unit
+) {
+    val palette = LocalFreshPalette.current
+    val context = LocalContext.current
+    val statuses = snapshot?.channelStatuses ?: channelStatuses
+    val shizuku = statuses.firstOrNull { it.first == PullChannel.SHIZUKU }?.second
+    val usageStats = statuses.firstOrNull { it.first == PullChannel.USAGE_STATS }?.second
+    val activeCoverage = snapshot?.coverage ?: coverage
+    val effectiveLastOk = snapshot?.lastOkAtMs ?: lastPulledAt
+    val latestLog = snapshot?.latestLog
+
+    SettingsGroup("数据采集诊断") {
+        val stateTitle = verdict?.title ?: if (pulling) "采集中" else "检测中"
+        val stateOk = verdict?.state == com.screentrace.app.data.pull.DataCollectionState.NORMAL
+        StatusLine(
+            text = "当前状态：$stateTitle",
+            ok = stateOk
+        )
+        verdict?.detailReason?.let { reason ->
+            Text(
+                text = reason,
+                style = FreshType.label,
+                color = palette.onSurfaceVariant
+            )
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SecondaryButton(
+                text = if (pulling) "正在拉取…" else "立即拉取",
+                enabled = !pulling,
+                onClick = onPullNow
+            )
+            SecondaryButton(text = "重新检测通道", onClick = onRefreshStatuses)
+        }
+
+        Box(Modifier.fillMaxWidth().height(1.dp).background(palette.track))
+
+        Text(text = "Shizuku（主通道 · 完整事件流）", style = FreshType.body, color = palette.onSurface)
+        StatusLine(
+            text = when (shizuku) {
+                ProviderStatus.AVAILABLE -> "已连接并授权 · 亮屏会话、解锁与通知完整可用"
+                ProviderStatus.NOT_INSTALLED -> "未检测到运行中的 Shizuku 服务"
+                ProviderStatus.PERMISSION_DENIED -> "服务已运行，但尚未授予屏迹权限"
+                ProviderStatus.TEMPORARILY_UNAVAILABLE, null -> "服务暂时不可用（可重新检测或重启服务）"
+                ProviderStatus.USAGE_ACCESS_DENIED -> "未授权"
+            },
+            ok = shizuku == ProviderStatus.AVAILABLE
+        )
+        if (shizuku != ProviderStatus.AVAILABLE) {
+            SecondaryButton(
+                text = if (shizuku == ProviderStatus.NOT_INSTALLED) "打开 Shizuku" else "请求 Shizuku 授权",
+                onClick = {
+                    val requested = ShizukuAuth.request()
+                    if (!requested && !ShizukuAuth.launchShizukuApp(context)) {
+                        onNotice("Shizuku 服务未运行，请先安装并启动 Shizuku")
+                    }
+                }
+            )
+        }
+
+        Text(text = "使用情况访问（降级通道 · 仅应用与时段）", style = FreshType.body, color = palette.onSurface)
+        StatusLine(
+            text = when (usageStats) {
+                ProviderStatus.AVAILABLE -> "已授权 · 主通道断开时自动兜底应用与时段"
+                ProviderStatus.USAGE_ACCESS_DENIED, ProviderStatus.PERMISSION_DENIED ->
+                    "未授权 · 无法作为降级兜底通道"
+                ProviderStatus.NOT_INSTALLED -> "当前系统未提供该入口"
+                ProviderStatus.TEMPORARILY_UNAVAILABLE, null -> "暂时不可用"
+            },
+            ok = usageStats == ProviderStatus.AVAILABLE
+        )
+        if (usageStats != ProviderStatus.AVAILABLE) {
+            SecondaryButton(
+                text = "去系统开启使用情况访问",
+                onClick = {
+                    val intents = listOf(
+                        Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS),
+                        Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.parse("package:${context.packageName}")
+                        )
+                    )
+                    val launched = intents.any { intent ->
+                        runCatching {
+                            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }.isSuccess
+                    }
+                    if (!launched) onNotice("没有找到系统授权页，请手动到系统设置里开启")
+                }
+            )
+        }
+
+        Box(Modifier.fillMaxWidth().height(1.dp).background(palette.track))
+
+        Text(text = "最近拉取与缺口", style = FreshType.body, color = palette.onSurface)
+        Text(
+            text = "最近成功拉取：${pullTimeText(effectiveLastOk)}",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+        if (latestLog != null) {
+            val statusTag = latestLog.collectionStatus ?: if (latestLog.ok) "OK" else "FAILED"
+            val noteSuffix = latestLog.note?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+            Text(
+                text = "最近记录：来源 ${latestLog.source} · 状态 $statusTag$noteSuffix",
+                style = FreshType.label,
+                color = palette.onSurfaceVariant
+            )
+        }
+        Text(
+            text = "已入库覆盖：${coverageText(activeCoverage)}",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+        val gapDates = snapshot?.recentGapDates.orEmpty()
+        val gapText = if (gapDates.isEmpty()) {
+            "近 7 天无拉取缺口（失败记录 ${snapshot?.recentFailedCount7d ?: 0} 次）"
+        } else {
+            val formatted = gapDates.joinToString("、") { "${it.monthValue}/${it.dayOfMonth}" }
+            "近 7 天存在 ${gapDates.size} 天缺口（$formatted）"
+        }
+        Text(
+            text = gapText,
+            style = FreshType.label,
+            color = if (gapDates.isEmpty()) palette.onSurfaceVariant else palette.overTarget
+        )
+    }
+}
+
 // ---------------------------------------------------------------- 关于
 
 @Composable
@@ -1032,12 +1198,32 @@ internal fun SettingsGroup(title: String, content: @Composable ColumnScope.() ->
 private fun SettingSwitchRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     val palette = LocalFreshPalette.current
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            )
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, style = FreshType.body, color = palette.onSurface)
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Text(
+            text = label,
+            style = FreshType.body,
+            color = palette.onSurface,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 12.dp)
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            modifier = Modifier.clearAndSetSemantics {}
+        )
     }
 }
 
@@ -1093,21 +1279,25 @@ internal fun ChoiceChip(
     val palette = LocalFreshPalette.current
     Box(
         modifier = modifier
-            .height(48.dp)
+            .defaultMinSize(minHeight = 48.dp)
             .clip(CircleShape)
             .background(if (selected) palette.primary else palette.track)
-            .semantics { role = Role.Button }
-            .clickable(onClick = onClick)
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = onClick
+            )
             // 真机反馈：无内边距时文字顶满胶囊、「每日」被裁——weight 布局时代
             // 宽度被撑开看不出来，自适应宽度后必须 padding 撑开背景
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             style = FreshType.label,
             color = if (selected) palette.onPrimary else palette.onSurfaceVariant,
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

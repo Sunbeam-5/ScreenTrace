@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -199,7 +200,7 @@ private fun monthCellDescription(cell: CalendarLevel): String {
 fun MonthCalendarLegend(modifier: Modifier = Modifier) {
     val palette = LocalFreshPalette.current
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.clearAndSetSemantics { contentDescription = "月历色阶图例：由浅到深表示当日使用时长相对目标逐步增加" }.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = "少", style = FreshType.label, color = palette.onSurfaceVariant)

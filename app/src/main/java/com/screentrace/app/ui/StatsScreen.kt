@@ -21,6 +21,7 @@ import com.screentrace.app.uikit.rememberReduceMotion
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.tooling.preview.Preview
@@ -199,6 +200,7 @@ private fun StatsContent(
 private fun AverageLegend(averageMinutes: Int) {
     val palette = LocalFreshPalette.current
     Row(
+        modifier = Modifier.semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
