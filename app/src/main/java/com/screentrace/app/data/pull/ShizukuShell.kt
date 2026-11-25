@@ -9,12 +9,14 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import moe.shizuku.server.IRemoteProcess
-import moe.shizuku.server.IShizukuService
 import rikka.shizuku.Shizuku
 
 /** shell 执行失败的载体：**必须区别于「空输出」**，两者对应不同的界面状态（§5.8）。 */
-class ShizukuExecException(message: String, cause: Throwable? = null) : Exception(message, cause)
+class ShizukuExecException(
+    message: String,
+    cause: Throwable? = null,
+    val aidlIncompatible: Boolean = false
+) : Exception(message, cause)
 
 /**
  * Shizuku shell 执行器（§2.1）。抽成接口是为了让 [ShizukuUsageProvider] 在 JVM 单测里
@@ -59,10 +61,26 @@ object ShizukuShell : ShellRunner {
      */
     fun invocation(command: String): Array<String> = arrayOf("sh", "-c", command)
 
-    override suspend fun exec(command: String, timeoutMs: Long): String = withContext(Dispatchers.IO) {
+    override suspend fun exec(command: String, timeoutMs: Long): String =
+        execWithBridge(ShizukuV13AidlAdapter, command, timeoutMs)
+
+    internal suspend fun execWithBridge(
+        bridge: ShizukuAidlBridge,
+        command: String,
+        timeoutMs: Long = DEFAULT_TIMEOUT_MS
+    ): String = withContext(Dispatchers.IO) {
         val remote = try {
-            start(command)
+            bridge.startProcess(invocation(command))
+        } catch (e: ShizukuExecException) {
+            throw e
         } catch (t: Throwable) {
+            if (classifyAidlError(t) == ShizukuAidlCompatibility.INCOMPATIBLE_API) {
+                throw ShizukuExecException(
+                    "Shizuku AIDL 接口不兼容（${t.javaClass.simpleName}），已自动降级",
+                    t,
+                    aidlIncompatible = true
+                )
+            }
             throw ShizukuExecException("启动 shell 失败：${t.message ?: t.javaClass.simpleName}", t)
         }
         try {
@@ -106,21 +124,18 @@ object ShizukuShell : ShellRunner {
         }
     }
 
-    /** 拿到远端进程句柄。权限不足 / 服务未启动在这里就抛，交给调用方降级。 */
-    private fun start(command: String): IRemoteProcess {
-        if (!Shizuku.pingBinder()) throw ShizukuExecException("Shizuku 服务未运行")
-        val binder = Shizuku.getBinder() ?: throw ShizukuExecException("Shizuku binder 为空")
-        val service = IShizukuService.Stub.asInterface(binder)
-            ?: throw ShizukuExecException("无法连接 Shizuku 服务")
-        // env/dir 传 null = 继承 shell 默认环境与工作目录
-        return service.newProcess(invocation(command), null, null)
-    }
-
     /** 13MB 级输出，按块读，别用 readText（会二次拷贝）。 */
-    private fun readAll(remote: IRemoteProcess, closer: StreamCloser): String {
+    private fun readAll(remote: RemoteProcessHandle, closer: StreamCloser): String {
         val pfd = try {
-            remote.getInputStream()
+            remote.inputStreamPfd()
         } catch (t: Throwable) {
+            if (classifyAidlError(t) == ShizukuAidlCompatibility.INCOMPATIBLE_API) {
+                throw ShizukuExecException(
+                    "Shizuku AIDL 读取流接口不兼容（${t.javaClass.simpleName}），已自动降级",
+                    t,
+                    aidlIncompatible = true
+                )
+            }
             null
         } ?: return ""
         // AutoCloseInputStream 的 close 会连带关闭 pfd，避免 fd 泄漏（每次拉取两个 dump，泄漏很快耗尽）

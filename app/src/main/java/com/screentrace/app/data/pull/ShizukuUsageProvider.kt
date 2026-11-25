@@ -61,11 +61,24 @@ class ShizukuUsageProvider(
         // 只有两路都没有可用数据时才按通道不可用处理（交给协调器降级）。
         // TD-02：先判 checkin 形态，无用则立即释放引用后再拉 4MB 明文，避免两路同时驻留堆内存。
         val checkinAttempt = runCatching { shell.exec(ShizukuShell.CHECKIN_CMD) }
+        (checkinAttempt.exceptionOrNull() as? ShizukuExecException)?.takeIf { it.aidlIncompatible }?.let { ex ->
+            return LoadedUsage.Failed(
+                ProviderStatus.TEMPORARILY_UNAVAILABLE,
+                ex.message ?: "Shizuku AIDL 接口不兼容，已自动降级"
+            )
+        }
         val checkinRaw = checkinAttempt.getOrDefault("")
         val checkinShape = withContext(Dispatchers.Default) { DumpShape.of(checkinRaw) }
         val useCheckinPre = checkinShape.looksLikeCheckin
         val checkin = if (useCheckinPre) checkinRaw else ""
-        val human = runCatching { shell.exec(ShizukuShell.PLAIN_CMD) }.getOrDefault("")
+        val plainAttempt = runCatching { shell.exec(ShizukuShell.PLAIN_CMD) }
+        (plainAttempt.exceptionOrNull() as? ShizukuExecException)?.takeIf { it.aidlIncompatible }?.let { ex ->
+            return LoadedUsage.Failed(
+                ProviderStatus.TEMPORARILY_UNAVAILABLE,
+                ex.message ?: "Shizuku AIDL 接口不兼容，已自动降级"
+            )
+        }
+        val human = plainAttempt.getOrDefault("")
 
         // 形态判定 + 解析都在 Default 上：4MB 文本的扫描与逐行解析都不该占用调用线程
         return withContext(Dispatchers.Default) {
