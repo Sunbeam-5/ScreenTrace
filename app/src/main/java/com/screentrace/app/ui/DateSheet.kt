@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -46,6 +47,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,11 +62,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.theme.FreshType
@@ -175,11 +179,8 @@ fun DateSheet(
                 // 状态栏的时间和信号图标压住，顶圆角也看不见（bug 3）。
                 // heightIn 必须写在 verticalScroll **之前**：先约束滚动容器本身的高度，
                 // 滚动容器才会把内部内容按无限高测量并自己滚。
-                // heightIn 必须写在 verticalScroll **之前**：先约束滚动容器本身的高度，
-                // 滚动容器才会把内部内容按无限高测量并自己滚。
                 .heightIn(max = screenHeight * 0.86f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
                 .padding(bottom = 28.dp)
                 // 避让全面屏手势条（sheet 的 windowInsets 已清零，见上方注释）
                 .navigationBarsPadding(),
@@ -187,19 +188,31 @@ fun DateSheet(
             // 间距收紧后「应用」按钮不用滚动就能露出来
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(text = "选择日期", style = FreshType.sectionTitle, color = palette.onSurface)
+            Text(
+                text = "选择日期",
+                style = FreshType.sectionTitle,
+                color = palette.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
 
             // 快捷项：点击即应用并关闭（§5.6；CR-14 按入口页裁剪选项集）
             when (mode) {
                 DateSheetMode.DAY -> {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         QuickChip("今天") { onApply(DateSelection.today()) }
                         QuickChip("昨天") { onApply(DateSelection.Day(LocalDate.now().minusDays(1))) }
                     }
-                    Text(text = "指定单日", style = FreshType.sectionTitle, color = palette.onSurface)
+                    Text(
+                        text = "指定单日",
+                        style = FreshType.sectionTitle,
+                        color = palette.onSurface,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
                     // **单插槽容器必须包 Column**：两个 Picker 各有 2~4 个并列根节点
                     // （输入框 / 日历 / 错误文案 / 应用按钮），直接放进去会全部叠在
                     // top-start（TodayContent / StatsContent 已各踩过一次，这是第三次）。
@@ -211,7 +224,9 @@ fun DateSheet(
                 DateSheetMode.RANGE -> {
                     // 4 个 chip 一行放不下（360dp 屏），FlowRow 自动换行
                     FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         QuickChip("近 7 天") { onApply(DateSelection.lastDays(7)) }
@@ -227,7 +242,12 @@ fun DateSheet(
                             )
                         }
                     }
-                    Text(text = "自定义区间", style = FreshType.sectionTitle, color = palette.onSurface)
+                    Text(
+                        text = "自定义区间",
+                        style = FreshType.sectionTitle,
+                        color = palette.onSurface,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         RangePicker(onApply = onApply)
                     }
@@ -235,14 +255,18 @@ fun DateSheet(
 
                 DateSheetMode.FULL -> {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         QuickChip("今天") { onApply(DateSelection.today()) }
                         QuickChip("昨天") { onApply(DateSelection.Day(LocalDate.now().minusDays(1))) }
                     }
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         QuickChip("近 7 天") { onApply(DateSelection.lastDays(7)) }
@@ -258,7 +282,12 @@ fun DateSheet(
                         }
                     }
 
-                    SegmentedControl(items = listOf("指定单日", "自定义区间"), selectedIndex = tab, onSelect = { tab = it })
+                    SegmentedControl(
+                        items = listOf("指定单日", "自定义区间"),
+                        selectedIndex = tab,
+                        onSelect = { tab = it },
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
 
                     // 指定单日 ↔ 自定义区间：滑动+淡入淡出切换（真机反馈 #3「过渡不丝滑」）。
                     // 直接 if/else 换内容会瞬间整块替换，高度还突跳；AnimatedContent 会连
@@ -317,6 +346,34 @@ private fun QuickChip(label: String, onClick: () -> Unit) {
     }
 }
 
+/**
+ * CR-30 阶段 D（§7-68 / 审计项 #8）：基于实际可用宽度的日历容器，防止窄屏/大显示缩放下
+ * Material3 `DatePicker` 周日列（第 7 列）被右边缘截断。
+ */
+@Composable
+private fun AdaptiveCalendarBox(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val baseDensity = LocalDensity.current
+        val spec = DatePickerLayoutMath.compute(maxWidth.value)
+        if (spec.densityScale < 1f) {
+            val scaledDensity = Density(
+                density = baseDensity.density * spec.densityScale,
+                fontScale = baseDensity.fontScale
+            )
+            CompositionLocalProvider(LocalDensity provides scaledDensity) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    content()
+                }
+            }
+        } else {
+            content()
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SingleDayPicker(current: DateSelection, onApply: (DateSelection) -> Unit) {
@@ -330,7 +387,9 @@ private fun SingleDayPicker(current: DateSelection, onApply: (DateSelection) -> 
     )
     // title 传 null：弹层的「选择日期」标题已经在上面画过一次了，
     // DatePicker 自带的再画一遍就是同一个标题连着出现两次。
-    DatePicker(state = state, title = null, showModeToggle = false)
+    AdaptiveCalendarBox {
+        DatePicker(state = state, title = null, showModeToggle = false)
+    }
     val selected = state.selectedDateMillis
     PrimaryButton(
         text = "应用",
@@ -338,7 +397,9 @@ private fun SingleDayPicker(current: DateSelection, onApply: (DateSelection) -> 
             if (selected != null) onApply(DateSelection.Day(localDate(selected)))
         },
         enabled = selected != null,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
     )
 }
 
@@ -391,7 +452,9 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         DateInputField(
@@ -418,17 +481,19 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
         )
     }
 
-    DateRangePicker(
-        state = state,
-        modifier = Modifier
-            .fillMaxWidth()
-            // **必须**给一个有界高度。DateRangePicker 内部是 LazyColumn，被外层
-            // verticalScroll 按无限高测量时直接抛异常（真机 bug 11：点自定义区间必闪退）。
-            .height(RANGE_PICKER_HEIGHT),
-        title = null,
-        headline = null,
-        showModeToggle = false
-    )
+    AdaptiveCalendarBox {
+        DateRangePicker(
+            state = state,
+            modifier = Modifier
+                .fillMaxWidth()
+                // **必须**给一个有界高度。DateRangePicker 内部是 LazyColumn，被外层
+                // verticalScroll 按无限高测量时直接抛异常（真机 bug 11：点自定义区间必闪退）。
+                .height(RANGE_PICKER_HEIGHT),
+            title = null,
+            headline = null,
+            showModeToggle = false
+        )
+    }
 
     // 手输两端都合法时优先用手输值（日历可能还没同步到位）；否则退回日历选择
     val manualStart = DateInput.parse(startText.text)
@@ -449,12 +514,14 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
         reversed -> Text(
             text = "结束日期不能早于开始日期",
             style = FreshType.label,
-            color = palette.error
+            color = palette.error,
+            modifier = Modifier.padding(horizontal = 20.dp)
         )
         overLimit -> Text(
             text = "区间最多 ${DateSelection.MAX_DAYS} 个自然日，当前 $days 天",
             style = FreshType.label,
-            color = palette.error
+            color = palette.error,
+            modifier = Modifier.padding(horizontal = 20.dp)
         )
     }
     PrimaryButton(
@@ -465,7 +532,9 @@ private fun RangePicker(onApply: (DateSelection) -> Unit) {
             }
         },
         enabled = complete && !overLimit,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
     )
 }
 

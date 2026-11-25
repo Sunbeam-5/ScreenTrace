@@ -5,7 +5,11 @@ import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.MetricDetail
 import com.screentrace.app.contract.MetricKind
 import com.screentrace.app.contract.MetricPoint
+import com.screentrace.app.contract.NotificationEvent
+import com.screentrace.app.contract.NotificationType
+import com.screentrace.app.contract.UsageCalculator
 import java.time.LocalDate
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -168,5 +172,61 @@ class MetricTableTest {
         assertEquals(0, MetricTable.percentInt(5, 0))
         assertEquals(50, MetricTable.percentInt(1, 2))
         assertEquals(67, MetricTable.percentInt(2, 3))
+    }
+
+    @Test
+    fun `shareFraction 与占比文案同源且无记录或零分母归零`() {
+        assertEquals(0f, MetricTable.shareFraction(5, 0), 0.0001f)
+        assertEquals(0f, MetricTable.shareFraction(0, 10), 0.0001f)
+        assertEquals(0.25f, MetricTable.shareFraction(5, 20), 0.0001f)
+
+        val values = IntArray(24).also { it[8] = 10; it[9] = 30 }
+        val rows = MetricTable.rows(detail(hourlyDay(values)))
+        assertEquals(0.25f, rows[8].shareFraction, 0.0001f)
+        assertEquals(0.75f, rows[9].shareFraction, 0.0001f)
+        assertEquals(0f, rows[0].shareFraction, 0.0001f)
+    }
+
+    @Test
+    fun `emptyLabel 区分无记录与采集缺口及单日区间`() {
+        assertEquals("采集缺口", MetricTable.emptyLabel(Coverage.GAP, singleDay = true))
+        assertEquals("采集缺口", MetricTable.emptyLabel(Coverage.GAP, singleDay = false))
+        assertEquals("该时段无记录", MetricTable.emptyLabel(Coverage.NO_RECORD, singleDay = true))
+        assertEquals("该日无记录", MetricTable.emptyLabel(Coverage.NO_RECORD, singleDay = false))
+    }
+
+    @Test
+    fun `通知详情打扰与已查看切换同源同步点数与日均`() {
+        val zone = ZoneId.systemDefault()
+        val prevDay = day.minusDays(1)
+        fun ts(d: LocalDate, hour: Int) = d.atTime(hour, 15).atZone(zone).toInstant().toEpochMilli()
+
+        val events = listOf(
+            NotificationEvent(ts(prevDay, 9), NotificationType.INTERRUPTION, "com.a", null),
+            NotificationEvent(ts(prevDay, 10), NotificationType.INTERRUPTION, "com.a", null),
+            NotificationEvent(ts(prevDay, 10), NotificationType.SEEN, "com.a", null),
+            NotificationEvent(ts(day, 14), NotificationType.INTERRUPTION, "com.b", null),
+            NotificationEvent(ts(day, 14), NotificationType.SEEN, "com.b", null),
+            NotificationEvent(ts(day, 15), NotificationType.SEEN, "com.b", null),
+            NotificationEvent(ts(day, 16), NotificationType.SEEN, "com.b", null)
+        )
+        val detail = UsageCalculator.metricDetail(
+            metric = MetricKind.NOTIFICATION,
+            selection = DateSelection.Range(prevDay, day),
+            notificationEvents = events,
+            windowStart = prevDay
+        )
+        assertEquals(3, detail.total)
+        assertEquals(1, detail.dailyAverage) // 3 / 2 = 1（整数日均）
+        assertEquals(listOf(2, 1), detail.points.map { it.value })
+
+        val seenDetail = detail.forNotificationSeen(true)
+        assertEquals(4, seenDetail.total)
+        assertEquals(2, seenDetail.dailyAverage) // (1+3)/2 = 2
+        assertEquals(listOf(1, 3), seenDetail.points.map { it.value })
+        assertEquals("25.0%", MetricTable.rows(seenDetail)[0].percentText)
+        assertEquals(0.75f, MetricTable.rows(seenDetail)[1].shareFraction, 0.0001f)
+        // 解锁或未切换时返回原对象
+        assertEquals(detail, detail.forNotificationSeen(false))
     }
 }

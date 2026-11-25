@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,17 +63,36 @@ fun UnlockDetailScreen(state: LoadState<MetricDetail>, onRetry: () -> Unit) {
 }
 
 /**
- * CR-01 / §5.7 通知详情页：打扰 / 已查看双指标 + 柱图 + 数据表 + 应用排行（可切换）。
+ * CR-01 / §5.7 / §7-66 通知详情页：打扰 / 已查看双指标 + 柱图 + 数据表 + 应用排行。
+ * 切换「打扰 / 已查看」时摘要、柱图、数据表与排行同源同步，并以独立视觉色区分。
  *
  * 应用归因来自 UsageStats 事件，**不申请通知监听权限**（§5.7 明文要求）。
  */
 @Composable
 fun NotificationDetailScreen(state: LoadState<MetricDetail>, onRetry: () -> Unit) {
     DetailStateHost(state = state, onRetry = onRetry) { detail ->
+        val palette = LocalFreshPalette.current
+        var bySeen by rememberSaveable { mutableStateOf(false) }
+        val activeDetail = remember(detail, bySeen) { detail.forNotificationSeen(bySeen) }
+        val accentColor = if (bySeen) palette.chart2 else palette.chart1
         MetricDetailPage(
-            detail = detail,
-            summary = { NotificationSummary(detail) },
-            detailSection = { NotificationRanking(detail) }
+            detail = activeDetail,
+            accentColor = accentColor,
+            summary = {
+                NotificationSummary(
+                    rawDetail = detail,
+                    activeDetail = activeDetail,
+                    bySeen = bySeen,
+                    onSelectBySeen = { bySeen = it }
+                )
+            },
+            detailSection = {
+                NotificationRanking(
+                    detail = detail,
+                    bySeen = bySeen,
+                    accentColor = accentColor
+                )
+            }
         )
     }
 }
@@ -203,42 +225,80 @@ private fun InsightRow(label: String, value: String) {
 // ---------------- 通知 ----------------
 
 @Composable
-private fun NotificationSummary(detail: MetricDetail) {
+private fun NotificationSummary(
+    rawDetail: MetricDetail,
+    activeDetail: MetricDetail,
+    bySeen: Boolean,
+    onSelectBySeen: (Boolean) -> Unit
+) {
     val palette = LocalFreshPalette.current
-    val counts = detail.notification
+    val counts = rawDetail.notification
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            NumberEnter { SummaryNumber(value = "${counts?.interruptions ?: detail.total}", unit = "次") }
-            Text(text = "打扰", style = FreshType.label, color = palette.onSurfaceVariant)
+            NumberEnter { SummaryNumber(value = "${counts?.interruptions ?: rawDetail.total}", unit = "次") }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(palette.chart1)
+                )
+                Text(
+                    text = if (!bySeen) "打扰（当前图表）" else "打扰",
+                    style = FreshType.label,
+                    color = if (!bySeen) palette.onSurface else palette.onSurfaceVariant
+                )
+            }
         }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             NumberEnter { SummaryNumber(value = "${counts?.seen ?: 0}", unit = "次") }
-            Text(text = "已查看", style = FreshType.label, color = palette.onSurfaceVariant)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(palette.chart2)
+                )
+                Text(
+                    text = if (bySeen) "已查看（当前图表）" else "已查看",
+                    style = FreshType.label,
+                    color = if (bySeen) palette.onSurface else palette.onSurfaceVariant
+                )
+            }
         }
     }
+    SegmentedControl(
+        items = listOf("打扰", "已查看"),
+        selectedIndex = if (bySeen) 1 else 0,
+        onSelect = { onSelectBySeen(it == 1) }
+    )
     Text(
-        text = MetricTable.summaryCaption(detail),
+        text = MetricTable.summaryCaption(activeDetail),
         style = FreshType.body,
         color = palette.onSurfaceVariant
     )
 }
 
 @Composable
-private fun NotificationRanking(detail: MetricDetail) {
+private fun NotificationRanking(
+    detail: MetricDetail,
+    bySeen: Boolean,
+    accentColor: Color
+) {
     val palette = LocalFreshPalette.current
-    var bySeen by rememberSaveable { mutableStateOf(false) }
     val sorted = detail.appRanking.sortedByDescending { if (bySeen) it.seen else it.interruptions }
     val maxCount = sorted.maxOfOrNull { if (bySeen) it.seen else it.interruptions } ?: 0
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SegmentedControl(
-            items = listOf("打扰", "已查看"),
-            selectedIndex = if (bySeen) 1 else 0,
-            onSelect = { bySeen = it == 1 }
-        )
         if (sorted.isEmpty()) {
             EmptyState(title = "该时段没有通知记录")
         } else {
@@ -246,7 +306,8 @@ private fun NotificationRanking(detail: MetricDetail) {
                 NotificationAppRow(
                     app = app,
                     count = if (bySeen) app.seen else app.interruptions,
-                    maxCount = maxCount
+                    maxCount = maxCount,
+                    barColor = accentColor
                 )
             }
             Text(
@@ -259,7 +320,12 @@ private fun NotificationRanking(detail: MetricDetail) {
 }
 
 @Composable
-private fun NotificationAppRow(app: MetricAppCount, count: Int, maxCount: Int) {
+private fun NotificationAppRow(
+    app: MetricAppCount,
+    count: Int,
+    maxCount: Int,
+    barColor: Color
+) {
     val palette = LocalFreshPalette.current
     Row(
         modifier = Modifier
@@ -293,7 +359,7 @@ private fun NotificationAppRow(app: MetricAppCount, count: Int, maxCount: Int) {
                             .fillMaxWidth(count.toFloat() / maxCount)
                             .height(9.dp)
                             .clip(RoundedCornerShape(50.dp))
-                            .background(palette.chart1)
+                            .background(barColor)
                     )
                 }
             }

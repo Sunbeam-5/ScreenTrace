@@ -927,51 +927,66 @@ fun AppNav(
                 }
             }
 
-            // ---- 全局提示条：与底部导航同层（最上层）——真机反馈 #1：原来画在主内容
-            // 列里，被二级页覆盖层整块遮住，用户看不到任何成功/失败反馈。 ----
+            // ---- 全局提示条：CR-30 阶段 D 单槽优先级替换（ERROR > INFO > SUCCESS），绝不叠放 ----
+            val activeFeedback = resolveActiveFeedback(
+                pullError = pullError,
+                persistentNotice = notice,
+                transientNotice = transientNotice
+            )
+            // 需行动/错误提示留在顶部覆盖层（AppHeader 下方 108dp）
+            val topFeedback = activeFeedback?.takeIf { it.channel != FeedbackChannel.TRANSIENT }
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(horizontal = 20.dp)
                     .padding(top = 108.dp)
             ) {
-                androidx.compose.foundation.layout.Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                AnimatedVisibility(
+                    visible = topFeedback != null,
+                    enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                    exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
                 ) {
-                    // CR-17：纯确认类短时条（与常驻条同款样式，2.5s 自动消失，可提前关）
-                    AnimatedVisibility(
-                        visible = transientNotice != null,
-                        enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                        exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
-                    ) {
-                        transientNotice?.let { n ->
-                            NoticeBar(text = n.text, onDismiss = viewModel::consumeTransient, isError = false)
-                        }
-                    }
-                    AnimatedVisibility(
-                        visible = notice != null,
-                        enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                        exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
-                    ) {
-                        notice?.let { text ->
-                            // 操作反馈（成功/提示）用中性样式；错误红色留给 pullError
-                            NoticeBar(text = text, onDismiss = viewModel::consumeNotice, isError = false)
-                        }
-                    }
-                    // §5.8：已有历史时拉取失败 → 顶部内联错误 + 可重试，页面继续显示旧数据
-                    AnimatedVisibility(
-                        visible = pullError != null,
-                        enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                        exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
-                    ) {
-                        pullError?.let { text ->
-                            NoticeBar(
-                                text = text,
+                    topFeedback?.let { fb ->
+                        when (fb.channel) {
+                            FeedbackChannel.PULL_ERROR -> NoticeBar(
+                                text = fb.text,
+                                isError = true,
                                 onDismiss = viewModel::dismissPullError,
-                                actionText = "重试",
+                                actionText = fb.actionText,
                                 onAction = viewModel::retryPull
                             )
+                            FeedbackChannel.PERSISTENT -> NoticeBar(
+                                text = fb.text,
+                                isError = false,
+                                onDismiss = viewModel::consumeNotice
+                            )
+                            FeedbackChannel.TRANSIENT -> Unit
                         }
+                    }
+                }
+            }
+
+            // 纯确认类短时条：底部安全区上方轻提示胶囊（主页面避让 50dp 导航胶囊；二级页底距 24dp，不用 Toast）
+            val bottomFeedback = activeFeedback?.takeIf { it.channel == FeedbackChannel.TRANSIENT }
+            val isRoot = isRootPage(page)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = if (isRoot) 84.dp else 24.dp)
+            ) {
+                AnimatedVisibility(
+                    visible = bottomFeedback != null,
+                    enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                    exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                ) {
+                    bottomFeedback?.let { fb ->
+                        NoticeBar(
+                            text = fb.text,
+                            isError = false,
+                            onDismiss = viewModel::consumeTransient
+                        )
                     }
                 }
             }

@@ -132,8 +132,27 @@ data class MetricDetail(
     // 解锁详情补充摘要（§5.7：最高频时段 / 每小时平均 / 最活跃日期）
     val peakHour: Int?,
     val hourlyAverage: Double?,
-    val busiestDate: LocalDate?
-)
+    val busiestDate: LocalDate?,
+    /** CR-30 阶段 D（§7-66）：通知详情「已查看」维度的同源曲线/表格点集与区间日均。 */
+    val secondaryPoints: List<MetricPoint> = emptyList(),
+    val secondaryDailyAverage: Int? = null
+) {
+    /**
+     * CR-30 阶段 D（§7-66）：通知详情在「打扰 / 已查看」之间切换时，
+     * 返回同源的汇总、日均与逐时/逐日点集，保证图表、数据表与排行一致。
+     */
+    fun forNotificationSeen(bySeen: Boolean): MetricDetail {
+        if (metric != MetricKind.NOTIFICATION || !bySeen) return this
+        val targetPoints = if (secondaryPoints.isNotEmpty()) secondaryPoints else points
+        val targetTotal = notification?.seen
+            ?: targetPoints.filter { it.coverage == Coverage.RECORDED }.sumOf { it.value }
+        return copy(
+            total = targetTotal,
+            dailyAverage = secondaryDailyAverage,
+            points = targetPoints
+        )
+    }
+}
 
 /** CR-01：通知双指标（§5.7 详情页摘要「打扰 X 次 / 已查看 Y 次」）。 */
 data class NotificationCounts(val interruptions: Int, val seen: Int)

@@ -17,7 +17,9 @@ data class MetricTableRow(
     val label: String,
     val count: Int?,
     val percentText: String,
-    val coverage: Coverage
+    val coverage: Coverage,
+    /** CR-30 阶段 D（§7-66）：行内占比条比例（0f..1f），与 [percentText] 同源。 */
+    val shareFraction: Float = 0f
 ) {
     /** 无记录行不显示 0，交给 UI 显示「该时段无记录」。 */
     val hasRecord: Boolean get() = count != null
@@ -40,9 +42,20 @@ object MetricTable {
                 label = pointLabel(point),
                 count = if (recorded) point.value else null,
                 percentText = if (recorded) percentText(point.value, detail.total) else "—",
-                coverage = point.coverage
+                coverage = point.coverage,
+                shareFraction = if (recorded) shareFraction(point.value, detail.total) else 0f
             )
         }
+
+    /** CR-30 阶段 D：行内占比条权重（0f..1f），分母 <= 0 时为 0f。 */
+    fun shareFraction(value: Int, total: Int): Float =
+        if (total <= 0 || value <= 0) 0f else (value.toFloat() / total).coerceIn(0f, 1f)
+
+    /** CR-30 阶段 D：无记录 / 采集缺口二态文案区分（§7-66）。 */
+    fun emptyLabel(coverage: Coverage, singleDay: Boolean): String = when (coverage) {
+        Coverage.GAP -> "采集缺口"
+        Coverage.NO_RECORD, Coverage.RECORDED -> if (singleDay) "该时段无记录" else "该日无记录"
+    }
 
     /** 单点标签：单日「9–10时」，区间「11月8日」。 */
     fun pointLabel(point: MetricPoint): String = point.hour?.let { h ->

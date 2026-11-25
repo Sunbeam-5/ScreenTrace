@@ -435,7 +435,15 @@ object UsageCalculator {
                 }
             }
         }
+        val seenHourlyOf: (LocalDate) -> IntArray = { date ->
+            IntArray(24).also { buckets ->
+                seen.forEach {
+                    if (localDateOf(it.occurredAtMs) == date) buckets[localHourOf(it.occurredAtMs)]++
+                }
+            }
+        }
         val base = aggregatePoints(selection, hourlyOf, windowStart, gapDays)
+        val seenBase = aggregatePoints(selection, seenHourlyOf, windowStart, gapDays)
         val ranking = inRange
             .groupBy { it.pkg }
             .map { (pkg, rows) ->
@@ -458,7 +466,9 @@ object UsageCalculator {
             appRanking = ranking,
             peakHour = null,
             hourlyAverage = null,
-            busiestDate = null
+            busiestDate = null,
+            secondaryPoints = seenBase.points,
+            secondaryDailyAverage = seenBase.dailyAverage
         )
     }
 

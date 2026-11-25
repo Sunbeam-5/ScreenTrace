@@ -31,11 +31,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -62,9 +65,11 @@ fun MetricBarChart(
     points: List<MetricPoint>,
     bubbleLabel: (MetricPoint) -> String,
     xLabel: (MetricPoint) -> String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    barColor: Color? = null
 ) {
     val palette = LocalFreshPalette.current
+    val resolvedBarColor = barColor ?: palette.chart1
     if (points.isEmpty()) {
         EmptyState(title = "暂无数据", modifier = modifier)
         return
@@ -75,9 +80,9 @@ fun MetricBarChart(
     val scaleMax = ((maxValue + 3) / 4).coerceAtLeast(1) * 4
 
     val thick = points.size <= 7
-    val plotHeight = if (thick) 126.dp else 92.dp
-    val barWidth = if (thick) 24.dp else 7.dp
-    val slotGap = if (thick) 10.dp else 4.dp
+    val plotHeight = if (thick) 184.dp else 168.dp
+    val barWidth = if (thick) 24.dp else 10.dp
+    val slotGap = if (thick) 10.dp else 5.dp
     val labelRowHeight = 22.dp
     val slotWidth = barWidth + slotGap
     /**
@@ -123,14 +128,37 @@ fun MetricBarChart(
         else progress.animateTo(1f, tween(totalMs.toInt(), easing = FastOutSlowInEasing))
     }
 
-    // 手指按住的槽位（null = 无气泡）
+    // 手指按住或轻点固定的槽位（null = 无气泡）
     var pressedIndex by remember(points) { mutableStateOf<Int?>(null) }
+    var pinnedIndex by remember(points) { mutableStateOf<Int?>(null) }
     val density = LocalDensity.current
     val slotWidthPx = with(density) { slotWidth.toPx() }
     val edgePadPx = with(density) { edgePad.toPx() }
     val scroll = rememberScrollState()
+    LaunchedEffect(scroll.isScrollInProgress) {
+        if (scroll.isScrollInProgress) {
+            pinnedIndex = null
+        }
+    }
+    val activeIndex = pressedIndex ?: pinnedIndex
+    val peakPoint = remember(points) {
+        points.filter { it.coverage == Coverage.RECORDED }.maxByOrNull { it.value }
+    }
+    val chartDesc = remember(points, peakPoint) {
+        val recordedCount = points.count { it.coverage == Coverage.RECORDED }
+        if (recordedCount == 0) {
+            "柱状图，共 ${points.size} 个时段，当前区间暂无记录"
+        } else {
+            val peakText = peakPoint?.let { bubbleLabel(it) } ?: "0"
+            "柱状图，共 ${points.size} 个时段，其中 $recordedCount 个时段有记录，最高为 $peakText"
+        }
+    }
 
-    Row(modifier = modifier.fillMaxWidth()) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = chartDesc }
+    ) {
         // 固定刻度列（独占 32dp，不参与滚动）
         Box(Modifier.width(32.dp).height(plotHeight)) {
             repeat(5) { i ->
@@ -154,20 +182,33 @@ fun MetricBarChart(
                         .pointerInput(points, slotWidthPx, edgePadPx) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
-                                // 减去左端留白，否则整张图会偏半格
-                                pressedIndex = ((down.position.x - edgePadPx) / slotWidthPx).toInt()
+                                val downIdx = ((down.position.x - edgePadPx) / slotWidthPx).toInt()
                                     .coerceIn(0, points.lastIndex)
+                                pressedIndex = downIdx
+                                var dragged = false
+                                var abortedByScroll = false
                                 while (true) {
                                     val event = awaitPointerEvent(PointerEventPass.Main)
                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                     // 滚动接管（父容器消费了拖动）→ 收起气泡，别让人边滚边看旧值
-                                    if (change.isConsumed) break
+                                    if (change.isConsumed) {
+                                        abortedByScroll = true
+                                        break
+                                    }
                                     if (!change.pressed) break
+                                    val moved = kotlin.math.abs(change.position.x - down.position.x) > 8f ||
+                                        kotlin.math.abs(change.position.y - down.position.y) > 8f
+                                    if (moved) dragged = true
                                     pressedIndex = ((change.position.x - edgePadPx) / slotWidthPx)
                                         .toInt()
                                         .coerceIn(0, points.lastIndex)
                                 }
-                                // 松手或滚动接管都收起气泡
+                                // 轻点柱子可固定/取消气泡以便读准数值（§7-66），拖动或滚动接管则收起
+                                pinnedIndex = if (!abortedByScroll && !dragged) {
+                                    if (pinnedIndex == downIdx) null else downIdx
+                                } else {
+                                    null
+                                }
                                 pressedIndex = null
                             }
                         }
@@ -188,14 +229,20 @@ fun MetricBarChart(
                                 labelRowHeight = labelRowHeight,
                                 showLabel = index % labelEvery == 0 && index <= lastLabelIndex,
                                 xLabel = xLabel(point),
-                                factor = if (reduceMotion) 1f else local
+                                factor = if (reduceMotion) 1f else local,
+                                barColor = resolvedBarColor
                             )
                         }
                     }
 
-                    pressedIndex?.let { index ->
+                    activeIndex?.let { index ->
                         val point = points.getOrNull(index) ?: return@let
-                        val bubbleWidth = 132.dp
+                        val bubbleText = when (point.coverage) {
+                            Coverage.RECORDED -> bubbleLabel(point)
+                            Coverage.GAP -> "${xLabel(point)} · 采集缺口"
+                            Coverage.NO_RECORD -> "${xLabel(point)} · 无记录"
+                        }
+                        val bubbleWidth = 140.dp
                         val bubbleWidthPx = with(density) { bubbleWidth.toPx() }
                         val centerPx = edgePadPx + slotWidthPx * index +
                             with(density) { barWidth.toPx() } / 2f
@@ -209,9 +256,10 @@ fun MetricBarChart(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(palette.primary)
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .semantics { contentDescription = bubbleText }
                         ) {
                             Text(
-                                text = bubbleLabel(point),
+                                text = bubbleText,
                                 style = FreshType.label,
                                 color = palette.onPrimary,
                                 maxLines = 1
@@ -244,7 +292,8 @@ private fun BarSlot(
     labelRowHeight: androidx.compose.ui.unit.Dp,
     showLabel: Boolean,
     xLabel: String,
-    factor: Float
+    factor: Float,
+    barColor: Color
 ) {
     val palette = LocalFreshPalette.current
     Column(
@@ -285,7 +334,7 @@ private fun BarSlot(
                             .width(barWidth)
                             .height(plotHeight * fraction * factor)
                             .clip(RoundedCornerShape(50.dp))
-                            .background(palette.chart1)
+                            .background(barColor)
                     )
                 }
             }

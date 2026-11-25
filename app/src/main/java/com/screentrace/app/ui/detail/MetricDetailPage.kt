@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -55,9 +57,11 @@ fun MetricDetailPage(
     detail: MetricDetail,
     summary: @Composable () -> Unit,
     detailSection: @Composable () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    accentColor: Color? = null
 ) {
     val palette = LocalFreshPalette.current
+    val resolvedAccent = accentColor ?: palette.chart1
     var tab by rememberSaveable(detail.metric) { mutableStateOf(0) }
     // 实际渲染的 tab 与目标 tab 分开：淡出结束后才换内容，避免「半透明时已经换了数据」
     var shownTab by remember(detail.metric) { mutableStateOf(tab) }
@@ -109,11 +113,13 @@ fun MetricDetailPage(
                         points = detail.points,
                         bubbleLabel = { bubbleLabel(detail.metric, it) },
                         xLabel = { xLabel(it) },
+                        barColor = resolvedAccent,
                         modifier = Modifier.align(Alignment.Center)
                     )
 
                     else -> MetricDataTable(
                         detail = detail,
+                        accentColor = resolvedAccent,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -135,13 +141,16 @@ fun MetricDetailPage(
     }
 }
 
-/** 表格：三列「时间段 / 次数 / 占比」，时间升序，占比分母 = 区间合计（§5.7）。 */
+/** 表格：三列「时间段 / 次数 / 占比 + 行内占比条」，时间升序，占比分母 = 区间合计（§5.7、§7-66）。 */
 @Composable
-private fun MetricDataTable(detail: MetricDetail, modifier: Modifier = Modifier) {
+private fun MetricDataTable(
+    detail: MetricDetail,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
     val palette = LocalFreshPalette.current
     val rows = MetricTable.rows(detail)
     val single = detail.selection is DateSelection.Day
-    val emptyHint = if (single) "该时段无记录" else "该日无记录"
 
     Column(modifier = modifier) {
         Row(
@@ -154,52 +163,81 @@ private fun MetricDataTable(detail: MetricDetail, modifier: Modifier = Modifier)
                 text = "时间段",
                 style = FreshType.label,
                 color = palette.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(0.95f)
             )
             Text(
                 text = "次数",
                 style = FreshType.label,
                 color = palette.onSurfaceVariant,
                 textAlign = TextAlign.End,
-                modifier = Modifier.weight(0.9f)
+                modifier = Modifier.weight(0.85f)
             )
             Text(
                 text = "占比",
                 style = FreshType.label,
                 color = palette.onSurfaceVariant,
                 textAlign = TextAlign.End,
-                modifier = Modifier.weight(0.8f)
+                modifier = Modifier.weight(1.1f)
             )
         }
         Column(Modifier.verticalScroll(rememberScrollState())) {
             rows.forEach { row ->
+                val countText = row.count?.toString()
+                    ?: MetricTable.emptyLabel(row.coverage, single)
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = row.label,
                         style = FreshType.body,
                         color = if (row.hasRecord) palette.onSurface else palette.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(0.95f)
                     )
                     Text(
-                        text = row.count?.toString() ?: emptyHint,
+                        text = countText,
                         style = FreshType.body,
                         color = if (row.hasRecord) palette.onSurface else palette.onSurfaceVariant,
                         textAlign = TextAlign.End,
                         maxLines = 1,
-                        modifier = Modifier.weight(0.9f)
+                        modifier = Modifier.weight(0.85f)
                     )
-                    Text(
-                        text = row.percentText,
-                        style = FreshType.body,
-                        color = palette.onSurfaceVariant,
-                        textAlign = TextAlign.End,
-                        modifier = Modifier.weight(0.8f)
-                    )
+                    Column(
+                        modifier = Modifier.weight(1.1f),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = row.percentText,
+                            style = FreshType.label,
+                            color = if (row.hasRecord && row.shareFraction > 0f) {
+                                palette.onSurface
+                            } else {
+                                palette.onSurfaceVariant
+                            },
+                            textAlign = TextAlign.End
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(50.dp))
+                                .background(palette.track.copy(alpha = if (row.hasRecord) 1f else 0.45f))
+                        ) {
+                            if (row.hasRecord && row.shareFraction > 0f) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(row.shareFraction)
+                                        .height(6.dp)
+                                        .clip(RoundedCornerShape(50.dp))
+                                        .background(accentColor)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -219,8 +257,8 @@ internal fun bubbleLabel(metric: MetricKind, point: MetricPoint): String {
     return "$whenText · ${point.value}$unit"
 }
 
-/** 内容容器固定高度：图表与表格切换时页面不跳动（§5.7 第 3 条）。 */
-private val CONTENT_HEIGHT = 264.dp
+/** 内容容器固定高度：扩大图表绘图区并保留行内占比条展示空间，切换时页面不跳动（§5.7 / §7-66）。 */
+private val CONTENT_HEIGHT = 304.dp
 
 @Preview(widthDp = 360, showBackground = true)
 @Composable
