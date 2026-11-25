@@ -30,6 +30,7 @@ import com.screentrace.app.data.sync.SyncFailure
 import com.screentrace.app.data.sync.SyncManager
 import com.screentrace.app.data.sync.SyncResult
 import com.screentrace.app.data.sync.WebDavProvider
+import com.screentrace.app.data.sync.assessWebDavSecurity
 import com.screentrace.app.data.sync.deviceBackupSummary
 import com.screentrace.app.data.sync.userMessage
 import com.screentrace.app.theme.FreshType
@@ -112,6 +113,13 @@ fun CloudSyncGroup(
             supportingText = { Text("坚果云预置 ${WebDavProvider.JIANGUOYUN_URL}，可改任意 WebDAV", style = FreshType.label) },
             modifier = Modifier.fillMaxWidth()
         )
+        assessWebDavSecurity(url).warningMessage?.let { warning ->
+            Text(
+                text = warning,
+                style = FreshType.label,
+                color = palette.overTarget
+            )
+        }
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },

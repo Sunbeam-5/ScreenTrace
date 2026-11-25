@@ -466,6 +466,7 @@ private fun pullTimeText(atMs: Long?): String {
 
 // ---------------------------------------------------------------- 权限与数据
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PermissionGroup(
     channelStatuses: List<Pair<PullChannel, ProviderStatus>>,
@@ -512,7 +513,6 @@ private fun PermissionGroup(
             },
             ok = shizuku == ProviderStatus.AVAILABLE
         )
-        @OptIn(ExperimentalLayoutApi::class)
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)

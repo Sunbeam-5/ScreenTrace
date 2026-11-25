@@ -28,41 +28,41 @@ class WebDavProvider(
 
     override val id: String = "webdav"
 
-    override suspend fun testConnection(): SyncResult = request("PROPFIND", depth = "0") { it.toResult() }
+    override suspend fun testConnection(): SyncResult = request("PROPFIND", depth = "0") { resp, pt -> resp.toResult(pt) }
 
     override suspend fun upload(path: String, bytes: ByteArray): SyncResult {
         // §5.10 批 C：path 可能是 `devices/<deviceId>/...`，要把两级目录逐级建出来。
         // MKCOL 幂等（405/301/409 = 已存在，忽略）；只有网络类失败才提前放弃。
         val ensured = ensureDirsFor(path)
         if (ensured is SyncResult.Err) return ensured
-        return request("PUT", path = path, body = bytes.toRequestBody("application/json".toMediaType())) { it.toResult() }
+        return request("PUT", path = path, body = bytes.toRequestBody("application/json".toMediaType())) { resp, pt -> resp.toResult(pt) }
     }
 
     private suspend fun ensureDirsFor(path: String): SyncResult {
-        val root = request("MKCOL", dirOnly = true) { SyncResult.Ok() }
+        val root = request("MKCOL", dirOnly = true) { _, pt -> SyncResult.Ok(plaintextTransport = pt) }
         if (root is SyncResult.Err && root.kind == SyncFailure.NETWORK) return root
         var acc = ""
         path.trimStart('/').substringBeforeLast('/', "").split('/')
             .filter { it.isNotEmpty() }
             .forEach { segment ->
                 acc += "$segment/"
-                val made = request("MKCOL", path = acc) { SyncResult.Ok() }
+                val made = request("MKCOL", path = acc) { _, pt -> SyncResult.Ok(plaintextTransport = pt) }
                 if (made is SyncResult.Err && made.kind == SyncFailure.NETWORK) return made
             }
         return SyncResult.Ok()
     }
 
-    override suspend fun download(path: String): SyncResult = request("GET", path = path) { resp ->
+    override suspend fun download(path: String): SyncResult = request("GET", path = path) { resp, pt ->
         when (resp.code) {
             404 -> SyncResult.Err(SyncFailure.NOT_FOUND, "远端文件不存在")
-            else -> SyncResult.Ok(content = resp.body?.bytes())
+            else -> SyncResult.Ok(content = resp.body?.bytes(), plaintextTransport = pt)
         }
     }
 
-    override suspend fun list(): SyncResult = request("PROPFIND", depth = "1", dirOnly = true) { resp ->
+    override suspend fun list(): SyncResult = request("PROPFIND", depth = "1", dirOnly = true) { resp, pt ->
         val body = resp.body?.string().orEmpty()
         try {
-            SyncResult.Ok(files = parsePropfindNames(body))
+            SyncResult.Ok(files = parsePropfindNames(body), plaintextTransport = pt)
         } catch (e: Exception) {
             SyncResult.Err(SyncFailure.FORMAT, "目录列表解析失败：${e.message}")
         }
@@ -70,7 +70,7 @@ class WebDavProvider(
 
     /** §5.10 批 C：列 `devices/` 才能发现各设备目录，列 `devices/<id>/` 才能看该设备的备份。 */
     override suspend fun listIn(path: String): SyncResult =
-        request("PROPFIND", path = path, depth = "1") { resp ->
+        request("PROPFIND", path = path, depth = "1") { resp, _ ->
             val body = resp.body?.string().orEmpty()
             // PROPFIND 响应第一条是目录自身（href 以 / 结尾且是 collection），要剔掉，
             // 否则会把 `devices` 自己当成一个设备。
@@ -84,10 +84,10 @@ class WebDavProvider(
             }
         }
 
-    override suspend fun delete(path: String): SyncResult = request("DELETE", path = path) { resp ->
+    override suspend fun delete(path: String): SyncResult = request("DELETE", path = path) { resp, pt ->
         when (resp.code) {
-            404 -> SyncResult.Ok() // 幂等：不存在即目标状态
-            else -> resp.toResult()
+            404 -> SyncResult.Ok(plaintextTransport = pt) // 幂等：不存在即目标状态
+            else -> resp.toResult(pt)
         }
     }
 
@@ -99,10 +99,19 @@ class WebDavProvider(
         depth: String? = null,
         dirOnly: Boolean = false,
         body: okhttp3.RequestBody? = null,
-        handle: (Response) -> SyncResult
+        handle: (Response, Boolean) -> SyncResult
     ): SyncResult = withContext(Dispatchers.IO) {
         val cfg = config()
-        val url = buildUrl(cfg, if (dirOnly) null else path)
+        val security = assessWebDavSecurity(cfg.baseUrl)
+        if (security.security == WebDavTransportSecurity.INVALID) {
+            return@withContext SyncResult.Err(
+                SyncFailure.FORMAT,
+                security.warningMessage ?: "WebDAV 地址无效"
+            )
+        }
+        val url = runCatching { buildUrl(cfg, if (dirOnly) null else path) }.getOrElse { e ->
+            return@withContext SyncResult.Err(SyncFailure.FORMAT, e.message ?: "WebDAV 地址格式无效")
+        }
         val builder = Request.Builder()
             .url(url)
             .header("Authorization", Credentials.basic(cfg.username, cfg.password))
@@ -119,10 +128,10 @@ class WebDavProvider(
                     404 -> if (method == "PROPFIND") {
                         SyncResult.Err(SyncFailure.NOT_FOUND, "远端目录不存在")
                     } else {
-                        handle(resp)
+                        handle(resp, security.isPlaintext)
                     }
                     507 -> SyncResult.Err(SyncFailure.QUOTA, "HTTP 507 存储空间不足")
-                    in 200..299, 405, 301, 409 -> handle(resp) // MKCOL 已存在的幂等语义
+                    in 200..299, 405, 301, 409 -> handle(resp, security.isPlaintext) // MKCOL 已存在的幂等语义
                     else -> SyncResult.Err(SyncFailure.UNKNOWN, "HTTP ${resp.code}")
                 }
             }
@@ -131,12 +140,11 @@ class WebDavProvider(
         }
     }
 
-    private fun Response.toResult(): SyncResult = SyncResult.Ok()
+    private fun Response.toResult(plaintextTransport: Boolean = false): SyncResult =
+        SyncResult.Ok(plaintextTransport = plaintextTransport)
 
-    private fun buildUrl(cfg: WebDavConfig, path: String?): String {
-        val base = cfg.baseUrl.trimEnd('/') + "/" + cfg.remoteDir.trim('/') + "/"
-        return if (path == null) base else base + path.trimStart('/')
-    }
+    private fun buildUrl(cfg: WebDavConfig, path: String?): okhttp3.HttpUrl =
+        WebDavUrlCodec.buildWebDavUrl(cfg.baseUrl, cfg.remoteDir, path)
 
     companion object {
         /** 坚果云预置地址（§5.10）。 */
@@ -196,7 +204,7 @@ class WebDavProvider(
                     event == XmlPullParser.END_TAG && tag == "response" -> {
                         // 目录的 href 常以 / 结尾，先 trimEnd 才能拿到目录名本身
                         val name = href?.trimEnd('/')?.substringAfterLast('/')
-                            ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                            ?.let { WebDavUrlCodec.decodePathSegment(it) }
                         if (inResponse && !name.isNullOrEmpty()) {
                             files += RemoteEntry(name, length, isCollection)
                         }

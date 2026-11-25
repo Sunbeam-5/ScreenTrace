@@ -56,7 +56,9 @@ enum class SyncFailure {
 sealed interface SyncResult {
     data class Ok(
         val content: ByteArray? = null,
-        val files: List<RemoteFile> = emptyList()
+        val files: List<RemoteFile> = emptyList(),
+        /** TD-08：使用 http:// 明文传输时为 true，供日志/诊断如实留痕。 */
+        val plaintextTransport: Boolean = false
     ) : SyncResult {
         override fun equals(other: Any?): Boolean =
             other is Ok && other.files == files && content.contentEquals(other.content)

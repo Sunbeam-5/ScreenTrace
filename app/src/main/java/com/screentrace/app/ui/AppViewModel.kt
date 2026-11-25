@@ -944,10 +944,25 @@ class AppViewModel(
         refreshChannelStatuses()
     }
 
+    /**
+     * 阶段 E 审阅 P2 修复：前台恢复统一入口。
+     * 先完成通道状态探测与恢复判定；若已因授权恢复触发自动补拉，则不再重复调用 `pullOnOpen()`，
+     * 防止在 60 秒失败冷却期内出现并发竞态吞掉自动补拉。
+     */
+    fun onResumeForeground() {
+        val coordinator = pulls ?: return
+        viewModelScope.launch {
+            val autoPulled = refreshDiagnosticsInternal(coordinator, triggerAutoRecovery = true)
+            if (!autoPulled) {
+                pullOnOpen()
+            }
+        }
+    }
+
     private suspend fun refreshDiagnosticsInternal(
         coordinator: PullCoordinator,
         triggerAutoRecovery: Boolean
-    ) {
+    ): Boolean {
         val prevStatuses = _channelStatuses.value
         val prevState = _collectionVerdict.value?.state
         val snapshot = runCatching { coordinator.diagnosticSnapshot() }.getOrNull()
@@ -971,8 +986,10 @@ class AppViewModel(
             transition.noticeMessage?.let { showNotice(it) }
             if (transition.recoveredForAutoPull && !_pulling.value) {
                 retryPull()
+                return true
             }
         }
+        return false
     }
 
     private fun recomputeCollectionVerdict() {

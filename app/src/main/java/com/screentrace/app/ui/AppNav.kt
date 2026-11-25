@@ -327,9 +327,7 @@ fun AppNav(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.pullOnOpen()
-                // 从 Shizuku / 系统授权页返回时状态可能已经变了，顺手重探一次
-                viewModel.refreshChannelStatuses()
+                viewModel.onResumeForeground()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -338,8 +336,7 @@ fun AppNav(
         // 收不到，表现为「打开 App 压根不拉取」——真机就踩到了：装完新包反复冷启动，
         // pull_log 一条新记录都没有，应用构成一直是空的。所以这里补一次当前状态检查。
         if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-            viewModel.pullOnOpen()
-            viewModel.refreshChannelStatuses()
+            viewModel.onResumeForeground()
         }
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }

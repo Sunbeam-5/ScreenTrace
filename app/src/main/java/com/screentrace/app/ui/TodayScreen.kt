@@ -101,6 +101,7 @@ fun TodayScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TodayContent(
     data: TodayData,
@@ -136,7 +137,6 @@ private fun TodayContent(
         val showOver = shouldShowOverChip(usageMin, dailyGoalMin)
         val showCompare = shouldShowCompare(data.compare)
         if (showOver || showCompare) {
-            @OptIn(ExperimentalLayoutApi::class)
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
