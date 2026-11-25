@@ -1036,22 +1036,24 @@ class AppViewModel(
     private fun loadWallpaper() {
         val store = wallpaperStore ?: return
         viewModelScope.launch {
-            val bitmap = withContext(Dispatchers.IO) {
-                if (store.exists()) store.loadBitmap()?.asImageBitmap() else null
-            }
-            _wallpaperBitmap.value = bitmap
-            // CR-20 ②：旧数据没有壁纸主色（选图时才算），这里按当前位图补算一次并落盘，
-            // 免得升级用户的卡片色永远是中性灰。补算只做一次，之后读 DataStore 即可。
             val current = _wallpaperConfig.value
-            if (bitmap != null && current.enabled && current.seedColor == 0) {
-                val seed = withContext(Dispatchers.IO) {
-                    store.loadBitmap()?.let { store.analyze(it).seedColor }
+            val loaded = withContext(Dispatchers.IO) {
+                if (!store.exists()) return@withContext null
+                val raw = store.loadBitmap() ?: return@withContext null
+                // CR-30 §7-65：复用同一次解码的 Bitmap 补算缺失主色，避免二次解码与临时大图驻留
+                val seed = if (current.enabled && current.seedColor == 0) {
+                    store.analyze(raw).seedColor
+                } else {
+                    0
                 }
-                if (seed != null && seed != 0) {
-                    val next = current.copy(seedColor = seed)
-                    _wallpaperConfig.value = next
-                    runCatching { settings?.setWallpaper(next) }
-                }
+                raw.asImageBitmap() to seed
+            }
+            _wallpaperBitmap.value = loaded?.first
+            val seed = loaded?.second ?: 0
+            if (loaded != null && current.enabled && current.seedColor == 0 && seed != 0) {
+                val next = current.copy(seedColor = seed)
+                _wallpaperConfig.value = next
+                runCatching { settings?.setWallpaper(next) }
             }
         }
     }

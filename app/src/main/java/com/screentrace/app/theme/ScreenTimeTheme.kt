@@ -201,11 +201,25 @@ fun ScreenTimeTheme(
 ) {
     com.screentrace.app.uikit.PerfProbe.tick("Compose/Theme")
     val context = LocalContext.current
-    // 评审 P2-7：派生 + 自动校正最坏上千次对比度计算，必须 remember——
-    // 否则每次重组合都重跑一遍
-    val palette = customSeed
-        ?.let { seed -> remember(seed, darkTheme) { PaletteEngine.paletteFromSeed(seed, darkTheme) } }
-        ?: variant.palette(darkTheme)
+    val useDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val dynamicScheme = remember(context, useDynamic, darkTheme) {
+        when {
+            !useDynamic -> null
+            darkTheme -> dynamicDarkColorScheme(context)
+            else -> dynamicLightColorScheme(context)
+        }
+    }
+    val dynamicSeed = dynamicScheme?.primary
+    // 评审 P2-7 + CR-30 §7-65：派生 + 自动校正必须 remember，且动态取色与自定义主题统一经 PaletteEngine 派生，
+    // 保证自绘图表与 Material3 语义一致，避免切深浅色/动态取色时图表不跟随或闪色。
+    val palette = remember(variant, darkTheme, customSeed, dynamicSeed) {
+        WallpaperPalette.resolveBasePalette(
+            variant = variant,
+            dark = darkTheme,
+            customSeed = customSeed,
+            dynamicSeed = dynamicSeed
+        )
+    }
     // §5.4 CR-20 ②：启用壁纸时，卡片底色按**壁纸主色**派生并大幅降不透明度，
     // 强调色 / 图表色是否跟随壁纸由 wallpaper.colorScope 决定（两套方案可切换对比）。
     // 无壁纸时完全走原色板，一行不改。
@@ -216,21 +230,30 @@ fun ScreenTimeTheme(
     val wallpaperPalette = remember(wallpaperSeedColor, darkTheme, wallpaper != null) {
         if (wallpaper == null) null else PaletteEngine.paletteFromSeed(Color(wallpaperSeedColor), darkTheme)
     }
-    val effectivePalette = WallpaperPalette.paletteFor(
-        themePalette = palette,
-        // 没有壁纸（wallpaperPalette == null）时原样返回主题色板，一行不改
-        wallpaperPalette = wallpaperPalette,
-        scope = wallpaper?.colorScope ?: WallpaperColorScope.CARDS_ONLY,
-        dark = darkTheme,
-        wallpaperSeed = Color(wallpaperSeedColor),
-        dimAlpha = wallpaper?.dimAlpha ?: 0f,
-        themeScrimAlpha = wallpaper?.themeScrimAlpha ?: 0f
-    )
-    val useDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    val colorScheme = when {
-        useDynamic && darkTheme -> dynamicDarkColorScheme(context)
-        useDynamic -> dynamicLightColorScheme(context)
-        else -> effectivePalette.toColorScheme(darkTheme)
+    val wallpaperScope = wallpaper?.colorScope ?: WallpaperColorScope.CARDS_ONLY
+    val wallpaperDimAlpha = wallpaper?.dimAlpha ?: 0f
+    val wallpaperScrimAlpha = wallpaper?.themeScrimAlpha ?: 0f
+    val effectivePalette = remember(
+        palette, wallpaperPalette, wallpaperScope, darkTheme,
+        wallpaperSeedColor, wallpaperDimAlpha, wallpaperScrimAlpha
+    ) {
+        WallpaperPalette.paletteFor(
+            themePalette = palette,
+            // 没有壁纸（wallpaperPalette == null）时原样返回主题色板，一行不改
+            wallpaperPalette = wallpaperPalette,
+            scope = wallpaperScope,
+            dark = darkTheme,
+            wallpaperSeed = Color(wallpaperSeedColor),
+            dimAlpha = wallpaperDimAlpha,
+            themeScrimAlpha = wallpaperScrimAlpha
+        )
+    }
+    val colorScheme = remember(effectivePalette, dynamicScheme, darkTheme, wallpaper != null, customSeed != null) {
+        if (dynamicScheme != null && wallpaper == null && customSeed == null) {
+            dynamicScheme
+        } else {
+            effectivePalette.toColorScheme(darkTheme)
+        }
     }
 
     CompositionLocalProvider(

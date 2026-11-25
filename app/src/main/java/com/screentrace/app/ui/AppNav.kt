@@ -179,31 +179,36 @@ fun AppNav(
     val wallpaperBitmap by viewModel.wallpaperBitmap
     val wallpaperConfig by viewModel.wallpaperConfig
     val wallpaperMessage by viewModel.wallpaperMessage
-    // CR-24：模糊按「1px ≈ 1dp」降采样，需要屏幕 density
+    // CR-24 + CR-30 §7-65：模糊位图缓存独立按 (wallpaperBitmap, enabled, effectiveBlurDp, density) 失效，
+    // 拖动暗化滑杆、切深浅色、调裁切或切配色范围不再重复分配/重算模糊位图。
     val wallpaperDensity = LocalDensity.current.density
-    val wallpaperState = remember(wallpaperBitmap, wallpaperConfig, darkTheme, wallpaperDensity) {
+    val effectiveBlurDp = remember(wallpaperConfig.blurDp) {
+        WallpaperTuning.effectiveBlurDp(wallpaperConfig.blurDp)
+    }
+    val blurredWallpaper = remember(wallpaperBitmap, wallpaperConfig.enabled, effectiveBlurDp, wallpaperDensity) {
         wallpaperBitmap?.takeIf { wallpaperConfig.enabled }?.let { bmp ->
-            // CR-24：全版本生效（原 Modifier.blur 依赖 RenderEffect、低版本静默不模糊）
-            val blurDp = WallpaperTuning.effectiveBlurDp(wallpaperConfig.blurDp)
-            WallpaperState(
-                bitmap = bmp,
-                dimAlpha = WallpaperTuning.dimAlpha(wallpaperConfig.dimPercent),
-                // CR-19 ②：壁纸启用即卡片半透明，遮罩按 cardTranslucent 加深
-                themeScrimAlpha = WallpaperTuning.themeScrimAlpha(
-                    wallpaperConfig.brightness, darkTheme, cardTranslucent = true
-                ),
-                blurDp = blurDp,
-                // CR-24：**一次性**算好模糊位图（只在壁纸/blurDp 变化时重算），
-                // 绘制端只贴它、不再每帧跑 RenderEffect。
-                blurred = WallpaperBlur.blurredImage(bmp, blurDp.toInt(), wallpaperDensity),
-                cropScale = wallpaperConfig.cropScale,
-                cropOffsetX = wallpaperConfig.cropOffsetX,
-                cropOffsetY = wallpaperConfig.cropOffsetY,
-                // CR-20 ②：壁纸主色（卡片配色派生）与配色范围两套方案
-                seedColor = wallpaperConfig.seedColor,
-                colorScope = wallpaperConfig.colorScope
-            )
+            WallpaperBlur.blurredImage(bmp, effectiveBlurDp.toInt(), wallpaperDensity)
         }
+    }
+    val wallpaperState = remember(wallpaperBitmap, blurredWallpaper, wallpaperConfig, darkTheme, effectiveBlurDp) {
+        val bmp = wallpaperBitmap?.takeIf { wallpaperConfig.enabled } ?: return@remember null
+        val blurred = blurredWallpaper ?: bmp
+        WallpaperState(
+            bitmap = bmp,
+            dimAlpha = WallpaperTuning.dimAlpha(wallpaperConfig.dimPercent),
+            // CR-19 ②：壁纸启用即卡片半透明，遮罩按 cardTranslucent 加深
+            themeScrimAlpha = WallpaperTuning.themeScrimAlpha(
+                wallpaperConfig.brightness, darkTheme, cardTranslucent = true
+            ),
+            blurDp = effectiveBlurDp,
+            blurred = blurred,
+            cropScale = wallpaperConfig.cropScale,
+            cropOffsetX = wallpaperConfig.cropOffsetX,
+            cropOffsetY = wallpaperConfig.cropOffsetY,
+            // CR-20 ②：壁纸主色（卡片配色派生）与配色范围两套方案
+            seedColor = wallpaperConfig.seedColor,
+            colorScope = wallpaperConfig.colorScope
+        )
     }
     val dynamicColor by viewModel.dynamicColor
     val page by viewModel.page
@@ -1053,14 +1058,20 @@ fun AppNav(
             )
         }
         if (showStyleSheet) {
+            val wallpaperDriven = com.screentrace.app.theme.WallpaperPalette.isWallpaperDrivenTheme(
+                wallpaperEnabled = wallpaperConfig.enabled,
+                scope = wallpaperConfig.colorScope
+            )
             StyleSheet(
                 current = variant,
                 customSeedActive = customThemeSeed != null,
+                wallpaperDrivenTheme = wallpaperDriven,
+                dynamicColorActive = dynamicColor && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S,
                 onSelect = { variant ->
-                    // 评审 P1-5：点哪套就是哪套——选预设即退出自定义主题。
-                    // 否则种子还留着时 variant 变了色板不变，用户会以为主题切换坏了
+                    // 评审 P1-5 + CR-30 §7-65：点哪套就是哪套——选预设即退出自定义与动态取色
                     viewModel.setThemeVariant(variant)
                     viewModel.setCustomThemeSeed(null)
+                    if (dynamicColor) viewModel.setDynamicColor(false)
                 },
                 onDismiss = { showStyleSheet = false }
             )

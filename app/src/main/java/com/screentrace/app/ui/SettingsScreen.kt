@@ -161,6 +161,9 @@ fun SettingsScreen(
             monthlyReminderEnabled = monthlyReminderEnabled,
             reminderHour = reminderHour,
             themeVariant = themeVariant,
+            customThemeEnabled = customThemeEnabled,
+            dynamicColor = dynamicColor,
+            wallpaperConfig = wallpaperConfig,
             darkTheme = darkTheme,
             appVersion = appVersion,
             onSelectCategory = onSelectCategory
@@ -267,6 +270,9 @@ private fun SettingsCategoryHome(
     monthlyReminderEnabled: Boolean,
     reminderHour: Int,
     themeVariant: ThemeVariant,
+    customThemeEnabled: Boolean,
+    dynamicColor: Boolean,
+    wallpaperConfig: WallpaperConfig,
     darkTheme: Boolean,
     appVersion: String,
     onSelectCategory: (SettingsCategory) -> Unit
@@ -278,11 +284,23 @@ private fun SettingsCategoryHome(
         monthlyReminderEnabled -> "每月 1 日 $reminderHour:00"
         else -> "全部关闭"
     }
+    val themeSource = com.screentrace.app.theme.WallpaperPalette.resolveThemeSource(
+        wallpaperEnabled = wallpaperConfig.enabled,
+        wallpaperScope = wallpaperConfig.colorScope,
+        customSeedActive = customThemeEnabled,
+        dynamicColorActive = dynamicColor && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+    )
+    val themeLabel = when (themeSource) {
+        com.screentrace.app.theme.ThemeColorSource.WALLPAPER_FULL_THEME -> "壁纸驱动"
+        com.screentrace.app.theme.ThemeColorSource.CUSTOM_SEED -> "自定义"
+        com.screentrace.app.theme.ThemeColorSource.DYNAMIC_COLOR -> "动态取色"
+        com.screentrace.app.theme.ThemeColorSource.PRESET -> themeVariant.label
+    }
     val summaries = mapOf(
         SettingsCategory.DATA to "目标 ${dailyGoalMin / 60}h · ${pullFrequency.label}",
         SettingsCategory.BACKUP to cloudSummary.ifEmpty { "本地导出 / 恢复" },
         SettingsCategory.REMINDERS to reminderSummary,
-        SettingsCategory.APPEARANCE to "${themeVariant.label} · ${if (darkTheme) "深色" else "浅色"}",
+        SettingsCategory.APPEARANCE to "$themeLabel · ${if (darkTheme) "深色" else "浅色"}",
         SettingsCategory.ABOUT to "v$appVersion"
     )
     SettingsGroup("设置分类") {
@@ -703,15 +721,31 @@ private fun AppearanceGroup(
 ) {
     val palette = LocalFreshPalette.current
     val scope = rememberCoroutineScope()
+    val themeSource = com.screentrace.app.theme.WallpaperPalette.resolveThemeSource(
+        wallpaperEnabled = wallpaperConfig.enabled,
+        wallpaperScope = wallpaperConfig.colorScope,
+        customSeedActive = customThemeEnabled,
+        dynamicColorActive = dynamicColor && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+    )
+    val styleValue = when (themeSource) {
+        com.screentrace.app.theme.ThemeColorSource.WALLPAPER_FULL_THEME -> "由壁纸驱动"
+        com.screentrace.app.theme.ThemeColorSource.CUSTOM_SEED -> "预设（已自定义）"
+        com.screentrace.app.theme.ThemeColorSource.DYNAMIC_COLOR -> "系统动态取色"
+        com.screentrace.app.theme.ThemeColorSource.PRESET -> themeVariant.label
+    }
     SettingsGroup("外观") {
         ActionRow(
             label = "界面风格",
-            value = if (customThemeEnabled) "预设（已自定义）" else themeVariant.label,
+            value = styleValue,
             onClick = onOpenStyleSheet
         )
         ActionRow(
             label = "自定义主题",
-            value = if (customThemeEnabled) "已启用" else "未启用",
+            value = when {
+                themeSource == com.screentrace.app.theme.ThemeColorSource.WALLPAPER_FULL_THEME -> "当前由壁纸驱动"
+                customThemeEnabled -> "已启用"
+                else -> "未启用"
+            },
             onClick = onOpenCustomTheme
         )
         SettingSwitchRow(
@@ -725,7 +759,7 @@ private fun AppearanceGroup(
             onCheckedChange = onDynamicColorChange
         )
         Text(
-            text = "动态取色只在系统支持时生效（Android 12+），否则用当前风格的颜色。",
+            text = "仅在 Android 12+ 生效并同步驱动图表色板；自定义主题与壁纸「整套主题」优先级更高。",
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )

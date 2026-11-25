@@ -21,6 +21,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -48,6 +49,10 @@ import com.screentrace.app.theme.ThemeVariant
 fun StyleSheet(
     current: ThemeVariant,
     customSeedActive: Boolean = false,
+    /** CR-30 §7-65：壁纸「整套主题」生效时明确提示「由壁纸驱动」，九套预设禁点不假生效。 */
+    wallpaperDrivenTheme: Boolean = false,
+    /** CR-30 §7-65：系统动态取色已开启时明确说明语义，点选预设将切换为预设主题。 */
+    dynamicColorActive: Boolean = false,
     onSelect: (ThemeVariant) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -70,11 +75,31 @@ fun StyleSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(text = "界面风格", style = FreshType.sectionTitle, color = palette.onSurface)
-            Text(
-                text = "点选即生效；自定义主题的修改入口在「设置 → 自定义主题」。",
-                style = FreshType.label,
-                color = palette.onSurfaceVariant
-            )
+            if (wallpaperDrivenTheme) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(palette.primaryContainer)
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    Text(
+                        text = "当前由壁纸驱动整套主题。如需切换预设风格，请在「设置 → 外观与阈值」切回「仅卡片」或恢复默认背景。",
+                        style = FreshType.label,
+                        color = palette.onPrimaryContainer
+                    )
+                }
+            } else {
+                Text(
+                    text = if (dynamicColorActive && !customSeedActive) {
+                        "当前已启用系统动态取色；点选下方预设将切换为该预设风格。"
+                    } else {
+                        "点选即生效；自定义主题的修改入口在「设置 → 外观与阈值」。"
+                    },
+                    style = FreshType.label,
+                    color = palette.onSurfaceVariant
+                )
+            }
             val entries = ThemeVariant.values().toList()
             entries.chunked(5).forEach { rowItems ->
                 Row(
@@ -85,14 +110,15 @@ fun StyleSheet(
                         StyleSwatch(
                             label = variant.label,
                             seed = variant.seed,
-                            selected = variant == current && !customSeedActive,
+                            selected = !wallpaperDrivenTheme && !dynamicColorActive && variant == current && !customSeedActive,
+                            enabled = !wallpaperDrivenTheme,
                             onClick = { onSelect(variant) },
                             modifier = Modifier.weight(1f)
                         )
                     }
                 }
             }
-            if (customSeedActive) {
+            if (!wallpaperDrivenTheme && customSeedActive) {
                 // 自定义主题格：显示为多彩圆点（种子色的派生示意），选中态描边
                 Row(modifier = Modifier.fillMaxWidth()) {
                     StyleSwatch(
@@ -115,17 +141,23 @@ private fun StyleSwatch(
     seed: Color? = null,
     custom: Boolean = false,
     selected: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val palette = LocalFreshPalette.current
     Column(
         modifier = modifier
+            .alpha(if (enabled) 1f else 0.45f)
             .semantics {
-                contentDescription = if (selected) "$label，当前风格" else label
+                contentDescription = when {
+                    !enabled -> "$label，当前由壁纸驱动不可选"
+                    selected -> "$label，当前风格"
+                    else -> label
+                }
                 role = Role.Button
             }
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)

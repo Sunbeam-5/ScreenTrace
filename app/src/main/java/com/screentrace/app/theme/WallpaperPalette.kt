@@ -18,10 +18,62 @@ import com.screentrace.app.data.wallpaper.WallpaperTuning
  *
  * 纯函数，不依赖 Compose 状态，JVM 单测可打靶。
  */
+/**
+ * CR-30 §7-65：主题色彩来源的统一语义优先级。
+ *
+ * 1. 壁纸「整套主题」→ [WALLPAPER_FULL_THEME]（明确由壁纸驱动，九套预设不假生效）；
+ * 2. 自定义种子色 → [CUSTOM_SEED]；
+ * 3. 系统动态取色（Android 12+）→ [DYNAMIC_COLOR]；
+ * 4. 九套预设主题 → [PRESET]。
+ */
+enum class ThemeColorSource {
+    WALLPAPER_FULL_THEME,
+    CUSTOM_SEED,
+    DYNAMIC_COLOR,
+    PRESET
+}
+
 object WallpaperPalette {
 
     /** 正文对比度红线（§5.4）。 */
     const val TEXT_CONTRAST_TARGET = 4.5
+
+    /** 图表与主色等图形元素的对比度红线（§5.4 / §7-65）。 */
+    const val GRAPHICAL_CONTRAST_TARGET = 3.0
+
+    /** 是否处于「壁纸整套主题」模式（九套预设此时不应假生效）。 */
+    fun isWallpaperDrivenTheme(
+        wallpaperEnabled: Boolean,
+        scope: WallpaperColorScope
+    ): Boolean = wallpaperEnabled && scope == WallpaperColorScope.FULL_THEME
+
+    /** 统一判定当前生效的主题色彩来源（纯函数，UI 展示与色板派生共用）。 */
+    fun resolveThemeSource(
+        wallpaperEnabled: Boolean,
+        wallpaperScope: WallpaperColorScope,
+        customSeedActive: Boolean,
+        dynamicColorActive: Boolean
+    ): ThemeColorSource = when {
+        isWallpaperDrivenTheme(wallpaperEnabled, wallpaperScope) -> ThemeColorSource.WALLPAPER_FULL_THEME
+        customSeedActive -> ThemeColorSource.CUSTOM_SEED
+        dynamicColorActive -> ThemeColorSource.DYNAMIC_COLOR
+        else -> ThemeColorSource.PRESET
+    }
+
+    /**
+     * 统一基础色板解析（CR-30 §7-65）：
+     * 自定义主题与系统动态取色同走 [PaletteEngine.paletteFromSeed]，保证自绘图表与 Material3 语义一致。
+     */
+    fun resolveBasePalette(
+        variant: ThemeVariant,
+        dark: Boolean,
+        customSeed: Color? = null,
+        dynamicSeed: Color? = null
+    ): FreshPalette = when {
+        customSeed != null -> PaletteEngine.paletteFromSeed(customSeed, dark)
+        dynamicSeed != null -> PaletteEngine.paletteFromSeed(dynamicSeed, dark)
+        else -> variant.palette(dark)
+    }
 
     /** 合成：前景色按 alpha 叠在背景色上，返回不透明色。 */
     fun composite(fg: Color, alpha: Float, bg: Color): Color {
@@ -138,6 +190,15 @@ object WallpaperPalette {
         val effPrimaryContainer = composite(primaryContainer, alpha, background)
         val effSecondaryContainer = composite(secondaryContainer, alpha, background)
 
+        // CR-30 §7-65：极端/高饱和/深浅壁纸下，正文、主色与图表色均按合成后的实际卡片底色兜底对比度
+        val safeOnSurface = PaletteEngine.ensureContrast(base.onSurface, effSurface, dark, TEXT_CONTRAST_TARGET)
+        val safePrimary = PaletteEngine.ensureContrast(base.primary, effSurface, dark, GRAPHICAL_CONTRAST_TARGET)
+        val safeChart1 = PaletteEngine.ensureContrast(base.chart1, effSurface, dark, GRAPHICAL_CONTRAST_TARGET)
+        val safeChart2 = PaletteEngine.ensureContrast(base.chart2, effSurface, dark, GRAPHICAL_CONTRAST_TARGET)
+        val safeChart3 = PaletteEngine.ensureContrast(base.chart3, effSurface, dark, GRAPHICAL_CONTRAST_TARGET)
+        val safeChart4 = PaletteEngine.ensureContrast(base.chart4, effSurface, dark, GRAPHICAL_CONTRAST_TARGET)
+        val safeChart5 = PaletteEngine.ensureContrast(base.chart5, effSurface, dark, GRAPHICAL_CONTRAST_TARGET)
+
         return base.copy(
             surface = surface.copy(alpha = alpha),
             surfaceVariant = surfaceVariant.copy(alpha = alpha),
@@ -146,6 +207,13 @@ object WallpaperPalette {
             // CR-20 ③：浮层（弹层 / 面板 / 提示条）叠在内容之上，底色必须**不透明**，
             // 否则底下的数字会透上来与浮层文字叠字（真机复核实测）。
             panelSurface = surface.copy(alpha = 1f),
+            primary = safePrimary,
+            onSurface = safeOnSurface,
+            chart1 = safeChart1,
+            chart2 = safeChart2,
+            chart3 = safeChart3,
+            chart4 = safeChart4,
+            chart5 = safeChart5,
             // 卡片变半透明后，次要正文与单位色要按「实际底色」重新兜底
             onSurfaceVariant = PaletteEngine.ensureContrast(base.onSurfaceVariant, effSurface, dark),
             onPrimaryContainer = PaletteEngine.ensureContrast(
@@ -154,7 +222,7 @@ object WallpaperPalette {
             onSecondaryContainer = PaletteEngine.ensureContrast(
                 base.onSecondaryContainer, effSecondaryContainer, dark
             ),
-            onSurfaceMuted = muteForeground(base.onSurface, effSurface, dark)
+            onSurfaceMuted = muteForeground(safeOnSurface, effSurface, dark)
         )
     }
 

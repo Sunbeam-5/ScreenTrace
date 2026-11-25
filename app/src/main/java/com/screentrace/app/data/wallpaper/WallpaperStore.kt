@@ -38,9 +38,20 @@ class WallpaperStore(
 
     fun exists(): Boolean = file.exists() && file.length() > 0L
 
-    /** 冷启动载入；UI 层只在这里解码一次，之后以 CompositionLocal 传同一份位图。 */
+    /**
+     * 冷启动载入；UI 层只在这里解码一次，之后以 CompositionLocal 传同一份位图。
+     * CR-30 §7-65：先读 bounds 按 [WallpaperTuning.sampleSize] 降采样，防止异常超大原图直接占满内存。
+     */
     fun loadBitmap(): Bitmap? = if (!exists()) null else runCatching {
-        BitmapFactory.decodeFile(file.absolutePath)
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        val w = bounds.outWidth
+        val h = bounds.outHeight
+        if (w <= 0 || h <= 0) return@runCatching null
+        val opts = BitmapFactory.Options().apply {
+            inSampleSize = WallpaperTuning.sampleSize(w, h)
+        }
+        BitmapFactory.decodeFile(file.absolutePath, opts)
     }.getOrNull()
 
     /**
