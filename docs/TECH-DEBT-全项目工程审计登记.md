@@ -34,13 +34,13 @@
 | 编号 | 债务项 | 风险已复现？ | 优先级 | 需立即修 |
 |---|---|---|---|---|
 | TD-01 | Release 构建 / R8 / 正式签名 | 否（**2026-11-25 补齐基线**：`isMinifyEnabled=true` + 精确 ProGuard 规则 + `keystore.properties`/环境变量签名接线；`assembleRelease` 2.3MB 产物与 `testReleaseUnitTest` 648/648 全绿；正式 keystore 仍由负责人仓库外提供） | **P1** | 否（发布前补签名密钥） |
-| TD-02 | Shizuku 大文本峰值内存 | 否（未实测峰值） | **P2** | 否 |
-| TD-03 | 备份 JSON 序列化峰值内存 | 否（未实测峰值） | **P2** | 否 |
+| TD-02 | Shizuku 大文本峰值内存 | 否（**2026-11-25 TD-Batch2 已治理**：`5843f05` 基准 4MB=900.9ms/98294KB；现改 `DumpShape` 单遍扫 + `ShizukuUsageProvider` 错峰释放无用 checkin + `UsageDumpParser` 预筛） | **P2** | 否 |
+| TD-03 | 备份 JSON 序列化峰值内存 | 否（**2026-11-25 TD-Batch2 已治理**：`5843f05` 基准 `prettyPrint=1.99x`（2.29MB vs 1.15MB）；现关闭 `prettyPrint` 减半体积，解码双向兼容） | **P2** | 否 |
 | TD-04 | Shizuku AIDL 版本兼容 | 否（当前版本正常） | **P1** | 否（升级依赖时必修） |
 | TD-05 | AppViewModel 职责过多 | 否（可维护性债务） | **P3** | 否 |
 | TD-06 | BackupRepository 职责过多 | 否（可维护性债务） | **P3** | 否 |
-| TD-07 | WebDAV URL 路径编码 | 否（当前路径不含特殊字符） | **P2** | 否（支持自定义目录名前必修） |
-| TD-08 | WebDAV Basic Auth 的 HTTPS 边界 | 否 | **P2** | 否 |
+| TD-07 | WebDAV URL 路径编码 | 否（**2026-11-25 TD-Batch1 已闭环** `5843f05`：`WebDavUrlCodec` 逐段编码 + RFC 3986 path 解码，`MockWebServer` 实测通过） | **P2** | 否 |
+| TD-08 | WebDAV Basic Auth 的 HTTPS 边界 | 否（**2026-11-25 TD-Batch1 已闭环** `5843f05`：`WebDavSecurityPolicy` + `CloudSyncGroup` HTTP 明文提示 + `plaintextTransport` 标记，Redmi 实测通过） | **P2** | 否 |
 | TD-09 | GitHub Actions CI | **否（2026-11-25 已补齐** `.github/workflows/android-ci.yml`：JDK 17 双 Job 跑 Debug 单测/APK 与 Release R8 构建/APK+mapping 归档；branch protection 待 GitHub 仓库侧启用） | **P2** | 否 |
 | TD-10 | QUERY_ALL_PACKAGES 发行政策 | 否（功能需要；Play 发行资格**未确认**·审核风险**较高**；F-Droid **未评估**） | **P1** | 否（上架 Play 前必修） |
 

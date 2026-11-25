@@ -2389,3 +2389,20 @@ checkin dump 头部 `Currently Active:com.screentrace.app`；今日 `day_summary
 | **P2** | `ui/AppNav.kt`（`ON_RESUME`）+ `ui/AppViewModel.kt:972` | 失败后 60 秒冷却期内去授权再切回前台，`pullOnOpen()` 会先置 `_pulling = true` 并命中 `FAILURE_RETRY_MS` 返回 `Throttled`，并发的 `refreshDiagnosticsInternal` 若恰好读到 `_pulling.value == true` 会跳过 `retryPull()` 自动补拉 | 并入下一批技术债（TD-07/08 批次）顺手修复 |
 | **P3** | `ui/SettingsScreen.kt:515`、`ui/TodayScreen.kt:139` | `@OptIn(ExperimentalLayoutApi::class)` 挂在 `FlowRow(` 表达式上（Kotlin 1.9.24 放行，升级 Kotlin 2.0 会报目标不合法） | 同批次挪至外层 `@Composable fun` 声明 |
 | **P3** | `docs/TODO.md` | Redmi 真机冒烟未单独记录「手动停 Shizuku → 降级 → 重启恢复自动补拉」的交互留痕 | 下一轮真机冒烟时补测一条并留痕 |
+
+---
+
+## TD-Batch1 审阅收口补记（2026-11-25，HEAD `5843f05`）
+
+> 审阅基线：`main` HEAD `5843f05`（对比 `8f5ed49`，共 15 个变更文件：13 个代码/单测文件 + `docs/CODE_REVIEW.md` + `docs/TODO.md`）
+> 审阅结论：**通过（无 P0 / P1 / P2 问题，TD-07 / TD-08 / 阶段 E 尾项 P2·P3 与 TD-02/03 实测基准全部闭环）**
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 与仓库红线 | **通过** | Room schema/DAO/聚合/备份格式与 `README.md` 零改动；全部生产代码与设计稿逐字对齐 |
+| 单元测试（Debug / Release） | **通过** | 双变体均为 **99 suites / 683 tests / 0 fail / 0 error / 0 skip**；本地仅在 `ForegroundRecoveryOrderTest` 补充 Room 内存库同步执行器（`setQueryExecutor` / `setTransactionExecutor`），生产代码零偏差 |
+| 行为变异验证（M-TD1 ~ M-TD4） | **通过** | 全部变红后无条件还原 |
+| TD-02 / TD-03 实测基准 | **已取证** | `TD-03`：`prettyBytes=2,290,354` vs `compactBytes=1,148,902`（`ratio=1.99x`，`encodeMs=76.3ms`）；`TD-02`：4MB 明文 dump（40,819 事件）耗时 `900.9ms`、堆增量 `98,294 KB`（~96 MB），证实两项内存优化具备明确收益 |
+| Redmi（`GAQOHMNFQWFUPBQO`）回归 | **通过** | WebDAV `http://192.168.1.2:8080/dav/` 立即展示明文风险提示、改 `https://` 提示消失；前后台切回 `WaitTime: 66ms`，0 crash；全程未触碰 vivo |
