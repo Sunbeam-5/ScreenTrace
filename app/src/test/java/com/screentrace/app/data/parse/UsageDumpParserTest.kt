@@ -600,12 +600,16 @@ class UsageDumpParserTest {
             )
         }
 
-        // 不变式 2（复审 P1-D 收紧）：米家 10 天合计 ≈356.7min（u0 205.8 + 分身 150.9）。
-        // 上界 365 含 11-09 In-memory 覆盖滚动 24h 取大带来的 ~5min 增量（复审实测 362）。
-        val mijiaMin = result.appUsage
+        // 不变式 2（CR-30-R11 方案甲同步）：真实 dump 的 27 个 checkin 区间全部跨自然日，
+        // 按方案甲进入 `usageWindows`（不再整段压入结束日单日 `appUsage`）；
+        // 米家 10 天窗口级合计应吻合真值 ~356.7min（350..365）。
+        val mijiaWindowMin = result.usageWindows
             .filter { it.pkg == "com.xiaomi.smarthome" }
             .sumOf { it.totalMs } / 60_000
-        assertTrue("米家合计 ${mijiaMin}min 应在 356–365（真值 356.7 + In-memory 增量）", mijiaMin in 356..365)
+        assertTrue(
+            "米家跨日窗口合计 ${mijiaWindowMin}min 应在 350–365（真值 356.7）",
+            mijiaWindowMin in 350..365
+        )
 
         // 不变式 3（复审 P0-A 修复）：基线 days 数组每个对象含两个同名 "unlocks" 键
         //（尾部嵌套明细块），主值是 avg_session_min 紧邻那个——只取主序列，

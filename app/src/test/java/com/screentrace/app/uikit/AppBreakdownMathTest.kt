@@ -3,6 +3,7 @@ package com.screentrace.app.uikit
 import com.screentrace.app.contract.AppCategory
 import com.screentrace.app.contract.AppUsage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -80,5 +81,27 @@ class AppBreakdownMathTest {
         val rows = AppBreakdownMath.rows(listOf(app("A", 50)), 50)
         assertEquals("_other_", rows.last().pkg)
         assertEquals(listOf(50, 50), rows.map { it.minutes })
+    }
+
+    @Test
+    fun `CR-30-R11 缺分母时 dayPercent 返回 null 而非 0`() {
+        assertNull(AppBreakdownMath.dayPercent(totalMinutes = 0, nightMinutes = 0))
+        assertNull(AppBreakdownMath.dayPercent(totalMinutes = -10, nightMinutes = 0))
+    }
+
+    @Test
+    fun `CR-30-R11 有效分母下 dayPercent 计算正确且钳制在 0 到 100`() {
+        assertEquals(72, AppBreakdownMath.dayPercent(totalMinutes = 100, nightMinutes = 28))
+        assertEquals(0, AppBreakdownMath.dayPercent(totalMinutes = 60, nightMinutes = 60))
+        assertEquals(100, AppBreakdownMath.dayPercent(totalMinutes = 60, nightMinutes = 0))
+        assertEquals(0, AppBreakdownMath.dayPercent(totalMinutes = 60, nightMinutes = 90))
+    }
+
+    @Test
+    fun `CR-30-R11 dayNightSplit 在无分母时返回 null 不得伪造 0 和 100 百分比`() {
+        assertNull(AppBreakdownMath.dayNightSplit(null))
+        assertEquals(AppBreakdownMath.DayNightSplit(72, 28), AppBreakdownMath.dayNightSplit(72))
+        assertEquals(AppBreakdownMath.DayNightSplit(0, 100), AppBreakdownMath.dayNightSplit(0))
+        assertEquals(AppBreakdownMath.DayNightSplit(100, 0), AppBreakdownMath.dayNightSplit(100))
     }
 }

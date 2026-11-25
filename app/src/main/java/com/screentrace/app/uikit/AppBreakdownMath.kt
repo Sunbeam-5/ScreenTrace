@@ -48,4 +48,25 @@ object AppBreakdownMath {
             )
         }
     }
+
+    /**
+     * CR-30-R11 第 0 步（UI 诚实化）：日间占比纯计算。
+     *
+     * 分母（当日时段总分钟数）<= 0 时返回 `null` 而非 0——`Int` 无法区分「缺分母」与
+     * 「真实全夜间 0%」，下游 `right = 100 - left` 会把缺分母伪造成「日间 0% / 夜间 100%」。
+     */
+    fun dayPercent(totalMinutes: Int, nightMinutes: Int): Int? {
+        if (totalMinutes <= 0) return null
+        val clampedNight = nightMinutes.coerceIn(0, totalMinutes)
+        return ((totalMinutes - clampedNight) * 100 / totalMinutes).coerceIn(0, 100)
+    }
+
+    /** 日间 / 夜间双侧展示百分比；缺分母时返回 `null`，不得补出 0% / 100%。 */
+    data class DayNightSplit(val dayPercent: Int, val nightPercent: Int)
+
+    fun dayNightSplit(dayPercent: Int?): DayNightSplit? {
+        if (dayPercent == null) return null
+        val left = dayPercent.coerceIn(0, 100)
+        return DayNightSplit(dayPercent = left, nightPercent = 100 - left)
+    }
 }

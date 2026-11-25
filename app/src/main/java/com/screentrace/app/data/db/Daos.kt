@@ -454,3 +454,37 @@ interface RebuildLogDao {
     @Query("SELECT COUNT(*) FROM rebuild_log")
     suspend fun count(): Int
 }
+
+/** CR-30-R11（v9）：独立屏幕证据表 DAO（不参与 `SessionUnion`）。 */
+@Dao
+interface ScreenEvidenceDao {
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnore(rows: List<ScreenEvidenceEntity>)
+
+    @Query("SELECT * FROM screen_evidence ORDER BY startMs")
+    suspend fun getAll(): List<ScreenEvidenceEntity>
+
+    @Query("DELETE FROM screen_evidence")
+    suspend fun deleteAll()
+
+    @Query("SELECT COUNT(*) FROM screen_evidence")
+    suspend fun count(): Int
+}
+
+/** CR-30-R11（v9）：跨自然日窗口级应用聚合表 DAO（不混入单日 `app_usage`）。 */
+@Dao
+interface UsageWindowDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(rows: List<UsageWindowEntity>)
+
+    @Query("SELECT * FROM usage_window ORDER BY startMs, pkg")
+    suspend fun getAll(): List<UsageWindowEntity>
+
+    @Query("DELETE FROM usage_window")
+    suspend fun deleteAll()
+
+    @Query("SELECT COUNT(*) FROM usage_window")
+    suspend fun count(): Int
+}

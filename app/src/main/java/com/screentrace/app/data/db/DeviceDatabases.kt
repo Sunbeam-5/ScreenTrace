@@ -77,7 +77,9 @@ class DeviceDatabases(context: Context) {
                     // v7（CR-28）：六表加来源维度 + 事件 seq
                     MIGRATION_6_7,
                     // v8（CR-28 批次 D）：+ rebuild_log
-                    MIGRATION_7_8
+                    MIGRATION_7_8,
+                    // v9（CR-30-R11）：质量/采集状态列 + screen_evidence + usage_window
+                    MIGRATION_8_9
                 )
                 .build()
     }

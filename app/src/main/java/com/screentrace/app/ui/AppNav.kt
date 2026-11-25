@@ -12,6 +12,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.derivedStateOf
@@ -383,22 +385,52 @@ fun AppNav() {
         val tabScope = rememberCoroutineScope()
         // CR-22 ①：程序化滚动守卫（点 tab 触发的滚动期间不接受 Pager 的中间页回写）
         val tabGuard = remember { TabScrollGuard() }
-
-        // CR-22 ①：按 **Pager 的实际停留页**对齐路由。
-        // 写的是 Pager 此刻的位置（不是「用户点的页」），所以 Pager 仍是唯一真相源，
-        // 点 tab 不直接写路由的红线不变。这里必须读 `viewModel.page.value`：
-        // 局部函数捕获的是组合时的值，早 Started 的协程里那个值已经过时。
-        fun alignRouteToPager(landed: Int) {
-            com.screentrace.app.uikit.PerfProbe.event("Route/align=" + landed)
-            val page = MAIN_PAGES.getOrNull(landed) ?: return
-            if (AppPage.mainOf(viewModel.page.value) != page) viewModel.selectMain(page)
+        // CR-30-R10-OBS2（F-09 已验证可用）：观测 Pager 用户拖动状态，作为手势信号与代际推进点 ②
+        val pagerDraggedState = pagerState.interactionSource.collectIsDraggedAsState()
+        val routeCoordinator = remember(pagerState, tabGuard, viewModel, tabScope) {
+            val adapter = object : TabPagerAdapter {
+                override val currentPage: Int get() = pagerState.currentPage
+                override val settledPage: Int get() = pagerState.settledPage
+                override val isScrollInProgress: Boolean get() = pagerState.isScrollInProgress
+                override val isUserDragging: Boolean get() = pagerDraggedState.value
+                override suspend fun scrollToPage(index: Int) {
+                    pagerState.scrollToPage(index)
+                }
+                override suspend fun animateScrollToPage(index: Int) {
+                    pagerState.animateScrollToPage(
+                        index,
+                        animationSpec = TabMotion.scrollSpecFor(
+                            TabMotion.remainingPages(
+                                index,
+                                pagerState.currentPage,
+                                pagerState.currentPageOffsetFraction
+                            )
+                        )
+                    )
+                }
+                override suspend fun awaitSettled() {
+                    snapshotFlow {
+                        Triple(pagerState.isScrollInProgress, pagerState.currentPage, pagerState.settledPage)
+                    }.first { (scrolling, current, settled) -> !scrolling && current == settled }
+                }
+            }
+            TabRouteCoordinator(
+                mainPages = MAIN_PAGES,
+                tabGuard = tabGuard,
+                pager = adapter,
+                currentRoute = { viewModel.page.value },
+                writeRoute = { viewModel.selectMain(it) },
+                scope = tabScope
+            )
+        }
+        LaunchedEffect(pagerDraggedState.value) {
+            routeCoordinator.onUserDraggingChanged(pagerDraggedState.value)
         }
 
         // ① 路由 → Pager：只在「路由变化不是 Pager 回写引起」时才滚（二级页返回、
         //    goBack 回到另一主页面）。CR-17 起点 tab 直接在这里之外发滚动、不写路由，
         //    所以由 currentPage 回写触发的 mainPage 变化满足 currentPage == target，
         //    不会再反过来滚一次——双向环路就此断开。
-        //    `animateScrollToPage` 的默认动画是 spring（StiffnessMediumLow）。
         LaunchedEffect(mainPage) {
             // 切主页面时收起打开中的弹层（真机反馈 #7）：弹层属于某一个页面的上下文，
             // 页面都换了还挂着一张旧弹层只会让人困惑。返回二级页不受影响（mainPage 未变）。
@@ -409,39 +441,20 @@ fun AppNav() {
             val target = MAIN_PAGES.indexOf(mainPage)
             if (target !in MAIN_PAGES.indices) return@LaunchedEffect
             if (pagerState.currentPage != target) {
-                // CR-22 ①：这也是一次程序化滚动（二级页返回时的回滚），中途的中间页
-                // 同样不能回写路由，否则标题会闪一下中间页。
-                tabGuard.begin(target)
-                try {
-                    com.screentrace.app.uikit.PerfProbe.event("Pager/scrollStart")
-                    if (reduceMotion) pagerState.scrollToPage(target)
-                    else pagerState.animateScrollToPage(target, animationSpec = TabMotion.scrollSpecFor(TabMotion.remainingPages(target, pagerState.currentPage, pagerState.currentPageOffsetFraction)))
-                    com.screentrace.app.uikit.PerfProbe.event("Pager/scrollEnd")
-                } finally {
-                    if (tabGuard.end(target)) alignRouteToPager(pagerState.currentPage)
-                }
+                // CR-22 ① + OBS-2：统一经 TabRouteCoordinator 执行程序化滚动与收尾对齐
+                val seq = com.screentrace.app.uikit.PerfProbe.nextSeq()
+                com.screentrace.app.uikit.PerfProbe.a5("routeScroll", target, seq)
+                routeCoordinator.runProgrammaticScroll(
+                    target = target,
+                    reduceMotion = reduceMotion,
+                    seq = seq
+                )
             }
         }
-        // ② Pager → 路由（单向）：`currentPage` 过半即翻，比 `settledPage`（落定才发值）
-        //    早得多，横滑过程中 tab 就会跟着切；配合 navProgress 的连续插值就是「跟手」。
-        //    点 tab 不再写路由，因此不存在「滞后 settle 回写覆盖用户刚点的新选择」。
-        //    这里读 `viewModel.page.value` 而不是组合里的 `page`：effect 只起一次，
-        //    捕获的 `page` 会一直停留在首次组合时的值，判断就会失效。
+        // ② Pager → 路由（单向）：`currentPage` 过半即翻，经 TabRouteCoordinator 唯一写入口提交。
         LaunchedEffect(pagerState) {
             snapshotFlow { pagerState.currentPage }.distinctUntilChanged().collect { index ->
-                com.screentrace.app.uikit.PerfProbe.event("Route/currentPage=" + index)
-                val target = MAIN_PAGES.getOrNull(index) ?: return@collect
-                // CR-22 ①：程序化滚动期间**只忽略中间页**的回写（目标页照常回写，
-                // 动画走到七成时切标题最自然）——否则跨两页时路由会经过中间页，
-                // 标题与胶囊先跳到中间页再跳回（观感＝卡一下）。
-                if (tabGuard.ignoresWrite(index)) {
-                    com.screentrace.app.uikit.PerfProbe.event("Route/guardIgnore=" + index)
-                    return@collect
-                }
-                if (AppPage.mainOf(viewModel.page.value) != target) {
-                    com.screentrace.app.uikit.PerfProbe.event("Route/selectMain=" + target)
-                    viewModel.selectMain(target)
-                }
+                routeCoordinator.onSnapshotPage(index)
             }
         }
 
@@ -949,19 +962,16 @@ fun AppNav() {
                     ),
                     selectedIndex = MAIN_PAGES.indexOf(mainPage).coerceAtLeast(0),
                     onSelect = { index ->
-                        // CR-17 ②：点 tab 只滚 Pager，不直接写路由；route 由 ② 单向回写
-                        // CR-22 ①：标记为程序化滚动——滚动途中 Pager 的回写一律忽略，
-                        // 结束后按 Pager 的停留页对齐一次（跨页时不经过中间页）。
-                        tabGuard.begin(index)
+                        // CR-17 ② + CR-22 ① + OBS-2：点 tab 只滚 Pager，不直接写路由；
+                        // 统一由 TabRouteCoordinator 管理守卫、代际、取消补偿与路由唯一写入口。
+                        val seq = com.screentrace.app.uikit.PerfProbe.nextSeq()
+                        com.screentrace.app.uikit.PerfProbe.a5("tabClick", index, seq)
                         tabScope.launch {
-                            try {
-                                com.screentrace.app.uikit.PerfProbe.event("Pager/scrollStart")
-                                if (reduceMotion) pagerState.scrollToPage(index)
-                                else pagerState.animateScrollToPage(index, animationSpec = TabMotion.scrollSpecFor(TabMotion.remainingPages(index, pagerState.currentPage, pagerState.currentPageOffsetFraction)))
-                                com.screentrace.app.uikit.PerfProbe.event("Pager/scrollEnd")
-                            } finally {
-                                if (tabGuard.end(index)) alignRouteToPager(pagerState.currentPage)
-                            }
+                            routeCoordinator.runProgrammaticScroll(
+                                target = index,
+                                reduceMotion = reduceMotion,
+                                seq = seq
+                            )
                         }
                     },
                     progress = navProgress

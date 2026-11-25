@@ -3,15 +3,19 @@ package com.screentrace.app.data
 import androidx.room.withTransaction
 import com.screentrace.app.contract.PullResult
 import com.screentrace.app.data.db.AppUsageEntity
+import com.screentrace.app.data.db.CollectionStatusValues
+import com.screentrace.app.data.db.DataQualityValues
 import com.screentrace.app.data.db.DaySummaryEntity
 import com.screentrace.app.data.db.EventSeq
 import com.screentrace.app.data.db.HourUsageEntity
 import com.screentrace.app.data.db.NotificationEventEntity
 import com.screentrace.app.data.db.PullLogEntity
+import com.screentrace.app.data.db.ScreenEvidenceEntity
 import com.screentrace.app.data.db.ScreenSessionEntity
 import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.db.SourceIds
 import com.screentrace.app.data.db.UnlockEventEntity
+import com.screentrace.app.data.db.UsageWindowEntity
 import java.time.ZoneId
 import com.screentrace.app.data.parse.AppNames
 import com.screentrace.app.data.parse.ParseResult
@@ -50,8 +54,22 @@ class IngestPipeline(
         // 6a 评审 P2-2：dump 为空不记成功（§6「dump 为空或失败保留旧数据并记录」）
         // 判定收敛到 ParseResult.isEmpty，与拉取协调器的「空 dump」态共用同一口径
         if (result.isEmpty) {
-            logPull(source, pulledAtMs, ok = false, note = "dump 为空")
+            logPull(
+                source,
+                pulledAtMs,
+                ok = false,
+                note = "dump 为空",
+                collectionStatus = CollectionStatusValues.EMPTY
+            )
             return PullResult(ok = false, message = "dump 为空")
+        }
+
+        val pullStatus = when {
+            result.screenSessions.isNotEmpty() -> CollectionStatusValues.OK
+            result.days.isNotEmpty() || result.appUsage.isNotEmpty() ||
+                result.usageWindows.isNotEmpty() || result.screenEvidence.isNotEmpty() ->
+                CollectionStatusValues.PARTIAL
+            else -> CollectionStatusValues.OK
         }
 
         return try {
@@ -68,6 +86,11 @@ class IngestPipeline(
                 val dayDao = db.daySummaryDao()
                 for ((date, metrics) in result.days) {
                     val key = date.toString()
+                    val screenQuality = if (metrics.screenMin > 0 || result.screenSessions.isNotEmpty()) {
+                        DataQualityValues.EXACT
+                    } else {
+                        DataQualityValues.PARTIAL
+                    }
                     val incoming = DaySummaryEntity(
                         date = key,
                         screenMin = metrics.screenMin,
@@ -76,7 +99,8 @@ class IngestPipeline(
                         launches = metrics.launches,
                         longestSessionMin = metrics.longestSessionMin,
                         pulledAt = pulledAtMs,
-                        sourceDeviceId = src
+                        sourceDeviceId = src,
+                        screenQuality = screenQuality
                     )
                     val existing = dayDao.get(key, src)
                     val merged = MergePolicy.mergeDay(existing, incoming)
@@ -101,7 +125,8 @@ class IngestPipeline(
                         launches = row.launches,
                         // P1-1：内置分类映射写库，用户覆盖在仓库读取层叠加
                         category = AppNames.categoryOf(row.pkg).name,
-                        sourceDeviceId = src
+                        sourceDeviceId = src,
+                        minutesQuality = DataQualityValues.EXACT
                     )
                     val existing = appDao.get(key, row.pkg, src)
                     val merged = MergePolicy.mergeApp(existing, incoming)
@@ -113,7 +138,13 @@ class IngestPipeline(
                     val key = date.toString()
                     val existingByHour = hourDao.getForDate(key, src).associateBy { it.hour } // 一次查询（复审意见）
                     buckets.forEachIndexed { hour, minutes ->
-                        val incoming = HourUsageEntity(key, hour, minutes, src)
+                        val incoming = HourUsageEntity(
+                            date = key,
+                            hour = hour,
+                            minutes = minutes,
+                            sourceDeviceId = src,
+                            quality = DataQualityValues.EXACT
+                        )
                         val existing = existingByHour[hour]
                         val merged = MergePolicy.mergeHour(existing, incoming)
                         if (merged != existing) hourDao.insert(merged)
@@ -190,14 +221,21 @@ class IngestPipeline(
                                 launches = existing?.launches ?: (result.days[day]?.launches ?: 0),
                                 longestSessionMin = slice.longestMin,
                                 pulledAt = pulledAtMs,
-                                sourceDeviceId = src
+                                sourceDeviceId = src,
+                                screenQuality = DataQualityValues.EXACT
                             )
                             val mergedDay = MergePolicy.mergeDay(existing, incomingRow)
                             if (mergedDay != existing) dayDao.insert(mergedDay)
 
                             val existingByHour = hourDao.getForDate(key, src).associateBy { it.hour }
                             slice.hours.forEachIndexed { hour, minutes ->
-                                val incomingHour = HourUsageEntity(key, hour, minutes, src)
+                                val incomingHour = HourUsageEntity(
+                                    date = key,
+                                    hour = hour,
+                                    minutes = minutes,
+                                    sourceDeviceId = src,
+                                    quality = DataQualityValues.EXACT
+                                )
                                 val existingHour = existingByHour[hour]
                                 val mergedHour = MergePolicy.mergeHour(existingHour, incomingHour)
                                 if (mergedHour != existingHour) hourDao.insert(mergedHour)
@@ -207,23 +245,86 @@ class IngestPipeline(
                     }
                 }
 
+                // CR-30-R11：独立屏幕证据入 screen_evidence（永不进 screen_session / SessionUnion）
+                if (result.screenEvidence.isNotEmpty()) {
+                    db.screenEvidenceDao().insertIgnore(
+                        result.screenEvidence.map { ev ->
+                            ScreenEvidenceEntity(
+                                startMs = ev.startMs,
+                                endMs = ev.endMs,
+                                kind = ev.kind,
+                                evidenceType = ev.evidenceType,
+                                quality = ev.quality,
+                                measuredMs = ev.measuredMs,
+                                sourceDumpAt = pulledAtMs,
+                                sourceDeviceId = src
+                            )
+                        }
+                    )
+                }
+
+                // CR-30-R11（方案甲）：跨日窗口级应用聚合入 usage_window（不混入单日 app_usage）
+                if (result.usageWindows.isNotEmpty()) {
+                    val windowRows = result.usageWindows.mapNotNull { w ->
+                        val minutes = Math.round(w.totalMs / 60_000.0).toInt()
+                        if (minutes <= 0) null
+                        else UsageWindowEntity(
+                            startMs = w.startMs,
+                            endMs = w.endMs,
+                            pkg = w.pkg,
+                            name = labelOf(w.pkg) ?: AppNames.nameOf(w.pkg),
+                            minutes = minutes,
+                            launches = w.launches,
+                            category = AppNames.categoryOf(w.pkg).name,
+                            sourceDeviceId = src
+                        )
+                    }
+                    if (windowRows.isNotEmpty()) {
+                        db.usageWindowDao().insert(windowRows)
+                    }
+                }
+
                 db.pullLogDao().insert(
-                    PullLogEntity(pulledAt = pulledAtMs, source = source, ok = true, note = finalNote)
+                    PullLogEntity(
+                        pulledAt = pulledAtMs,
+                        source = source,
+                        ok = true,
+                        note = finalNote,
+                        collectionStatus = pullStatus
+                    )
                 )
             }
             PullResult(ok = true, message = "入库完成：${result.days.size} 天")
         } catch (e: Exception) {
             // 失败整体回滚后记录 pull_log（§6：dump 为空或失败保留旧数据并记录）
-            logPull(source, pulledAtMs, ok = false, note = e.message)
+            logPull(
+                source,
+                pulledAtMs,
+                ok = false,
+                note = e.message,
+                collectionStatus = CollectionStatusValues.FAILED
+            )
             PullResult(ok = false, message = e.message ?: "入库失败")
         }
     }
 
     /** 失败日志本身再失败不得盖掉原始异常（写日志失败=无可记录）。 */
-    private suspend fun logPull(source: String, pulledAtMs: Long, ok: Boolean, note: String?) {
+    private suspend fun logPull(
+        source: String,
+        pulledAtMs: Long,
+        ok: Boolean,
+        note: String?,
+        collectionStatus: String? = null
+    ) {
         runCatching {
             db.pullLogDao().insert(
-                PullLogEntity(pulledAt = pulledAtMs, source = source, ok = ok, note = note)
+                PullLogEntity(
+                    pulledAt = pulledAtMs,
+                    source = source,
+                    ok = ok,
+                    note = note,
+                    collectionStatus = collectionStatus
+                )
             )
         }
     }

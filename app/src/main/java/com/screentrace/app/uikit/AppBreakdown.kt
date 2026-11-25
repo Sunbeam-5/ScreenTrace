@@ -50,7 +50,7 @@ import kotlin.math.sin
 @Composable
 fun AppBreakdownSection(
     rows: List<BreakdownRow>,
-    dayPercent: Int,
+    dayPercent: Int?,
     modifier: Modifier = Modifier
 ) {
     if (rows.isEmpty()) return
@@ -120,12 +120,26 @@ private fun BreakdownRowItem(row: BreakdownRow, dotColor: Color) {
     }
 }
 
-/** §4.4：太阳/月亮 + 13sp 文字（百分数加粗用主文字色）+ 高 10 双色条。 */
+/**
+ * §4.4：太阳/月亮 + 13sp 文字（百分数加粗用主文字色）+ 高 10 双色条。
+ *
+ * CR-30-R11 第 0 步：`dayPercent == null` 表示当日缺小时分布分母，
+ * 禁止补算成「日间 0% / 夜间 100%」，改为诚实提示「日间 / 夜间比例暂无记录」。
+ */
 @Composable
-private fun DayNightBar(dayPercent: Int) {
+private fun DayNightBar(dayPercent: Int?) {
     val palette = LocalFreshPalette.current
-    val left = dayPercent.coerceIn(0, 100)
-    val right = 100 - left
+    val split = AppBreakdownMath.dayNightSplit(dayPercent)
+    if (split == null) {
+        Text(
+            text = "日间 / 夜间比例暂无记录",
+            style = FreshType.bodySmall,
+            color = palette.onSurfaceMuted
+        )
+        return
+    }
+    val left = split.dayPercent
+    val right = split.nightPercent
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),

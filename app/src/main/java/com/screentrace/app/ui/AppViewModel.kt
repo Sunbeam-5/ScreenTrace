@@ -135,8 +135,8 @@ data class TodayData(
     val unlock: MetricDetail?,
     val topApps: List<AppUsage>,
     val otherMinutes: Int,
-    /** 日间占比（%），与夜间互补。 */
-    val dayPercent: Int
+    /** 日间占比（%），与夜间互补；缺分母（小时分布合计 ≤ 0）时为 null（CR-30-R11 第 0 步）。 */
+    val dayPercent: Int?
 )
 
 /** 统计页数据（趋势卡 / 时段分布 / 最久最少双卡）。 */
@@ -1372,9 +1372,10 @@ class AppViewModel(
                     val otherMinutes = todayApps.drop(4).sumOf { it.minutes }
                     val todayTotalMinutes = todayHours.sumOf { it.minutes }
                     val todayNight = UsageCalculator.nightMinutes(todayHours)
-                    val dayPercent =
-                        if (todayTotalMinutes <= 0) 0
-                        else ((todayTotalMinutes - todayNight) * 100 / todayTotalMinutes)
+                    val dayPercent = com.screentrace.app.uikit.AppBreakdownMath.dayPercent(
+                        totalMinutes = todayTotalMinutes,
+                        nightMinutes = todayNight
+                    )
                     _todayState.value = LoadState(
                         data = TodayData(
                             summary = todaySummary,

@@ -14,9 +14,11 @@ import com.screentrace.app.data.db.EventSeq
 import com.screentrace.app.data.db.HourUsageEntity
 import com.screentrace.app.data.db.NotificationEventEntity
 import com.screentrace.app.data.db.PullLogEntity
+import com.screentrace.app.data.db.ScreenEvidenceEntity
 import com.screentrace.app.data.db.ScreenSessionEntity
 import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.db.UnlockEventEntity
+import com.screentrace.app.data.db.UsageWindowEntity
 import com.screentrace.app.data.prefs.PullFrequency
 import com.screentrace.app.data.prefs.SettingsStore
 import com.screentrace.app.theme.ThemeVariant
@@ -66,7 +68,9 @@ class BackupRepository(
         val hourUsage: List<HourUsageDto> = emptyList(),
         val screenSession: List<ScreenSessionDto> = emptyList(),
         val unlockEvent: List<UnlockEventDto> = emptyList(),
-        val notificationEvent: List<NotificationEventDto> = emptyList()
+        val notificationEvent: List<NotificationEventDto> = emptyList(),
+        val screenEvidence: List<ScreenEvidenceDto> = emptyList(),
+        val usageWindow: List<UsageWindowDto> = emptyList()
     )
 
     /** 只保留 [dates] 内的行（跨设备合并的防重复过滤；事件/会话按本地时区归属日期）。 */
@@ -80,6 +84,13 @@ class BackupRepository(
         unlockEvent = unlockEvent.filter { CrossDeviceMerge.dateOf(it.occurredAtMs, zone) in dates },
         notificationEvent = notificationEvent.filter {
             CrossDeviceMerge.dateOf(it.occurredAtMs, zone) in dates
+        },
+        screenEvidence = screenEvidence.filter { ev ->
+            val end = ev.endMs ?: ev.startMs
+            CrossDeviceMerge.datesOfSession(ev.startMs, maxOf(ev.startMs + 1L, end), zone).any { it in dates }
+        },
+        usageWindow = usageWindow.filter { w ->
+            CrossDeviceMerge.datesOfSession(w.startMs, w.endMs, zone).any { it in dates }
         }
     )
 
@@ -107,7 +118,9 @@ class BackupRepository(
                 hourUsage = file.hourUsage,
                 screenSession = file.screenSession,
                 unlockEvent = file.unlockEvent,
-                notificationEvent = file.notificationEvent
+                notificationEvent = file.notificationEvent,
+                screenEvidence = file.screenEvidence,
+                usageWindow = file.usageWindow
             )
         )
         file.sources.forEach { s ->
@@ -117,7 +130,9 @@ class BackupRepository(
                 hourUsage = s.hourUsage,
                 screenSession = s.screenSession,
                 unlockEvent = s.unlockEvent,
-                notificationEvent = s.notificationEvent
+                notificationEvent = s.notificationEvent,
+                screenEvidence = s.screenEvidence,
+                usageWindow = s.usageWindow
             )
         }
         return groups
@@ -133,23 +148,38 @@ class BackupRepository(
         val sessions = db.screenSessionDao().getAll().groupBy { it.sourceDeviceId }
         val unlocks = db.unlockEventDao().getAll().groupBy { it.sourceDeviceId }
         val notifs = db.notificationEventDao().getAll().groupBy { it.sourceDeviceId }
+        val evidences = db.screenEvidenceDao().getAll().groupBy { it.sourceDeviceId }
+        val windows = db.usageWindowDao().getAll().groupBy { it.sourceDeviceId }
 
         fun rowsOf(id: String) = SourceRows(
             daySummary = days[id].orEmpty().map {
-                DaySummaryDto(it.date, it.screenMin, it.screenUnlockMin, it.unlocks, it.launches, it.longestSessionMin, it.pulledAt)
+                DaySummaryDto(
+                    it.date, it.screenMin, it.screenUnlockMin, it.unlocks,
+                    it.launches, it.longestSessionMin, it.pulledAt, it.screenQuality
+                )
             },
             appUsage = apps[id].orEmpty().map {
-                AppUsageDto(it.date, it.pkg, it.name, it.minutes, it.launches, it.category)
+                AppUsageDto(it.date, it.pkg, it.name, it.minutes, it.launches, it.category, it.minutesQuality)
             },
-            hourUsage = hours[id].orEmpty().map { HourUsageDto(it.date, it.hour, it.minutes) },
+            hourUsage = hours[id].orEmpty().map { HourUsageDto(it.date, it.hour, it.minutes, it.quality) },
             screenSession = sessions[id].orEmpty().map { ScreenSessionDto(it.startMs, it.endMs, it.kind) },
             unlockEvent = unlocks[id].orEmpty().map { UnlockEventDto(it.occurredAtMs, it.seq) },
             notificationEvent = notifs[id].orEmpty().map {
                 NotificationEventDto(it.occurredAtMs, it.type, it.pkg, it.channelId, it.seq)
+            },
+            screenEvidence = evidences[id].orEmpty().map {
+                ScreenEvidenceDto(
+                    it.startMs, it.endMs, it.kind, it.evidenceType,
+                    it.quality, it.measuredMs, it.sourceDumpAt
+                )
+            },
+            usageWindow = windows[id].orEmpty().map {
+                UsageWindowDto(it.startMs, it.endMs, it.pkg, it.name, it.minutes, it.launches, it.category)
             }
         )
 
-        val allIds = days.keys + apps.keys + hours.keys + sessions.keys + unlocks.keys + notifs.keys
+        val allIds = days.keys + apps.keys + hours.keys + sessions.keys + unlocks.keys + notifs.keys +
+            evidences.keys + windows.keys
         val top = rowsOf(src)
         val sources = (allIds - src).sorted().map { id ->
             val r = rowsOf(id)
@@ -160,7 +190,9 @@ class BackupRepository(
                 hourUsage = r.hourUsage,
                 screenSession = r.screenSession,
                 unlockEvent = r.unlockEvent,
-                notificationEvent = r.notificationEvent
+                notificationEvent = r.notificationEvent,
+                screenEvidence = r.screenEvidence,
+                usageWindow = r.usageWindow
             )
         }
 
@@ -172,14 +204,18 @@ class BackupRepository(
             daySummary = top.daySummary,
             appUsage = top.appUsage,
             hourUsage = top.hourUsage,
-            pullLog = db.pullLogDao().getAll().map { PullLogDto(it.pulledAt, it.source, it.ok, it.note) },
+            pullLog = db.pullLogDao().getAll().map {
+                PullLogDto(it.pulledAt, it.source, it.ok, it.note, it.collectionStatus)
+            },
             unlockEvent = top.unlockEvent,
             notificationEvent = top.notificationEvent,
             screenSession = top.screenSession,
             appLimit = db.appLimitDao().getAll().map { AppLimitDto(it.pkg, it.limitMin, it.enabled) },
             // §5.1「顶层必须保留稳定 device.id」：device() 缺失时也要写出导出主体身份
             device = info?.let { BackupDevice(it.id, it.nickname, it.model) } ?: BackupDevice(src, "", ""),
-            sources = sources
+            sources = sources,
+            screenEvidence = top.screenEvidence,
+            usageWindow = top.usageWindow
         )
     }
 
@@ -333,6 +369,8 @@ class BackupRepository(
         db.notificationEventDao().deleteAll()
         db.screenSessionDao().deleteAll()
         db.appLimitDao().deleteAll()
+        db.screenEvidenceDao().deleteAll()
+        db.usageWindowDao().deleteAll()
 
         // CR-28：按来源派生写行（顶层＝导出设备 device.id、sources[] 各归各的；
         // 无 device.id → '__legacy__'，绝不归导入设备）
@@ -352,8 +390,10 @@ class BackupRepository(
             db.screenSessionDao().insert(
                 rows.screenSession.map { ScreenSessionEntity(it.startMs, it.endMs, it.kind, src) }
             )
+            insertEvidenceAndWindows(rows, src)
             total += rows.daySummary.size + rows.appUsage.size + rows.hourUsage.size +
-                rows.unlockEvent.size + rows.notificationEvent.size + rows.screenSession.size
+                rows.unlockEvent.size + rows.notificationEvent.size + rows.screenSession.size +
+                rows.screenEvidence.size + rows.usageWindow.size
         }
         insertPullLog(file.pullLog)
         db.appLimitDao().upsert(
@@ -378,7 +418,10 @@ class BackupRepository(
         val legacy = src == com.screentrace.app.data.db.SourceIds.LEGACY
 
         val existingDays = db.daySummaryDao().getAll().filter { it.sourceDeviceId == src }.map {
-            DaySummaryDto(it.date, it.screenMin, it.screenUnlockMin, it.unlocks, it.launches, it.longestSessionMin, it.pulledAt)
+            DaySummaryDto(
+                it.date, it.screenMin, it.screenUnlockMin, it.unlocks,
+                it.launches, it.longestSessionMin, it.pulledAt, it.screenQuality
+            )
         }
         val dayPlan = if (legacy) {
             val have = existingDays.map { it.date }.toSet()
@@ -434,7 +477,7 @@ class BackupRepository(
         } else {
             val appPlan = BackupMerge.appUsage(
                 db.appUsageDao().getAll().filter { it.sourceDeviceId == src }.map {
-                    AppUsageDto(it.date, it.pkg, it.name, it.minutes, it.launches, it.category)
+                    AppUsageDto(it.date, it.pkg, it.name, it.minutes, it.launches, it.category, it.minutesQuality)
                 },
                 CrossDeviceMerge.dedupeAppUsage(safeApp)
             )
@@ -443,7 +486,7 @@ class BackupRepository(
 
             val hourPlan = BackupMerge.hourUsage(
                 db.hourUsageDao().getAll().filter { it.sourceDeviceId == src }
-                    .map { HourUsageDto(it.date, it.hour, it.minutes) },
+                    .map { HourUsageDto(it.date, it.hour, it.minutes, it.quality) },
                 CrossDeviceMerge.dedupeHourUsage(safeHour)
             )
             insertHourUsage(hourPlan.rows, src)
@@ -474,6 +517,9 @@ class BackupRepository(
                 report += mergeSessions(rows.screenSession, src)
             }
         }
+        // R11：独立屏幕证据与跨日窗口级应用聚合原样保留、不进会话/日表
+        insertEvidenceAndWindows(rows, src)
+        report += BackupMerge.Report(added = rows.screenEvidence.size + rows.usageWindow.size)
         return report
     }
 
@@ -490,7 +536,15 @@ class BackupRepository(
         val existingPullKeys = db.pullLogDao().getAll().map { it.pulledAt to it.source }.toSet()
         val pullRows = file.pullLog
             .filterNot { (it.pulledAt to it.source) in existingPullKeys }
-            .map { PullLogEntity(pulledAt = it.pulledAt, source = it.source, ok = it.ok, note = it.note) }
+            .map {
+                PullLogEntity(
+                    pulledAt = it.pulledAt,
+                    source = it.source,
+                    ok = it.ok,
+                    note = it.note,
+                    collectionStatus = it.collectionStatus
+                )
+            }
         pullRows.forEach { db.pullLogDao().insert(it) }
         report += BackupMerge.Report(added = pullRows.size)
 
@@ -608,14 +662,16 @@ class BackupRepository(
             add(
                 topSrc to SourceRows(
                     file.daySummary, file.appUsage, file.hourUsage,
-                    file.screenSession, file.unlockEvent, file.notificationEvent
+                    file.screenSession, file.unlockEvent, file.notificationEvent,
+                    file.screenEvidence, file.usageWindow
                 )
             )
             file.sources.forEach { s ->
                 add(
                     (s.device?.id ?: legacyId) to SourceRows(
                         s.daySummary, s.appUsage, s.hourUsage,
-                        s.screenSession, s.unlockEvent, s.notificationEvent
+                        s.screenSession, s.unlockEvent, s.notificationEvent,
+                        s.screenEvidence, s.usageWindow
                     )
                 )
             }
@@ -628,7 +684,15 @@ class BackupRepository(
         val existingPullKeys = db.pullLogDao().getAll().map { it.pulledAt to it.source }.toSet()
         val pullRows = file.pullLog
             .filterNot { (it.pulledAt to it.source) in existingPullKeys }
-            .map { PullLogEntity(pulledAt = it.pulledAt, source = it.source, ok = it.ok, note = it.note) }
+            .map {
+                PullLogEntity(
+                    pulledAt = it.pulledAt,
+                    source = it.source,
+                    ok = it.ok,
+                    note = it.note,
+                    collectionStatus = it.collectionStatus
+                )
+            }
         pullRows.forEach { db.pullLogDao().insert(it) }
         report += BackupMerge.Report(added = pullRows.size)
 
@@ -703,14 +767,30 @@ class BackupRepository(
                         launches = current?.launches ?: 0,
                         longestSessionMin = maxOf(slice.longestMin, current?.longestSessionMin ?: 0),
                         pulledAt = current?.pulledAt ?: System.currentTimeMillis(),
-                        sourceDeviceId = groupSource
+                        sourceDeviceId = groupSource,
+                        screenQuality = if (current == null || slice.unlockMin >= existingUnlock) {
+                            com.screentrace.app.data.db.DataQualityValues.EXACT
+                        } else {
+                            current.screenQuality
+                        }
                     )
                 )
                 mergedHours.forEachIndexed { hour, minutes ->
                     // 评审 P2-2：0 分钟不写行——「有行」即「有记录」（hasDataIn 按行判断），
                     // 写 0 行会把「只恢复了会话、无事件」的日子误判成有记录（假 0 口径相抵）
                     if (minutes > 0) {
-                        db.hourUsageDao().insert(HourUsageEntity(date.toString(), hour, minutes, groupSource))
+                        val existingMin = existingHours[hour] ?: -1
+                        db.hourUsageDao().insert(
+                            HourUsageEntity(
+                                date = date.toString(),
+                                hour = hour,
+                                minutes = minutes,
+                                sourceDeviceId = groupSource,
+                                quality = if (minutes > existingMin) {
+                                    com.screentrace.app.data.db.DataQualityValues.EXACT
+                                } else null
+                            )
+                        )
                     }
                 }
             }
@@ -728,7 +808,7 @@ class BackupRepository(
             db.daySummaryDao().upsert(
                 DaySummaryEntity(
                     it.date, it.screenMin, it.screenUnlockMin, it.unlocks,
-                    it.launches, it.longestSessionMin, it.pulledAt, source
+                    it.launches, it.longestSessionMin, it.pulledAt, source, it.screenQuality
                 )
             )
         }
@@ -737,18 +817,66 @@ class BackupRepository(
     private suspend fun insertAppUsage(rows: List<AppUsageDto>, source: String) {
         rows.forEach {
             db.appUsageDao().insert(
-                AppUsageEntity(it.date, it.pkg, it.name, it.minutes, it.launches, it.category, source)
+                AppUsageEntity(
+                    it.date, it.pkg, it.name, it.minutes,
+                    it.launches, it.category, source, it.minutesQuality
+                )
             )
         }
     }
 
     private suspend fun insertHourUsage(rows: List<HourUsageDto>, source: String) {
-        rows.forEach { db.hourUsageDao().insert(HourUsageEntity(it.date, it.hour, it.minutes, source)) }
+        rows.forEach {
+            db.hourUsageDao().insert(HourUsageEntity(it.date, it.hour, it.minutes, source, it.quality))
+        }
     }
 
     private suspend fun insertPullLog(rows: List<PullLogDto>) {
         rows.forEach {
-            db.pullLogDao().insert(PullLogEntity(pulledAt = it.pulledAt, source = it.source, ok = it.ok, note = it.note))
+            db.pullLogDao().insert(
+                PullLogEntity(
+                    pulledAt = it.pulledAt,
+                    source = it.source,
+                    ok = it.ok,
+                    note = it.note,
+                    collectionStatus = it.collectionStatus
+                )
+            )
+        }
+    }
+
+    private suspend fun insertEvidenceAndWindows(rows: SourceRows, source: String) {
+        if (rows.screenEvidence.isNotEmpty()) {
+            db.screenEvidenceDao().insertIgnore(
+                rows.screenEvidence.map {
+                    ScreenEvidenceEntity(
+                        startMs = it.startMs,
+                        endMs = it.endMs,
+                        kind = it.kind,
+                        evidenceType = it.evidenceType,
+                        quality = it.quality,
+                        measuredMs = it.measuredMs,
+                        sourceDumpAt = it.sourceDumpAt,
+                        sourceDeviceId = source
+                    )
+                }
+            )
+        }
+        if (rows.usageWindow.isNotEmpty()) {
+            db.usageWindowDao().insert(
+                rows.usageWindow.map {
+                    UsageWindowEntity(
+                        startMs = it.startMs,
+                        endMs = it.endMs,
+                        pkg = it.pkg,
+                        name = it.name,
+                        minutes = it.minutes,
+                        launches = it.launches,
+                        category = it.category,
+                        sourceDeviceId = source
+                    )
+                }
+            )
         }
     }
 

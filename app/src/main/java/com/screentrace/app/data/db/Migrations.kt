@@ -297,3 +297,62 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         )
     }
 }
+
+/**
+ * v8 → v9（CR-30-R11）：
+ * 1. 四表新增可空质量/采集状态列（无 DEFAULT，旧行留空 = UNKNOWN，不回填）；
+ * 2. 新增独立屏幕证据表 `screen_evidence`（永不进 `screen_session` / `SessionUnion`）；
+ * 3. 新增跨日窗口级应用聚合表 `usage_window`（方案甲，不混入单日 `app_usage`）。
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `day_summary` ADD COLUMN `screenQuality` TEXT")
+        db.execSQL("ALTER TABLE `hour_usage` ADD COLUMN `quality` TEXT")
+        db.execSQL("ALTER TABLE `app_usage` ADD COLUMN `minutesQuality` TEXT")
+        db.execSQL("ALTER TABLE `pull_log` ADD COLUMN `collectionStatus` TEXT")
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `screen_evidence` (
+                `startMs` INTEGER NOT NULL,
+                `endMs` INTEGER,
+                `kind` TEXT NOT NULL,
+                `evidenceType` TEXT NOT NULL,
+                `quality` TEXT NOT NULL,
+                `measuredMs` INTEGER,
+                `sourceDumpAt` INTEGER NOT NULL,
+                `sourceDeviceId` TEXT NOT NULL,
+                PRIMARY KEY(`startMs`, `kind`, `evidenceType`, `sourceDeviceId`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_screen_evidence_endMs` ON `screen_evidence` (`endMs`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_screen_evidence_sourceDeviceId` ON `screen_evidence` (`sourceDeviceId`)"
+        )
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `usage_window` (
+                `startMs` INTEGER NOT NULL,
+                `endMs` INTEGER NOT NULL,
+                `pkg` TEXT NOT NULL,
+                `name` TEXT NOT NULL,
+                `minutes` INTEGER NOT NULL,
+                `launches` INTEGER NOT NULL,
+                `category` TEXT NOT NULL,
+                `sourceDeviceId` TEXT NOT NULL,
+                PRIMARY KEY(`startMs`, `endMs`, `pkg`, `sourceDeviceId`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_usage_window_pkg` ON `usage_window` (`pkg`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_usage_window_sourceDeviceId` ON `usage_window` (`sourceDeviceId`)"
+        )
+    }
+}

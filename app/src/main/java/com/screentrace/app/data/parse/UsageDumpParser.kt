@@ -38,6 +38,31 @@ data class AppUsageRow(val date: LocalDate, val pkg: String, val totalMs: Long, 
 data class SessionSpan(val startMs: Long, val endMs: Long)
 
 /**
+ * CR-30-R11（方案甲）：跨自然日 checkin 窗口级应用聚合行。
+ * 不整段归属结束日、不混入单日 `app_usage`。
+ */
+data class UsageWindowRow(
+    val startMs: Long,
+    val endMs: Long,
+    val pkg: String,
+    val totalMs: Long,
+    val launches: Int
+)
+
+/**
+ * CR-30-R11：独立屏幕证据行（E3 未闭合锚点 / W1 窗口级累计读数）。
+ * 永不进入 `screen_session` / `SessionUnion.union`。
+ */
+data class ScreenEvidenceRow(
+    val startMs: Long,
+    val endMs: Long?,
+    val kind: String,
+    val evidenceType: String,
+    val quality: String,
+    val measuredMs: Long? = null
+)
+
+/**
  * 解析输出（两段 dump 文本 → 数据类，§6 纯 Kotlin 模块）。
  * hourMinutes：24 桶分钟，**screen_unlock 口径**（§6 红线）。
  */
@@ -50,10 +75,14 @@ data class ParseResult(
     /** 本次拉取见到的亮屏会话（毫秒）；降级通道为空。 */
     val screenSessions: List<SessionSpan> = emptyList(),
     /** 本次拉取见到的锁屏会话（毫秒）；降级通道为空。 */
-    val keyguardSessions: List<SessionSpan> = emptyList()
+    val keyguardSessions: List<SessionSpan> = emptyList(),
+    /** CR-30-R11（方案甲）：跨自然日 checkin 窗口级应用聚合（不混入单日 appUsage）。 */
+    val usageWindows: List<UsageWindowRow> = emptyList(),
+    /** CR-30-R11：独立屏幕证据（E3 锚点 / W1 计数器读数，不进 screenSessions）。 */
+    val screenEvidence: List<ScreenEvidenceRow> = emptyList()
 ) {
     /**
-     * 「空 dump」判定（§5.8 独立状态）：五类产物**全空**才算空。
+     * 「空 dump」判定（§5.8 独立状态）：全部产物**全空**才算空。
      *
      * 必须是**单一出处**——入库管道用它决定「不记成功」，拉取协调器用它返回
      * [com.screentrace.app.data.pull.PullOutcome.EmptyDump]。两处各写一份的话，
@@ -63,7 +92,8 @@ data class ParseResult(
     val isEmpty: Boolean
         get() = days.isEmpty() && hourMinutes.isEmpty() && appUsage.isEmpty() &&
             unlockEvents.isEmpty() && notificationEvents.isEmpty() &&
-            screenSessions.isEmpty() && keyguardSessions.isEmpty()
+            screenSessions.isEmpty() && keyguardSessions.isEmpty() &&
+            usageWindows.isEmpty() && screenEvidence.isEmpty()
 }
 
 /**
@@ -309,7 +339,37 @@ object UsageDumpParser {
                 }
             }
         }
-        on?.let { screens.add(it to intervalEvents.last().ms) }
+        val evidenceRows = mutableListOf<ScreenEvidenceRow>()
+        on?.let { openStartSec ->
+            val lastEventSec = intervalEvents.last().ms
+            if (lastEventSec == openStartSec) {
+                // E3：仅有未闭合 SCREEN_INTERACTIVE 锚点、没有后续事件可截断 → 只记锚点，不伪造时长
+                evidenceRows.add(
+                    ScreenEvidenceRow(
+                        startMs = openStartSec * 1000L,
+                        endMs = null,
+                        kind = "SCREEN",
+                        evidenceType = "ANCHOR",
+                        quality = "ANCHOR_ONLY"
+                    )
+                )
+            } else {
+                screens.add(openStartSec to lastEventSec)
+            }
+        }
+        // W1：checkin 区间内出现的 screen-interactive 聚合读数只入独立证据表（永不进 screenSessions）
+        intervals.filter { it.screenAggMs > 0L }.forEach { iv ->
+            evidenceRows.add(
+                ScreenEvidenceRow(
+                    startMs = iv.beginMs,
+                    endMs = iv.endMs,
+                    kind = "SCREEN",
+                    evidenceType = "WINDOW",
+                    quality = "WINDOW",
+                    measuredMs = iv.screenAggMs
+                )
+            )
+        }
         // 并入应用前台区间：屏幕、时段分布、最长连续三者从此与应用时长同源。
         // 必须做**区间并集**：主空间与分身的应用可以同时在前台（真机 user=0 与
         // user=999 时间重叠），直接累加会得到「一天 19 小时」这种不可能的屏幕时长。
@@ -378,17 +438,47 @@ object UsageDumpParser {
         val eventForegroundMs = foreground.ms
         val eventLaunches = foreground.launches
 
-        // ---------- 应用聚合（返修 P1-5/P1-6）----------
-        // 1) 区间碎片按 (user, 归属日, pkg) 求和（全账户保留，不再 >50 包过滤——CR-02）
+        // ---------- 应用聚合（返修 P1-5/P1-6 + CR-30-R11 线 2 方案甲）----------
+        // 1) 区间碎片：同一自然日内归属单日 `perUserInterval`；跨越自然日的 checkin 区间
+        //    （如 11-22 10:31 → 11-23 10:31）归入窗口级 `usageWindows`，不再整段压进结束日。
         val perUserInterval = mutableMapOf<Triple<Int, LocalDate, String>, PkgAgg>()
+        val windowAgg = mutableMapOf<Triple<Long, Long, String>, PkgAgg>()
         for (iv in intervals) {
-            val date = Instant.ofEpochMilli(iv.endMs - 60_000).atZone(zone).toLocalDate()
-            for (p in iv.pkgs) {
-                val key = Triple(iv.user, date, p.pkg)
-                val prev = perUserInterval[key]
-                perUserInterval[key] = PkgAgg(p.pkg, (prev?.totalMs ?: 0) + p.totalMs, (prev?.launches ?: 0) + p.launches)
+            val startDate = Instant.ofEpochMilli(iv.beginMs).atZone(zone).toLocalDate()
+            val endEffectiveMs = (iv.endMs - 1L).coerceAtLeast(iv.beginMs)
+            val endDate = Instant.ofEpochMilli(endEffectiveMs).atZone(zone).toLocalDate()
+            if (startDate == endDate) {
+                for (p in iv.pkgs) {
+                    val key = Triple(iv.user, endDate, p.pkg)
+                    val prev = perUserInterval[key]
+                    perUserInterval[key] = PkgAgg(
+                        p.pkg,
+                        (prev?.totalMs ?: 0) + p.totalMs,
+                        (prev?.launches ?: 0) + p.launches
+                    )
+                }
+            } else {
+                for (p in iv.pkgs) {
+                    if (p.totalMs <= 0L && p.launches <= 0) continue
+                    val wKey = Triple(iv.beginMs, iv.endMs, p.pkg)
+                    val prev = windowAgg[wKey]
+                    windowAgg[wKey] = PkgAgg(
+                        p.pkg,
+                        (prev?.totalMs ?: 0) + p.totalMs,
+                        (prev?.launches ?: 0) + p.launches
+                    )
+                }
             }
         }
+        val usageWindowRows = windowAgg.entries.map { (key, agg) ->
+            UsageWindowRow(
+                startMs = key.first,
+                endMs = key.second,
+                pkg = key.third,
+                totalMs = agg.totalMs,
+                launches = agg.launches
+            )
+        }.filter { it.totalMs > 0L }
         // 2) In-memory 按 (user, 归属日, pkg)：窗口跨天时**按天分摊**（见 [dayWeights]）；
         //    调用方显式传 today 时按旧口径全归当天（批 6b 的「今日」语义）。
         val inferredToday = today
@@ -522,7 +612,9 @@ object UsageDumpParser {
                         pkg = it.pkg,
                         channelId = it.channelId
                     )
-                }
+                },
+            usageWindows = usageWindowRows,
+            screenEvidence = evidenceRows
         )
     }
 

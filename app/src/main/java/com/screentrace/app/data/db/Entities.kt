@@ -27,6 +27,32 @@ object SourceIds {
     const val UNSPECIFIED = "__local__"
 }
 
+/** CR-30-R11：单指标数据质量常量（null 与 UNKNOWN 同义：历史/来源未知）。 */
+object DataQualityValues {
+    const val EXACT = "EXACT"
+    const val PARTIAL = "PARTIAL"
+    const val ANCHOR_ONLY = "ANCHOR_ONLY"
+    const val WINDOW = "WINDOW"
+    const val UNKNOWN = "UNKNOWN"
+}
+
+/** CR-30-R11：单次拉取采集状态常量（作用域 = pull_log 一行）。 */
+object CollectionStatusValues {
+    const val OK = "OK"
+    const val EMPTY = "EMPTY"
+    const val PARTIAL = "PARTIAL"
+    const val FAILED = "FAILED"
+    const val UNAVAILABLE = "UNAVAILABLE"
+}
+
+/** CR-30-R11：独立证据表 `screen_evidence` 的四类互斥证据类型（W1 永不升为 E2）。 */
+object EvidenceTypes {
+    const val EXACT = "EXACT"
+    const val PROVEN = "PROVEN"
+    const val ANCHOR = "ANCHOR"
+    const val WINDOW = "WINDOW"
+}
+
 @Entity(
     tableName = "day_summary",
     primaryKeys = ["date", "sourceDeviceId"],
@@ -43,7 +69,9 @@ data class DaySummaryEntity(
     val longestSessionMin: Int,
     val pulledAt: Long,
     /** CR-28：来源设备维度（见 [SourceIds]）。 */
-    val sourceDeviceId: String = SourceIds.UNSPECIFIED
+    val sourceDeviceId: String = SourceIds.UNSPECIFIED,
+    /** CR-30-R11：屏幕类指标数据质量（null = 历史/未知 UNKNOWN，不回填）。 */
+    val screenQuality: String? = null
 )
 
 @Entity(
@@ -58,7 +86,9 @@ data class AppUsageEntity(
     val minutes: Int,
     val launches: Int,
     val category: String,
-    val sourceDeviceId: String = SourceIds.UNSPECIFIED
+    val sourceDeviceId: String = SourceIds.UNSPECIFIED,
+    /** CR-30-R11：应用时长数据质量（null = UNKNOWN）。 */
+    val minutesQuality: String? = null
 )
 
 @Entity(
@@ -70,7 +100,9 @@ data class HourUsageEntity(
     val date: String,
     val hour: Int,
     val minutes: Int,
-    val sourceDeviceId: String = SourceIds.UNSPECIFIED
+    val sourceDeviceId: String = SourceIds.UNSPECIFIED,
+    /** CR-30-R11：小时桶数据质量（null = UNKNOWN）。 */
+    val quality: String? = null
 )
 
 @Entity(tableName = "pull_log")
@@ -79,7 +111,9 @@ data class PullLogEntity(
     val pulledAt: Long,
     val source: String,
     val ok: Boolean,
-    val note: String?
+    val note: String?,
+    /** CR-30-R11：本次采集状态（OK/EMPTY/PARTIAL/FAILED/UNAVAILABLE；旧行为 null）。 */
+    val collectionStatus: String? = null
 )
 
 /**
@@ -215,4 +249,45 @@ data class RebuildLogEntity(
     val checkMaxMin: Int,
     val rolledBack: Boolean,
     val createdAtMs: Long
+)
+
+/**
+ * CR-30-R11（v9 新增）：独立屏幕证据表（D-02）。
+ * 只保存可追溯证据（E3 未闭合锚点 / W1 窗口级累计读数等），**永不进入 `screen_session`、
+ * 永不参与 `SessionUnion.union`、永不进入单日日聚合重算**。
+ */
+@Entity(
+    tableName = "screen_evidence",
+    primaryKeys = ["startMs", "kind", "evidenceType", "sourceDeviceId"],
+    indices = [Index("endMs"), Index("sourceDeviceId")]
+)
+data class ScreenEvidenceEntity(
+    val startMs: Long,
+    val endMs: Long?,
+    val kind: String,
+    val evidenceType: String,
+    val quality: String,
+    val measuredMs: Long? = null,
+    val sourceDumpAt: Long,
+    val sourceDeviceId: String = SourceIds.UNSPECIFIED
+)
+
+/**
+ * CR-30-R11（v9 新增）：跨自然日窗口级应用聚合表（方案甲 · D-01 / D-10 分表）。
+ * 跨越自然日的 checkin 区间落入本表，**不强行整段归属结束日、不混入单日 `app_usage`**。
+ */
+@Entity(
+    tableName = "usage_window",
+    primaryKeys = ["startMs", "endMs", "pkg", "sourceDeviceId"],
+    indices = [Index("pkg"), Index("sourceDeviceId")]
+)
+data class UsageWindowEntity(
+    val startMs: Long,
+    val endMs: Long,
+    val pkg: String,
+    val name: String,
+    val minutes: Int,
+    val launches: Int,
+    val category: String,
+    val sourceDeviceId: String = SourceIds.UNSPECIFIED
 )

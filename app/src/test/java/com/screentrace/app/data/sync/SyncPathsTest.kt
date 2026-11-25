@@ -58,7 +58,7 @@ class SyncPathsTest {
             appVersion = "1.0",
             device = BackupDevice("uuid-1", "我的手机", "Redmi")
         )
-        assertEquals(6, BackupCodec.SCHEMA_VERSION)
+        assertEquals(7, BackupCodec.SCHEMA_VERSION)
         val decoded = BackupCodec.decode(BackupCodec.encode(file))
         assertTrue(decoded is BackupCodec.DecodeResult.Ok)
         val ok = decoded as BackupCodec.DecodeResult.Ok

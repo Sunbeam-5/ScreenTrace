@@ -45,7 +45,11 @@ data class BackupFile(
      * `sources[]` 各归各的 `device.id`。旧读取器 `ignoreUnknownKeys` 跳过本字段——
      * **能解析、能展示（只见顶层）、不能正常导入**（三层兼容，导出时须提示）。
      */
-    val sources: List<BackupSource> = emptyList()
+    val sources: List<BackupSource> = emptyList(),
+    /** CR-30-R11（v7 新增）：独立屏幕证据（E3 锚点 / W1 窗口读数，永不进 screen_session）。 */
+    @SerialName("screen_evidence") val screenEvidence: List<ScreenEvidenceDto> = emptyList(),
+    /** CR-30-R11（v7 新增）：跨日窗口级应用聚合（不混入单日 app_usage）。 */
+    @SerialName("usage_window") val usageWindow: List<UsageWindowDto> = emptyList()
 )
 
 /**
@@ -60,7 +64,11 @@ data class BackupSource(
     @SerialName("hour_usage") val hourUsage: List<HourUsageDto> = emptyList(),
     @SerialName("screen_session") val screenSession: List<ScreenSessionDto> = emptyList(),
     @SerialName("unlock_event") val unlockEvent: List<UnlockEventDto> = emptyList(),
-    @SerialName("notification_event") val notificationEvent: List<NotificationEventDto> = emptyList()
+    @SerialName("notification_event") val notificationEvent: List<NotificationEventDto> = emptyList(),
+    /** CR-30-R11（v7 新增）：该来源分量的独立屏幕证据。 */
+    @SerialName("screen_evidence") val screenEvidence: List<ScreenEvidenceDto> = emptyList(),
+    /** CR-30-R11（v7 新增）：该来源分量的跨日窗口级应用聚合。 */
+    @SerialName("usage_window") val usageWindow: List<UsageWindowDto> = emptyList()
 )
 
 /** §5.10 批 C：备份的来源设备。只用于展示，不参与恢复时的本机身份写入。 */
@@ -95,7 +103,9 @@ data class DaySummaryDto(
     val unlocks: Int,
     val launches: Int,
     val longestSessionMin: Int,
-    val pulledAt: Long
+    val pulledAt: Long,
+    /** CR-30-R11（v7 新增）：屏幕指标数据质量（缺省 null = UNKNOWN）。 */
+    val screenQuality: String? = null
 )
 
 @Serializable
@@ -105,14 +115,51 @@ data class AppUsageDto(
     val name: String,
     val minutes: Int,
     val launches: Int,
-    val category: String
+    val category: String,
+    /** CR-30-R11（v7 新增）：应用时长数据质量（缺省 null = UNKNOWN）。 */
+    val minutesQuality: String? = null
 )
 
 @Serializable
-data class HourUsageDto(val date: String, val hour: Int, val minutes: Int)
+data class HourUsageDto(
+    val date: String,
+    val hour: Int,
+    val minutes: Int,
+    /** CR-30-R11（v7 新增）：小时桶数据质量（缺省 null = UNKNOWN）。 */
+    val quality: String? = null
+)
 
 @Serializable
-data class PullLogDto(val pulledAt: Long, val source: String, val ok: Boolean, val note: String? = null)
+data class PullLogDto(
+    val pulledAt: Long,
+    val source: String,
+    val ok: Boolean,
+    val note: String? = null,
+    /** CR-30-R11（v7 新增）：采集状态（缺省 null = UNKNOWN）。 */
+    val collectionStatus: String? = null
+)
+
+@Serializable
+data class ScreenEvidenceDto(
+    val startMs: Long,
+    val endMs: Long? = null,
+    val kind: String,
+    val evidenceType: String,
+    val quality: String,
+    val measuredMs: Long? = null,
+    val sourceDumpAt: Long
+)
+
+@Serializable
+data class UsageWindowDto(
+    val startMs: Long,
+    val endMs: Long,
+    val pkg: String,
+    val name: String,
+    val minutes: Int,
+    val launches: Int,
+    val category: String
+)
 
 @Serializable
 data class UnlockEventDto(val occurredAtMs: Long, /** CR-28：确定性序号（同毫秒多条不丢 + 重放幂等）。 */ val seq: Int = 0)
@@ -157,7 +204,11 @@ data class BackupSummary(
      * CR-28（v6）：`sources[]` 里的来源设备 ID（含 `'__legacy__'`）。
      * 非空 = 该备份含多设备分量，旧版本导入会丢失非本机来源（三层兼容提示）。
      */
-    val sourceDevices: List<String> = emptyList()
+    val sourceDevices: List<String> = emptyList(),
+    /** CR-30-R11（v7）：独立屏幕证据条数。 */
+    val evidenceRows: Int = 0,
+    /** CR-30-R11（v7）：跨日窗口级应用记录条数。 */
+    val windowRows: Int = 0
 ) {
     /** 「11月1日 – 11月12日 · 8 天」这种一句话范围；无数据时明确说没有。 */
     val rangeText: String
@@ -168,8 +219,8 @@ data class BackupSummary(
 /** 备份编解码（§5.10 第 1 步：解析失败/缺版本/版本过高分别给明确错误）。 */
 object BackupCodec {
 
-    /** 当前 App 能写出的最高备份版本。 */
-    const val SCHEMA_VERSION = 6
+    /** 当前 App 能写出的最高备份版本（v7：含质量元数据 + screen_evidence + usage_window）。 */
+    const val SCHEMA_VERSION = 7
 
     private val json = Json {
         prettyPrint = true
@@ -242,7 +293,9 @@ object BackupCodec {
             hasSettings = file.settings != null,
             missingTables = missing,
             device = file.device,
-            sourceDevices = file.sources.map { it.device?.id ?: "__legacy__" }
+            sourceDevices = file.sources.map { it.device?.id ?: "__legacy__" },
+            evidenceRows = file.screenEvidence.size + file.sources.sumOf { it.screenEvidence.size },
+            windowRows = file.usageWindow.size + file.sources.sumOf { it.usageWindow.size }
         )
     }
 

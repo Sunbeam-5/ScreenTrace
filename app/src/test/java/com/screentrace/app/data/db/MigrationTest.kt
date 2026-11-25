@@ -12,6 +12,7 @@ import com.screentrace.app.data.SourceArchive
 import java.time.LocalDate
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -77,16 +78,25 @@ data class V4ScreenSessionEntity(
     val kind: String
 )
 
+@Entity(tableName = "pull_log")
+data class V4PullLogEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val pulledAt: Long,
+    val source: String,
+    val ok: Boolean,
+    val note: String?
+)
+
 /**
  * v4 结构的测试专用 Database（= 批 8 之前的七张表，无 `app_limit` / `device_merge_ledger`，
- * 六表均为 CR-28 之前的旧形态：无 `sourceDeviceId` / `seq`）。
+ * 六表均为 CR-28 之前的旧形态：无 `sourceDeviceId` / `seq`；pull_log 无 v9 `collectionStatus`）。
  */
 @Database(
     entities = [
         V4DaySummaryEntity::class,
         V4AppUsageEntity::class,
         V4HourUsageEntity::class,
-        PullLogEntity::class,
+        V4PullLogEntity::class,
         V4UnlockEventEntity::class,
         V4NotificationEventEntity::class,
         V4ScreenSessionEntity::class
@@ -133,7 +143,7 @@ class MigrationTest {
 
         // ② v5 打开触发 MIGRATION_4_5；Room 同时校验迁移后结构与 7.json 一致
         val v5 = Room.databaseBuilder(context, ScreenTraceDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
             .allowMainThreadQueries()
             .build()
 
@@ -218,7 +228,7 @@ class MigrationTest {
 
         // ② v7 打开：触发 4_5 / 5_6 / 6_7，Room 对照 7.json 完整 schema 校验
         val v7 = Room.databaseBuilder(context, ScreenTraceDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
             .allowMainThreadQueries()
             .build()
 
@@ -237,10 +247,51 @@ class MigrationTest {
                 "index_screen_session_endMs",
                 "index_screen_session_sourceDeviceId",
                 "index_notification_event_pkg",
-                "index_notification_event_occurredAtMs"
+                "index_notification_event_occurredAtMs",
+                "index_screen_evidence_endMs",
+                "index_screen_evidence_sourceDeviceId",
+                "index_usage_window_pkg",
+                "index_usage_window_sourceDeviceId"
             ),
             indexNames
         )
+
+        // R11 v8->v9：迁移后旧行新质量列必须为 null（UNKNOWN 语义），不得回填成 EXACT
+        v7.daySummaryDao().getAll().forEach { assertNull("旧行 screenQuality 必须保持 null", it.screenQuality) }
+        v7.appUsageDao().getAll().forEach { assertNull("旧行 minutesQuality 必须保持 null", it.minutesQuality) }
+        v7.hourUsageDao().getAll().forEach { assertNull("旧行 quality 必须保持 null", it.quality) }
+
+        // R11 新表可写可读
+        v7.screenEvidenceDao().insertIgnore(
+            listOf(
+                ScreenEvidenceEntity(
+                    startMs = 1_700_000_000_000L,
+                    endMs = null,
+                    kind = "SCREEN",
+                    evidenceType = EvidenceTypes.ANCHOR,
+                    quality = DataQualityValues.ANCHOR_ONLY,
+                    measuredMs = null,
+                    sourceDumpAt = 1_700_000_000_500L,
+                    sourceDeviceId = "dev-1"
+                )
+            )
+        )
+        assertEquals(1, v7.screenEvidenceDao().count())
+        v7.usageWindowDao().insert(
+            listOf(
+                UsageWindowEntity(
+                    startMs = 1_700_000_000_000L,
+                    endMs = 1_700_086_400_000L,
+                    pkg = "com.a",
+                    name = "A",
+                    minutes = 60,
+                    launches = 2,
+                    category = "OTHER",
+                    sourceDeviceId = "dev-1"
+                )
+            )
+        )
+        assertEquals(1, v7.usageWindowDao().count())
 
         // ③ 一行不丢 + 全部「未归档」（迁移是纯 SQL，归属判定留给首启归档）
         assertEquals(2, v7.daySummaryDao().getAll().size)
