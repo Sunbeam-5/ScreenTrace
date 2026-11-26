@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 编号 | CR-30-阶段A-未决清单 |
-| 版本 | **v2.3**（2026-11-23，GPT 阶段 A v2.3 复审同步；v1 / v2 / v2.1 / v2.2 见 §0.3 修订记录） |
-| 阶段 | **阶段 A · 只出设计，未实施** |
+| 版本 | **v3.0**（2026-11-26，CR-30 专项整改对齐主线 Room v10 / 备份 v7 实际实现与 D-01~D-10 裁决台账） |
+| 阶段 | **阶段 A–E 已合入主线并完成专项整改（Room v10 + 备份 v7 + D-07 质量链路闭环）** |
 | 基线 | 分支 `exp/a5-route-probe` @ **`b9490e3`**（v2.2 编码前定稿后 HEAD = 本轮实际审查基线） |
 | 本轮整改 | **v2**：R11 → v2；OBS-2 → v2；TD-10 → v2 ／ **v2.1**：R11 → **v2.1**；OBS-2 → **v2.1**（编码前定稿）；TD-10 未改 ／ **v2.2**：R11 → **v2.2**（W1 与 E2 彻底分离 + 七条统一规则 + 三层语义 + 九类异常 + 九个消费边界）；OBS-2 → **v2.2**（观测/动作两段式 + UNKNOWN 补偿安全边界 + R12 确定性竞态测试与写入历史断言）；TD-10 **仍未改** ／ **v2.3**：**只有 OBS-2 改** —— R12 测试契约可信度修复（记录器去自证 / 新增 L3 生产导航链路集成测试 / R12 拆 R12-A + R12-B 两场景 / 等待与退出规则统一 / 三触发源 generation 校验分别定义 / W-1~W-10 重写）；**R11 与 TD-10 本轮均未改** |
 | 最后核对 | **2026-11-23**（本轮 v2.3 与 OBS-2 v2.3 / CODE_REVIEW / TODO 逐项对齐；**R11 与 TD-10 本轮未改**） |
@@ -387,3 +387,18 @@
 
 纪律：文档先行 → 变异验证 → 全量单测全绿 → 真机验证（需放行）→ 单独提交 → **不合 main**。
 ```
+
+---
+
+## v3.0 主线实施与 D-01 ~ D-10 闭环对照表（2026-11-26 同步）
+
+| 编号 | 事项 | 当前状态 | 裁决与代码落点 | 验证证据 |
+|---|---|---|---|---|
+| **D-01 / D-10** | 跨日 checkin 窗口级应用数据（方案甲） | **已闭环** | 分表落入 `usage_window`（`Entities.kt` / `UsageDumpParser.kt`），不混入单日 `app_usage` | `MigrationTest`、`UsageDumpParserIntervalAttributionTest` |
+| **D-02** | 独立屏幕证据表 `screen_evidence` | **已闭环（v10 加固）** | Room v9 建表、v10（`MIGRATION_9_10`）将 `sourceDumpAt` 纳入主键，保留连续 W1 采样观测且永不进 `screen_session` | `MigrationTest`（M-FIX6） |
+| **D-03 / D-04 / D-05** | E3 不伪造时长、W1 永不升 E2、日/夜分母诚实兜底 | **已闭环** | `AppBreakdownMath.dayPercent` 返回 `Int?`；`ScreenEvidenceEntity` 互斥四态 | `AppViewModelDayPercentTest`、`WidgetSnapshotTest`（M-W4） |
+| **D-06** | 历史脏数据清理与重建留痕 | **已闭环** | `SourceRebuild.rebuildOversizedDays` + `rebuild_log` 快照可回滚 | `SourceRebuildTest` |
+| **D-07** | 同源/跨源数据质量合并与统计口径 | **已闭环（负责人 2026-11-26 拍板）** | `IngestPipeline` 逐日按 `sessionDates` 判质；`Daos.sumRange/sumAll` 跨来源保守降级（`PARTIAL` > `UNKNOWN` > `EXACT` > 历史 `NULL`）；`UsageCalculator` 排除 `PARTIAL`/`UNKNOWN` 参与日均分母与极值、兼容保留历史 `NULL` | `R11QualityPipelineTest`（M-FIX1 ~ M-FIX3） |
+| **D-08 / D-09** | Room Schema 与备份发布策略、采集状态落库 | **已闭环** | Room v9→v10 显式迁移导出 schema JSON；备份 `schemaVersion=7`；`pull_log.collectionStatus` 独立记录 | `MigrationTest`、`BackupRepositoryRollbackTest` |
+| **OBS-2 L2 / L3** | 导航取消补偿与审计强关联 | **L1/L2 闭环，L3 开放** | `TabRouteCoordinator` 补齐 `scope-cancelled` 日志与 `commitId` + 目标页强关联；FakePager 确定性测试诚实标注为 L1/L2，真实 Compose `HorizontalPager` 属 L3 设备/Compose 集成测试范畴 | `TabRouteCoordinatorTest`（M-FIX4 ~ M-FIX5） |
+| **TD-10 / B-xx** | `QUERY_ALL_PACKAGES` 发行审核 | **按渠道保持开放** | 自用 / GitHub Releases 分发保留以展示系统组件真名；正式上架 Google Play 前另行专项申报或裁剪 | `TECH-DEBT-全项目工程审计登记.md` |

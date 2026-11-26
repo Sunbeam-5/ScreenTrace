@@ -223,6 +223,8 @@
 
 ## 功能批次
 
+- [x] **CR-30 专项整改（2026-11-26 落地 `068d952` + vivo 真机 v9→v10 实测通过）**：① 修复 `.github/workflows/android-ci.yml` step `if:` 引用 `secrets.*` 根因恢复 CI 绿线；② 贯通 R11 质量链路与 D-07（`IngestPipeline` 按日判质并将 `zone` 参数置于 `labelOf` 之前、`Daos` 保守降级、`UsageCalculator` 排除 `PARTIAL`/`UNKNOWN` 参与日均与极值并兼容历史 `NULL`）；③ `TabRouteCoordinator` 修复 `scope-cancelled` 日志并升级 `commitId` + 目标页强关联审计（诚实标注 L1/L2）；④ Room `v9 → v10`（`MIGRATION_9_10`）将 `sourceDumpAt` 纳入 `screen_evidence` 主键留存 W1 观测并生成 `10.json` schema；⑤ `docs/CR-30-阶段A-未决问题清单.md` 升至 `v3.0`；新增 `R11QualityPipelineTest` 并同步补全 3 项旧主通道测试夹具 `screenSessions`，**M-FIX1 ~ M-FIX6** 全红后还原，Debug/Release 均 **105 suites / 712 tests / 0 fail**，vivo（`10CEB40M5G001DK`）`v9 → v10` 平滑升级 `user_version=10`、`day_summary=19`、`screen_evidence=3` 历史零丢失、logcat 0 crash。
+
 - [ ] 8b-2 剩余：Google Drive provider、OAuth 登录/退出、Google 不可达不影响 WebDAV
 - [x] **批 10b：年视图色阶跟随低使用阈值 `x`（2026-11-26 落地 + Redmi/vivo 双机实测通过）**：`UsageCalculator.yearLevel`/`yearLevels`、`UsageRepository`、`EmptyUsageRepository`、`RoomUsageRepository`、`AppViewModel.loadAll()`、`CalendarScreen`、`HeatmapLegend` 按 `(0,x)/[x,2x)/[2x,3x)/≥3x` 动态联动，月视图保持按每日目标不变；新增 `YearLevelsThresholdTest`（M-10B1~M-10B3 全红后还原），Redmi（`9h↔2h` 年视图 806 点变色 / 月视图 0 变化）与 vivo（`6h↔2h` 年视图 1,012 点变色 / 月视图 0 变化）双机实测通过。
 - [x] **批 11：提醒与限额（2026-11-25 CR-30 §7-30 / §7-64 收口）**：按 CR-30 裁决废除应用限额与超限推送（保留 Room `app_limit` 表防破坏性迁移，备份导出置空、旧备份只读忽略、`missingTables` 移出「应用限额」）；落地周/月周期总结 WorkManager 非精确提醒（默认关闭、`POST_NOTIFICATIONS` 按需授权、无有效数据不发空提醒、点击直达对应周期页）+ 设置页五分类三级目录重构。

@@ -2519,3 +2519,34 @@ checkin dump 头部 `Currently Active:com.screentrace.app`；今日 `day_summary
 | 单元测试与变异（M-W4 ~ M-W6） | **通过** | `WidgetSnapshotTest` 共 11 项全绿；**M-W4**（`dayPercent` 兜底置 0 → `dayPercent_missingHourlyDenominator_staysNullAndShowsDash` 失败）、**M-W5**（移除 `LARGE_4X4` 分支 → `resolveWidgetLayoutSize_switchesAt220dp` 失败）、**M-W6**（强行固定 `ThemeVariant.MINT` → `resolveWidgetPalette_followsVariantDarkAndCustomSeedWithOpaqueCard` 失败）全部按预期变红后无条件还原；Debug（`--rerun-tasks`）与 Release 双变体均 **104 suites / 707 tests / 0 fail / 0 error / 0 skip** |
 | 构建与 R8 验证 | **通过** | `:app:assembleDebug`（`14,310,525` bytes）、`:app:assembleRelease`（`3,094,491` bytes）一次过编 |
 | Redmi / vivo 双机视觉与主题同步实测 | **通过** | 两台真机现有 2×2 与 4×2 桌面实例原地刷新成功且无截断：Redmi（壁纸玫瑰棕主色，`9:31 / 目标 15:00`，24h 柱图含 `0..9` 柱，4×2 右栏 `解锁次数 0 次`、`通知打扰 20 次`、`日 36% · 夜 64%` 双色条）；vivo（壁纸中性灰调，`2:25 / 目标 7:00`，4×2 右栏 `解锁次数 7 次`、`通知打扰 58 次`、`日 100% · 夜 0%` 满条无裂口）；双机分别切换「深色模式 ON → 桌面确认小组件同步切换深色底色与文字/柱图色板 → 还原浅色模式」闭环通过；双机 `logcat`（`AndroidRuntime:E` / `ScreenTraceWidget:E`）均为 0 错误 |
+
+---
+
+## 批 12b（Glance 桌面小组件视觉升级）审阅收口补记（2026-11-26，HEAD `2013b4b`）
+
+> 审阅基线：`main` HEAD `2013b4b`（对比 `785266e`，含 `9286264` 批 12b 代码落地与 `2013b4b` 文档同步，共 8 个文件变更）
+> 审阅结论：**通过（无 P0 / P1 / P2 问题；Redmi / vivo 双机视觉与深浅色主题同步实测闭环）**
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 / R8 / 仓库红线 | **通过** | Room schema/DAO/SQL、`app/proguard-rules.pro` 与 `README.md` 零改动；纯离线只读 Room 与 `SettingsStore`，不新增任何权限 |
+| §5.12 隐私与 CR-30-R11 红线 | **通过** | 桌面三档布局（2×2 / 4×2 / 4×4）零应用名、零包名、零应用图标；缺小时分母时 `dayPercent = null` 且诚实显示 `日/夜比 —`，无事件源显示 `—` |
+| 单元测试与变异 | **通过** | Debug（`--rerun-tasks`）与 Release 双变体均 **104 suites / 707 tests / 0 fail / 0 error / 0 skip**；**M-W4 ~ M-W6 全红后还原** |
+| 构建与双机真机实测 | **通过** | `:app:assembleDebug`（`14,310,525` bytes）与 `:app:assembleRelease`（`3,094,491` bytes）一次过编；Redmi（壁纸玫瑰棕、`9:31 / 目标 15:00`、`日 36% · 夜 64%`）与 vivo（壁纸中性灰、`2:25 / 目标 7:00`、`日 100% · 夜 0%` 满条无裂口）2×2 / 4×2 原地刷新与深浅色切换同步均通过，logcat 0 crash |
+
+---
+
+## CR-30 专项整改（CI 绿线 + R11 质量链路 + OBS-2 审计 + Room v9→v10）验证记录（2026-11-26，HEAD `068d952`）
+
+> 变更范围：合入 `CR30-Audit-Remediation-changed.zip` 15 个非文档文件 + 导出 `app/schemas/.../10.json` + 同步修正（调整 `IngestPipeline` `zone` 参数顺序至尾随 lambda `labelOf` 之前、修正 `TabRouteCoordinatorTest` `runProgrammaticScroll` 调用，并为 `AppViewModelDateScopeTest` / `AppViewModelDegradedTest` / `StatsPeriodsWiringTest` 3 个旧主通道夹具补全对应日 `screenSessions`）。
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 / R8 / 仓库红线 | **通过** | `sumRange()`/`sumAll()` 数值聚合口径与 `__legacy__` 逻辑零改动；`app/proguard-rules.pro` 与 `README.md` 零改动；`10.json` schema 与 `MIGRATION_9_10` 5 列主键及双索引完全对齐 |
+| 单元测试与变异（M-FIX1 ~ M-FIX6） | **通过** | **M-FIX1**（跨日误标 `EXACT`）、**M-FIX2**（`PARTIAL` 聚合误回 `EXACT`）、**M-FIX3**（`PARTIAL` 污染均值/极值）、**M-FIX4**（移除 `scope-cancelled` 回调）、**M-FIX5**（取消错页写入校验）、**M-FIX6**（`MIGRATION_9_10` 主键去掉 `sourceDumpAt`）全红后无条件还原；Debug（`--rerun-tasks`）与 Release 双变体均 **105 suites / 712 tests / 0 fail / 0 error / 0 skip** |
+| 构建与 R8 验证 | **通过** | `:app:assembleDebug`（`14,310,525` bytes）、`:app:assembleRelease`（`3,094,491` bytes）一次过编 |
+| vivo 真机 `v9 → v10` 升级与桌面状态 | **通过** | vivo（`10CEB40M5G001DK`）升级前 `user_version=9`（`day_summary=19`、`screen_evidence=3`）→ 安装并冷启动后 `user_version=10`、`day_summary=19`、`screen_evidence=3` 历史零丢失（历史 `NULL` 质量行保留，当日行记为 `EXACT`），`sqlite_master` 确认 `screen_evidence` 5 列主键含 `sourceDumpAt` 与双索引完备；桌面当前绑定 4×2 实例（`[589]`）显示 `3:11 / 目标 7:00`、`解锁次数 12 次`、`通知打扰 100 次`、`日 100% · 夜 0%` 正常，未额外放置 4×4 实例；`logcat`（`AndroidRuntime:E` / `ScreenTraceWidget:E`）0 错误 |
