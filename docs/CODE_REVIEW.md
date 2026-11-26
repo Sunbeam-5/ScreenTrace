@@ -2424,3 +2424,36 @@ checkin dump 头部 `Currently Active:com.screentrace.app`；今日 `day_summary
 | TD-02 实测收益 | **显著达标** | 4MB 明文 dump（40,819 条事件）由 `900.9ms / 98,294 KB` 降至 `813.9ms / 9,554 KB`，**堆增量 -90.3%** |
 | Redmi（`GAQOHMNFQWFUPBQO`）冒烟 | **通过** | 冷启动中位 `596ms`、热启动 `28ms`、`TOTAL PSS 302594 KB`；「关于与诊断」立即拉取命中 `checkin 无数据，本次明文主导` 新路径，0 crash |
 | vivo（`10CEB40M5G001DK`，负责人授权）实测 | **通过** | `360.0dp` 窄屏 `1.0x`/`1.3x`/`1.5x` 下 `DatePicker` 周日列 `[1050,1330][1218,1498]` 左右对称零截断；冷启动中位 `919ms`、热启动 `141ms`、`TOTAL PSS 182019 KB`；诊断与 WebDAV 明文提示正常，0 crash |
+
+---
+
+## TD-Batch3（TD-04）审阅收口补记（2026-11-25，HEAD `6ca1b36`）
+
+> 审阅基线：`main` HEAD `6ca1b36`（对比 `67dc71c`，共 7 个变更文件：4 个代码/单测文件 + `docs/CODE_REVIEW.md` + `docs/TECH-DEBT-全项目工程审计登记.md` + `docs/TODO.md`）
+> 审阅结论：**通过（无 P0 / P1 / P2 问题；工程审计中所有代码侧 P0 / P1 / P2 技术债已全部闭环）**
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 / R8 / 仓库红线 | **通过** | CR-28 数据架构、`app/proguard-rules.pro` 与 `README.md` 零改动；`ShizukuShell.kt` 已彻底移除 `moe.shizuku.server.*` 直接引用 |
+| 单元测试（Debug / Release） | **通过** | 双变体均为 **101 suites / 690 tests / 0 fail / 0 error / 0 skip**；`ShizukuAidlCompatTest` 补强了 `M_TD10` 单次调用与非泛化报错断言，**M-TD8 ~ M-TD10 全红后还原** |
+| Release 构建与 R8 | **通过** | `app-debug.apk`（13,687,422 bytes）、`app-release-unsigned.apk`（2,431,982 bytes）构建通过 |
+| 双机真机冒烟 | **通过** | Redmi（`GAQOHMNFQWFUPBQO`，`1.0MB/plain+data`）与 vivo（`10CEB40M5G001DK`，`2.5MB/plain+data`）均在「关于与诊断」→「立即拉取」正常走通 Shizuku 13.1.5 明文主导拉取，0 crash |
+
+---
+
+## 批 10b（年视图色阶联动）与常驻跨日窗口修复验证记录（2026-11-26，HEAD `c040110`）
+
+> 变更范围：批 10b 合入（`218246c`，`UsageCalculator` / `UsageRepository` / `EmptyUsageRepository` / `RoomUsageRepository` / `AppViewModel` / `CalendarScreen` / `HeatmapCalendar` / `YearLevelsThresholdTest` + 冷启动 `lowUsageThresholdMin` 变化联动 `loadAll()`）+ 跨自然日窗口自动推进修复（`c040110`，`DateScope` / `AppViewModel` / `AppNav` / `DateRolloverTest`）。
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 / R8 / 仓库红线 | **通过** | CR-28 Room schema/DAO/SQL 零改动，`app/proguard-rules.pro` 与 `README.md` 零改动；所有 `yearLevels` 新增参数均带默认值 `DEFAULT_LOW_THRESHOLD_MIN` |
+| 批 10b 单测与变异 | **通过** | `YearLevelsThresholdTest`（补正 `UsageCalculator.summarize` 与 `extremes` 覆写）全绿；**M-10B1 ~ M-10B3 全红后还原** |
+| 跨自然日修复单测与变异 | **通过** | 定位 Redmi 08:20 显示 `11月25日 · 23小时46分钟` 根因：SQLite `2026-11-26` 为 `499 min`（精确），仅常驻进程 VM 的 `todaySelection`/`statsSelection`/`calendarMonth` 未跨午夜推进；新增 `DateRolloverTest`（`M_DR1 ~ M_DR3`）全绿，**M-DR1 / M-DR2 全红后还原** |
+| 全量测试与 Release 构建 | **通过** | Debug / Release 双变体均 **103 suites / 696 tests / 0 fail / 0 error / 0 skip**；`:app:assembleDebug`（13,268,196 bytes）、`:app:assembleRelease`（2,431,982 bytes）通过 |
+| Redmi（`GAQOHMNFQWFUPBQO`）真机 | **通过** | 启动后今日页正确显示 `今天 · 11月26日` / `今日亮屏 8小时41分钟`；`低使用阈值` 从 `9 小时` 切至 `2 小时` 后，年视图热力网格（`x=850..1080, y=1350..1720`）实测 **806 采样点变色**、图例无障碍同步至 `2 小时分档`，还原 `9 小时` 后 **0 偏差**；月视图日历网格（`47,436` 采样点）**0 像素变化**；logcat 0 crash |
+| vivo（`10CEB40M5G001DK`）真机 | **通过** | `低使用阈值` 从 `6 小时` 切至 `2 小时` 后，年视图热力网格（`x=850..1080, y=1350..1720`）实测 **1,012 采样点变色**、图例无障碍同步至 `2 小时分档`，还原 `6 小时` 后 **0 偏差**；月视图日历网格（`48,441` 采样点）**0 像素变化**；logcat 0 crash |
