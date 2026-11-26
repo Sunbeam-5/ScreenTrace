@@ -356,3 +356,43 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         )
     }
 }
+
+/**
+ * CR-30 专项整改（P2-1）：`screen_evidence` 主键补入 `sourceDumpAt`，
+ * 防止同一窗口后续 W1 采样观测被 `INSERT OR IGNORE` 静默丢弃。
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `screen_evidence_v10` (
+                `startMs` INTEGER NOT NULL,
+                `endMs` INTEGER,
+                `kind` TEXT NOT NULL,
+                `evidenceType` TEXT NOT NULL,
+                `quality` TEXT NOT NULL,
+                `measuredMs` INTEGER,
+                `sourceDumpAt` INTEGER NOT NULL,
+                `sourceDeviceId` TEXT NOT NULL,
+                PRIMARY KEY(`startMs`, `kind`, `evidenceType`, `sourceDeviceId`, `sourceDumpAt`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT OR IGNORE INTO `screen_evidence_v10`
+                (`startMs`, `endMs`, `kind`, `evidenceType`, `quality`, `measuredMs`, `sourceDumpAt`, `sourceDeviceId`)
+            SELECT `startMs`, `endMs`, `kind`, `evidenceType`, `quality`, `measuredMs`, `sourceDumpAt`, `sourceDeviceId`
+            FROM `screen_evidence`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `screen_evidence`")
+        db.execSQL("ALTER TABLE `screen_evidence_v10` RENAME TO `screen_evidence`")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_screen_evidence_endMs` ON `screen_evidence` (`endMs`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_screen_evidence_sourceDeviceId` ON `screen_evidence` (`sourceDeviceId`)"
+        )
+    }
+}

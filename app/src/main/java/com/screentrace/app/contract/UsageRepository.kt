@@ -25,7 +25,7 @@ data class Summary(
 )
 
 /** 趋势图每个自然日一个点；无记录日 minutes = 0 且 recorded = false（§5.6 / §7-8）。 */
-data class DailyPoint(val date: LocalDate, val minutes: Int, val recorded: Boolean)
+data class DailyPoint(val date: LocalDate, val minutes: Int, val recorded: Boolean, val quality: String? = null)
 
 data class HourBucket(val hour: Int, val minutes: Int)
 

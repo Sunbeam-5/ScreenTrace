@@ -20,7 +20,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * CR-30-R10-OBS2 确定性单测与 L3 生产导航链路集成测试（零 Thread.sleep，纯虚拟时间驱动）：
+ * CR-30-R10-OBS2 L1/L2 确定性竞态与协调器契约测试（FakeTabPagerAdapter 虚拟时间驱动；真实 Compose HorizontalPager/MutatorMutex 归 L3 设备/Compose 集成测试）：
  * - L1：CancelCauseResolver 两段式判定 + ScrollAlignPolicy 纯函数表驱动测试；
  * - L2/L3：真实 TabRouteCoordinator + 三通道 RouteAudit（生产上报 + 独立状态观察 + 归因）
  *   覆盖 OBS-2 主场景 S2、R1（新导航失效）、R2（新手势失效）、R4（作用域取消）、
@@ -34,8 +34,8 @@ class TabRouteCoordinatorTest {
 
     /** 三通道可信审计记录器（OBS-2 v2.3 §7.4.3）：不替生产代码自报成功，独立观察状态变化。 */
     private class RouteAuditRecorder(initialRoute: AppPage = AppPage.Today) : RouteAuditSink {
-        data class EntryEvent(val source: String, val targetIndex: Int, val gen: Long, val genBasis: String)
-        data class AcceptedEvent(val targetIndex: Int, val gen: Long, val genSource: GenSource, val genBasis: String)
+        data class EntryEvent(val commitId: Long, val source: String, val targetIndex: Int, val gen: Long, val genBasis: String)
+        data class AcceptedEvent(val commitId: Long, val targetIndex: Int, val targetPage: AppPage, val gen: Long, val genSource: GenSource, val genBasis: String)
 
         var route: AppPage = initialRoute
             private set
@@ -43,34 +43,46 @@ class TabRouteCoordinatorTest {
         val entries = mutableListOf<EntryEvent>()
         val accepted = mutableListOf<AcceptedEvent>()
         val skipped = mutableListOf<String>()
+        val alignerSkipped = mutableListOf<String>()
         val stateMutations = mutableListOf<AppPage>()
+        val correlatedCommits = mutableListOf<Pair<Long, AppPage>>()
 
-        private var pendingAcceptedForMutation = false
+        private var pendingCommit: Pair<Long, AppPage>? = null
         var unattributedMutations: Int = 0
+            private set
+        var mismatchedTargetMutations: Int = 0
             private set
 
         fun writeRoute(page: AppPage) {
             if (page != route) {
-                if (!pendingAcceptedForMutation) {
-                    unattributedMutations++
+                val pending = pendingCommit
+                when {
+                    pending == null -> unattributedMutations++
+                    pending.second != page -> {
+                        mismatchedTargetMutations++
+                        unattributedMutations++
+                    }
+                    else -> correlatedCommits.add(pending)
                 }
-                pendingAcceptedForMutation = false
+                pendingCommit = null
                 route = page
                 stateMutations.add(page)
             }
         }
 
         override fun onEntryInvoked(
+            commitId: Long,
             source: String,
             targetIndex: Int,
             gen: Long,
             genSource: GenSource,
             genBasis: String
         ) {
-            entries.add(EntryEvent(source, targetIndex, gen, genBasis))
+            entries.add(EntryEvent(commitId, source, targetIndex, gen, genBasis))
         }
 
         override fun onCommitAttempt(
+            commitId: Long,
             targetIndex: Int,
             routeBefore: AppPage,
             routeAfter: AppPage,
@@ -82,17 +94,23 @@ class TabRouteCoordinatorTest {
         ) = Unit
 
         override fun onCommitAccepted(
+            commitId: Long,
             targetIndex: Int,
+            targetPage: AppPage,
             gen: Long,
             genSource: GenSource,
             genBasis: String
         ) {
-            pendingAcceptedForMutation = true
-            accepted.add(AcceptedEvent(targetIndex, gen, genSource, genBasis))
+            pendingCommit = commitId to targetPage
+            accepted.add(AcceptedEvent(commitId, targetIndex, targetPage, gen, genSource, genBasis))
         }
 
-        override fun onCommitSkipped(reason: String) {
+        override fun onCommitSkipped(commitId: Long, reason: String) {
             skipped.add(reason)
+        }
+
+        override fun onAlignerSkipped(target: Int, seq: Int, reason: String) {
+            alignerSkipped.add(reason)
         }
     }
 
@@ -525,5 +543,51 @@ class TabRouteCoordinatorTest {
         assertEquals(1, audit.stateMutations.size)
         assertTrue(audit.skipped.contains("idem"))
         assertEquals(0, audit.unattributedMutations)
+    }
+
+    @Test
+    fun `M-FIX4 对齐器父作用域取消必须记录 scope-cancelled 跳过事件`() = runTest {
+        val pager = FakeTabPagerAdapter(initialPage = 0)
+        val audit = RouteAuditRecorder(initialRoute = AppPage.Today)
+        val childScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val coord = TabRouteCoordinator(
+            mainPages = mainPages,
+            tabGuard = TabScrollGuard(),
+            pager = pager,
+            currentRoute = { audit.route },
+            writeRoute = audit::writeRoute,
+            scope = childScope,
+            audit = audit
+        )
+
+        val gate = CompletableDeferred<Unit>()
+        pager.nextAnimateGate = gate
+        val navJob = childScope.launch { coord.runProgrammaticScroll(target = 2, reduceMotion = false, seq = 1) }
+        runCurrent()
+        // 触发取消进入 settle 对齐器等待态
+        navJob.cancel(CancellationException("interrupted"))
+        runCurrent()
+        // 取消父作用域，验证 scope-cancelled 日志回调
+        childScope.cancel()
+        runCurrent()
+        assertTrue("父作用域取消应记录 scope-cancelled", audit.alignerSkipped.contains("scope-cancelled"))
+    }
+
+    @Test
+    fun `M-FIX5 审计记录器按 commitId 与目标页强绑定，错页写入必须被捕获`() {
+        val audit = RouteAuditRecorder(initialRoute = AppPage.Today)
+        audit.onCommitAccepted(
+            commitId = 42L,
+            targetIndex = 1,
+            targetPage = AppPage.Stats,
+            gen = 1L,
+            genSource = GenSource.NONE,
+            genBasis = TabRouteCoordinator.BASIS_OBSERVED_AT_EMIT
+        )
+        // 模拟错写 Calendar 而非批准的 Stats
+        audit.writeRoute(AppPage.Calendar)
+        assertEquals(1, audit.mismatchedTargetMutations)
+        assertEquals(1, audit.unattributedMutations)
+        assertTrue(audit.correlatedCommits.isEmpty())
     }
 }

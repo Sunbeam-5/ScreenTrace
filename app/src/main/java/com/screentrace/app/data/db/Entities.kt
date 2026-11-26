@@ -258,7 +258,7 @@ data class RebuildLogEntity(
  */
 @Entity(
     tableName = "screen_evidence",
-    primaryKeys = ["startMs", "kind", "evidenceType", "sourceDeviceId"],
+    primaryKeys = ["startMs", "kind", "evidenceType", "sourceDeviceId", "sourceDumpAt"],
     indices = [Index("endMs"), Index("sourceDeviceId")]
 )
 data class ScreenEvidenceEntity(

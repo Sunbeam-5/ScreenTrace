@@ -37,6 +37,7 @@ class IngestPipeline(
      * 仅供测试与旧调用点；生产由 AppContainer 传真实 ID。
      */
     private val localDeviceId: suspend () -> String = { SourceIds.UNSPECIFIED },
+    private val zone: ZoneId = ZoneId.systemDefault(),
     /**
      * §3-8 展示名来源（批 6b 接线）：返回 null 表示拿不到，回退 [AppNames] 再回退包名。
      * 不直接依赖 PackageManager，JVM 单测可以注入假实现。
@@ -82,11 +83,22 @@ class IngestPipeline(
                 note
             }
             val src = localDeviceId()
+            val sessionDates = buildSet {
+                for (span in result.screenSessions) {
+                    if (span.endMs <= span.startMs) continue
+                    var cursor = java.time.Instant.ofEpochMilli(span.startMs).atZone(zone).toLocalDate()
+                    val endDate = java.time.Instant.ofEpochMilli(span.endMs - 1L).atZone(zone).toLocalDate()
+                    while (!cursor.isAfter(endDate)) {
+                        add(cursor)
+                        cursor = cursor.plusDays(1)
+                    }
+                }
+            }
             db.withTransaction {
                 val dayDao = db.daySummaryDao()
                 for ((date, metrics) in result.days) {
                     val key = date.toString()
-                    val screenQuality = if (metrics.screenMin > 0 || result.screenSessions.isNotEmpty()) {
+                    val screenQuality = if (date in sessionDates) {
                         DataQualityValues.EXACT
                     } else {
                         DataQualityValues.PARTIAL

@@ -9,6 +9,7 @@ import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.parse.AppUsageRow
 import com.screentrace.app.data.parse.DayMetrics
 import com.screentrace.app.data.parse.ParseResult
+import com.screentrace.app.data.parse.SessionSpan
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
@@ -195,11 +196,15 @@ class AppViewModelDateScopeTest {
                 AppUsageRow(d2, "com.tencent.mm", 30 * 60_000L, 5)
             ),
             unlockEvents = emptyList(),
-            notificationEvents = emptyList()
+            notificationEvents = emptyList(),
+            screenSessions = listOf(d0, d1, d2).map { d ->
+                val start = d.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+                SessionSpan(start, start + 3_600_000L)
+            }
         )
         org.junit.Assert.assertTrue(
             "三天数据必须能正常入库",
-            IngestPipeline(db).ingest(result, "shizuku", nowMs()).ok
+            IngestPipeline(db, zone = zone).ingest(result, "shizuku", nowMs()).ok
         )
     }
 

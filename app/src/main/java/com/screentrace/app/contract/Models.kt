@@ -16,8 +16,14 @@ data class DaySummary(
     val unlocks: Int,
     val launches: Int,
     val longestSessionMin: Int,
-    val pulledAt: Long
-)
+    val pulledAt: Long,
+    /** CR-30-R11（D-07）：聚合后数据质量（null 表示历史未标注兼容行，EXACT 为完整，PARTIAL/UNKNOWN 为不完整）。 */
+    val screenQuality: String? = null
+) {
+    /** D-07 统计准入：完整日（EXACT）与历史未标注兼容行（null）可参与日均分母与极值；PARTIAL/UNKNOWN 不参与。 */
+    val isCompleteForStats: Boolean
+        get() = screenQuality == null || screenQuality == "EXACT"
+}
 
 data class AppUsage(
     val date: LocalDate,

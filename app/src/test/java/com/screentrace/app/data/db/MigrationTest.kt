@@ -143,7 +143,7 @@ class MigrationTest {
 
         // ② v5 打开触发 MIGRATION_4_5；Room 同时校验迁移后结构与 7.json 一致
         val v5 = Room.databaseBuilder(context, ScreenTraceDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
             .allowMainThreadQueries()
             .build()
 
@@ -228,7 +228,7 @@ class MigrationTest {
 
         // ② v7 打开：触发 4_5 / 5_6 / 6_7，Room 对照 7.json 完整 schema 校验
         val v7 = Room.databaseBuilder(context, ScreenTraceDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
             .allowMainThreadQueries()
             .build()
 
@@ -277,6 +277,22 @@ class MigrationTest {
             )
         )
         assertEquals(1, v7.screenEvidenceDao().count())
+        // M-FIX6（P2-1 v9->v10）：同窗口不同 sourceDumpAt 的后续 W1 采样不得被 INSERT IGNORE 静默丢弃
+        v7.screenEvidenceDao().insertIgnore(
+            listOf(
+                ScreenEvidenceEntity(
+                    startMs = 1_700_000_000_000L,
+                    endMs = null,
+                    kind = "SCREEN",
+                    evidenceType = EvidenceTypes.ANCHOR,
+                    quality = DataQualityValues.ANCHOR_ONLY,
+                    measuredMs = null,
+                    sourceDumpAt = 1_700_000_009_999L,
+                    sourceDeviceId = "dev-1"
+                )
+            )
+        )
+        assertEquals(2, v7.screenEvidenceDao().count())
         v7.usageWindowDao().insert(
             listOf(
                 UsageWindowEntity(

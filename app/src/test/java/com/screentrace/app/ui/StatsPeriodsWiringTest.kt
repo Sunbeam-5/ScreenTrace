@@ -8,6 +8,7 @@ import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.parse.AppUsageRow
 import com.screentrace.app.data.parse.DayMetrics
 import com.screentrace.app.data.parse.ParseResult
+import com.screentrace.app.data.parse.SessionSpan
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
@@ -93,11 +94,15 @@ class StatsPeriodsWiringTest {
             },
             appUsage = days.map { AppUsageRow(it, "com.tencent.mm", 60 * 60_000L, 5) },
             unlockEvents = emptyList(),
-            notificationEvents = emptyList()
+            notificationEvents = emptyList(),
+            screenSessions = days.map { d ->
+                val start = d.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+                SessionSpan(start, start + 600_000L)
+            }
         )
         org.junit.Assert.assertTrue(
             "七天数据必须能正常入库",
-            IngestPipeline(db).ingest(result, "shizuku", nowMs()).ok
+            IngestPipeline(db, zone = zone).ingest(result, "shizuku", nowMs()).ok
         )
     }
 

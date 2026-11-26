@@ -364,6 +364,7 @@ class RoomUsageRepository(
         unlocks = unlocks,
         launches = launches,
         longestSessionMin = longestSessionMin,
-        pulledAt = pulledAt
+        pulledAt = pulledAt,
+        screenQuality = screenQuality
     )
 }

@@ -35,17 +35,19 @@ object UsageCalculator {
      */
     fun summarize(selection: DateSelection, records: List<DaySummary>): Summary {
         val inRange = records.filter { !it.date.isBefore(selection.startDate) && !it.date.isAfter(selection.endDate) }
-        val recordedDays = inRange.size
+        val complete = inRange.filter { it.isCompleteForStats }
+        val completeDays = complete.size
         val total = inRange.sumOf { it.screenUnlockMin }
-        val unlocks = inRange.sumOf { it.unlocks }
+        val completeTotal = complete.sumOf { it.screenUnlockMin }
+        val completeUnlocks = complete.sumOf { it.unlocks }
         return Summary(
             selection = selection,
             totalDays = selection.days,
-            recordedDays = recordedDays,
-            hasAnyRecord = recordedDays > 0,
+            recordedDays = completeDays,
+            hasAnyRecord = inRange.isNotEmpty(),
             totalScreenUnlockMin = total,
-            averageScreenUnlockMin = if (recordedDays == 0) 0 else total / recordedDays,
-            averageUnlocks = if (recordedDays == 0) 0 else unlocks / recordedDays,
+            averageScreenUnlockMin = if (completeDays == 0) 0 else completeTotal / completeDays,
+            averageUnlocks = if (completeDays == 0) 0 else completeUnlocks / completeDays,
             longestSessionMin = inRange.maxOfOrNull { it.longestSessionMin } ?: 0
         )
     }
@@ -55,7 +57,12 @@ object UsageCalculator {
         val byDate = records.associateBy { it.date }
         return daysOf(selection).map { date ->
             val record = byDate[date]
-            DailyPoint(date = date, minutes = record?.screenUnlockMin ?: 0, recorded = record != null)
+            DailyPoint(
+                date = date,
+                minutes = record?.screenUnlockMin ?: 0,
+                recorded = record != null,
+                quality = record?.screenQuality
+            )
         }
     }
 
@@ -90,7 +97,7 @@ object UsageCalculator {
      * 并列取更早日期（与 [extremes] 同规则）。周期页不需要阈值计数，故单独拆出。
      */
     fun longestShortest(points: List<DailyPoint>): ExtremesInfo {
-        val recorded = points.filter { it.recorded }.sortedBy { it.date }
+        val recorded = points.filter { it.recorded && (it.quality == null || it.quality == "EXACT") }.sortedBy { it.date }
         if (recorded.isEmpty()) return ExtremesInfo(null, 0, null, 0, 0)
         val longest = recorded.maxBy { it.minutes }
         val shortest = recorded.minBy { it.minutes }
@@ -241,7 +248,11 @@ object UsageCalculator {
         lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN
     ): ExtremesInfo {
         val inRange = records.associateBy { it.date }.values
-            .filter { !it.date.isBefore(selection.startDate) && !it.date.isAfter(selection.endDate) }
+            .filter {
+                !it.date.isBefore(selection.startDate) &&
+                    !it.date.isAfter(selection.endDate) &&
+                    it.isCompleteForStats
+            }
             .sortedBy { it.date }
         if (inRange.isEmpty()) {
             return ExtremesInfo(null, 0, null, 0, 0)

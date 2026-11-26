@@ -26,7 +26,13 @@ interface DaySummaryDao {
         """
         SELECT date, SUM(screenMin) AS screenMin, SUM(screenUnlockMin) AS screenUnlockMin,
                SUM(unlocks) AS unlocks, SUM(launches) AS launches,
-               MAX(longestSessionMin) AS longestSessionMin, MAX(pulledAt) AS pulledAt
+               MAX(longestSessionMin) AS longestSessionMin, MAX(pulledAt) AS pulledAt,
+               CASE
+                   WHEN SUM(CASE WHEN screenQuality = 'PARTIAL' THEN 1 ELSE 0 END) > 0 THEN 'PARTIAL'
+                   WHEN SUM(CASE WHEN screenQuality IN ('UNKNOWN', 'ANCHOR_ONLY', 'WINDOW') THEN 1 ELSE 0 END) > 0 THEN 'UNKNOWN'
+                   WHEN SUM(CASE WHEN screenQuality = 'EXACT' THEN 1 ELSE 0 END) > 0 THEN 'EXACT'
+                   ELSE NULL
+               END AS screenQuality
         FROM day_summary WHERE date BETWEEN :start AND :end GROUP BY date ORDER BY date
         """
     )
@@ -37,7 +43,13 @@ interface DaySummaryDao {
         """
         SELECT date, SUM(screenMin) AS screenMin, SUM(screenUnlockMin) AS screenUnlockMin,
                SUM(unlocks) AS unlocks, SUM(launches) AS launches,
-               MAX(longestSessionMin) AS longestSessionMin, MAX(pulledAt) AS pulledAt
+               MAX(longestSessionMin) AS longestSessionMin, MAX(pulledAt) AS pulledAt,
+               CASE
+                   WHEN SUM(CASE WHEN screenQuality = 'PARTIAL' THEN 1 ELSE 0 END) > 0 THEN 'PARTIAL'
+                   WHEN SUM(CASE WHEN screenQuality IN ('UNKNOWN', 'ANCHOR_ONLY', 'WINDOW') THEN 1 ELSE 0 END) > 0 THEN 'UNKNOWN'
+                   WHEN SUM(CASE WHEN screenQuality = 'EXACT' THEN 1 ELSE 0 END) > 0 THEN 'EXACT'
+                   ELSE NULL
+               END AS screenQuality
         FROM day_summary GROUP BY date ORDER BY date
         """
     )
@@ -87,7 +99,8 @@ data class DaySummaryAggregated(
     val unlocks: Int,
     val launches: Int,
     val longestSessionMin: Int,
-    val pulledAt: Long
+    val pulledAt: Long,
+    val screenQuality: String? = null
 )
 
 @Dao

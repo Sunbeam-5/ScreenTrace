@@ -14,6 +14,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 internal interface RouteAuditSink {
     fun onEntryInvoked(
+        commitId: Long,
         source: String,
         targetIndex: Int,
         gen: Long,
@@ -22,6 +23,7 @@ internal interface RouteAuditSink {
     )
 
     fun onCommitAttempt(
+        commitId: Long,
         targetIndex: Int,
         routeBefore: AppPage,
         routeAfter: AppPage,
@@ -33,17 +35,22 @@ internal interface RouteAuditSink {
     )
 
     fun onCommitAccepted(
+        commitId: Long,
         targetIndex: Int,
+        targetPage: AppPage,
         gen: Long,
         genSource: GenSource,
         genBasis: String
     )
 
-    fun onCommitSkipped(reason: String)
+    fun onCommitSkipped(commitId: Long, reason: String)
+
+    fun onAlignerSkipped(target: Int, seq: Int, reason: String) = Unit
 }
 
 internal object NoopRouteAuditSink : RouteAuditSink {
     override fun onEntryInvoked(
+        commitId: Long,
         source: String,
         targetIndex: Int,
         gen: Long,
@@ -52,6 +59,7 @@ internal object NoopRouteAuditSink : RouteAuditSink {
     ) = Unit
 
     override fun onCommitAttempt(
+        commitId: Long,
         targetIndex: Int,
         routeBefore: AppPage,
         routeAfter: AppPage,
@@ -63,13 +71,15 @@ internal object NoopRouteAuditSink : RouteAuditSink {
     ) = Unit
 
     override fun onCommitAccepted(
+        commitId: Long,
         targetIndex: Int,
+        targetPage: AppPage,
         gen: Long,
         genSource: GenSource,
         genBasis: String
     ) = Unit
 
-    override fun onCommitSkipped(reason: String) = Unit
+    override fun onCommitSkipped(commitId: Long, reason: String) = Unit
 }
 
 /**
@@ -105,6 +115,7 @@ internal class TabRouteCoordinator(
     private val audit: RouteAuditSink = NoopRouteAuditSink
 ) {
     val generation = ScrollGenerationCounter()
+    private val nextCommitId = java.util.concurrent.atomic.AtomicLong(0L)
 
     @Volatile
     private var lastDragging: Boolean = false
@@ -251,27 +262,33 @@ internal class TabRouteCoordinator(
      */
     private fun startSettleAligner(target: Int, seq: Int, gen0: Long) {
         scope.launch {
-            val settled = withTimeoutOrNull(settleTimeoutMs) {
-                pager.awaitSettled()
-                true
-            } ?: false
+            val settled = try {
+                withTimeoutOrNull(settleTimeoutMs) {
+                    pager.awaitSettled()
+                    true
+                } ?: false
+            } catch (e: CancellationException) {
+                PerfProbe.a5Skip(target, seq, "scope-cancelled")
+                audit.onAlignerSkipped(target, seq, "scope-cancelled")
+                throw e
+            }
 
             // 退出判定顺序固定：① scope -> ② generation -> ③ timeout
             if (!currentCoroutineContext().isActive) {
                 PerfProbe.a5Skip(target, seq, "scope-cancelled")
+                audit.onAlignerSkipped(target, seq, "scope-cancelled")
                 return@launch
             }
             val genNow = generation.current
             if (genNow.value != gen0) {
-                PerfProbe.a5Skip(
-                    target,
-                    seq,
-                    ScrollAlignPolicy.skipReasonForStaleGeneration(genNow.source)
-                )
+                val reason = ScrollAlignPolicy.skipReasonForStaleGeneration(genNow.source)
+                PerfProbe.a5Skip(target, seq, reason)
+                audit.onAlignerSkipped(target, seq, reason)
                 return@launch
             }
             if (!settled) {
                 PerfProbe.a5Skip(target, seq, "settle-timeout")
+                audit.onAlignerSkipped(target, seq, "settle-timeout")
                 return@launch
             }
 
@@ -299,12 +316,13 @@ internal class TabRouteCoordinator(
         genBasis: String,
         requireSettled: Boolean
     ) {
+        val commitId = nextCommitId.incrementAndGet()
         val genAtEntry = generation.current
-        audit.onEntryInvoked(source, landed, genAtEntry.value, genAtEntry.source, genBasis)
+        audit.onEntryInvoked(commitId, source, landed, genAtEntry.value, genAtEntry.source, genBasis)
 
         val page = mainPages.getOrNull(landed)
         if (page == null) {
-            audit.onCommitSkipped("no-page")
+            audit.onCommitSkipped(commitId, "no-page")
             return
         }
         // CB-4：保留历史语义——对齐打点落在幂等短路之前
@@ -314,7 +332,7 @@ internal class TabRouteCoordinator(
 
         val current = AppPage.mainOf(currentRoute())
         if (current == page) {
-            audit.onCommitSkipped("idem")
+            audit.onCommitSkipped(commitId, "idem")
             return
         }
 
@@ -325,6 +343,7 @@ internal class TabRouteCoordinator(
         val stable = !pager.isScrollInProgress && currentPage == settledPage
 
         audit.onCommitAttempt(
+            commitId = commitId,
             targetIndex = landed,
             routeBefore = current,
             routeAfter = page,
@@ -336,15 +355,15 @@ internal class TabRouteCoordinator(
         )
 
         if (!genValid) {
-            audit.onCommitSkipped(ScrollAlignPolicy.skipReasonForStaleGeneration(genNow.source))
+            audit.onCommitSkipped(commitId, ScrollAlignPolicy.skipReasonForStaleGeneration(genNow.source))
             return
         }
         if (requireSettled && !stable) {
-            audit.onCommitSkipped("not-stable")
+            audit.onCommitSkipped(commitId, "not-stable")
             return
         }
 
-        audit.onCommitAccepted(landed, genNow.value, genNow.source, genBasis)
+        audit.onCommitAccepted(commitId, landed, page, genNow.value, genNow.source, genBasis)
         PerfProbe.event("Route/selectMain=$page")
         PerfProbe.event("Route/commit=$landed:$source gen=${genNow.value} genSrc=${genNow.source} genBasis=$genBasis")
         writeRoute(page)

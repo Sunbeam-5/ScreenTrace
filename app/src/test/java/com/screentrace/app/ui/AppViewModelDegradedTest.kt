@@ -9,6 +9,7 @@ import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.parse.AppUsageRow
 import com.screentrace.app.data.parse.DayMetrics
 import com.screentrace.app.data.parse.ParseResult
+import com.screentrace.app.data.parse.SessionSpan
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
@@ -230,9 +231,12 @@ class AppViewModelDegradedTest {
             unlockEvents = listOf(
                 com.screentrace.app.contract.UnlockEvent(nowMs() - 3_600_000L)
             ),
-            notificationEvents = emptyList()
+            notificationEvents = emptyList(),
+            screenSessions = listOf(
+                SessionSpan(nowMs() - 3_600_000L, nowMs())
+            )
         )
-        assertTrue(IngestPipeline(db).ingest(result, "checkin", nowMs()).ok)
+        assertTrue(IngestPipeline(db, zone = zone).ingest(result, "checkin", nowMs()).ok)
     }
 
     private fun nowMs(): Long = day.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
