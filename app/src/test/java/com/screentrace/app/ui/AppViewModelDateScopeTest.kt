@@ -200,7 +200,11 @@ class AppViewModelDateScopeTest {
             screenSessions = listOf(d0, d1, d2).map { d ->
                 val start = d.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
                 SessionSpan(start, start + 3_600_000L)
-            }
+            },
+            // D-07 方案 C+：G2 门禁要求历次主通道事件窗口并集覆盖自然日；
+            // 手工夹具必须补真实事件窗口，否则 d1/d2 判 PARTIAL、日历页无合格日。
+            rawEventMinMs = d2.atStartOfDay(zone).toInstant().toEpochMilli(),
+            rawEventMaxMs = nowMs()
         )
         org.junit.Assert.assertTrue(
             "三天数据必须能正常入库",

@@ -68,10 +68,16 @@ class R11QualityPipelineTest {
             appUsage = emptyList(),
             unlockEvents = emptyList(),
             notificationEvents = emptyList(),
-            screenSessions = listOf(SessionSpan(day1Start, day1End))
+            screenSessions = listOf(SessionSpan(day1Start, day1End)),
+            rawEventMinMs = day1.atStartOfDay(zone).toInstant().toEpochMilli(),
+            rawEventMaxMs = day2.atStartOfDay(zone).toInstant().toEpochMilli()
         )
 
-        val pulled = pipeline.ingest(result, source = "shizuku", pulledAtMs = day1End + 1000L)
+        val pulled = pipeline.ingest(
+            result,
+            source = "shizuku",
+            pulledAtMs = day2.atStartOfDay(zone).toInstant().toEpochMilli() + 60_000L
+        )
         assertTrue(pulled.ok)
 
         val row1 = db.daySummaryDao().get(day1.toString(), "dev-a")!!
@@ -115,7 +121,7 @@ class R11QualityPipelineTest {
         val agg = db.daySummaryDao().sumRange(date, date).single()
         assertEquals(180, agg.screenUnlockMin)
         assertEquals(40, agg.longestSessionMin)
-        assertEquals(DataQualityValues.PARTIAL, agg.screenQuality)
+        assertEquals(DataQualityValues.PARTIAL, agg.dayQuality)
     }
 
     @Test

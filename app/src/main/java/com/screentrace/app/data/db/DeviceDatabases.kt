@@ -80,7 +80,8 @@ class DeviceDatabases(context: Context) {
                     MIGRATION_7_8,
                     // v9（CR-30-R11）：质量/采集状态列 + screen_evidence + usage_window
                     MIGRATION_8_9,
-                    MIGRATION_9_10
+                    MIGRATION_9_10,
+                    MIGRATION_10_11
                 )
                 .build()
     }

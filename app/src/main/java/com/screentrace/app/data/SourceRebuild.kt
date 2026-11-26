@@ -73,17 +73,22 @@ class SourceRebuild(
     @Serializable
     data class SnapDay(
         val source: String, val date: String, val screenMin: Int, val screenUnlockMin: Int,
-        val unlocks: Int, val launches: Int, val longestSessionMin: Int, val pulledAt: Long
+        val unlocks: Int, val launches: Int, val longestSessionMin: Int, val pulledAt: Long,
+        val screenQuality: String? = null
     )
 
     @Serializable
     data class SnapApp(
         val source: String, val date: String, val pkg: String, val name: String,
-        val minutes: Int, val launches: Int, val category: String
+        val minutes: Int, val launches: Int, val category: String,
+        val minutesQuality: String? = null
     )
 
     @Serializable
-    data class SnapHour(val source: String, val date: String, val hour: Int, val minutes: Int)
+    data class SnapHour(
+        val source: String, val date: String, val hour: Int, val minutes: Int,
+        val quality: String? = null
+    )
 
     @Serializable
     data class SnapUnlock(val source: String, val occurredAtMs: Long, val seq: Int)
@@ -124,13 +129,13 @@ class SourceRebuild(
             createdAtMs = System.currentTimeMillis(),
             dates = dates.sorted(),
             days = db.daySummaryDao().getAll().filter { inDates(it.date) }.map {
-                SnapDay(it.sourceDeviceId, it.date, it.screenMin, it.screenUnlockMin, it.unlocks, it.launches, it.longestSessionMin, it.pulledAt)
+                SnapDay(it.sourceDeviceId, it.date, it.screenMin, it.screenUnlockMin, it.unlocks, it.launches, it.longestSessionMin, it.pulledAt, it.screenQuality)
             },
             apps = db.appUsageDao().getAll().filter { inDates(it.date) }.map {
-                SnapApp(it.sourceDeviceId, it.date, it.pkg, it.name, it.minutes, it.launches, it.category)
+                SnapApp(it.sourceDeviceId, it.date, it.pkg, it.name, it.minutes, it.launches, it.category, it.minutesQuality)
             },
             hours = db.hourUsageDao().getAll().filter { inDates(it.date) }.map {
-                SnapHour(it.sourceDeviceId, it.date, it.hour, it.minutes)
+                SnapHour(it.sourceDeviceId, it.date, it.hour, it.minutes, it.quality)
             },
             unlocks = db.unlockEventDao().getAll().filter { inWindow(it.occurredAtMs) }.map {
                 SnapUnlock(it.sourceDeviceId, it.occurredAtMs, it.seq)
@@ -191,13 +196,13 @@ class SourceRebuild(
         }
 
         snapshot.days.forEach {
-            db.daySummaryDao().insert(DaySummaryEntity(it.date, it.screenMin, it.screenUnlockMin, it.unlocks, it.launches, it.longestSessionMin, it.pulledAt, it.source))
+            db.daySummaryDao().insert(DaySummaryEntity(it.date, it.screenMin, it.screenUnlockMin, it.unlocks, it.launches, it.longestSessionMin, it.pulledAt, it.source, it.screenQuality))
         }
         snapshot.apps.forEach {
-            db.appUsageDao().insert(AppUsageEntity(it.date, it.pkg, it.name, it.minutes, it.launches, it.category, it.source))
+            db.appUsageDao().insert(AppUsageEntity(it.date, it.pkg, it.name, it.minutes, it.launches, it.category, it.source, it.minutesQuality))
         }
         snapshot.hours.forEach {
-            db.hourUsageDao().insert(HourUsageEntity(it.date, it.hour, it.minutes, it.source))
+            db.hourUsageDao().insert(HourUsageEntity(it.date, it.hour, it.minutes, it.source, it.quality))
         }
         db.unlockEventDao().insertIgnore(snapshot.unlocks.map { u -> UnlockEventEntity(u.occurredAtMs, u.source, u.seq) })
         db.notificationEventDao().insertIgnore(snapshot.notifs.map { n ->
@@ -340,7 +345,7 @@ class SourceRebuild(
             val existing = db.daySummaryDao().get(date, s.deviceId)
             val winner = BackupMerge.daySummaries(listOfNotNull(existing?.toDto()), listOf(row)).rows.singleOrNull() ?: row
             db.daySummaryDao().upsert(
-                DaySummaryEntity(date, winner.screenMin, winner.screenUnlockMin, winner.unlocks, winner.launches, winner.longestSessionMin, winner.pulledAt, s.deviceId)
+                DaySummaryEntity(date, winner.screenMin, winner.screenUnlockMin, winner.unlocks, winner.launches, winner.longestSessionMin, winner.pulledAt, s.deviceId, winner.screenQuality)
             )
         }
 
@@ -375,12 +380,12 @@ class SourceRebuild(
             for (row in CrossDeviceMerge.dedupeAppUsage(s.appUsage.filter { it.date == date })) {
                 val existing = db.appUsageDao().get(date, row.pkg, s.deviceId)
                 val winner = BackupMerge.appUsage(listOfNotNull(existing?.toDto()), listOf(row)).rows.singleOrNull() ?: row
-                db.appUsageDao().insert(AppUsageEntity(date, row.pkg, winner.name, winner.minutes, winner.launches, winner.category, s.deviceId))
+                db.appUsageDao().insert(AppUsageEntity(date, row.pkg, winner.name, winner.minutes, winner.launches, winner.category, s.deviceId, winner.minutesQuality))
             }
             for (row in CrossDeviceMerge.dedupeHourUsage(s.hourUsage.filter { it.date == date })) {
                 val existing = db.hourUsageDao().getForDate(date, s.deviceId).firstOrNull { it.hour == row.hour }
                 val winner = BackupMerge.hourUsage(listOfNotNull(existing?.toDto()), listOf(row)).rows.singleOrNull() ?: row
-                db.hourUsageDao().insert(HourUsageEntity(date, row.hour, winner.minutes, s.deviceId))
+                db.hourUsageDao().insert(HourUsageEntity(date, row.hour, winner.minutes, s.deviceId, winner.quality))
             }
         }
         // legacy 应用行差减（CR-28-R1 P1-3：sumIn 用**去重后**数据，与写入同源；

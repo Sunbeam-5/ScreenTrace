@@ -205,7 +205,7 @@ class BackupRepository(
             appUsage = top.appUsage,
             hourUsage = top.hourUsage,
             pullLog = db.pullLogDao().getAll().map {
-                PullLogDto(it.pulledAt, it.source, it.ok, it.note, it.collectionStatus)
+                PullLogDto(it.pulledAt, it.source, it.ok, it.note, it.collectionStatus, it.eventWindowStartMs, it.eventWindowEndMs)
             },
             unlockEvent = top.unlockEvent,
             notificationEvent = top.notificationEvent,
@@ -534,7 +534,9 @@ class BackupRepository(
                     source = it.source,
                     ok = it.ok,
                     note = it.note,
-                    collectionStatus = it.collectionStatus
+                    collectionStatus = it.collectionStatus,
+                    eventWindowStartMs = it.eventWindowStartMs,
+                    eventWindowEndMs = it.eventWindowEndMs
                 )
             }
         pullRows.forEach { db.pullLogDao().insert(it) }
@@ -754,10 +756,15 @@ class BackupRepository(
                         longestSessionMin = maxOf(slice.longestMin, current?.longestSessionMin ?: 0),
                         pulledAt = current?.pulledAt ?: System.currentTimeMillis(),
                         sourceDeviceId = groupSource,
-                        screenQuality = if (current == null || slice.unlockMin >= existingUnlock) {
-                            com.screentrace.app.data.db.DataQualityValues.EXACT
-                        } else {
-                            current.screenQuality
+                        screenQuality = when {
+                            current == null -> com.screentrace.app.data.db.DataQualityValues.UNKNOWN
+                            slice.unlockMin > existingUnlock ->
+                                if (current.screenQuality == com.screentrace.app.data.db.DataQualityValues.EXACT) {
+                                    com.screentrace.app.data.db.DataQualityValues.PARTIAL
+                                } else {
+                                    current.screenQuality ?: com.screentrace.app.data.db.DataQualityValues.UNKNOWN
+                                }
+                            else -> current.screenQuality
                         }
                     )
                 )

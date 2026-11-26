@@ -216,8 +216,18 @@ class AppViewModelDegradedTest {
 
     /** 主通道的产物：含 day_summary（因此四页都该有数据）。 */
     private suspend fun ingestFull() {
+        // D-07 方案 C+：日历页取全量历史极值，只认 EXACT/历史 NULL 行；
+        // 今天永远不满足 G1（日未闭合），所以必须再补一个已闭合的昨天。
+        val yesterday = day.minusDays(1)
         val result = ParseResult(
             days = mapOf(
+                yesterday to DayMetrics(
+                    screenMin = 120,
+                    screenUnlockMin = 100,
+                    unlocks = 6,
+                    launches = 15,
+                    longestSessionMin = 20
+                ),
                 day to DayMetrics(
                     screenMin = 420,
                     screenUnlockMin = 400,
@@ -226,17 +236,27 @@ class AppViewModelDegradedTest {
                     longestSessionMin = 35
                 )
             ),
-            hourMinutes = mapOf(day to List(24) { 10 }),
+            hourMinutes = mapOf(
+                yesterday to List(24) { 5 },
+                day to List(24) { 10 }
+            ),
             appUsage = listOf(AppUsageRow(day, "com.tencent.mm", 120 * 60_000L, 30)),
             unlockEvents = listOf(
                 com.screentrace.app.contract.UnlockEvent(nowMs() - 3_600_000L)
             ),
             notificationEvents = emptyList(),
             screenSessions = listOf(
+                SessionSpan(
+                    yesterday.atTime(9, 0).atZone(zone).toInstant().toEpochMilli(),
+                    yesterday.atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+                ),
                 SessionSpan(nowMs() - 3_600_000L, nowMs())
-            )
+            ),
+            // G2 门禁：事件窗口并集须覆盖昨天整个自然日（今天不要求闭合）。
+            rawEventMinMs = yesterday.atStartOfDay(zone).toInstant().toEpochMilli(),
+            rawEventMaxMs = nowMs()
         )
-        assertTrue(IngestPipeline(db, zone = zone).ingest(result, "checkin", nowMs()).ok)
+        assertTrue(IngestPipeline(db, zone = zone).ingest(result, "shizuku", nowMs()).ok)
     }
 
     private fun nowMs(): Long = day.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()

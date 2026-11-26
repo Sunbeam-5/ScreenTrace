@@ -29,10 +29,11 @@ interface DaySummaryDao {
                MAX(longestSessionMin) AS longestSessionMin, MAX(pulledAt) AS pulledAt,
                CASE
                    WHEN SUM(CASE WHEN screenQuality = 'PARTIAL' THEN 1 ELSE 0 END) > 0 THEN 'PARTIAL'
-                   WHEN SUM(CASE WHEN screenQuality IN ('UNKNOWN', 'ANCHOR_ONLY', 'WINDOW') THEN 1 ELSE 0 END) > 0 THEN 'UNKNOWN'
-                   WHEN SUM(CASE WHEN screenQuality = 'EXACT' THEN 1 ELSE 0 END) > 0 THEN 'EXACT'
-                   ELSE NULL
-               END AS screenQuality
+                   WHEN SUM(CASE WHEN screenQuality IS NOT NULL AND screenQuality NOT IN ('EXACT', 'PARTIAL') THEN 1 ELSE 0 END) > 0 THEN 'UNKNOWN'
+                   WHEN SUM(CASE WHEN screenQuality IS NULL AND sourceDeviceId = '__legacy__' THEN 1 ELSE 0 END) > 0 AND COUNT(*) > 1 THEN 'UNKNOWN'
+                   WHEN SUM(CASE WHEN screenQuality = 'EXACT' THEN 1 ELSE 0 END) = COUNT(*) THEN 'EXACT'
+                   ELSE 'LEGACY'
+               END AS dayQuality
         FROM day_summary WHERE date BETWEEN :start AND :end GROUP BY date ORDER BY date
         """
     )
@@ -46,10 +47,11 @@ interface DaySummaryDao {
                MAX(longestSessionMin) AS longestSessionMin, MAX(pulledAt) AS pulledAt,
                CASE
                    WHEN SUM(CASE WHEN screenQuality = 'PARTIAL' THEN 1 ELSE 0 END) > 0 THEN 'PARTIAL'
-                   WHEN SUM(CASE WHEN screenQuality IN ('UNKNOWN', 'ANCHOR_ONLY', 'WINDOW') THEN 1 ELSE 0 END) > 0 THEN 'UNKNOWN'
-                   WHEN SUM(CASE WHEN screenQuality = 'EXACT' THEN 1 ELSE 0 END) > 0 THEN 'EXACT'
-                   ELSE NULL
-               END AS screenQuality
+                   WHEN SUM(CASE WHEN screenQuality IS NOT NULL AND screenQuality NOT IN ('EXACT', 'PARTIAL') THEN 1 ELSE 0 END) > 0 THEN 'UNKNOWN'
+                   WHEN SUM(CASE WHEN screenQuality IS NULL AND sourceDeviceId = '__legacy__' THEN 1 ELSE 0 END) > 0 AND COUNT(*) > 1 THEN 'UNKNOWN'
+                   WHEN SUM(CASE WHEN screenQuality = 'EXACT' THEN 1 ELSE 0 END) = COUNT(*) THEN 'EXACT'
+                   ELSE 'LEGACY'
+               END AS dayQuality
         FROM day_summary GROUP BY date ORDER BY date
         """
     )
@@ -100,7 +102,7 @@ data class DaySummaryAggregated(
     val launches: Int,
     val longestSessionMin: Int,
     val pulledAt: Long,
-    val screenQuality: String? = null
+    val dayQuality: String = "LEGACY"
 )
 
 @Dao
@@ -202,6 +204,10 @@ interface HourUsageDao {
     @Query("SELECT hour, SUM(minutes) AS minutes FROM hour_usage WHERE date BETWEEN :start AND :end GROUP BY hour ORDER BY hour")
     suspend fun sumBetween(start: String, end: String): List<HourBucketAggregated>
 
+    /** D-07 方案 C+：按指定合格日期集合汇总时段分布（分子与分母同集合）。 */
+    @Query("SELECT hour, SUM(minutes) AS minutes FROM hour_usage WHERE date IN (:dates) GROUP BY hour ORDER BY hour")
+    suspend fun sumForDates(dates: List<String>): List<HourBucketAggregated>
+
     @Query("SELECT * FROM hour_usage WHERE date = :date ORDER BY hour")
     suspend fun getForDate(date: String): List<HourUsageEntity>
 
@@ -266,6 +272,17 @@ interface PullLogDao {
 
     @Query("SELECT pulledAt FROM pull_log WHERE ok = 1")
     suspend fun okMs(): List<Long>
+
+    /** D-07 方案 C+（G2 门禁）：主通道 Shizuku 历次成功拉取的原始事件覆盖窗口。 */
+    @Query(
+        "SELECT eventWindowStartMs, eventWindowEndMs FROM pull_log " +
+            "WHERE ok = 1 AND source = 'shizuku' AND eventWindowStartMs IS NOT NULL AND eventWindowEndMs IS NOT NULL"
+    )
+    suspend fun shizukuEventWindows(): List<PullWindowSpan>
+
+    /** D-07 方案 C+（拍板 4）：最近一次成功采集时刻（截止今天 HH:mm 锚点）。 */
+    @Query("SELECT MAX(pulledAt) FROM pull_log WHERE ok = 1")
+    suspend fun latestOkPulledAt(): Long?
 }
 
 @Dao
@@ -501,3 +518,5 @@ interface UsageWindowDao {
     @Query("SELECT COUNT(*) FROM usage_window")
     suspend fun count(): Int
 }
+
+data class PullWindowSpan(val eventWindowStartMs: Long, val eventWindowEndMs: Long)

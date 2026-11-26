@@ -2,6 +2,7 @@ package com.screentrace.app.ui
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.data.IngestPipeline
 import com.screentrace.app.data.RoomUsageRepository
 import com.screentrace.app.data.db.ScreenTraceDatabase
@@ -72,6 +73,11 @@ class StatsPeriodsWiringTest {
         ingestSevenDays()
         val vm = AppViewModel(repository = repository)
         advanceUntilIdle()
+        // D-07 方案 C+：今天永远不满足 G1（日未闭合 → PARTIAL，不参与统计准入），
+        // 先切到统计页再显式取近 8 天窗口，让 7 个已闭合历史日全部入窗。
+        vm.selectMain(AppPage.Stats)
+        vm.applySelection(DateSelection.lastDays(8))
+        advanceUntilIdle()
 
         val data = vm.statsState.value.data
         assertNotNull("7 天都有 day_summary，统计页必须有数据", data)
@@ -84,9 +90,9 @@ class StatsPeriodsWiringTest {
 
     // ---------- helpers ----------
 
-    /** 连续 7 天：每天都有 day_summary，且 06–11 时每小时 10 分钟。 */
+    /** 连续 7 个**已闭合**历史日（昨天起往前）：每天都有 day_summary，且 06–11 时每小时 10 分钟。 */
     private suspend fun ingestSevenDays() {
-        val days = (0L..6L).map { day.minusDays(it) }
+        val days = (1L..7L).map { day.minusDays(it) }
         val result = ParseResult(
             days = days.associateWith { DayMetrics(120, 100, 5, 10, 20) },
             hourMinutes = days.associateWith {
@@ -98,7 +104,10 @@ class StatsPeriodsWiringTest {
             screenSessions = days.map { d ->
                 val start = d.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
                 SessionSpan(start, start + 600_000L)
-            }
+            },
+            // D-07 方案 C+ G2 门禁：事件窗口并集须覆盖 7 个历史自然日。
+            rawEventMinMs = days.last().atStartOfDay(zone).toInstant().toEpochMilli(),
+            rawEventMaxMs = nowMs()
         )
         org.junit.Assert.assertTrue(
             "七天数据必须能正常入库",

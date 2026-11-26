@@ -83,6 +83,14 @@ class IngestPipeline(
                 note
             }
             val src = localDeviceId()
+            val isPrimaryChannel = source == "shizuku"
+            val pullDate = java.time.Instant.ofEpochMilli(pulledAtMs).atZone(zone).toLocalDate()
+            val windowStartMs = if (isPrimaryChannel && result.rawEventMinMs != null && result.rawEventMinMs <= pulledAtMs) {
+                result.rawEventMinMs
+            } else {
+                null
+            }
+            val windowEndMs = if (windowStartMs != null) pulledAtMs else null
             val sessionDates = buildSet {
                 for (span in result.screenSessions) {
                     if (span.endMs <= span.startMs) continue
@@ -94,11 +102,41 @@ class IngestPipeline(
                     }
                 }
             }
+            val anchorConflictDates = buildSet {
+                for (ev in result.screenEvidence) {
+                    if (ev.quality == DataQualityValues.ANCHOR_ONLY && ev.endMs == null) {
+                        add(java.time.Instant.ofEpochMilli(ev.startMs).atZone(zone).toLocalDate())
+                    }
+                }
+            }
             db.withTransaction {
+                val historicalWindows = if (isPrimaryChannel) {
+                    db.pullLogDao().shizukuEventWindows().map {
+                        SessionUnion.Span(it.eventWindowStartMs, it.eventWindowEndMs)
+                    }
+                } else {
+                    emptyList()
+                }
+                val currentWindow = if (windowStartMs != null && windowEndMs != null && windowEndMs > windowStartMs) {
+                    listOf(SessionUnion.Span(windowStartMs, windowEndMs))
+                } else {
+                    emptyList()
+                }
+                val coveredSpans = SessionUnion.union(historicalWindows + currentWindow)
+
+                fun isExactDay(date: java.time.LocalDate, hasSession: Boolean): Boolean {
+                    if (!isPrimaryChannel || !hasSession || date in anchorConflictDates) return false
+                    val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+                    val dayEndMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                    // G1: 自然日已闭合；G2: 历次主通道事件窗口并集完整覆盖真实 DST 自然日
+                    if (pulledAtMs < dayEndMs) return false
+                    return coveredSpans.any { it.startMs <= dayStartMs && it.endMs >= dayEndMs }
+                }
+
                 val dayDao = db.daySummaryDao()
                 for ((date, metrics) in result.days) {
                     val key = date.toString()
-                    val screenQuality = if (date in sessionDates) {
+                    val screenQuality = if (isExactDay(date, date in sessionDates)) {
                         DataQualityValues.EXACT
                     } else {
                         DataQualityValues.PARTIAL
@@ -138,7 +176,11 @@ class IngestPipeline(
                         // P1-1：内置分类映射写库，用户覆盖在仓库读取层叠加
                         category = AppNames.categoryOf(row.pkg).name,
                         sourceDeviceId = src,
-                        minutesQuality = DataQualityValues.EXACT
+                        minutesQuality = if (isPrimaryChannel && row.date.isBefore(pullDate) && row.date !in verdict.droppedDates) {
+                            DataQualityValues.EXACT
+                        } else {
+                            DataQualityValues.PARTIAL
+                        }
                     )
                     val existing = appDao.get(key, row.pkg, src)
                     val merged = MergePolicy.mergeApp(existing, incoming)
@@ -148,6 +190,11 @@ class IngestPipeline(
                 val hourDao = db.hourUsageDao()
                 for ((date, buckets) in verdict.hourMinutes) {
                     val key = date.toString()
+                    val hourQuality = if (isExactDay(date, date in sessionDates)) {
+                        DataQualityValues.EXACT
+                    } else {
+                        DataQualityValues.PARTIAL
+                    }
                     val existingByHour = hourDao.getForDate(key, src).associateBy { it.hour } // 一次查询（复审意见）
                     buckets.forEachIndexed { hour, minutes ->
                         val incoming = HourUsageEntity(
@@ -155,7 +202,7 @@ class IngestPipeline(
                             hour = hour,
                             minutes = minutes,
                             sourceDeviceId = src,
-                            quality = DataQualityValues.EXACT
+                            quality = hourQuality
                         )
                         val existing = existingByHour[hour]
                         val merged = MergePolicy.mergeHour(existing, incoming)
@@ -209,7 +256,6 @@ class IngestPipeline(
                     // ② 受影响日期从**全量已存区间**重算，不是只用本次窗口合并的子集——
                     // 同一天早先拉取见过的区间也要参与并集（滚动窗口场景：上午拉一次、
                     // 下午拉一次，各自只覆盖几小时，重算必须吃到两段）。
-                    val zone = ZoneId.systemDefault()
                     val rangeStart = incomingSessions.minOf { it.startMs }
                     val rangeEnd = incomingSessions.maxOf { it.endMs }
                     var day = java.time.Instant.ofEpochMilli(rangeStart).atZone(zone).toLocalDate()
@@ -234,11 +280,16 @@ class IngestPipeline(
                                 longestSessionMin = slice.longestMin,
                                 pulledAt = pulledAtMs,
                                 sourceDeviceId = src,
-                                screenQuality = DataQualityValues.EXACT
+                                screenQuality = if (isExactDay(day, hasSession = true)) {
+                                    DataQualityValues.EXACT
+                                } else {
+                                    DataQualityValues.PARTIAL
+                                }
                             )
                             val mergedDay = MergePolicy.mergeDay(existing, incomingRow)
                             if (mergedDay != existing) dayDao.insert(mergedDay)
 
+                            val sliceQuality = incomingRow.screenQuality
                             val existingByHour = hourDao.getForDate(key, src).associateBy { it.hour }
                             slice.hours.forEachIndexed { hour, minutes ->
                                 val incomingHour = HourUsageEntity(
@@ -246,7 +297,7 @@ class IngestPipeline(
                                     hour = hour,
                                     minutes = minutes,
                                     sourceDeviceId = src,
-                                    quality = DataQualityValues.EXACT
+                                    quality = sliceQuality
                                 )
                                 val existingHour = existingByHour[hour]
                                 val mergedHour = MergePolicy.mergeHour(existingHour, incomingHour)
@@ -302,7 +353,9 @@ class IngestPipeline(
                         source = source,
                         ok = true,
                         note = finalNote,
-                        collectionStatus = pullStatus
+                        collectionStatus = pullStatus,
+                        eventWindowStartMs = windowStartMs,
+                        eventWindowEndMs = windowEndMs
                     )
                 )
             }

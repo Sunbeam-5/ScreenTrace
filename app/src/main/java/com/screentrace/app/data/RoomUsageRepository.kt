@@ -365,6 +365,7 @@ class RoomUsageRepository(
         launches = launches,
         longestSessionMin = longestSessionMin,
         pulledAt = pulledAt,
-        screenQuality = screenQuality
+        screenQuality = if (dayQuality == "LEGACY") null else dayQuality,
+        dayQuality = com.screentrace.app.contract.DayQuality.fromSql(dayQuality)
     )
 }

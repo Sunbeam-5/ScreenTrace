@@ -396,3 +396,14 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         )
     }
 }
+
+/**
+ * D-07 方案 C+（C+a）：`pull_log` 增加可空列 `eventWindowStartMs` / `eventWindowEndMs`（不回填），
+ * 用于历次 Shizuku 主通道事件流窗口并集判定自然日完整覆盖（G2 门禁）。
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `pull_log` ADD COLUMN `eventWindowStartMs` INTEGER")
+        db.execSQL("ALTER TABLE `pull_log` ADD COLUMN `eventWindowEndMs` INTEGER")
+    }
+}

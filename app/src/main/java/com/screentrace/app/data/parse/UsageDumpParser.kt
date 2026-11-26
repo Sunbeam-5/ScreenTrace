@@ -79,7 +79,11 @@ data class ParseResult(
     /** CR-30-R11（方案甲）：跨自然日 checkin 窗口级应用聚合（不混入单日 appUsage）。 */
     val usageWindows: List<UsageWindowRow> = emptyList(),
     /** CR-30-R11：独立屏幕证据（E3 锚点 / W1 计数器读数，不进 screenSessions）。 */
-    val screenEvidence: List<ScreenEvidenceRow> = emptyList()
+    val screenEvidence: List<ScreenEvidenceRow> = emptyList(),
+    /** D-07 方案 C+（G2 门禁）：本次真实原始事件（checkinEvents + humanEvents）最小时间戳（毫秒）。 */
+    val rawEventMinMs: Long? = null,
+    /** D-07 方案 C+（G2 门禁）：本次真实原始事件最大时间戳（毫秒）。 */
+    val rawEventMaxMs: Long? = null
 ) {
     /**
      * 「空 dump」判定（§5.8 独立状态）：全部产物**全空**才算空。
@@ -632,7 +636,9 @@ object UsageDumpParser {
                     )
                 },
             usageWindows = usageWindowRows,
-            screenEvidence = evidenceRows
+            screenEvidence = evidenceRows,
+            rawEventMinMs = merged.minOfOrNull { it.ms },
+            rawEventMaxMs = merged.maxOfOrNull { it.ms }
         )
     }
 

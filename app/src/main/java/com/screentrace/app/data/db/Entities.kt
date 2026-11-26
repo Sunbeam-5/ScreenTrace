@@ -27,7 +27,7 @@ object SourceIds {
     const val UNSPECIFIED = "__local__"
 }
 
-/** CR-30-R11：单指标数据质量常量（null 与 UNKNOWN 同义：历史/来源未知）。 */
+/** CR-30-R11（D-07 方案 C+）：行级存储质量常量（null = 历史未标注存储态，读侧按来源派生 LEGACY 或 UNKNOWN）。 */
 object DataQualityValues {
     const val EXACT = "EXACT"
     const val PARTIAL = "PARTIAL"
@@ -113,7 +113,11 @@ data class PullLogEntity(
     val ok: Boolean,
     val note: String?,
     /** CR-30-R11：本次采集状态（OK/EMPTY/PARTIAL/FAILED/UNAVAILABLE；旧行为 null）。 */
-    val collectionStatus: String? = null
+    val collectionStatus: String? = null,
+    /** D-07 方案 C+（v11）：主通道 Shizuku 原始事件流观测窗口起点（毫秒，旧行为 null）。 */
+    val eventWindowStartMs: Long? = null,
+    /** D-07 方案 C+（v11）：主通道 Shizuku 原始事件流观测窗口终点（毫秒，旧行为 null）。 */
+    val eventWindowEndMs: Long? = null
 )
 
 /**

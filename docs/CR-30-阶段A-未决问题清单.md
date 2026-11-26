@@ -398,7 +398,7 @@
 | **D-02** | 独立屏幕证据表 `screen_evidence` | **已闭环（v10 加固）** | Room v9 建表、v10（`MIGRATION_9_10`）将 `sourceDumpAt` 纳入主键，保留连续 W1 采样观测且永不进 `screen_session` | `MigrationTest`（M-FIX6） |
 | **D-03 / D-04 / D-05** | E3 不伪造时长、W1 永不升 E2、日/夜分母诚实兜底 | **已闭环** | `AppBreakdownMath.dayPercent` 返回 `Int?`；`ScreenEvidenceEntity` 互斥四态 | `AppViewModelDayPercentTest`、`WidgetSnapshotTest`（M-W4） |
 | **D-06** | 历史脏数据清理与重建留痕 | **已闭环** | `SourceRebuild.rebuildOversizedDays` + `rebuild_log` 快照可回滚 | `SourceRebuildTest` |
-| **D-07** | 同源/跨源数据质量合并与统计口径 | **已闭环（负责人 2026-11-26 拍板）** | `IngestPipeline` 逐日按 `sessionDates` 判质；`Daos.sumRange/sumAll` 跨来源保守降级（`PARTIAL` > `UNKNOWN` > `EXACT` > 历史 `NULL`）；`UsageCalculator` 排除 `PARTIAL`/`UNKNOWN` 参与日均分母与极值、兼容保留历史 `NULL` | `R11QualityPipelineTest`（M-FIX1 ~ M-FIX3） |
+| **D-07** | 同源/跨源数据质量合并与统计口径（方案 C+ · 含 `KLD-R11-01`） | **C+a 数据层已实施，待 C+b 领域/UI 收口** | `IngestPipeline` 逐日按 `sessionDates` 判质；`Daos.sumRange/sumAll` 跨来源保守降级（`PARTIAL` > `UNKNOWN` > `EXACT` > 历史 `NULL`）；`UsageCalculator` 排除 `PARTIAL`/`UNKNOWN` 参与日均分母与极值、兼容保留历史 `NULL` | `R11QualityPipelineTest`（M-FIX1 ~ M-FIX3） |
 | **D-08 / D-09** | Room Schema 与备份发布策略、采集状态落库 | **已闭环** | Room v9→v10 显式迁移导出 schema JSON；备份 `schemaVersion=7`；`pull_log.collectionStatus` 独立记录 | `MigrationTest`、`BackupRepositoryRollbackTest` |
 | **OBS-2 L2 / L3** | 导航取消补偿与审计强关联 | **L1/L2 闭环，L3 开放** | `TabRouteCoordinator` 补齐 `scope-cancelled` 日志与 `commitId` + 目标页强关联；FakePager 确定性测试诚实标注为 L1/L2，真实 Compose `HorizontalPager` 属 L3 设备/Compose 集成测试范畴 | `TabRouteCoordinatorTest`（M-FIX4 ~ M-FIX5） |
 | **TD-10 / B-xx** | `QUERY_ALL_PACKAGES` 发行审核 | **按渠道保持开放** | 自用 / GitHub Releases 分发保留以展示系统组件真名；正式上架 Google Play 前另行专项申报或裁剪 | `TECH-DEBT-全项目工程审计登记.md` |

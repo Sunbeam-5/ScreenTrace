@@ -131,11 +131,15 @@ object SameDeviceFingerprint {
             fingerprintOf(file, date) == local
         }.keys
 
-        // 信号③：该日备份事件主键全部是本机该日事件主键的子集（且备份该日事件非空）
+        // 信号③：该日备份事件主键全部是本机该日事件主键的子集；
+        // D-07 方案 C+（§3.4）：schemaVersion <= 5 备份无 sources[] 拆分，追加双向毫秒事件交集检测防重叠双算。
         val byEvents = localDays.keys.filter { date ->
             val backupKeys = eventKeysOf(file, date, zone)
-            backupKeys.isNotEmpty() &&
-                backupKeys.all { it in (localEvents[date]?.keys ?: emptySet()) }
+            val localSet = localEvents[date]?.keys ?: emptySet()
+            backupKeys.isNotEmpty() && (
+                backupKeys.all { it in localSet } ||
+                    (file.schemaVersion <= 5 && backupKeys.any { it in localSet })
+                )
         }
 
         val sameDeviceDates = if (sameId) localDays.keys else (bySnapshot + byEvents)

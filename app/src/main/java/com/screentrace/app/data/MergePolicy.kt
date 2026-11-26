@@ -15,9 +15,34 @@ import com.screentrace.app.data.parse.SessionSpan
  */
 object MergePolicy {
 
-    /** §4：day_summary 同日取 `screen_unlock_min` 较大的一行**整体保留**。 */
-    fun mergeDay(existing: DaySummaryEntity?, incoming: DaySummaryEntity): DaySummaryEntity =
-        if (existing == null || incoming.screenUnlockMin >= existing.screenUnlockMin) incoming else existing
+    /** D-07 方案 C+（§3.3）：同来源质量证据优先级（EXACT > PARTIAL > UNKNOWN > NULL）。 */
+    fun sameSourceQualityRank(quality: String?): Int = when (quality) {
+        com.screentrace.app.data.db.DataQualityValues.EXACT -> 4
+        com.screentrace.app.data.db.DataQualityValues.PARTIAL -> 3
+        null -> 1
+        else -> 2
+    }
+
+    /**
+     * §4 + D-07 方案 C+：同来源 (date, sourceDeviceId) 交换律全序合并。
+     * 先比 screenUnlockMin、screenMin，平手比质量证据等级，再比 longestSessionMin / unlocks / launches，
+     * pulledAt 恒取 max，彻底消除到达顺序依赖。
+     */
+    fun mergeDay(existing: DaySummaryEntity?, incoming: DaySummaryEntity): DaySummaryEntity {
+        if (existing == null) return incoming
+        val cmp = compareValuesBy(
+            existing,
+            incoming,
+            { it.screenUnlockMin },
+            { it.screenMin },
+            { sameSourceQualityRank(it.screenQuality) },
+            { it.longestSessionMin },
+            { it.unlocks },
+            { it.launches }
+        )
+        val winner = if (cmp >= 0) existing else incoming
+        return winner.copy(pulledAt = maxOf(existing.pulledAt, incoming.pulledAt))
+    }
 
     /**
      * §4：app_usage 同 (date,pkg) 取 `minutes` 较大值并保留对应 name/category。

@@ -136,7 +136,9 @@ data class PullLogDto(
     val ok: Boolean,
     val note: String? = null,
     /** CR-30-R11（v7 新增）：采集状态（缺省 null = UNKNOWN）。 */
-    val collectionStatus: String? = null
+    val collectionStatus: String? = null,
+    val eventWindowStartMs: Long? = null,
+    val eventWindowEndMs: Long? = null
 )
 
 @Serializable
