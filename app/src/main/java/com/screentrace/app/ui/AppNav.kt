@@ -346,6 +346,25 @@ fun AppNav(
         }
         onDispose(dispose)
     }
+    DisposableEffect(context, viewModel) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: android.content.Context?, intent: android.content.Intent?) {
+                viewModel.onDateChanged()
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_DATE_CHANGED)
+            addAction(android.content.Intent.ACTION_TIME_CHANGED)
+            addAction(android.content.Intent.ACTION_TIMEZONE_CHANGED)
+        }
+        androidx.core.content.ContextCompat.registerReceiver(
+            context,
+            receiver,
+            filter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
 
     ScreenTimeTheme(
         variant = variant,

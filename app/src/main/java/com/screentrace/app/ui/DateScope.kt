@@ -2,6 +2,7 @@ package com.screentrace.app.ui
 
 import com.screentrace.app.contract.DateSelection
 import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * CR-15 B：日期筛选状态的归属（§5.6）。
@@ -35,3 +36,47 @@ fun dateScopeFor(page: AppPage?): DateScope? = when (page?.let { AppPage.mainOf(
  */
 fun historySelection(now: LocalDate = LocalDate.now()): DateSelection.Range =
     DateSelection.Range(now.minusYears(20), now)
+
+/**
+ * 跨自然日自动推进今日页日期窗口：仅当当前窗口仍停在「前一天的今天」时，推进到 [newToday]；
+ * 用户显式选中的历史日期或区间保持不动。
+ */
+internal fun rolloverTodaySelection(
+    current: DateSelection,
+    previousToday: LocalDate,
+    newToday: LocalDate
+): DateSelection = if (current == DateSelection.Day(previousToday)) {
+    DateSelection.Day(newToday)
+} else {
+    current
+}
+
+/**
+ * 跨自然日自动推进统计页日期窗口：仅当当前窗口为跟随 [previousToday] 的快捷窗口
+ * （单日今天 / 近 7 天 / 近 30 天 / 本周）时，同步推进到 [newToday]；自定义或历史窗口保持不动。
+ */
+internal fun rolloverStatsSelection(
+    current: DateSelection,
+    previousToday: LocalDate,
+    newToday: LocalDate
+): DateSelection = when (current) {
+    DateSelection.Day(previousToday) -> DateSelection.Day(newToday)
+    DateSelection.lastDays(7, previousToday) -> DateSelection.lastDays(7, newToday)
+    DateSelection.lastDays(30, previousToday) -> DateSelection.lastDays(30, newToday)
+    DateSelection.thisWeek(previousToday) -> DateSelection.thisWeek(newToday)
+    else -> current
+}
+
+/**
+ * 跨自然日自动推进日历月视图锚点：仅当当前正停在 [previousToday] 所在月时推进到 [newToday] 所在月；
+ * 用户主动翻阅其他历史月份时保持不动。
+ */
+internal fun rolloverCalendarMonth(
+    current: YearMonth,
+    previousToday: LocalDate,
+    newToday: LocalDate
+): YearMonth = if (current == YearMonth.from(previousToday)) {
+    YearMonth.from(newToday)
+} else {
+    current
+}

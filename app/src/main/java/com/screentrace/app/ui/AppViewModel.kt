@@ -215,16 +215,20 @@ class AppViewModel(
     /** §5.4 批 E：壁纸文件读写；单测/预览不传，只走内存态。 */
     private val wallpaperStore: WallpaperStore? = null,
     /** CR-30 §7-30：周期总结提醒开关改动后同步 WorkManager 非精确调度。 */
-    private val onReminderConfigChanged: ((com.screentrace.app.data.reminder.ReminderConfig) -> Unit)? = null
+    private val onReminderConfigChanged: ((com.screentrace.app.data.reminder.ReminderConfig) -> Unit)? = null,
+    /** 跨日自动推进与测试注入用日期时钟，默认系统本地自然日。 */
+    private val todayProvider: () -> LocalDate = LocalDate::now
 ) : ViewModel() {
+
+    private var lastObservedToday: LocalDate = todayProvider()
 
     // ---- 日期筛选（§5.6 / CR-15 B：两份互相独立的状态）----
     // 负责人真机反馈「今日 tab 与统计 tab 各自单独生效、互不影响」：
     // 今日页默认今天（单日量纲），统计页默认近 7 天（趋势需要多根柱）。
     // 两份状态都不持久化，进程重建各自回默认；日历页不参与筛选（固定今天 + 全量历史）。
-    private val _todaySelection = mutableStateOf<DateSelection>(DateSelection.today())
+    private val _todaySelection = mutableStateOf<DateSelection>(DateSelection.today(lastObservedToday))
     val todaySelection: State<DateSelection> = _todaySelection
-    private val _statsSelection = mutableStateOf<DateSelection>(DateSelection.lastDays(7))
+    private val _statsSelection = mutableStateOf<DateSelection>(DateSelection.lastDays(7, lastObservedToday))
     val statsSelection: State<DateSelection> = _statsSelection
 
     /** 按归属取状态；null（日历 tab / 无日期入口页）回落到今日状态，仅供 UI 取值。 */
@@ -297,7 +301,7 @@ class AppViewModel(
     val notificationDetail: State<LoadState<MetricDetail>> = _notificationDetail
 
     /** 日历月视图当前月份（锚点 = 区间结束日所在月，可前后翻月，§5.7）。 */
-    private val _calendarMonth = mutableStateOf(YearMonth.now())
+    private val _calendarMonth = mutableStateOf(YearMonth.from(lastObservedToday))
     val calendarMonth: State<YearMonth> = _calendarMonth
 
     private val _monthLevelsState = mutableStateOf(LoadState<List<CalendarLevel>>(loading = true))
@@ -510,6 +514,7 @@ class AppViewModel(
      * 钩子（AppContainer 接线），下拉成功触发上传（CR-04）由那里统一覆盖。
      */
     suspend fun refreshFromPull() {
+        val dateRolled = syncDateRolloverIfNeeded()
         val coordinator = pulls ?: return
         if (_pulling.value) return
         val now = System.currentTimeMillis()
@@ -527,6 +532,9 @@ class AppViewModel(
                     false
                 )
             }
+        if (dateRolled && outcome !is PullOutcome.Success) {
+            loadAll()
+        }
         applyPullOutcome(outcome, coordinator)
     }
 
@@ -868,10 +876,12 @@ class AppViewModel(
     }
 
     fun clearFilter() {
+        syncDateRolloverIfNeeded()
+        val today = todayProvider()
         // 「清除筛选」= 该页状态回默认值（今日→今天，统计→近 7 天），另一份不动
         when (dateScopeFor(_page.value)) {
-            DateScope.STATS -> _statsSelection.value = DateSelection.lastDays(7)
-            else -> _todaySelection.value = DateSelection.today()
+            DateScope.STATS -> _statsSelection.value = DateSelection.lastDays(7, today)
+            else -> _todaySelection.value = DateSelection.today(today)
         }
         _notice.value = null
         loadAll()
@@ -951,16 +961,42 @@ class AppViewModel(
         refreshChannelStatuses()
     }
 
+    private fun syncDateRolloverIfNeeded(): Boolean {
+        val nowToday = todayProvider()
+        if (nowToday == lastObservedToday) return false
+        val prevToday = lastObservedToday
+        lastObservedToday = nowToday
+        _todaySelection.value = rolloverTodaySelection(_todaySelection.value, prevToday, nowToday)
+        _statsSelection.value = rolloverStatsSelection(_statsSelection.value, prevToday, nowToday)
+        _calendarMonth.value = rolloverCalendarMonth(_calendarMonth.value, prevToday, nowToday)
+        return true
+    }
+
+    /** 系统日期/时间/时区变化或跨午夜时推进跟随「今天」的窗口，并在空闲时触发一次拉取。 */
+    fun onDateChanged() {
+        if (!syncDateRolloverIfNeeded()) return
+        loadAll()
+        if (pulls != null && !_pulling.value) {
+            retryPull()
+        }
+    }
+
     /**
      * 阶段 E 审阅 P2 修复：前台恢复统一入口。
      * 先完成通道状态探测与恢复判定；若已因授权恢复触发自动补拉，则不再重复调用 `pullOnOpen()`，
      * 防止在 60 秒失败冷却期内出现并发竞态吞掉自动补拉。
      */
     fun onResumeForeground() {
-        val coordinator = pulls ?: return
+        val dateRolled = syncDateRolloverIfNeeded()
+        val coordinator = pulls
+        if (coordinator == null) {
+            if (dateRolled) loadAll()
+            return
+        }
         viewModelScope.launch {
             val autoPulled = refreshDiagnosticsInternal(coordinator, triggerAutoRecovery = true)
             if (!autoPulled) {
+                if (dateRolled) loadAll()
                 pullOnOpen()
             }
         }
@@ -1416,14 +1452,15 @@ class AppViewModel(
         if (cancelPrevious) loadJob?.cancel()
         loadJob = viewModelScope.launch {
             com.screentrace.app.uikit.PerfProbe.measure("VM/loadAll") {
+            syncDateRolloverIfNeeded()
             // CR-15 B：三份互不干扰的窗口。今日/统计各自记忆，日历固定今天 + 全量历史。
+            val today = todayProvider()
             val todaySel = _todaySelection.value
             val statsSel = _statsSelection.value
-            val historySel = historySelection()
-            val today = LocalDate.now()
+            val historySel = historySelection(today)
             // 今日状态若被二级页完整弹层写成区间，按 CR-09 兼容规则回落今天。
             val todayEffective =
-                if (todaySel is DateSelection.Day) todaySel else DateSelection.today()
+                if (todaySel is DateSelection.Day) todaySel else DateSelection.today(today)
             // 「低于几小时算少」的来源。变化时由 setLowThresholdMin 触发整页重算。
             val threshold = _lowThresholdMin.value
             // §5.7「已有缓存直接渲染」：重算期间**四个主页面也保留上一条结果**——
@@ -1636,7 +1673,7 @@ class AppViewModel(
             // 同其它页：重算期间保留上一条结果，切周/月/年不闪骨架
             _periodState.value = LoadState(loading = true, data = _periodState.value.data)
             val type = _periodType.value
-            val today = LocalDate.now()
+            val today = todayProvider()
             val range = type.natural(today)
             _periodState.value = try {
                 val trend = repository.dailyTrend(range.selection)
