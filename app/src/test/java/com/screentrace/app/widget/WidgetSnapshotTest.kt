@@ -2,11 +2,15 @@ package com.screentrace.app.widget
 
 import com.screentrace.app.contract.Coverage
 import com.screentrace.app.contract.DateSelection
+import com.screentrace.app.contract.HourBucket
 import com.screentrace.app.contract.MetricDetail
 import com.screentrace.app.contract.MetricKind
 import com.screentrace.app.contract.Summary
+import com.screentrace.app.theme.ThemeVariant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -50,11 +54,13 @@ class WidgetSnapshotTest {
 
     @Test
     fun resolveWidgetLayoutSize_switchesAt220dp() {
-        // M-W3: 2x2 与 4x2 响应式尺寸阈值
+        // M-W3 & M-W5: 2x2 / 4x2 / 4x4 三档响应式尺寸阈值
         assertEquals(WidgetLayoutSize.COMPACT_2X2, resolveWidgetLayoutSize(130f))
         assertEquals(WidgetLayoutSize.COMPACT_2X2, resolveWidgetLayoutSize(219.9f))
         assertEquals(WidgetLayoutSize.WIDE_4X2, resolveWidgetLayoutSize(220f))
-        assertEquals(WidgetLayoutSize.WIDE_4X2, resolveWidgetLayoutSize(250f))
+        assertEquals(WidgetLayoutSize.WIDE_4X2, resolveWidgetLayoutSize(250f, 110f))
+        assertEquals(WidgetLayoutSize.LARGE_4X4, resolveWidgetLayoutSize(250f, 200f))
+        assertEquals(WidgetLayoutSize.LARGE_4X4, resolveWidgetLayoutSize(250f, 220f))
     }
 
     @Test
@@ -71,6 +77,8 @@ class WidgetSnapshotTest {
         assertEquals("打开 App 拉取数据", snap.goalCaption)
         assertEquals("—", snap.unlockText)
         assertEquals("—", snap.notificationText)
+        assertNull(snap.dayPercent)
+        assertEquals("日/夜比 —", snap.dayNightCaption)
     }
 
     @Test
@@ -139,5 +147,73 @@ class WidgetSnapshotTest {
     fun privacyRedline_snapshotModelContainsNoAppOrPackageFields() {
         val fieldNames = WidgetSnapshot::class.java.declaredFields.map { it.name.lowercase() }
         assertFalse(fieldNames.any { it.contains("app") || it.contains("pkg") || it.contains("package") })
+    }
+
+    @Test
+    fun dayPercent_missingHourlyDenominator_staysNullAndShowsDash() {
+        // M-W4: 缺小时分母时必须返回 null 且显示 "日/夜比 —"，严禁伪造 0% / 100%
+        val snap = buildWidgetSnapshot(
+            summary = summary(hasAnyRecord = true, minutes = 90),
+            unlockDetail = null,
+            notificationDetail = null,
+            dailyGoalMin = 240,
+            hourlyBuckets = listOf(HourBucket(10, 0), HourBucket(23, 0))
+        )
+        assertNull(snap.dayPercent)
+        assertEquals("日/夜比 —", snap.dayNightCaption)
+    }
+
+    @Test
+    fun dayPercent_validHourlyBuckets_matchesAppBreakdownMath() {
+        // M-W4: 日间 90m（10点+15点）+ 夜间 30m（23点）= 75% 日间 / 25% 夜间
+        val snap = buildWidgetSnapshot(
+            summary = summary(hasAnyRecord = true, minutes = 120),
+            unlockDetail = null,
+            notificationDetail = null,
+            dailyGoalMin = 240,
+            hourlyBuckets = listOf(
+                HourBucket(10, 45),
+                HourBucket(15, 45),
+                HourBucket(23, 30)
+            )
+        )
+        assertEquals(75, snap.dayPercent)
+        assertEquals("日 75% · 夜 25%", snap.dayNightCaption)
+    }
+
+    @Test
+    fun hourlyChartModel_normalizesEmptyAndOver60MinPeaksWithoutOverflow() {
+        // M-W6: 空分布全 0；峰值 > 60m 按 30m 向上取整封顶且不越界
+        val emptyModel = buildHourlyChartModel(emptyList())
+        assertEquals(24, emptyModel.bars.size)
+        assertEquals(60, emptyModel.ceilingMinutes)
+        assertEquals(30, emptyModel.midMinutes)
+        assertTrue(emptyModel.bars.all { it == 0f })
+
+        val peakModel = buildHourlyChartModel(listOf(HourBucket(14, 75), HourBucket(15, 30)))
+        assertEquals(90, peakModel.ceilingMinutes)
+        assertEquals(45, peakModel.midMinutes)
+        assertEquals(75f / 90f, peakModel.bars[14], 0.001f)
+        assertEquals(30f / 90f, peakModel.bars[15], 0.001f)
+        assertTrue(peakModel.bars.all { it in 0f..1f })
+    }
+
+    @Test
+    fun resolveWidgetPalette_followsVariantDarkAndCustomSeedWithOpaqueCard() {
+        // M-W6: 主题配色随预设/深浅/自定义种子变化，且卡片底色始终保持不透明
+        val mintLight = resolveWidgetPalette(ThemeVariant.MINT, darkTheme = false)
+        val coralLight = resolveWidgetPalette(ThemeVariant.CORAL, darkTheme = false)
+        val mintDark = resolveWidgetPalette(ThemeVariant.MINT, darkTheme = true)
+        val customSeed = resolveWidgetPalette(
+            variant = ThemeVariant.MINT,
+            darkTheme = false,
+            customThemeSeed = 0xFF006D77L
+        )
+
+        assertNotEquals(mintLight.primary, coralLight.primary)
+        assertNotEquals(mintLight.cardSurface, mintDark.cardSurface)
+        assertNotEquals(mintLight.primary, customSeed.primary)
+        assertEquals(0xFF, (mintLight.cardSurface ushr 24) and 0xFF)
+        assertEquals(0xFF, (mintDark.cardSurface ushr 24) and 0xFF)
     }
 }

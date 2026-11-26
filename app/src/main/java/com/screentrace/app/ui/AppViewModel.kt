@@ -1230,6 +1230,7 @@ class AppViewModel(
             )
             _wallpaperConfig.value = next
             runCatching { settings?.setWallpaper(next) }
+            onWidgetRefresh?.invoke()
             _wallpaperMessage.value = "壁纸已应用"
         }
     }
@@ -1250,6 +1251,7 @@ class AppViewModel(
         val next = change(_wallpaperConfig.value)
         _wallpaperConfig.value = next
         runCatching { settings?.setWallpaper(next) }
+        onWidgetRefresh?.invoke()
     }
 
     fun clearWallpaper() {
@@ -1261,6 +1263,7 @@ class AppViewModel(
             _wallpaperMessage.value = "已恢复默认背景"
             runCatching { wallpaperStore?.clear() } // 只是删一个私有小文件，同步即可
             runCatching { settings?.clearWallpaper() }
+            onWidgetRefresh?.invoke()
         }
     }
 
