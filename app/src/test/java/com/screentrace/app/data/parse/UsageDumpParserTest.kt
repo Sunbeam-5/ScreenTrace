@@ -577,8 +577,13 @@ class UsageDumpParserTest {
         val checkinFile = findSourceFile("usagestats-checkin.txt")
         val humanFile = findSourceFile("usagestats(1).txt")
         val reportFile = findSourceFile("screen_usage_report.json")
-        // 复审 P1-B：不允许静默跳过——找不到真实 dump 直接红（假绿比红更危险）
+        // 复审 P1-B：本地环境不允许静默跳过——找不到真实 dump 直接红（假绿比红更危险）；
+        // 仅在 GitHub Actions CI（CI=true，不入仓隐私真机原 dump）显式标记 Assume 跳过。
         if (checkinFile == null || humanFile == null || reportFile == null) {
+            org.junit.Assume.assumeFalse(
+                "GitHub Actions CI 无本地隐私真机 dump 源数据，显式跳过离线对账",
+                System.getenv("CI").equals("true", ignoreCase = true)
+            )
             org.junit.Assert.fail("真实 dump 缺失，对账未执行（需 E:/project/屏幕使用时间App/源数据/）")
         }
         // dump 归属「今天」= 2026-11-09（文件生成日）
