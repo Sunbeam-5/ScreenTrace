@@ -2488,3 +2488,34 @@ checkin dump 头部 `Currently Active:com.screentrace.app`；今日 `day_summary
 | 单元测试与变异 | **通过** | Debug（`--rerun-tasks`）与 Release 双变体均 **104 suites / 703 tests / 0 fail / 0 error / 0 skip**；**M-W1 ~ M-W3 全红后还原** |
 | 构建与 R8 验证 | **通过** | `:app:assembleDebug`（14,294,141 bytes）、`:app:assembleRelease`（3,094,287 bytes）一次过编 |
 | Redmi / vivo 双机桌面实测 | **通过** | 两台真机均已实际添加 2×2 与 4×2 实例：`dumpsys appwidget` 均正常绑定 `ScreenTraceWidgetReceiver`，Redmi（`9:16` / `目标 15:00` / `解锁 0 次` / `通知 8 次`）与 vivo（`1:37` / `目标 7:00` / `解锁 7 次` / `通知 47 次`）渲染与点击/刷新正常、logcat 均 0 crash；后续 **批 12b** 规划按 vivo 信息节奏 × 屏迹 `FreshPalette` 风格与「日间/夜间占比条」视觉升级 |
+
+---
+
+## 批 12（Glance 桌面小组件 v1）审阅收口补记（2026-11-26，HEAD `785266e`）
+
+> 审阅基线：`main` HEAD `785266e`（对比 `039da80`，含 `c19ea56` 批 12 落地与 `785266e` 文档同步，共 13 个文件变更）
+> 审阅结论：**通过（无 P0 / P1 / P2 问题；双机桌面实测闭环，后续进入批 12b 视觉升级）**
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 / R8 / 仓库红线 | **通过** | Room schema/DAO/SQL、`app/proguard-rules.pro` 与 `README.md` 零改动；不申请任何新权限；纯离线只读本地 Room |
+| §5.12 语义与隐私红线 | **通过** | `WidgetSnapshot` 经反射单测确认零应用名/包名字段；真实 0 分钟（`0:00`）与无记录引导态严格区分，无事件源显示 `—` |
+| 单元测试与变异 | **通过** | Debug（`--rerun-tasks`）与 Release 双变体均 **104 suites / 703 tests / 0 fail / 0 error / 0 skip**；**M-W1 ~ M-W3 全红后还原** |
+| 构建与双机真机冒烟 | **通过** | `:app:assembleDebug`（14,294,141 bytes）与 `:app:assembleRelease`（3,094,287 bytes）一次过编；Redmi（`GAQOHMNFQWFUPBQO`）与 vivo（`10CEB40M5G001DK`）桌面 2×2 / 4×2 添加、绑定、点击与设置变更刷新均正常，logcat 0 crash |
+
+---
+
+## 批 12b（Glance 桌面小组件视觉升级）本地落地与双机验证记录（2026-11-26，HEAD `9286264`）
+
+> 变更范围：合入 `Batch12b-Widget-Visual-Upgrade-changed.zip` 6 个 `app/` 文件（新增 `WidgetTheme.kt` 与 `HourlyChartRenderer.kt`，扩展 `WidgetSnapshot.kt`、`ScreenTraceWidget.kt`、`AppViewModel.kt` 与 `WidgetSnapshotTest.kt`），并修复 `WidgetTheme.kt:44` `WallpaperTuning.themeScrimAlpha(wallpaperConfig.brightness, darkTheme)` 参数顺序问题；同步将 `SizeMode.Responsive` 扩展至 2×2 / 4×2 / 4×4，支持 `FreshPalette` 主题/壁纸色板跟随、`Canvas → Bitmap` 24h 细胶囊柱图（`60m`/`30m` 虚线参考线 + `0/6/12/18` 刻度）与「日间/夜间占比条」。
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 / R8 / §5.12 红线 | **通过** | Room schema/DAO/SQL、`app/proguard-rules.pro` 与 `README.md` 零改动；纯离线只读 Room 与 `SettingsStore`；桌面渲染零应用名/包名/图标；缺小时分母时 `dayPercent = null` 并诚实显示 `日/夜比 —` |
+| 单元测试与变异（M-W4 ~ M-W6） | **通过** | `WidgetSnapshotTest` 共 11 项全绿；**M-W4**（`dayPercent` 兜底置 0 → `dayPercent_missingHourlyDenominator_staysNullAndShowsDash` 失败）、**M-W5**（移除 `LARGE_4X4` 分支 → `resolveWidgetLayoutSize_switchesAt220dp` 失败）、**M-W6**（强行固定 `ThemeVariant.MINT` → `resolveWidgetPalette_followsVariantDarkAndCustomSeedWithOpaqueCard` 失败）全部按预期变红后无条件还原；Debug（`--rerun-tasks`）与 Release 双变体均 **104 suites / 707 tests / 0 fail / 0 error / 0 skip** |
+| 构建与 R8 验证 | **通过** | `:app:assembleDebug`（`14,310,525` bytes）、`:app:assembleRelease`（`3,094,491` bytes）一次过编 |
+| Redmi / vivo 双机视觉与主题同步实测 | **通过** | 两台真机现有 2×2 与 4×2 桌面实例原地刷新成功且无截断：Redmi（壁纸玫瑰棕主色，`9:31 / 目标 15:00`，24h 柱图含 `0..9` 柱，4×2 右栏 `解锁次数 0 次`、`通知打扰 20 次`、`日 36% · 夜 64%` 双色条）；vivo（壁纸中性灰调，`2:25 / 目标 7:00`，4×2 右栏 `解锁次数 7 次`、`通知打扰 58 次`、`日 100% · 夜 0%` 满条无裂口）；双机分别切换「深色模式 ON → 桌面确认小组件同步切换深色底色与文字/柱图色板 → 还原浅色模式」闭环通过；双机 `logcat`（`AndroidRuntime:E` / `ScreenTraceWidget:E`）均为 0 错误 |
