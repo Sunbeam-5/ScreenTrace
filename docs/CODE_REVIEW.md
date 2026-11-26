@@ -2457,3 +2457,34 @@ checkin dump 头部 `Currently Active:com.screentrace.app`；今日 `day_summary
 | 全量测试与 Release 构建 | **通过** | Debug / Release 双变体均 **103 suites / 696 tests / 0 fail / 0 error / 0 skip**；`:app:assembleDebug`（13,268,196 bytes）、`:app:assembleRelease`（2,431,982 bytes）通过 |
 | Redmi（`GAQOHMNFQWFUPBQO`）真机 | **通过** | 启动后今日页正确显示 `今天 · 11月26日` / `今日亮屏 8小时41分钟`；`低使用阈值` 从 `9 小时` 切至 `2 小时` 后，年视图热力网格（`x=850..1080, y=1350..1720`）实测 **806 采样点变色**、图例无障碍同步至 `2 小时分档`，还原 `9 小时` 后 **0 偏差**；月视图日历网格（`47,436` 采样点）**0 像素变化**；logcat 0 crash |
 | vivo（`10CEB40M5G001DK`）真机 | **通过** | `低使用阈值` 从 `6 小时` 切至 `2 小时` 后，年视图热力网格（`x=850..1080, y=1350..1720`）实测 **1,012 采样点变色**、图例无障碍同步至 `2 小时分档`，还原 `6 小时` 后 **0 偏差**；月视图日历网格（`48,441` 采样点）**0 像素变化**；logcat 0 crash |
+
+---
+
+## 批 10b 与跨自然日窗口修复审阅收口补记（2026-11-26，HEAD `039da80`）
+
+> 审阅基线：`main` HEAD `039da80`（对比 `6ca1b36`，含 `218246c` 批 10b、`c040110` 跨日窗口修复、`039da80` 文档同步）
+> 审阅结论：**通过（无 P0 / P1 / P2 问题；批 10b 与跨自然日滚动修复均经双机像素级验证闭环）**
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 / R8 / 仓库红线 | **通过** | Room schema/DAO/SQL、`proguard-rules.pro` 与 `README.md` 均零改动；月视图保持按 `dailyGoalMin` 比例完全不受阈值影响 |
+| 单元测试（Debug / Release） | **通过** | 双变体均为 **103 suites / 696 tests / 0 fail / 0 error / 0 skip**；**M-10B1 ~ M-10B3** 与 **M-DR1 / M-DR2** 全部变红后无条件还原 |
+| 跨自然日窗口修复 | **通过** | `DateScope.kt` / `AppViewModel.kt` / `AppNav.kt`（监听 `ACTION_DATE_CHANGED` / `ACTION_TIME_CHANGED` / `ACTION_TIMEZONE_CHANGED`）解决常驻进程过零点停留在昨日的问题，同时保护用户手选历史窗口 |
+| 双机真机像素级验证 | **通过** | Redmi（`GAQOHMNFQWFUPBQO`）`9h ↔ 2h` 切换年视图 **806 采样点变色**、还原 0 偏差、月视图 `47,436` 点 0 变化；vivo（`10CEB40M5G001DK`）`6h ↔ 2h` 切换年视图 **1,012 采样点变色**、还原 0 偏差、月视图 `48,441` 点 0 变化；双机 logcat 均 0 crash |
+
+---
+
+## 批 12（Glance 桌面小组件 v1）验证记录（2026-11-26，HEAD `c19ea56`）
+
+> 变更范围：引入 `androidx.glance:glance-appwidget:1.1.0` 与 `glance-material3:1.1.0`，新增 `WidgetSnapshot.kt`、`ScreenTraceWidget.kt`、`ScreenTraceWidgetReceiver.kt`、`screentrace_widget_info.xml`、`WidgetSnapshotTest.kt`，并在 `AppContainer` / `AppNav` / `AppViewModel` 完成拉取成功与设置写盘后刷新接线（`persist(onDone = onWidgetRefresh)` 确保先落盘再刷新）。
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 / R8 / §5.12 红线 | **通过** | CR-28 数据架构、`proguard-rules.pro` 与 `README.md` 零改动；纯离线只读本地 Room、不申请新权限；`WidgetSnapshot` 经字段反射单测确认零应用名/包名 |
+| 单元测试与变异 | **通过** | Debug（`--rerun-tasks`）与 Release 双变体均 **104 suites / 703 tests / 0 fail / 0 error / 0 skip**；**M-W1 ~ M-W3 全红后还原** |
+| 构建与 R8 验证 | **通过** | `:app:assembleDebug`（14,294,141 bytes）、`:app:assembleRelease`（3,094,287 bytes）一次过编 |
+| Redmi / vivo 双机桌面实测 | **通过** | 两台真机均已实际添加 2×2 与 4×2 实例：`dumpsys appwidget` 均正常绑定 `ScreenTraceWidgetReceiver`，Redmi（`9:16` / `目标 15:00` / `解锁 0 次` / `通知 8 次`）与 vivo（`1:37` / `目标 7:00` / `解锁 7 次` / `通知 47 次`）渲染与点击/刷新正常、logcat 均 0 crash；后续 **批 12b** 规划按 vivo 信息节奏 × 屏迹 `FreshPalette` 风格与「日间/夜间占比条」视觉升级 |
