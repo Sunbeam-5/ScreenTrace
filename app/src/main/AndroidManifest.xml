@@ -68,6 +68,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- §5.12 批 12：Glance 桌面小组件（纯离线只读 Room，不申请新权限） -->
+        <receiver
+            android:name=".widget.ScreenTraceWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/screentrace_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

@@ -85,6 +85,7 @@ class AppContainer(context: Context) {
                 sync = syncManager,
                 settings = settings
             )
+            com.screentrace.app.widget.ScreenTraceWidgetUpdater.refreshAll(appContext)
         }
     )
 

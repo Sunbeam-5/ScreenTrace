@@ -149,4 +149,8 @@ dependencies {
     // EncryptedSharedPreferences（§5.10 凭据禁明文）；Google 登录依赖随 8b-2 加
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+
+    // ---- 批 12：Glance 桌面小组件（§5.12 / §6 白名单）----
+    implementation("androidx.glance:glance-appwidget:1.1.0")
+    implementation("androidx.glance:glance-material3:1.1.0")
 }

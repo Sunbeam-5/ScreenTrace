@@ -217,7 +217,9 @@ class AppViewModel(
     /** CR-30 §7-30：周期总结提醒开关改动后同步 WorkManager 非精确调度。 */
     private val onReminderConfigChanged: ((com.screentrace.app.data.reminder.ReminderConfig) -> Unit)? = null,
     /** 跨日自动推进与测试注入用日期时钟，默认系统本地自然日。 */
-    private val todayProvider: () -> LocalDate = LocalDate::now
+    private val todayProvider: () -> LocalDate = LocalDate::now,
+    /** 批 12（§5.12）：每日目标或主题变更后刷新桌面小组件；单测/预览不传。 */
+    private val onWidgetRefresh: (() -> Unit)? = null
 ) : ViewModel() {
 
     private var lastObservedToday: LocalDate = todayProvider()
@@ -907,17 +909,17 @@ class AppViewModel(
 
     fun setThemeVariant(variant: ThemeVariant) {
         _themeVariant.value = variant
-        persist { it.setThemeVariant(variant) }
+        persist(onDone = onWidgetRefresh) { it.setThemeVariant(variant) }
     }
 
     fun setDarkTheme(dark: Boolean) {
         _darkTheme.value = dark
-        persist { it.setDarkTheme(dark) }
+        persist(onDone = onWidgetRefresh) { it.setDarkTheme(dark) }
     }
 
     fun setDynamicColor(enabled: Boolean) {
         _dynamicColor.value = enabled
-        persist { it.setDynamicColor(enabled) }
+        persist(onDone = onWidgetRefresh) { it.setDynamicColor(enabled) }
     }
 
     /**
@@ -926,13 +928,13 @@ class AppViewModel(
      */
     fun setCustomThemeSeed(argb: Long?) {
         _customThemeSeed.value = argb
-        persist { it.setCustomThemeSeed(argb) }
+        persist(onDone = onWidgetRefresh) { it.setCustomThemeSeed(argb) }
     }
 
     /** §5.8 每日目标：批 7 设置页滑块调用，落 DataStore。 */
     fun setDailyGoalMin(minutes: Int) {
         _dailyGoalMin.value = minutes
-        persist { it.setDailyGoalMin(minutes) }
+        persist(onDone = onWidgetRefresh) { it.setDailyGoalMin(minutes) }
     }
 
     /**
@@ -1437,9 +1439,15 @@ class AppViewModel(
      * 接收者 lambda 时极易误调 `this@AppViewModel.setThemeVariant` 造成无限递归
      * （编译能过，运行时栈溢出）。这里用 `(SettingsStore) -> Unit` + `it.` 把歧义彻底消灭。
      */
-    private fun persist(block: suspend (SettingsStore) -> Unit) {
-        val store = settings ?: return
-        viewModelScope.launch { runCatching { block(store) } }
+    private fun persist(onDone: (() -> Unit)? = null, block: suspend (SettingsStore) -> Unit) {
+        val store = settings ?: run {
+            onDone?.invoke()
+            return
+        }
+        viewModelScope.launch {
+            runCatching { block(store) }
+            onDone?.invoke()
+        }
     }
 
     // ---- 数据加载 ----

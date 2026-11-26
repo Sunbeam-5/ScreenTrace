@@ -167,6 +167,11 @@ fun AppNav(
                             context.applicationContext,
                             cfg
                         )
+                    },
+                    onWidgetRefresh = {
+                        com.screentrace.app.widget.ScreenTraceWidgetUpdater.refreshAllAsync(
+                            context.applicationContext
+                        )
                     }
                 )
             } else {
