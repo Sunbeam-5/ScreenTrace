@@ -209,7 +209,11 @@ interface UsageRepository {
     suspend fun monthLevels(yearMonth: YearMonth): List<CalendarLevel>
 
     /** 年视图：截至锚点的过去 weeks 周（默认 20 周，§5.6/§5.7）。 */
-    suspend fun yearLevels(anchor: LocalDate, weeks: Int = 20): List<CalendarLevel>
+    suspend fun yearLevels(
+        anchor: LocalDate,
+        weeks: Int = 20,
+        lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN
+    ): List<CalendarLevel>
 
     /** 连续记录卡：截至锚点的全量历史 streak（§5.6，筛选区间之外的历史也计入）。 */
     suspend fun streak(anchor: LocalDate): StreakInfo

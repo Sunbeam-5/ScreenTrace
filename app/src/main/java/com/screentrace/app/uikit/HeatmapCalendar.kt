@@ -143,12 +143,21 @@ private fun heatmapCellDescription(cell: CalendarLevel): String {
     return "$dateText，$stateText"
 }
 
-/** §5.7 图例：少 → 多，五档色阶（heat0~4）。 */
+internal fun heatmapLegendDescription(lowThresholdMin: Int): String {
+    val x = lowThresholdMin.coerceAtLeast(60)
+    val h = x / 60
+    return "年视图热力图例：按低使用阈值 ${h} 小时分档（${h}小时、${h * 2}小时、${h * 3}小时），由浅到深表示使用时长逐步增加"
+}
+
+/** §5.7 图例：少 → 多，五档色阶（heat0~4，CR-10 批 10b 跟随低使用阈值 x）。 */
 @Composable
-fun HeatmapLegend(modifier: Modifier = Modifier) {
+fun HeatmapLegend(
+    modifier: Modifier = Modifier,
+    lowThresholdMin: Int = com.screentrace.app.contract.DEFAULT_LOW_THRESHOLD_MIN
+) {
     val palette = LocalFreshPalette.current
     Row(
-        modifier = modifier.clearAndSetSemantics { contentDescription = "年视图热力图例：由浅到深表示当日使用时长逐步增加" },
+        modifier = modifier.clearAndSetSemantics { contentDescription = heatmapLegendDescription(lowThresholdMin) },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {

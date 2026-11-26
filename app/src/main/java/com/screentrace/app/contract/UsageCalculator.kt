@@ -161,13 +161,20 @@ object UsageCalculator {
         else -> 3
     }
 
-    /** §5.7 年视图五档：空档 / (0,2h) / [2h,4h) / [4h,6h) / ≥6h。 */
-    fun yearLevel(minutes: Int, recorded: Boolean): Int = when {
-        !recorded || minutes <= 0 -> 0
-        minutes < 120 -> 1
-        minutes < 240 -> 2
-        minutes < 360 -> 3
-        else -> 4
+    /** §5.7 / CR-10 年视图五档（跟随低使用阈值 x）：空档 / (0,x) / [x,2x) / [2x,3x) / ≥3x。 */
+    fun yearLevel(
+        minutes: Int,
+        recorded: Boolean,
+        lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN
+    ): Int {
+        val x = lowThresholdMin.coerceAtLeast(1)
+        return when {
+            !recorded || minutes <= 0 -> 0
+            minutes < x -> 1
+            minutes < x * 2 -> 2
+            minutes < x * 3 -> 3
+            else -> 4
+        }
     }
 
     /** §5.3 圆环中心固定 H:MM。 */
@@ -526,7 +533,12 @@ object UsageCalculator {
      * 周一起始、每周 7 天（§5.6「截至该日的过去 20 周」按周语义对齐，
      * 保证 20 列 × 7 行热力网格与星期列严格对位；锚点之后的格子为「未来」空档）。
      */
-    fun yearLevels(anchor: LocalDate, weeks: Int, records: List<DaySummary>): List<CalendarLevel> {
+    fun yearLevels(
+        anchor: LocalDate,
+        weeks: Int,
+        records: List<DaySummary>,
+        lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN
+    ): List<CalendarLevel> {
         val byDate = records.associateBy { it.date }
         val anchorMonday = anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val start = anchorMonday.minusDays((weeks.toLong() - 1) * 7)
@@ -537,7 +549,7 @@ object UsageCalculator {
                 add(
                     CalendarLevel(
                         date = cursor,
-                        level = yearLevel(record?.screenUnlockMin ?: 0, record != null),
+                        level = yearLevel(record?.screenUnlockMin ?: 0, record != null, lowThresholdMin),
                         recorded = record != null,
                         minutes = record?.screenUnlockMin
                     )

@@ -208,12 +208,16 @@ class RoomUsageRepository(
         }
     }
 
-    override suspend fun yearLevels(anchor: LocalDate, weeks: Int): List<CalendarLevel> {
+    override suspend fun yearLevels(
+        anchor: LocalDate,
+        weeks: Int,
+        lowThresholdMin: Int
+    ): List<CalendarLevel> {
         val anchorMonday = anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val start = anchorMonday.minusDays((weeks.toLong() - 1) * 7)
         val end = anchorMonday.plusDays(6)
         return com.screentrace.app.uikit.PerfProbe.measure("Calc/yearLevels") {
-            UsageCalculator.yearLevels(anchor, weeks, recordsBetween(start, end))
+            UsageCalculator.yearLevels(anchor, weeks, recordsBetween(start, end), lowThresholdMin)
         }
     }
 

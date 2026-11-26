@@ -354,7 +354,7 @@ private fun CalendarContent(
                     selectedMinutes = it.minutes
                 }
             )
-            HeatmapLegend()
+            HeatmapLegend(lowThresholdMin = lowThresholdMin)
         }
         // 点击详情（§5.7：真实日期、记录状态与时长；0 分钟与无记录文案区分。
         // 返修 P1-4：时长直接来自 CalendarLevel.minutes，翻月/年视图任意格子均可显示）

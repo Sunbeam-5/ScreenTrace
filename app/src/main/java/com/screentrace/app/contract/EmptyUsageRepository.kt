@@ -32,8 +32,12 @@ class EmptyUsageRepository : UsageRepository {
     override suspend fun monthLevels(yearMonth: YearMonth): List<CalendarLevel> =
         UsageCalculator.monthLevels(yearMonth, emptyList())
 
-    override suspend fun yearLevels(anchor: LocalDate, weeks: Int): List<CalendarLevel> =
-        UsageCalculator.yearLevels(anchor, weeks, emptyList())
+    override suspend fun yearLevels(
+        anchor: LocalDate,
+        weeks: Int,
+        lowThresholdMin: Int
+    ): List<CalendarLevel> =
+        UsageCalculator.yearLevels(anchor, weeks, emptyList(), lowThresholdMin)
 
     override suspend fun streak(anchor: LocalDate): StreakInfo =
         UsageCalculator.streak(emptyList(), anchor)

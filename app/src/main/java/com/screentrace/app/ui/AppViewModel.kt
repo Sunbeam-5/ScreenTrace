@@ -604,7 +604,14 @@ class AppViewModel(
             _dailyGoalMin.value = runCatching { store.dailyGoalMin.first() }.getOrDefault(DEFAULT_GOAL_MIN)
         }
         viewModelScope.launch {
-            runCatching { store.lowUsageThresholdMin.collect { _lowThresholdMin.value = it } }
+            runCatching {
+                store.lowUsageThresholdMin.collect { value ->
+                    if (value != _lowThresholdMin.value) {
+                        _lowThresholdMin.value = value
+                        loadAll()
+                    }
+                }
+            }
         }
         viewModelScope.launch {
             runCatching {
@@ -1509,7 +1516,7 @@ class AppViewModel(
                         data = CalendarData(
                             streak = repository.streak(today),
                             extremes = calendarExtremes,
-                            yearLevels = repository.yearLevels(today)
+                            yearLevels = repository.yearLevels(today, lowThresholdMin = threshold)
                         )
                     )
                     loadMonthLevels(_calendarMonth.value)
