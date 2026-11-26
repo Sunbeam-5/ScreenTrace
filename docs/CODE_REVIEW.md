@@ -2550,3 +2550,25 @@ checkin dump 头部 `Currently Active:com.screentrace.app`；今日 `day_summary
 | 单元测试与变异（M-FIX1 ~ M-FIX6） | **通过** | **M-FIX1**（跨日误标 `EXACT`）、**M-FIX2**（`PARTIAL` 聚合误回 `EXACT`）、**M-FIX3**（`PARTIAL` 污染均值/极值）、**M-FIX4**（移除 `scope-cancelled` 回调）、**M-FIX5**（取消错页写入校验）、**M-FIX6**（`MIGRATION_9_10` 主键去掉 `sourceDumpAt`）全红后无条件还原；Debug（`--rerun-tasks`）与 Release 双变体均 **105 suites / 712 tests / 0 fail / 0 error / 0 skip** |
 | 构建与 R8 验证 | **通过** | `:app:assembleDebug`（`14,310,525` bytes）、`:app:assembleRelease`（`3,094,491` bytes）一次过编 |
 | vivo 真机 `v9 → v10` 升级与桌面状态 | **通过** | vivo（`10CEB40M5G001DK`）升级前 `user_version=9`（`day_summary=19`、`screen_evidence=3`）→ 安装并冷启动后 `user_version=10`、`day_summary=19`、`screen_evidence=3` 历史零丢失（历史 `NULL` 质量行保留，当日行记为 `EXACT`），`sqlite_master` 确认 `screen_evidence` 5 列主键含 `sourceDumpAt` 与双索引完备；桌面当前绑定 4×2 实例（`[589]`）显示 `3:11 / 目标 7:00`、`解锁次数 12 次`、`通知打扰 100 次`、`日 100% · 夜 0%` 正常，未额外放置 4×4 实例；`logcat`（`AndroidRuntime:E` / `ScreenTraceWidget:E`）0 错误 |
+
+---
+
+## D-07 方案 C+ 第一批（C+a 数据层闭环）验证记录（2026-11-26，HEAD `29a111c`）
+
+> 审阅基线：`main` HEAD `374d9f5` 合入 `D07-SchemeC-Part1-DataLayer-changed.zip`（16 个主代码 + 2 个测试 + 2 个文档，本地修复 `D07DataLayerTest` 的 `DeviceInfoDto → BackupDevice` 笔误，并为 `StatsPeriodsWiringTest` / `AppViewModelDateScopeTest` / `AppViewModelDegradedTest` 3 个旧端到端夹具对齐 C+a 门禁契约：今天永远不满足 G1 判 PARTIAL 不参与统计准入、手工夹具须补 `rawEventMinMs` 事件窗口证明 G2 覆盖）。
+> 审阅结论：**通过（无 P0 / P1 / P2 问题；M-CA1 ~ M-CA5 变异闭环与 vivo 真机 `v10 → v11` 实测闭环）**
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 / R8 / 仓库红线 | **通过** | `sumRange()`/`sumAll()` 的 `SUM / MAX / UNION` 数值聚合口径与 `__legacy__` 只读保护零改动；`app/proguard-rules.pro` 与 `README.md` 零改动；无 `android.widget.Toast` 引入；RL-14 无事件日不造 0 分钟行（`ingestGates` 用例钉住） |
+| Room `v10 → v11` 与 schema | **通过** | `MIGRATION_10_11` 仅两条 `ALTER TABLE pull_log ADD COLUMN`（无 DEFAULT、不回填）；KSP 导出 `11.json` 与实体定义对齐并入库；`MigrationTest` 验证 `v8 → v11` 迁移不回填旧行且新列可读写 |
+| 单元测试与变异（M-CA1 ~ M-CA5） | **通过** | **M-CA1**（`sumRange` SQL `= COUNT(*)` → `> 0`，`sqlDayQuality` 十二态变红）、**M-CA2**（G1 判定 `< dayEndMs` → `> dayStartMs`，`ingestGates` DST 23h 并集升 EXACT 变红）、**M-CA3**（`mergeDay` 平手改回无条件取 `incoming`，`sameSourceMerge` 交换律变红）、**M-CA4**（`hour_usage` 质量改回硬编码 `EXACT`，`degradedChannelNeverWritesExact` 变红）、**M-CA5**（`schemaVersion <= 5` 判据置 `false`，`v5BackupBidirectional` 变红）全部单项干净变红 → 还原 → 复绿；Debug（`--rerun-tasks`）与 Release 双变体均 **106 suites / 717 tests / 0 fail / 0 error / 0 skip** |
+| 构建与 R8 验证 | **通过** | `:app:assembleDebug`（`14,326,909` bytes）、`:app:assembleRelease`（`3,110,875` bytes，R8 规则未动）一次过编 |
+| vivo 真机 `v10 → v11` 升级与拉取 | **通过** | vivo（`10CEB40M5G001DK`）升级前 `user_version=10`（`day_summary=19`、`screen_evidence=3`、`hour_usage=360`、`app_usage=595`、`pull_log=151`、`unlock_event=1888`、`notification_event=13248`、`screen_session=2571`）→ 安装冷启动后 `user_version=11`、八表历史零丢失（`pull_log` +1 为冷启动自动拉取记录）；Shizuku 主通道成功拉取（17:01:24，checkin 0.4MB + 明文 2.4MB）并**首次写入 `eventWindowStartMs/EndMs` 真实值**（窗口跨度约 26h）；「关于与诊断 → 立即拉取」触发真实拉取、Shizuku 掉线时诚实降级并记录失败原因；桌面小组件实例 `[589]` 绑定正常（views 已渲染、非 zombie）；`logcat` 0 crash |
+
+### 2. 本地工程备忘（供后续批次复用）
+
+- **KSP1 增量缓存回退事故**：变异验证的「改 → 还原」序列会让 KSP 增量处理把陈旧 SQL 回写进 `DaySummaryDao_Impl`（表现为假绿/假红）。处置：清 `app/build/kspCaches` 与 `generated/ksp`，变异轮次用 `-Pksp.incremental=false`，并以 `--rerun-tasks` 全量重跑作为权威绿基线；最终认证构建（双变体 + 双 APK）已全部按此复跑。
+- Google Drive 挂载盘上 `.gdoc` 快捷方式不可流式读取；proposals 产物须以原始二进制格式上传（`.raw.md`）。
