@@ -91,7 +91,9 @@ data class ParseResult(
      */
     val observedWindow: BoundedObservedWindow? = null,
     /** D-07 Review 修复（P1-2）：屏幕状态机命中截断/异常的自然日集合（不计入 [isEmpty]）。 */
-    val truncatedScreenDates: Set<LocalDate> = emptySet()
+    val truncatedScreenDates: Set<LocalDate> = emptySet(),
+    /** 批 13（§2.3 / §7-32）：多账户镜像事件跨账户收敛自检报告（不计入 [isEmpty]）。 */
+    val mirrorAudit: MirrorConvergenceReport? = null
 ) {
     /**
      * 「空 dump」判定（§5.8 独立状态）：全部产物**全空**才算空。
@@ -328,7 +330,8 @@ object UsageDumpParser {
 
         // ---------- 计数层：双源取大（按 user,秒,type,pkg）→ 系统镜像跨账户收敛 ----------
         val merged = mergeCountingEvents(checkinEvents, humanEvents)
-        val counting = convergeMirrorEvents(merged)
+        val converged = convergeMirrorEvents(merged)
+        val counting = converged.events
 
         // ---------- 区间层：秒级去重（跨账户天然去重，已对账时长口径）----------
         val intervalEvents = (checkinEvents + humanEvents)
@@ -669,7 +672,8 @@ object UsageDumpParser {
             rawEventMinMs = merged.minOfOrNull { it.ms },
             rawEventMaxMs = merged.maxOfOrNull { it.ms },
             observedWindow = observedWindow,
-            truncatedScreenDates = truncatedScreenDates
+            truncatedScreenDates = truncatedScreenDates,
+            mirrorAudit = converged.audit
         )
     }
 
@@ -694,7 +698,12 @@ object UsageDumpParser {
      * 同一 user 的相邻事件不合并（「逐条输出」语义，同账户快速重复解锁保留）。
      * **只作用于 MIRROR_TYPES**——应用级事件保持多重集合，同秒多条真实通知不丢（CR-01 红线）。
      */
-    private fun convergeMirrorEvents(events: List<RawEvent>): List<RawEvent> {
+    private data class ConvergedEvents(
+        val events: List<RawEvent>,
+        val audit: MirrorConvergenceReport
+    )
+
+    private fun convergeMirrorEvents(events: List<RawEvent>): ConvergedEvents {
         val (mirror, app) = events.partition { it.type in MIRROR_TYPES }
         val kept = mirror
             .groupBy { it.type to it.pkg }
@@ -709,7 +718,15 @@ object UsageDumpParser {
                 }
                 result
             }
-        return (kept + app).sortedBy { it.ms }
+        val audit = MirrorConvergenceAudit.evaluate(
+            distinctUsers = mirror.map { it.user }.distinct().size,
+            rawMirrorEvents = mirror.size,
+            convergedMirrorEvents = kept.size
+        )
+        return ConvergedEvents(
+            events = (kept + app).sortedBy { it.ms },
+            audit = audit
+        )
     }
 
     /**

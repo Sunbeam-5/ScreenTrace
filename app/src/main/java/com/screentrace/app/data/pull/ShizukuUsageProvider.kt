@@ -126,12 +126,15 @@ class ShizukuUsageProvider(
                         zone = zone,
                         capturedAtMs = capturedAtMs
                     )
+                val finalWarning = parsedResult.mirrorAudit?.anomalyWarning
+                    ?.let { "$warning；$it" }
+                    ?: warning
                 LoadedUsage.Parsed(
                     // 不可用时传空串：绝不能把「不像 checkin 的文本」喂给 CSV 正则，
                     // 否则要么静默产出似真数据，要么把明文里的数字重复计一遍。
                     result = parsedResult,
                     capturedAtMs = capturedAtMs,
-                    warning = warning
+                    warning = finalWarning
                 )
             } catch (e: Exception) {
                 LoadedUsage.Failed(

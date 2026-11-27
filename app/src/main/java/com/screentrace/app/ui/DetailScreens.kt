@@ -128,24 +128,13 @@ private fun DetailStateHost(
         // 评审 P1-1：两种空态必须分开说，否则「卡片说 —（拿不到）」跳进来却看到
         // 「该时段没有记录」（听起来像「这段真的 0 次」），同一指标两个说法（§7-16）。
         detail != null -> when {
-            !detail.hasEventSource -> EmptyState(
-                title = if (detail.metric == MetricKind.NOTIFICATION) {
-                    "暂无通知事件"
-                } else {
-                    "暂无解锁事件"
-                },
-                // 文案不能说「连接 Shizuku 后再看」——真机上主通道已经在跑，锁屏事件
-                // 依然为 0（设备无锁屏/ROM 不广播 KEYGUARD_*）。用户照文案去查授权，
-                // 只会白折腾一圈。这里只陈述「当前数据源没抓到」，把可能原因列全。
-                description = if (detail.metric == MetricKind.NOTIFICATION) {
-                    "当前数据源没有抓到任何通知打扰事件。降级通道（仅「使用情况访问」授权）" +
-                        "拿不到通知事件；系统关闭该应用的通知权限时也不会有记录。"
-                } else {
-                    "当前数据源没有抓到任何锁屏事件。部分机型不产生锁屏事件，" +
-                        "设备未设锁屏时也不会有记录，因此无法统计解锁次数。" +
-                        "屏幕时长与通知不受影响。"
-                }
-            )
+            !detail.hasEventSource -> {
+                val (missingTitle, missingDesc) = detailMissingEventCopy(detail.metric)
+                EmptyState(
+                    title = missingTitle,
+                    description = missingDesc
+                )
+            }
 
             // 批 6g：转场交给 AppNav 的二级页覆盖层（右侧滑入 + 交叉淡入），
             // 这里不再套一层 PageEnter——两层淡入叠起来会让内容"慢慢浮上来"，比导航还慢。
@@ -393,3 +382,18 @@ private fun SummaryNumber(value: String, unit: String) {
         maxLines = 1
     )
 }
+
+/**
+ * §2.3 / §7-32：当当前机型或通道未提供解锁/通知事件源时，诚实提示「当前机型不提供该数据」，
+ * 绝不画 0 或误导用户反复检查无关权限。
+ */
+internal fun detailMissingEventCopy(metric: MetricKind): Pair<String, String> =
+    if (metric == MetricKind.NOTIFICATION) {
+        "当前机型不提供该数据" to
+            "当前机型或数据源未抓到通知打扰事件。降级通道（仅「使用情况访问」授权）" +
+            "拿不到通知事件；部分机型不输出该事件或系统关闭通知权限时也不会有记录，屏幕时长不受影响。"
+    } else {
+        "当前机型不提供该数据" to
+            "当前机型或数据源未抓到锁屏事件。部分机型不产生锁屏事件，" +
+            "设备未设锁屏时也不会有记录，因此无法统计解锁次数，屏幕时长与通知不受影响。"
+    }
