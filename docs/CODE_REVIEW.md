@@ -2572,3 +2572,21 @@ checkin dump 头部 `Currently Active:com.screentrace.app`；今日 `day_summary
 
 - **KSP1 增量缓存回退事故**：变异验证的「改 → 还原」序列会让 KSP 增量处理把陈旧 SQL 回写进 `DaySummaryDao_Impl`（表现为假绿/假红）。处置：清 `app/build/kspCaches` 与 `generated/ksp`，变异轮次用 `-Pksp.incremental=false`，并以 `--rerun-tasks` 全量重跑作为权威绿基线；最终认证构建（双变体 + 双 APK）已全部按此复跑。
 - Google Drive 挂载盘上 `.gdoc` 快捷方式不可流式读取；proposals 产物须以原始二进制格式上传（`.raw.md`）。
+
+---
+
+## D-07 方案 C+ 第二批（C+b 领域统一、四大指标家族与拍板 1~4 UI 对齐）本地验证与 vivo 真机实测补记（2026-11-27，代码提交 `ba7b076`）
+
+> 审阅基线：`main` 代码提交 `ba7b076`（基线 `7058b3c`，Room 保持 `v11`、备份保持 `schemaVersion = 7`）
+> 审阅结论：**通过（D-07 方案 C+ 全面闭环；无 P0 / P1 / P2 问题；Debug/Release 双变体 107 suites / 720 tests 全绿、M-CB1 ~ M-CB6 全红后还原、vivo 真机实测通过且 0 crash）**
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 / RL-14 / 仓库红线 | **通过** | 不新增 Room 迁移（保持 `v11`）；CR-28 `SUM / MAX / UNION` 数值口径、`app/proguard-rules.pro` 与 `README.md` 零改动；无 `android.widget.Toast` 引入 |
+| 领域重构与四大指标家族统一 | **通过** | `Models.kt` 增加唯一准入函数 `isEligibleForFullDayStats(today)`；`UsageRepository.kt` 还原 `Summary.recordedDays` 为有记录自然日数、新增 `completeDays`/`legacyCompleteDays`/`incompleteDays`/`inProgressDays`/`lastUpdatedAtMs` 并将 `averageScreenUnlockMin` 改为 `Int?`；`UsageCalculator`、`PeriodSummaryCalculator`、`TrendChartMath.averageMinutes`、`RoomUsageRepository`、`AppViewModel` 全链路同源对齐（时段日均改走 `hourlyDistributionForDates(eligibleDates)` 保证分子分母同集合；日历空态改看 `historySummary.hasAnyRecord`） |
+| 拍板 1~4 UI 与导出对齐 | **通过** | `StatsScreen` / `PeriodScreen` 顶部主卡统一展示完整日日均（无合格日显示 `—`）、展示 `使用时长（截止今天 HH:mm）` 与历史未标注/不完整日标注；`CalendarScreen` 固定「连续使用」并展示 `共 N 个有记录日（完整 M 天）`；`HtmlReportExporter` / `PeriodReminderWorker` 适配可空 `averageScreenUnlockMin` |
+| 本地补修（4 处） | **通过** | ① `TodayScreen.kt` 补齐 `averageScreenUnlockMin: Int?` 可空解包与 `showOver` 守卫；② `PeriodSummaryCalculatorTest`（`yearTrendIsMonthlyAverageAndHidesEmptyMonths`、`plainTextExportSharesSameNumbers`）与 `PeriodPeriodsWiringTest` 对齐拍板 2 今日隔离口径；③ `D07FullPipelineTest` 补齐 Room 同步执行器（`.setQueryExecutor { it.run() }.setTransactionExecutor { it.run() }`）并强化 M-CB1 `EXACT` 今日隔离断言 |
+| 单元测试与变异（M-CB1 ~ M-CB6） | **通过** | **M-CB1**（`Models.kt` 去掉 `date.isBefore(today)`）、**M-CB2**（`UsageCalculator.summarizePoints` 改回只看 `recorded`）、**M-CB3**（`AppViewModel` 时段日均改回全区间 `statsHours`）、**M-CB4**（`TrendChartMath.averageMinutes` 改回全部 `recorded`）、**M-CB5**（`AppViewModel` 日历空态改回 `calendarExtremes.longestDate == null`）、**M-CB6**（`PeriodSummary.monthlyPoints` 改回 `trend.filter { it.recorded }`）均在 `-Pksp.incremental=false` 下真实变红并无条件还原；Debug（`--rerun-tasks`）与 Release 双变体均 **107 suites / 720 tests / 0 fail / 0 error / 0 skip** |
+| 构建与 vivo 真机实测 | **通过** | `:app:assembleDebug`（`14,343,293` bytes）、`:app:assembleRelease`（`3,110,875` bytes，R8 规则未动）；vivo（`10CEB40M5G001DK`）实机核对：统计页近 7 天主卡与趋势平均线严格同为 `10小时38分钟`（排除今日 `11/27 54分钟`）、说明区显示 `使用时长（截止今天 08:39） · 日均按 6 个完整日计算 · 不含今日进行中 · 含 3 天历史未标注数据`；周期总结页（本周）顶部单口径展示 `完整日日均 10小时2分钟` 与 `使用时长（截止今天 08:39） · 含 1 天历史未标注数据`；日历页显示 `连续使用 20 天` 与 `共 20 个有记录日（完整 19 天）`；`logcat` 0 crash |
