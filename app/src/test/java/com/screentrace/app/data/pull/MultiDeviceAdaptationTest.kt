@@ -6,6 +6,7 @@ import com.screentrace.app.data.parse.MirrorAuditStatus
 import com.screentrace.app.data.parse.MirrorConvergenceAudit
 import com.screentrace.app.data.parse.UsageDumpParser
 import com.screentrace.app.ui.detailMissingEventCopy
+import java.io.File
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
@@ -297,6 +298,71 @@ class MultiDeviceAdaptationTest {
         assertEquals(1, result.notificationEvents.count { it.type == NotificationType.SEEN && it.pkg == "com.tencent.mm" })
         assertNotNull("HyperOS 明文主导必须签发 BoundedObservedWindow", result.observedWindow)
         assertTrue(result.truncatedScreenDates.isEmpty())
+    }
+
+    @Test
+    fun `M-13R3 真实采集样本文件 reference sample-checkin 与 sample-human 走真实解析器双形态端到端对齐`() = runBlocking {
+        val checkinFile = File("../reference/sample-checkin.txt")
+        val humanFile = File("../reference/sample-human.txt")
+        assertTrue("缺少真实样本文件 ${checkinFile.absolutePath}", checkinFile.exists())
+        assertTrue("缺少真实样本文件 ${humanFile.absolutePath}", humanFile.exists())
+        val realCheckin = checkinFile.readText()
+        val realHuman = humanFile.readText()
+        val capturedAtMs = 1_794_203_723_476L + 60_000L
+
+        // 1) 真实双路样本（checkin + human）走 ShizukuUsageProvider 默认真实解析器
+        val expectedDual = UsageDumpParser.parse(realCheckin, realHuman, zone, capturedAtMs = capturedAtMs)
+        assertTrue("真实样本应解析出日汇总", expectedDual.days.isNotEmpty())
+        assertTrue("真实样本应解析出应用时长", expectedDual.appUsage.isNotEmpty())
+        assertTrue("真实样本应解析出通知事件", expectedDual.notificationEvents.isNotEmpty())
+
+        val dualProvider = ShizukuUsageProvider(
+            shell = FakeShell(
+                ShizukuShell.CHECKIN_CMD to Result.success(realCheckin),
+                ShizukuShell.PLAIN_CMD to Result.success(realHuman)
+            ),
+            zone = zone,
+            clock = { capturedAtMs }
+        )
+        val dualLoaded = dualProvider.load()
+        assertTrue("真实双路样本必须解析成功", dualLoaded is LoadedUsage.Parsed)
+        dualLoaded as LoadedUsage.Parsed
+        assertFalse("有效 checkin 样本不应误走明文主导", dualLoaded.warning.orEmpty().contains("明文主导"))
+        assertEquals(expectedDual.days, dualLoaded.result.days)
+        assertEquals(expectedDual.hourMinutes, dualLoaded.result.hourMinutes)
+        assertEquals(expectedDual.appUsage, dualLoaded.result.appUsage)
+        assertEquals(expectedDual.unlockEvents, dualLoaded.result.unlockEvents)
+        assertEquals(expectedDual.notificationEvents, dualLoaded.result.notificationEvents)
+        assertEquals(expectedDual.observedWindow, dualLoaded.result.observedWindow)
+        assertEquals(
+            "reference 节选无 user=N 分区头，审计应明确标记 INDETERMINATE",
+            MirrorAuditStatus.INDETERMINATE,
+            dualLoaded.result.mirrorAudit?.status
+        )
+        assertNull(dualLoaded.result.mirrorAudit?.anomalyWarning)
+
+        // 2) 元信息 checkin + 真实 sample-human.txt（明文主导分支）走真实解析器
+        val expectedPlain = UsageDumpParser.parse("", realHuman, zone, capturedAtMs = capturedAtMs)
+        assertTrue("真实明文样本单独解析必须产出日汇总", expectedPlain.days.isNotEmpty())
+        assertTrue("真实明文样本单独解析必须产出应用时长", expectedPlain.appUsage.isNotEmpty())
+
+        val plainProvider = ShizukuUsageProvider(
+            shell = FakeShell(
+                ShizukuShell.CHECKIN_CMD to Result.success(HYPEROS_META_ONLY_CHECKIN),
+                ShizukuShell.PLAIN_CMD to Result.success(realHuman)
+            ),
+            zone = zone,
+            clock = { capturedAtMs }
+        )
+        val plainLoaded = plainProvider.load()
+        assertTrue("真实明文主导样本必须解析成功", plainLoaded is LoadedUsage.Parsed)
+        plainLoaded as LoadedUsage.Parsed
+        assertTrue("元信息 checkin 配真实明文必须走明文主导分支", plainLoaded.warning.orEmpty().contains("明文主导"))
+        assertEquals(expectedPlain.days, plainLoaded.result.days)
+        assertEquals(expectedPlain.hourMinutes, plainLoaded.result.hourMinutes)
+        assertEquals(expectedPlain.appUsage, plainLoaded.result.appUsage)
+        assertEquals(expectedPlain.unlockEvents, plainLoaded.result.unlockEvents)
+        assertEquals(expectedPlain.notificationEvents, plainLoaded.result.notificationEvents)
     }
 
     private class FakeShell(
