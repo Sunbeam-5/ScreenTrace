@@ -209,13 +209,18 @@ object UsageDumpParser {
         capturedAtMs: Long? = null
     ): ParseResult {
         // ---------- checkin：user 块跟踪 + 区间/包聚合/事件 ----------
+        // 批 13 Review 修复（P2-1）：从整个 dump 的 user=N 分区提取实际账户集合，不从镜像事件反推
+        val observedDumpUsers = mutableSetOf<Int>()
         val checkinEvents = mutableListOf<RawEvent>()
         val intervals = mutableListOf<RawInterval>()
         var currentUser = 0
         var current: RawInterval? = null
         for (line in checkinText.lineSequence()) {
             if (line.contains("user=")) {
-                USER_HEADER.find(line)?.let { currentUser = it.groupValues[1].toInt() }
+                USER_HEADER.find(line)?.let {
+                    currentUser = it.groupValues[1].toInt()
+                    observedDumpUsers.add(currentUser)
+                }
             }
             when {
                 line.contains("beginTime=") -> {
@@ -271,6 +276,7 @@ object UsageDumpParser {
             if (line.contains("user=")) {
                 USER_HEADER.find(line)?.let {
                     humanUser = it.groupValues[1].toInt()
+                    observedDumpUsers.add(humanUser)
                     inDaily = false // 新 user 块，旧 In-memory 段终止
                 }
             }
@@ -330,7 +336,7 @@ object UsageDumpParser {
 
         // ---------- 计数层：双源取大（按 user,秒,type,pkg）→ 系统镜像跨账户收敛 ----------
         val merged = mergeCountingEvents(checkinEvents, humanEvents)
-        val converged = convergeMirrorEvents(merged)
+        val converged = convergeMirrorEvents(merged, dumpUserCount = observedDumpUsers.size)
         val counting = converged.events
 
         // ---------- 区间层：秒级去重（跨账户天然去重，已对账时长口径）----------
@@ -703,7 +709,7 @@ object UsageDumpParser {
         val audit: MirrorConvergenceReport
     )
 
-    private fun convergeMirrorEvents(events: List<RawEvent>): ConvergedEvents {
+    private fun convergeMirrorEvents(events: List<RawEvent>, dumpUserCount: Int): ConvergedEvents {
         val (mirror, app) = events.partition { it.type in MIRROR_TYPES }
         val kept = mirror
             .groupBy { it.type to it.pkg }
@@ -718,10 +724,14 @@ object UsageDumpParser {
                 }
                 result
             }
-        val audit = MirrorConvergenceAudit.evaluate(
-            distinctUsers = mirror.map { it.user }.distinct().size,
-            rawMirrorEvents = mirror.size,
-            convergedMirrorEvents = kept.size
+        val rawByType = mirror.groupingBy { it.type }.eachCount()
+        val keptByType = kept.groupingBy { it.type }.eachCount()
+        val perTypeCounts = (rawByType.keys + keptByType.keys).associateWith { type ->
+            (rawByType[type] ?: 0) to (keptByType[type] ?: 0)
+        }
+        val audit = MirrorConvergenceAudit.evaluateByType(
+            dumpUserCount = dumpUserCount,
+            perTypeCounts = perTypeCounts
         )
         return ConvergedEvents(
             events = (kept + app).sortedBy { it.ms },
