@@ -131,8 +131,10 @@ fun SettingsScreen(
     lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN,
     onLowThresholdChange: (Int) -> Unit = {},
     appVersion: String,
-    /** 生成报告：入参 = 是否隐藏应用名称，返回（建议文件名, HTML 全文）。 */
+    /** 生成 HTML 报告：入参 = 是否隐藏应用名称，返回（建议文件名, HTML 全文）。 */
     buildReport: suspend (Boolean) -> Pair<String, String>?,
+    /** 14a 余项：生成离线 PNG 长图报告，入参 = 是否隐藏应用名称，返回（建议文件名, PNG 字节流）。 */
+    buildPngReport: suspend (Boolean) -> Pair<String, ByteArray>? = { null },
     /** 批 8：备份导出/恢复（§5.10）。 */
     onBuildBackupJson: suspend () -> Pair<String, String>? = { null },
     /** CR-28 三层兼容：导出含多来源分量时的旧版本兼容警告。 */
@@ -199,6 +201,7 @@ fun SettingsScreen(
                 onOpenAppCategories = onOpenAppCategories,
                 appVersion = appVersion,
                 buildReport = buildReport,
+                buildPngReport = buildPngReport,
                 onNotice = onNotice
             )
         }
@@ -475,6 +478,7 @@ private fun PermissionGroup(
     onOpenAppCategories: () -> Unit,
     appVersion: String,
     buildReport: suspend (Boolean) -> Pair<String, String>?,
+    buildPngReport: suspend (Boolean) -> Pair<String, ByteArray>?,
     onNotice: (String) -> Unit
 ) {
     val palette = LocalFreshPalette.current
@@ -485,17 +489,31 @@ private fun PermissionGroup(
     val usageStats = channelStatuses.firstOrNull { it.first == PullChannel.USAGE_STATS }?.second
 
     // 导出：先备好内容，再由系统文件选择器决定落盘位置（SAF，不需要存储权限）
-    var pending by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var pendingHtml by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var pendingPng by remember { mutableStateOf<Pair<String, ByteArray>?>(null) }
     var showExportSheet by remember { mutableStateOf(false) }
-    val launcher = rememberLauncherForActivityResult(
+    val htmlLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/html")
     ) { uri ->
-        val payload = pending
-        pending = null
+        val payload = pendingHtml
+        pendingHtml = null
         if (uri == null || payload == null) return@rememberLauncherForActivityResult
         val ok = runCatching {
             context.contentResolver.openOutputStream(uri)?.use { out ->
                 out.write(payload.second.toByteArray(Charsets.UTF_8))
+            } ?: error("无法写入所选位置")
+        }.isSuccess
+        onNotice(if (ok) "已导出 ${payload.first}" else "导出失败，请换个位置再试")
+    }
+    val pngLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png")
+    ) { uri ->
+        val payload = pendingPng
+        pendingPng = null
+        if (uri == null || payload == null) return@rememberLauncherForActivityResult
+        val ok = runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { out ->
+                out.write(payload.second)
             } ?: error("无法写入所选位置")
         }.isSuccess
         onNotice(if (ok) "已导出 ${payload.first}" else "导出失败，请换个位置再试")
@@ -584,9 +602,9 @@ private fun PermissionGroup(
 
         Box(Modifier.fillMaxWidth().height(1.dp).background(palette.track))
 
-        Text(text = "导出 HTML 报告", style = FreshType.body, color = palette.onSurface)
+        Text(text = "导出使用报告", style = FreshType.body, color = palette.onSurface)
         Text(
-            text = "导出当前筛选区间的使用概览，单文件、断网可看。",
+            text = "导出当前筛选区间的使用概览，支持 HTML 网页与 PNG 长图，本机离线生成。",
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )
@@ -600,33 +618,54 @@ private fun PermissionGroup(
         ReportExportSheet(
             appVersion = appVersion,
             onDismiss = { showExportSheet = false },
-            onExport = { hideNames ->
+            onExport = { format, hideNames ->
                 scope.launch {
-                    val payload = buildReport(hideNames)
-                    showExportSheet = false
-                    if (payload == null) {
-                        onNotice("报告生成失败，请稍后再试")
-                        return@launch
+                    when (format) {
+                        ReportExportFormat.HTML -> {
+                            val payload = buildReport(hideNames)
+                            showExportSheet = false
+                            if (payload == null) {
+                                onNotice("报告生成失败，请稍后再试")
+                                return@launch
+                            }
+                            pendingHtml = payload
+                            htmlLauncher.launch(payload.first)
+                        }
+                        ReportExportFormat.PNG -> {
+                            val payload = buildPngReport(hideNames)
+                            showExportSheet = false
+                            if (payload == null) {
+                                onNotice("长图生成失败，请稍后再试")
+                                return@launch
+                            }
+                            pendingPng = payload
+                            pngLauncher.launch(payload.first)
+                        }
                     }
-                    pending = payload
-                    launcher.launch(payload.first)
                 }
             }
         )
     }
 }
 
-/** 导出前的选项：隐藏应用名称（§5.11「导出前可选」）。 */
+private enum class ReportExportFormat(val label: String) {
+    HTML("HTML 报告"),
+    PNG("PNG 长图")
+}
+
+/** 导出前的选项：格式切换（HTML / PNG 长图）与隐藏应用名称（§5.11「导出前可选」）。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReportExportSheet(
     appVersion: String,
     onDismiss: () -> Unit,
-    onExport: (hideAppNames: Boolean) -> Unit
+    onExport: (format: ReportExportFormat, hideAppNames: Boolean) -> Unit
 ) {
     val palette = LocalFreshPalette.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var format by remember { mutableStateOf(ReportExportFormat.HTML) }
     var hideNames by remember { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -641,9 +680,23 @@ private fun ReportExportSheet(
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(text = "导出 HTML 报告", style = FreshType.sectionTitle, color = palette.onSurface)
+            Text(text = "导出使用报告", style = FreshType.sectionTitle, color = palette.onSurface)
             Text(
                 text = "报告使用当前日期筛选的区间，数字与页面同源；v$appVersion。",
+                style = FreshType.label,
+                color = palette.onSurfaceVariant
+            )
+            SegmentedControl(
+                items = ReportExportFormat.entries.map { it.label },
+                selectedIndex = format.ordinal,
+                onSelect = { format = ReportExportFormat.entries[it] }
+            )
+            Text(
+                text = if (format == ReportExportFormat.HTML) {
+                    "单文件 HTML，断网可用浏览器打开。"
+                } else {
+                    "单张离线 PNG 长图，方便保存相册或直接分享。"
+                },
                 style = FreshType.label,
                 color = palette.onSurfaceVariant
             )
@@ -658,8 +711,12 @@ private fun ReportExportSheet(
                 color = palette.onSurfaceVariant
             )
             PrimaryButton(
-                text = "导出",
-                onClick = { onExport(hideNames) },
+                text = if (exporting) "生成中…" else "导出",
+                enabled = !exporting,
+                onClick = {
+                    exporting = true
+                    onExport(format, hideNames)
+                },
                 modifier = Modifier.fillMaxWidth()
             )
         }

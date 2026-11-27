@@ -1092,29 +1092,56 @@ class AppViewModel(
     }
 
     /**
+     * §7-12：HTML 与 PNG 长图报告共享同一套现查仓库输入，杜绝跨格式数字漂移。
+     */
+    private suspend fun buildReportInput(
+        hideAppNames: Boolean,
+        appVersion: String
+    ): Pair<java.time.LocalDateTime, com.screentrace.app.data.export.HtmlReportInput> {
+        val selection = currentSelection()
+        val now = java.time.LocalDateTime.now()
+        val summary = repository.summary(selection)
+        val input = com.screentrace.app.data.export.HtmlReportInput(
+            rangeLabel = reportRangeLabel(selection),
+            exportedAt = now.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
+            summary = summary,
+            daily = repository.dailyTrend(selection),
+            apps = repository.appRanking(selection, limit = REPORT_APP_LIMIT),
+            hours = repository.hourlyDistribution(selection),
+            appVersion = appVersion,
+            hideAppNames = hideAppNames,
+            dailyGoalMin = _dailyGoalMin.value
+        )
+        return now to input
+    }
+
+    /**
      * §7-12：生成自包含 HTML 报告（纯文本返回值，写盘交给 UI 层的 SAF）。
      *
      * 数据全部**现查一次仓库**（与页面同一套查询），而不是从 `statsState` 里捡——
      * 页面状态可能还挂着上一次筛选的旧数据，导出时切过日期就会导错区间。
      */
     suspend fun buildHtmlReport(hideAppNames: Boolean, appVersion: String): Pair<String, String>? {
-        val selection = currentSelection()
         return runCatching {
-            val summary = repository.summary(selection)
-            val input = com.screentrace.app.data.export.HtmlReportInput(
-                rangeLabel = reportRangeLabel(selection),
-                exportedAt = java.time.LocalDateTime.now()
-                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
-                summary = summary,
-                daily = repository.dailyTrend(selection),
-                apps = repository.appRanking(selection, limit = REPORT_APP_LIMIT),
-                hours = repository.hourlyDistribution(selection),
-                appVersion = appVersion,
-                hideAppNames = hideAppNames,
-                dailyGoalMin = _dailyGoalMin.value
-            )
-            com.screentrace.app.data.export.HtmlReportExporter.fileName(java.time.LocalDateTime.now()) to
+            val (now, input) = buildReportInput(hideAppNames, appVersion)
+            com.screentrace.app.data.export.HtmlReportExporter.fileName(now) to
                 com.screentrace.app.data.export.HtmlReportExporter.build(input)
+        }.getOrNull()
+    }
+
+    /**
+     * 14a 余项（§5.11 / §7-12）：生成纯离线 PNG 长图报告（字节流返回值，写盘交给 UI 层的 SAF）。
+     *
+     * 与 [buildHtmlReport] 共享 [buildReportInput]，确保 HTML / PNG / 页内数字 100% 同源；
+     * Bitmap 绘制与 PNG 压缩在 [Dispatchers.Default] 执行，避免阻塞主线程。
+     */
+    suspend fun buildPngReport(hideAppNames: Boolean, appVersion: String): Pair<String, ByteArray>? {
+        return runCatching {
+            val (now, input) = buildReportInput(hideAppNames, appVersion)
+            val bytes = withContext(Dispatchers.Default) {
+                com.screentrace.app.data.export.PngReportExporter.renderPngBytes(input)
+            }
+            com.screentrace.app.data.export.PngReportExporter.fileName(now) to bytes
         }.getOrNull()
     }
 

@@ -899,6 +899,9 @@ fun AppNav(
                                     buildReport = { hideNames ->
                                         viewModel.buildHtmlReport(hideNames, appVersion)
                                     },
+                                    buildPngReport = { hideNames ->
+                                        viewModel.buildPngReport(hideNames, appVersion)
+                                    },
                                     onBuildBackupJson = { viewModel.buildBackupJson(appVersion) },
                                     onBackupCompatWarning = { viewModel.backupCompatWarning(appVersion) },
                                     onBuildCsv = { viewModel.buildCsvFiles(appVersion) },
