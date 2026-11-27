@@ -14,6 +14,7 @@ import com.screentrace.app.data.db.DaySummaryEntity
 import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.db.SourceIds
 import com.screentrace.app.data.parse.AppUsageRow
+import com.screentrace.app.data.parse.BoundedObservedWindow
 import com.screentrace.app.data.parse.DayMetrics
 import com.screentrace.app.data.parse.ParseResult
 import com.screentrace.app.data.parse.SessionSpan
@@ -128,8 +129,10 @@ class D07DataLayerTest {
             unlockEvents = emptyList(),
             notificationEvents = emptyList(),
             screenSessions = listOf(SessionSpan(sessionStart, sessionEnd)),
-            rawEventMinMs = prevDay.atTime(22, 0).atZone(ny).toInstant().toEpochMilli(),
-            rawEventMaxMs = midPullAt
+            observedWindow = BoundedObservedWindow(
+                startMs = prevDay.atTime(22, 0).atZone(ny).toInstant().toEpochMilli(),
+                endMs = midPullAt
+            )
         )
         assertTrue(pipeline.ingest(pull1, source = "shizuku", pulledAtMs = midPullAt).ok)
         assertEquals(DataQualityValues.PARTIAL, db.daySummaryDao().get(dstDay.toString(), "dev-ny")!!.screenQuality)
@@ -145,8 +148,10 @@ class D07DataLayerTest {
             unlockEvents = emptyList(),
             notificationEvents = emptyList(),
             screenSessions = listOf(SessionSpan(sessionStart, sessionEnd)),
-            rawEventMinMs = dstDay.atTime(12, 0).atZone(ny).toInstant().toEpochMilli(),
-            rawEventMaxMs = pull2At
+            observedWindow = BoundedObservedWindow(
+                startMs = dstDay.atTime(12, 0).atZone(ny).toInstant().toEpochMilli(),
+                endMs = pull2At
+            )
         )
         assertTrue(pipeline.ingest(pull2, source = "shizuku", pulledAtMs = pull2At).ok)
         assertEquals(DataQualityValues.EXACT, db.daySummaryDao().get(dstDay.toString(), "dev-ny")!!.screenQuality)

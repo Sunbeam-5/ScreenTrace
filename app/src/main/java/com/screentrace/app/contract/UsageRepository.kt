@@ -51,6 +51,12 @@ data class DailyPoint(
 
 data class HourBucket(val hour: Int, val minutes: Int)
 
+/** D-07 Review 修复（P1-3）：经独立小时日质量仲裁后的时段分布与合格分母天数。 */
+data class QualifiedHourlyDistribution(
+    val buckets: List<HourBucket>,
+    val eligibleDays: Int
+)
+
 /**
  * 日历色档点。minutes：该日真实时长（分钟），无记录为 null——
  * 供日历点击详情直接显示（返修 P1-4：不依赖筛选区间二次查询，§7-9）。
@@ -218,8 +224,20 @@ interface UsageRepository {
     suspend fun appRanking(selection: DateSelection, limit: Int = 20): List<AppUsage>
     suspend fun hourlyDistribution(selection: DateSelection): List<HourBucket>
 
-    /** D-07 方案 C+：按指定合格日期集合汇总时段分布（保证时段日均分子与分母同集合）。 */
+    /** D-07 方案 C+（P1-3 收紧）：按指定合格日期集合汇总时段分布（仅汇总 EXACT/LEGACY 小时日）。 */
     suspend fun hourlyDistributionForDates(dates: List<LocalDate>): List<HourBucket> = emptyList()
+
+    /**
+     * D-07 Review 修复（P1-3）：对候选完整日执行四类小时日资格仲裁，返回合格小时桶与实际分母天数。
+     * 默认实现兼容测试 Fake。
+     */
+    suspend fun qualifiedHourlyDistribution(dates: List<LocalDate>): QualifiedHourlyDistribution {
+        if (dates.isEmpty()) return QualifiedHourlyDistribution(emptyList(), 0)
+        return QualifiedHourlyDistribution(
+            buckets = hourlyDistributionForDates(dates),
+            eligibleDays = dates.size
+        )
+    }
 
     /** D-07 方案 C+（拍板 4）：最近一次成功拉取的本地时间戳（用于「使用时长（截止今天 HH:mm）」）。 */
     suspend fun latestOkPulledAt(): Long? = null

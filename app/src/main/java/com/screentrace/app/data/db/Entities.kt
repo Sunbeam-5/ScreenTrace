@@ -114,10 +114,12 @@ data class PullLogEntity(
     val note: String?,
     /** CR-30-R11：本次采集状态（OK/EMPTY/PARTIAL/FAILED/UNAVAILABLE；旧行为 null）。 */
     val collectionStatus: String? = null,
-    /** D-07 方案 C+（v11）：主通道 Shizuku 原始事件流观测窗口起点（毫秒，旧行为 null）。 */
+    /** D-07 方案 C+（v11）：主通道 Shizuku 单通道有界连续观测窗口起点（毫秒，旧行为 null）。 */
     val eventWindowStartMs: Long? = null,
-    /** D-07 方案 C+（v11）：主通道 Shizuku 原始事件流观测窗口终点（毫秒，旧行为 null）。 */
-    val eventWindowEndMs: Long? = null
+    /** D-07 方案 C+（v11）：主通道 Shizuku 单通道有界连续观测窗口终点（毫秒，旧行为 null）。 */
+    val eventWindowEndMs: Long? = null,
+    /** D-07 Review 修复（v12）：拉取日志所属设备 ID（旧行为 null，按设备严格隔离，绝不回填伪造）。 */
+    val sourceDeviceId: String? = null
 )
 
 /**

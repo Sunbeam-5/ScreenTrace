@@ -208,6 +208,29 @@ interface HourUsageDao {
     @Query("SELECT hour, SUM(minutes) AS minutes FROM hour_usage WHERE date IN (:dates) GROUP BY hour ORDER BY hour")
     suspend fun sumForDates(dates: List<String>): List<HourBucketAggregated>
 
+    /**
+     * D-07 Review 修复（P1-3）：按日期独立聚合 `hour_usage` 四级日质量（与 `DaySummaryDao` 最弱环口径对称）。
+     * 关键约束：`__legacy__` 跨源混用判定必须使用 `COUNT(DISTINCT sourceDeviceId) > 1`
+     * （严禁用 `COUNT(*) > 1`，否则单来源 24 条小时行会被误判为 UNKNOWN）。
+     */
+    @Query(
+        """
+        SELECT date,
+               CASE
+                   WHEN SUM(CASE WHEN quality = 'PARTIAL' THEN 1 ELSE 0 END) > 0 THEN 'PARTIAL'
+                   WHEN SUM(CASE WHEN quality IS NOT NULL AND quality NOT IN ('EXACT', 'PARTIAL') THEN 1 ELSE 0 END) > 0 THEN 'UNKNOWN'
+                   WHEN SUM(CASE WHEN quality IS NULL AND sourceDeviceId = '__legacy__' THEN 1 ELSE 0 END) > 0
+                        AND COUNT(DISTINCT sourceDeviceId) > 1 THEN 'UNKNOWN'
+                   WHEN SUM(CASE WHEN quality = 'EXACT' THEN 1 ELSE 0 END) = COUNT(*) THEN 'EXACT'
+                   ELSE 'LEGACY'
+               END AS dayQuality
+        FROM hour_usage
+        WHERE date IN (:dates)
+        GROUP BY date
+        """
+    )
+    suspend fun dayQualitiesForDates(dates: List<String>): List<HourDayQuality>
+
     @Query("SELECT * FROM hour_usage WHERE date = :date ORDER BY hour")
     suspend fun getForDate(date: String): List<HourUsageEntity>
 
@@ -249,6 +272,9 @@ interface HourUsageDao {
 
 data class HourBucketAggregated(val hour: Int, val minutes: Int)
 
+/** D-07 Review 修复（P1-3）：`hour_usage` 独立四级日质量查询行。 */
+data class HourDayQuality(val date: String, val dayQuality: String)
+
 @Dao
 interface PullLogDao {
 
@@ -273,14 +299,22 @@ interface PullLogDao {
     @Query("SELECT pulledAt FROM pull_log WHERE ok = 1")
     suspend fun okMs(): List<Long>
 
-    /** D-07 方案 C+（G2 门禁）：主通道 Shizuku 历次成功拉取的原始事件覆盖窗口。 */
+    /**
+     * D-07 方案 C+（G2 门禁，P1-1 按设备严格隔离）：仅取指定设备的主通道 Shizuku 有界连续观测窗口。
+     * SQL 中 `NULL = :sourceDeviceId` 恒假，天然隔绝未知来源旧行与跨设备窗口。
+     */
     @Query(
         "SELECT eventWindowStartMs, eventWindowEndMs FROM pull_log " +
-            "WHERE ok = 1 AND source = 'shizuku' AND eventWindowStartMs IS NOT NULL AND eventWindowEndMs IS NOT NULL"
+            "WHERE ok = 1 AND source = 'shizuku' AND sourceDeviceId = :sourceDeviceId " +
+            "AND eventWindowStartMs IS NOT NULL AND eventWindowEndMs IS NOT NULL"
     )
-    suspend fun shizukuEventWindows(): List<PullWindowSpan>
+    suspend fun shizukuEventWindows(sourceDeviceId: String): List<PullWindowSpan>
 
-    /** D-07 方案 C+（拍板 4）：最近一次成功采集时刻（截止今天 HH:mm 锚点）。 */
+    /** D-07 方案 C+（拍板 4，P1-1 按设备严格隔离）：指定设备最近一次成功采集时刻（截止今天 HH:mm 锚点）。 */
+    @Query("SELECT MAX(pulledAt) FROM pull_log WHERE ok = 1 AND sourceDeviceId = :sourceDeviceId")
+    suspend fun latestOkPulledAtForDevice(sourceDeviceId: String): Long?
+
+    /** 兼容保留：全库最近一次成功采集时刻（诊断/旧调用点用；统计页/周期页必须走 [latestOkPulledAtForDevice]）。 */
     @Query("SELECT MAX(pulledAt) FROM pull_log WHERE ok = 1")
     suspend fun latestOkPulledAt(): Long?
 }

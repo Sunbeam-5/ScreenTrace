@@ -66,9 +66,29 @@ object MergePolicy {
     private fun isPlaceholderName(name: String, pkg: String): Boolean =
         name.isBlank() || name == pkg
 
-    /** §4：hour_usage 同 (date,hour) 取较大值。 */
-    fun mergeHour(existing: HourUsageEntity?, incoming: HourUsageEntity): HourUsageEntity =
-        if (existing == null || incoming.minutes >= existing.minutes) incoming else existing
+    /**
+     * §4 + D-07 Review 修复（P1-3）：同来源 (date, hour, sourceDeviceId) 交换律全序比较。
+     * 比较键：`(quality == EXACT, minutes, sameSourceQualityRank(quality))`：
+     * ① EXACT 绝不被降级通道 PARTIAL（即使分钟更大）覆盖；
+     * ② 双 EXACT 取更大分钟（守 CR-28）；
+     * ③ 历史 null 不被更小 PARTIAL 覆盖；
+     * ④ 严格满足交换律。
+     */
+    fun compareHour(aMinutes: Int, aQuality: String?, bMinutes: Int, bQuality: String?): Int {
+        val exactCmp = (aQuality == com.screentrace.app.data.db.DataQualityValues.EXACT)
+            .compareTo(bQuality == com.screentrace.app.data.db.DataQualityValues.EXACT)
+        if (exactCmp != 0) return exactCmp
+        val minCmp = aMinutes.compareTo(bMinutes)
+        if (minCmp != 0) return minCmp
+        return sameSourceQualityRank(aQuality).compareTo(sameSourceQualityRank(bQuality))
+    }
+
+    /** §4 + D-07 Review 修复（P1-3）：hour_usage 同 (date, hour, sourceDeviceId) 交换律质量保护合并。 */
+    fun mergeHour(existing: HourUsageEntity?, incoming: HourUsageEntity): HourUsageEntity {
+        if (existing == null) return incoming
+        val cmp = compareHour(existing.minutes, existing.quality, incoming.minutes, incoming.quality)
+        return if (cmp >= 0) existing else incoming
+    }
 
     /** §4：pull_log 仅追加（无合并）。 */
 

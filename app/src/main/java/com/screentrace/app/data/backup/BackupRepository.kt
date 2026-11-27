@@ -205,7 +205,10 @@ class BackupRepository(
             appUsage = top.appUsage,
             hourUsage = top.hourUsage,
             pullLog = db.pullLogDao().getAll().map {
-                PullLogDto(it.pulledAt, it.source, it.ok, it.note, it.collectionStatus, it.eventWindowStartMs, it.eventWindowEndMs)
+                PullLogDto(
+                    it.pulledAt, it.source, it.ok, it.note, it.collectionStatus,
+                    it.eventWindowStartMs, it.eventWindowEndMs, it.sourceDeviceId
+                )
             },
             unlockEvent = top.unlockEvent,
             notificationEvent = top.notificationEvent,
@@ -523,11 +526,13 @@ class BackupRepository(
             report += mergeGroup(src, rows)
         }
 
-        // 评审 P2-1：按 (pulledAt, source) 去重——同一台设备的备份反复合并时日志不膨胀，
-        // 且别台设备更晚的时间戳不会把「最近成功拉取」顶掉后还留一堆重复行
-        val existingPullKeys = db.pullLogDao().getAll().map { it.pulledAt to it.source }.toSet()
+        // 评审 P2-1 + D-07 Review P1-1：按 (pulledAt, source, sourceDeviceId) 去重，
+        // 原样透传 sourceDeviceId（旧备份 null 严禁伪造回填，远端设备 ID 严禁覆写为本机 ID）。
+        val existingPullKeys = db.pullLogDao().getAll()
+            .map { Triple(it.pulledAt, it.source, it.sourceDeviceId) }
+            .toSet()
         val pullRows = file.pullLog
-            .filterNot { (it.pulledAt to it.source) in existingPullKeys }
+            .filterNot { Triple(it.pulledAt, it.source, it.sourceDeviceId) in existingPullKeys }
             .map {
                 PullLogEntity(
                     pulledAt = it.pulledAt,
@@ -536,7 +541,8 @@ class BackupRepository(
                     note = it.note,
                     collectionStatus = it.collectionStatus,
                     eventWindowStartMs = it.eventWindowStartMs,
-                    eventWindowEndMs = it.eventWindowEndMs
+                    eventWindowEndMs = it.eventWindowEndMs,
+                    sourceDeviceId = it.sourceDeviceId
                 )
             }
         pullRows.forEach { db.pullLogDao().insert(it) }
@@ -668,17 +674,23 @@ class BackupRepository(
             report += mergeGroup(src, rows.allowedIn(allowedDates))
         }
 
-        // ③ 拉取日志：仅追加，按 (pulledAt, source) 去重（与同设备合并同一口径）
-        val existingPullKeys = db.pullLogDao().getAll().map { it.pulledAt to it.source }.toSet()
+        // ③ 拉取日志：仅追加，按 (pulledAt, source, sourceDeviceId) 去重；
+        // D-07 Review P1-1：原样透传 eventWindow 与 sourceDeviceId（旧备份 null 严禁伪造回填）。
+        val existingPullKeys = db.pullLogDao().getAll()
+            .map { Triple(it.pulledAt, it.source, it.sourceDeviceId) }
+            .toSet()
         val pullRows = file.pullLog
-            .filterNot { (it.pulledAt to it.source) in existingPullKeys }
+            .filterNot { Triple(it.pulledAt, it.source, it.sourceDeviceId) in existingPullKeys }
             .map {
                 PullLogEntity(
                     pulledAt = it.pulledAt,
                     source = it.source,
                     ok = it.ok,
                     note = it.note,
-                    collectionStatus = it.collectionStatus
+                    collectionStatus = it.collectionStatus,
+                    eventWindowStartMs = it.eventWindowStartMs,
+                    eventWindowEndMs = it.eventWindowEndMs,
+                    sourceDeviceId = it.sourceDeviceId
                 )
             }
         pullRows.forEach { db.pullLogDao().insert(it) }
@@ -832,7 +844,10 @@ class BackupRepository(
                     source = it.source,
                     ok = it.ok,
                     note = it.note,
-                    collectionStatus = it.collectionStatus
+                    collectionStatus = it.collectionStatus,
+                    eventWindowStartMs = it.eventWindowStartMs,
+                    eventWindowEndMs = it.eventWindowEndMs,
+                    sourceDeviceId = it.sourceDeviceId
                 )
             )
         }

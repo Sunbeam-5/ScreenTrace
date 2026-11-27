@@ -138,7 +138,9 @@ data class PullLogDto(
     /** CR-30-R11（v7 新增）：采集状态（缺省 null = UNKNOWN）。 */
     val collectionStatus: String? = null,
     val eventWindowStartMs: Long? = null,
-    val eventWindowEndMs: Long? = null
+    val eventWindowEndMs: Long? = null,
+    /** D-07 Review 修复（P1-1）：原样透传来源设备 ID（旧备份缺省为 null，恢复时严禁回填伪造）。 */
+    val sourceDeviceId: String? = null
 )
 
 @Serializable

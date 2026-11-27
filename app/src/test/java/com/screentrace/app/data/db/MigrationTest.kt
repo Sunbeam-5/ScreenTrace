@@ -143,7 +143,7 @@ class MigrationTest {
 
         // ② v5 打开触发 MIGRATION_4_5；Room 同时校验迁移后结构与 7.json 一致
         val v5 = Room.databaseBuilder(context, ScreenTraceDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
             .allowMainThreadQueries()
             .build()
 
@@ -224,11 +224,14 @@ class MigrationTest {
                 "(${msOf(LocalDate.parse(dMerged), 8)}, ${msOf(LocalDate.parse(dMerged), 9)}, 'SCREEN'), " +
                 "(${msOf(LocalDate.parse(dPure), 20)}, ${msOf(LocalDate.parse(dPure), 21)}, 'SCREEN')"
         )
+        sql.execSQL(
+            "INSERT INTO pull_log (pulledAt, source, ok, note) VALUES (1700000000000, 'shizuku', 1, 'legacy-v4')"
+        )
         v4.close()
 
-        // ② v7 打开：触发 4_5 / 5_6 / 6_7，Room 对照 7.json 完整 schema 校验
+        // ② v12 打开：触发 4_5 ~ 11_12，Room 对照 schema 完整校验
         val v7 = Room.databaseBuilder(context, ScreenTraceDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
             .allowMainThreadQueries()
             .build()
 
@@ -260,6 +263,9 @@ class MigrationTest {
         v7.daySummaryDao().getAll().forEach { assertNull("旧行 screenQuality 必须保持 null", it.screenQuality) }
         v7.appUsageDao().getAll().forEach { assertNull("旧行 minutesQuality 必须保持 null", it.minutesQuality) }
         v7.hourUsageDao().getAll().forEach { assertNull("旧行 quality 必须保持 null", it.quality) }
+        // D-07 Review P1-1（v11->v12）：迁移后旧 pull_log 行 sourceDeviceId 必须保持 null，绝不回填
+        assertEquals(1, v7.pullLogDao().getAll().size)
+        v7.pullLogDao().getAll().forEach { assertNull("旧 pull_log 行 sourceDeviceId 必须保持 null", it.sourceDeviceId) }
 
         // R11 新表可写可读
         v7.screenEvidenceDao().insertIgnore(

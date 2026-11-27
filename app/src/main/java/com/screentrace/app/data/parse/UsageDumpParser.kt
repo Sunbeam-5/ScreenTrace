@@ -80,10 +80,18 @@ data class ParseResult(
     val usageWindows: List<UsageWindowRow> = emptyList(),
     /** CR-30-R11：独立屏幕证据（E3 锚点 / W1 计数器读数，不进 screenSessions）。 */
     val screenEvidence: List<ScreenEvidenceRow> = emptyList(),
-    /** D-07 方案 C+（G2 门禁）：本次真实原始事件（checkinEvents + humanEvents）最小时间戳（毫秒）。 */
+    /** 仅作诊断字段（严禁参与 G2 完整覆盖门禁）：本次原始事件最小时间戳（毫秒）。 */
     val rawEventMinMs: Long? = null,
-    /** D-07 方案 C+（G2 门禁）：本次真实原始事件最大时间戳（毫秒）。 */
-    val rawEventMaxMs: Long? = null
+    /** 仅作诊断字段（严禁参与 G2 完整覆盖门禁）：本次原始事件最大时间戳（毫秒）。 */
+    val rawEventMaxMs: Long? = null,
+    /**
+     * D-07 Review 修复（P1-2）：单通道有界连续观测窗口（BoundedObservedWindow，不计入 [isEmpty]）。
+     * 注：`EXACT` 是基于单通道有界观测 + 屏幕状态机完整性检查的保守工程完整性判定策略，
+     * 而非 Android `dumpsys usagestats` 的 OS 级零丢包证明。
+     */
+    val observedWindow: BoundedObservedWindow? = null,
+    /** D-07 Review 修复（P1-2）：屏幕状态机命中截断/异常的自然日集合（不计入 [isEmpty]）。 */
+    val truncatedScreenDates: Set<LocalDate> = emptySet()
 ) {
     /**
      * 「空 dump」判定（§5.8 独立状态）：全部产物**全空**才算空。
@@ -195,7 +203,8 @@ object UsageDumpParser {
         checkinText: String,
         humanText: String,
         zone: ZoneId = ZoneId.systemDefault(),
-        today: LocalDate? = null
+        today: LocalDate? = null,
+        capturedAtMs: Long? = null
     ): ParseResult {
         // ---------- checkin：user 块跟踪 + 区间/包聚合/事件 ----------
         val checkinEvents = mutableListOf<RawEvent>()
@@ -613,6 +622,26 @@ object UsageDumpParser {
         }
         val hourMinutes = hourMatrix.mapValues { (_, v) -> v.map { it.roundToInt() } }
 
+        // D-07 Review 修复（P1-2）：checkin 与 human 各自独立进 ScreenStreamAudit，严禁跨通道混拼起止时间；
+        // checkin 有屏幕事件且未超 28h 时优先采用毫秒级 checkin 窗口（避免 human 1s 精度误杀毫秒配对），
+        // 仅当 checkin 无屏幕事件（如 HyperOS）或窗口失效时独立采用 human 通道窗口；异常截断日保守保留。
+        val checkinAudit = ScreenStreamAudit.audit(
+            events = checkinEvents.map { ScreenStateEvent(it.ms, it.type, it.user) },
+            zone = zone,
+            capturedAtMs = capturedAtMs ?: checkinEvents.maxOfOrNull { it.ms }
+        )
+        val humanAudit = ScreenStreamAudit.audit(
+            events = humanEvents.map { ScreenStateEvent(it.ms, it.type, it.user) },
+            zone = zone,
+            capturedAtMs = capturedAtMs ?: humanEvents.maxOfOrNull { it.ms }
+        )
+        val observedWindow = checkinAudit.window ?: humanAudit.window
+        val truncatedScreenDates = if (checkinAudit.window != null) {
+            checkinAudit.truncatedDates
+        } else {
+            checkinAudit.truncatedDates + humanAudit.truncatedDates
+        }
+
         return ParseResult(
             days = days,
             hourMinutes = hourMinutes,
@@ -638,7 +667,9 @@ object UsageDumpParser {
             usageWindows = usageWindowRows,
             screenEvidence = evidenceRows,
             rawEventMinMs = merged.minOfOrNull { it.ms },
-            rawEventMaxMs = merged.maxOfOrNull { it.ms }
+            rawEventMaxMs = merged.maxOfOrNull { it.ms },
+            observedWindow = observedWindow,
+            truncatedScreenDates = truncatedScreenDates
         )
     }
 

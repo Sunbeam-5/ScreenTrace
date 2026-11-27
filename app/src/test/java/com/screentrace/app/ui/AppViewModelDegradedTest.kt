@@ -7,6 +7,7 @@ import com.screentrace.app.data.IngestPipeline
 import com.screentrace.app.data.RoomUsageRepository
 import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.parse.AppUsageRow
+import com.screentrace.app.data.parse.BoundedObservedWindow
 import com.screentrace.app.data.parse.DayMetrics
 import com.screentrace.app.data.parse.ParseResult
 import com.screentrace.app.data.parse.SessionSpan
@@ -219,7 +220,10 @@ class AppViewModelDegradedTest {
         // D-07 方案 C+：日历页取全量历史极值，只认 EXACT/历史 NULL 行；
         // 今天永远不满足 G1（日未闭合），所以必须再补一个已闭合的昨天。
         val yesterday = day.minusDays(1)
-        val result = ParseResult(
+        val pipeline = IngestPipeline(db, zone = zone)
+        // D-07 Review 修复（P1-2）：单次拉取窗口 ≤ 28h，分两笔入库（昨天闭合 + 今天进行中）
+        val yesterdayPullAt = day.atStartOfDay(zone).toInstant().toEpochMilli() + 60_000L
+        val yesterdayResult = ParseResult(
             days = mapOf(
                 yesterday to DayMetrics(
                     screenMin = 120,
@@ -227,7 +231,27 @@ class AppViewModelDegradedTest {
                     unlocks = 6,
                     launches = 15,
                     longestSessionMin = 20
-                ),
+                )
+            ),
+            hourMinutes = mapOf(yesterday to List(24) { 5 }),
+            appUsage = emptyList(),
+            unlockEvents = emptyList(),
+            notificationEvents = emptyList(),
+            screenSessions = listOf(
+                SessionSpan(
+                    yesterday.atTime(9, 0).atZone(zone).toInstant().toEpochMilli(),
+                    yesterday.atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+                )
+            ),
+            observedWindow = BoundedObservedWindow(
+                startMs = yesterday.atStartOfDay(zone).toInstant().toEpochMilli(),
+                endMs = yesterdayPullAt
+            )
+        )
+        assertTrue(pipeline.ingest(yesterdayResult, "shizuku", yesterdayPullAt).ok)
+
+        val todayResult = ParseResult(
+            days = mapOf(
                 day to DayMetrics(
                     screenMin = 420,
                     screenUnlockMin = 400,
@@ -236,27 +260,19 @@ class AppViewModelDegradedTest {
                     longestSessionMin = 35
                 )
             ),
-            hourMinutes = mapOf(
-                yesterday to List(24) { 5 },
-                day to List(24) { 10 }
-            ),
+            hourMinutes = mapOf(day to List(24) { 10 }),
             appUsage = listOf(AppUsageRow(day, "com.tencent.mm", 120 * 60_000L, 30)),
             unlockEvents = listOf(
                 com.screentrace.app.contract.UnlockEvent(nowMs() - 3_600_000L)
             ),
             notificationEvents = emptyList(),
-            screenSessions = listOf(
-                SessionSpan(
-                    yesterday.atTime(9, 0).atZone(zone).toInstant().toEpochMilli(),
-                    yesterday.atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
-                ),
-                SessionSpan(nowMs() - 3_600_000L, nowMs())
-            ),
-            // G2 门禁：事件窗口并集须覆盖昨天整个自然日（今天不要求闭合）。
-            rawEventMinMs = yesterday.atStartOfDay(zone).toInstant().toEpochMilli(),
-            rawEventMaxMs = nowMs()
+            screenSessions = listOf(SessionSpan(nowMs() - 3_600_000L, nowMs())),
+            observedWindow = BoundedObservedWindow(
+                startMs = day.atStartOfDay(zone).toInstant().toEpochMilli(),
+                endMs = nowMs()
+            )
         )
-        assertTrue(IngestPipeline(db, zone = zone).ingest(result, "shizuku", nowMs()).ok)
+        assertTrue(pipeline.ingest(todayResult, "shizuku", nowMs()).ok)
     }
 
     private fun nowMs(): Long = day.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()

@@ -7,6 +7,7 @@ import com.screentrace.app.data.IngestPipeline
 import com.screentrace.app.data.RoomUsageRepository
 import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.parse.AppUsageRow
+import com.screentrace.app.data.parse.BoundedObservedWindow
 import com.screentrace.app.data.parse.DayMetrics
 import com.screentrace.app.data.parse.ParseResult
 import com.screentrace.app.data.parse.SessionSpan
@@ -92,27 +93,27 @@ class StatsPeriodsWiringTest {
 
     /** 连续 7 个**已闭合**历史日（昨天起往前）：每天都有 day_summary，且 06–11 时每小时 10 分钟。 */
     private suspend fun ingestSevenDays() {
-        val days = (1L..7L).map { day.minusDays(it) }
-        val result = ParseResult(
-            days = days.associateWith { DayMetrics(120, 100, 5, 10, 20) },
-            hourMinutes = days.associateWith {
-                List(24) { hour -> if (hour in 6..11) 10 else 0 }
-            },
-            appUsage = days.map { AppUsageRow(it, "com.tencent.mm", 60 * 60_000L, 5) },
-            unlockEvents = emptyList(),
-            notificationEvents = emptyList(),
-            screenSessions = days.map { d ->
-                val start = d.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
-                SessionSpan(start, start + 600_000L)
-            },
-            // D-07 方案 C+ G2 门禁：事件窗口并集须覆盖 7 个历史自然日。
-            rawEventMinMs = days.last().atStartOfDay(zone).toInstant().toEpochMilli(),
-            rawEventMaxMs = nowMs()
-        )
-        org.junit.Assert.assertTrue(
-            "七天数据必须能正常入库",
-            IngestPipeline(db, zone = zone).ingest(result, "shizuku", nowMs()).ok
-        )
+        val days = (1L..7L).map { day.minusDays(it) }.reversed()
+        val pipeline = IngestPipeline(db, zone = zone)
+        // D-07 Review 修复（P1-2）：单次拉取有界窗口上限 28h，逐日入库完整覆盖 7 个历史自然日
+        for (d in days) {
+            val start = d.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+            val windowStart = d.atStartOfDay(zone).toInstant().toEpochMilli()
+            val pullAt = d.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() + 60_000L
+            val result = ParseResult(
+                days = mapOf(d to DayMetrics(120, 100, 5, 10, 20)),
+                hourMinutes = mapOf(d to List(24) { hour -> if (hour in 6..11) 10 else 0 }),
+                appUsage = listOf(AppUsageRow(d, "com.tencent.mm", 60 * 60_000L, 5)),
+                unlockEvents = emptyList(),
+                notificationEvents = emptyList(),
+                screenSessions = listOf(SessionSpan(start, start + 600_000L)),
+                observedWindow = BoundedObservedWindow(windowStart, pullAt)
+            )
+            org.junit.Assert.assertTrue(
+                "$d 数据必须能正常入库",
+                pipeline.ingest(result, "shizuku", pullAt).ok
+            )
+        }
     }
 
     private fun nowMs(): Long = day.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()

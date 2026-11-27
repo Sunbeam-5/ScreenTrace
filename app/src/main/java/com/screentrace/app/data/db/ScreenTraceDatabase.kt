@@ -31,7 +31,7 @@ import androidx.room.RoomDatabase
         ScreenEvidenceEntity::class,
         UsageWindowEntity::class
     ],
-    version = 11,
+    version = 12,
     // P2-1（6a 评审）：导出 schema JSON 到 app/schemas，供批 6b+ 的迁移与批 8 备份校验使用。
     // 注意区分：这里的 version 是**数据库结构版本**，备份文件的 schemaVersion（§5.10 C07）是另一套。
     exportSchema = true

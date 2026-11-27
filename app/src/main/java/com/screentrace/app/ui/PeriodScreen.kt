@@ -289,8 +289,7 @@ private fun PeriodContent(
         Text(text = "结论", style = FreshType.sectionTitle, color = palette.onSurface)
         if (period.insufficient) {
             Text(
-                text = "本周期只有 ${period.summary.recordedDays} 天有记录，数据不足以得出结论。" +
-                    "继续使用几天后这里会自动出现小结。",
+                text = "${periodInsufficientCopy(period.summary.completeDays)}继续使用几天后这里会自动出现小结。",
                 style = FreshType.body,
                 color = palette.onSurfaceVariant
             )
@@ -405,6 +404,10 @@ private fun CopySummaryButton(period: PeriodSummary) {
         )
     }
 }
+
+/** D-07 Review 修复（P2）：周期总结不足文案与 `completeDays` 严格对齐（纯函数便于 JVM 单测）。 */
+internal fun periodInsufficientCopy(completeDays: Int): String =
+    "本周期只有 $completeDays 个完整日，数据不足以得出结论。"
 
 /** 空态的小内边距容器（避免把 EmptyState 直接塞进 Row 约束里）。 */
 @Composable

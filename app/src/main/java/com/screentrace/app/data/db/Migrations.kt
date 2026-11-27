@@ -407,3 +407,13 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         db.execSQL("ALTER TABLE `pull_log` ADD COLUMN `eventWindowEndMs` INTEGER")
     }
 }
+
+/**
+ * D-07 Review 修复（P1-1，v11 → v12）：`pull_log` 增加可空列 `sourceDeviceId`（无 DEFAULT、不回填存量行），
+ * 用于主通道有界连续观测窗口与最近成功采集时刻的按设备严格隔离。
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `pull_log` ADD COLUMN `sourceDeviceId` TEXT")
+    }
+}

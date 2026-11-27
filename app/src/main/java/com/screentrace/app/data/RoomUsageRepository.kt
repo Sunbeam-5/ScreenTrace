@@ -8,6 +8,7 @@ import com.screentrace.app.contract.DailyPoint
 import com.screentrace.app.contract.DaySummary
 import com.screentrace.app.contract.ExtremesInfo
 import com.screentrace.app.contract.HourBucket
+import com.screentrace.app.contract.QualifiedHourlyDistribution
 import com.screentrace.app.contract.MetricDetail
 import com.screentrace.app.contract.MetricKind
 import com.screentrace.app.contract.NotificationEvent
@@ -53,7 +54,12 @@ class RoomUsageRepository(
      * 这个包（只出现在通知事件里的系统服务，如 `com.xiaomi.mi_connect_service`），
      * 不在这里兜一层，通知详情就会显示成一串包名。
      */
-    private val labelResolver: ((String) -> String?)? = null
+    private val labelResolver: ((String) -> String?)? = null,
+    /**
+     * D-07 Review 修复（P1-1）：当前库归属设备 ID（用于隔离 `pull_log.latestOkPulledAtForDevice`）。
+     * 保持默认参数 [com.screentrace.app.data.db.SourceIds.UNSPECIFIED] 兼容既有单测。
+     */
+    private val ownerDeviceId: () -> String = { com.screentrace.app.data.db.SourceIds.UNSPECIFIED }
 ) : UsageRepository {
 
     /** 当前库（每次取都重新解析，切换设备后立即生效）。 */
@@ -68,8 +74,9 @@ class RoomUsageRepository(
         db: ScreenTraceDatabase,
         settings: com.screentrace.app.data.prefs.SettingsStore? = null,
         pull: (suspend () -> PullResult)? = null,
-        labelResolver: ((String) -> String?)? = null
-    ) : this({ db }, settings, pull, labelResolver)
+        labelResolver: ((String) -> String?)? = null,
+        ownerDeviceId: () -> String = { com.screentrace.app.data.db.SourceIds.UNSPECIFIED }
+    ) : this({ db }, settings, pull, labelResolver, ownerDeviceId)
 
     /**
      * CR-28：读侧**跨来源合计**（§4 逐指标聚合：总使用时长/解锁/启动 SUM、最长连续 MAX）。
@@ -105,7 +112,7 @@ class RoomUsageRepository(
 
     override suspend fun summary(selection: DateSelection): Summary =
         com.screentrace.app.uikit.PerfProbe.measure("Room/summary") {
-            val latestPulledAt = db.pullLogDao().latestOkPulledAt()
+            val latestPulledAt = latestOkPulledAt()
             UsageCalculator.summarize(
                 selection = selection,
                 records = recordsBetween(selection.startDate, selection.endDate),
@@ -113,13 +120,77 @@ class RoomUsageRepository(
             )
         }
 
-    override suspend fun hourlyDistributionForDates(dates: List<LocalDate>): List<HourBucket> {
-        if (dates.isEmpty()) return (0..23).map { HourBucket(it, 0) }
-        val byHour = db.hourUsageDao().sumForDates(dates.map { it.toString() }).associateBy { it.hour }
-        return (0..23).map { hour -> HourBucket(hour, byHour[hour]?.minutes ?: 0) }
+    override suspend fun hourlyDistributionForDates(dates: List<LocalDate>): List<HourBucket> =
+        qualifiedHourlyDistribution(dates).buckets
+
+    /**
+     * D-07 Review 修复（P1-3）：对候选完整日执行四类小时日资格仲裁：
+     * 1. 有 `hour_usage` 且小时日质量 ∈ {EXACT, LEGACY} → 进分子且 eligibleDays++；
+     * 2. 有 `hour_usage` 但质量 ∈ {PARTIAL, UNKNOWN} → 分子分母双剔除；
+     * 3. 无 `hour_usage`，且 `day_summary` 为 EXACT/LEGACY 且 screenUnlockMin == 0 && screenMin == 0 → 完整零使用日，eligibleDays++、分子贡献 0；
+     * 4. 无 `hour_usage`，但 screenUnlockMin > 0 || screenMin > 0（小时明细缺失）→ 分子分母双剔除，绝不推断为 0。
+     */
+    override suspend fun qualifiedHourlyDistribution(dates: List<LocalDate>): QualifiedHourlyDistribution {
+        val uniqueDates = dates.distinct()
+        if (uniqueDates.isEmpty()) {
+            return QualifiedHourlyDistribution(
+                buckets = (0..23).map { HourBucket(it, 0) },
+                eligibleDays = 0
+            )
+        }
+        val database = db
+        val dateKeys = uniqueDates.map { it.toString() }
+        val hourQualityByDate = dateKeys
+            .chunked(500)
+            .flatMap { database.hourUsageDao().dayQualitiesForDates(it) }
+            .associate { it.date to com.screentrace.app.contract.DayQuality.fromSql(it.dayQuality) }
+
+        val minKey = dateKeys.min()
+        val maxKey = dateKeys.max()
+        val daySummaryByDate = database.daySummaryDao()
+            .sumRange(minKey, maxKey)
+            .associateBy { it.date }
+
+        val qualifiedHourDates = mutableListOf<String>()
+        var eligibleDays = 0
+        for (key in dateKeys) {
+            val hourQuality = hourQualityByDate[key]
+            if (hourQuality != null) {
+                if (hourQuality == com.screentrace.app.contract.DayQuality.EXACT ||
+                    hourQuality == com.screentrace.app.contract.DayQuality.LEGACY
+                ) {
+                    qualifiedHourDates.add(key)
+                    eligibleDays++
+                }
+            } else {
+                val day = daySummaryByDate[key]
+                val dayQuality = day?.let { com.screentrace.app.contract.DayQuality.fromSql(it.dayQuality) }
+                val dayComplete = dayQuality == com.screentrace.app.contract.DayQuality.EXACT ||
+                    dayQuality == com.screentrace.app.contract.DayQuality.LEGACY
+                if (day != null && dayComplete && day.screenUnlockMin == 0 && day.screenMin == 0) {
+                    eligibleDays++
+                }
+            }
+        }
+
+        val byHour = if (qualifiedHourDates.isEmpty()) {
+            emptyMap()
+        } else {
+            qualifiedHourDates
+                .chunked(500)
+                .flatMap { database.hourUsageDao().sumForDates(it) }
+                .groupBy { it.hour }
+                .mapValues { (_, rows) -> rows.sumOf { it.minutes } }
+        }
+        val buckets = (0..23).map { hour -> HourBucket(hour, byHour[hour] ?: 0) }
+        return QualifiedHourlyDistribution(buckets = buckets, eligibleDays = eligibleDays)
     }
 
-    override suspend fun latestOkPulledAt(): Long? = db.pullLogDao().latestOkPulledAt()
+    override suspend fun latestOkPulledAt(): Long? {
+        val owner = ownerDeviceId()
+        if (owner.isEmpty()) return null
+        return db.pullLogDao().latestOkPulledAtForDevice(owner)
+    }
 
     override suspend fun dailyTrend(selection: DateSelection): List<DailyPoint> =
         com.screentrace.app.uikit.PerfProbe.measure("Room/dailyTrend") {

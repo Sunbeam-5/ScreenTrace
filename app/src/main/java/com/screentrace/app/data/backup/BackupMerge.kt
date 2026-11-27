@@ -108,7 +108,12 @@ object BackupMerge {
                     rows += row
                     added++
                 }
-                row.minutes > current.minutes -> {
+                com.screentrace.app.data.MergePolicy.compareHour(
+                    row.minutes,
+                    row.quality,
+                    current.minutes,
+                    current.quality
+                ) > 0 -> {
                     rows += row
                     updated++
                 }

@@ -8,6 +8,7 @@ import com.screentrace.app.contract.UsageCalculator
 import com.screentrace.app.data.db.DataQualityValues
 import com.screentrace.app.data.db.DaySummaryEntity
 import com.screentrace.app.data.db.ScreenTraceDatabase
+import com.screentrace.app.data.parse.BoundedObservedWindow
 import com.screentrace.app.data.parse.DayMetrics
 import com.screentrace.app.data.parse.ParseResult
 import com.screentrace.app.data.parse.SessionSpan
@@ -69,8 +70,10 @@ class R11QualityPipelineTest {
             unlockEvents = emptyList(),
             notificationEvents = emptyList(),
             screenSessions = listOf(SessionSpan(day1Start, day1End)),
-            rawEventMinMs = day1.atStartOfDay(zone).toInstant().toEpochMilli(),
-            rawEventMaxMs = day2.atStartOfDay(zone).toInstant().toEpochMilli()
+            observedWindow = BoundedObservedWindow(
+                startMs = day1.atStartOfDay(zone).toInstant().toEpochMilli(),
+                endMs = day2.atStartOfDay(zone).toInstant().toEpochMilli() + 60_000L
+            )
         )
 
         val pulled = pipeline.ingest(

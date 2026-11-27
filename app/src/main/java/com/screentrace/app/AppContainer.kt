@@ -150,7 +150,9 @@ class AppContainer(context: Context) {
         // 设置页「立即拉取」（批 7 接 UI）：走同一条协调器，不另建通道
         pull = { pullCoordinator.pull().asPullResult() },
         // 读取层兜底：只在库里没存到名字时才真正去查
-        labelResolver = labels
+        labelResolver = labels,
+        // D-07 Review 修复（P1-1）：按当前库归属设备隔离 pull_log.latestOkPulledAtForDevice
+        ownerDeviceId = { currentOwnerDeviceId() }
     )
 
     init {
@@ -178,6 +180,16 @@ class AppContainer(context: Context) {
                     .rebuildOversizedDays(java.io.File(appContext.filesDir, "rebuild_snapshots"))
             }
         }
+    }
+
+    /** 当前库归属设备 ID：本机库归属 localDeviceId，副本库归属该远端设备 ID。 */
+    fun currentOwnerDeviceId(): String {
+        val current = currentDeviceId
+        if (current.isEmpty()) return localDeviceId
+        val local = localDeviceId
+        if (local.isEmpty()) return ""
+        if (DeviceIds.safe(current) == DeviceIds.safe(local)) return local
+        return current
     }
 
     /** 当前库：本机采集库，或当前查看的那台远端设备的副本库。 */

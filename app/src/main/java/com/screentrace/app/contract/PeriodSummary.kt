@@ -178,7 +178,8 @@ object PeriodSummaryCalculator {
         previousSummary: Summary?,
         apps: List<AppUsage>,
         hours: List<HourBucket>,
-        lastUpdatedAtMs: Long? = null
+        lastUpdatedAtMs: Long? = null,
+        hourEligibleDays: Int? = null
     ): PeriodSummary {
         val range = type.natural(today)
         val inWindow = trend.filter { it.date in range.start..range.dataEnd }
@@ -194,9 +195,10 @@ object PeriodSummaryCalculator {
         val compare = UsageCalculator.compareAverage(summary, previousSummary, type.previousLabel)
         val longestShortest = UsageCalculator.longestShortest(inWindow, today = today)
         val appTotal = apps.sumOf { it.minutes }
+        val effectiveHourEligibleDays = hourEligibleDays ?: summary.completeDays
         val periods = UsageCalculator.dailyAveragePeriods(
             UsageCalculator.periodBuckets(hours),
-            summary.completeDays
+            effectiveHourEligibleDays
         )
         val totalHourMinutes = periods.sum()
         val nightPercent =
@@ -355,8 +357,9 @@ object PeriodSummaryCalculator {
         appendLine("日均 ${period.summary.averageScreenUnlockMin?.let { UsageCalculator.formatDuration(it) } ?: "—"}")
         appendLine(period.compare.text)
         appendLine(
-            "有记录 ${period.summary.recordedDays} 天 / 共 ${period.summary.totalDays} 天" +
-                if (period.gapDays > 0) "（${period.gapDays} 天无数据）" else ""
+            "有记录 ${period.summary.recordedDays} 天 / 共 ${period.summary.totalDays} 天（完整日 ${period.summary.completeDays} 天" +
+                (if (period.gapDays > 0) "，${period.gapDays} 天无数据" else "") +
+                "）"
         )
         if (period.periods.sum() > 0) {
             val labels = listOf("06–12", "12–18", "18–22", "22–06")

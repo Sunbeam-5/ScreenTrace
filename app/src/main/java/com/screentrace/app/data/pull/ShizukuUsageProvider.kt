@@ -24,9 +24,7 @@ class ShizukuUsageProvider(
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val clock: () -> Long = System::currentTimeMillis,
     private val context: Context? = null,
-    private val parse: (String, String) -> ParseResult = { checkin, human ->
-        UsageDumpParser.parse(checkin, human, zone)
-    }
+    private val parse: ((String, String) -> ParseResult)? = null
 ) : UsageProvider {
 
     override val channel: PullChannel = PullChannel.SHIZUKU
@@ -120,10 +118,18 @@ class ShizukuUsageProvider(
             }
 
             try {
+                val effectiveCheckin = if (useCheckin) checkin else ""
+                val parsedResult = parse?.invoke(effectiveCheckin, human)
+                    ?: UsageDumpParser.parse(
+                        checkinText = effectiveCheckin,
+                        humanText = human,
+                        zone = zone,
+                        capturedAtMs = capturedAtMs
+                    )
                 LoadedUsage.Parsed(
                     // 不可用时传空串：绝不能把「不像 checkin 的文本」喂给 CSV 正则，
                     // 否则要么静默产出似真数据，要么把明文里的数字重复计一遍。
-                    result = parse(if (useCheckin) checkin else "", human),
+                    result = parsedResult,
                     capturedAtMs = capturedAtMs,
                     warning = warning
                 )

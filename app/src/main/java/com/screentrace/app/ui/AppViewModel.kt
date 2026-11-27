@@ -1496,7 +1496,6 @@ class AppViewModel(
                 // ---- 统计页窗口（statsSelection）----
                 val statsSummary = repository.summary(statsSel)
                 val statsApps = repository.appRanking(statsSel, limit = Int.MAX_VALUE)
-                val statsHours = repository.hourlyDistribution(statsSel)
                 val statsCompare = UsageCalculator.compare(
                     statsSummary,
                     repository.summary(UsageCalculator.previousPeriod(statsSel)),
@@ -1510,8 +1509,7 @@ class AppViewModel(
                 val todaySummary = if (sameWindow) statsSummary else repository.summary(todayEffective)
                 val todayApps =
                     if (sameWindow) statsApps else repository.appRanking(todayEffective, limit = Int.MAX_VALUE)
-                val todayHours =
-                    if (sameWindow) statsHours else repository.hourlyDistribution(todayEffective)
+                val todayHours = repository.hourlyDistribution(todayEffective)
                 val todayCompare = if (sameWindow) statsCompare else UsageCalculator.compare(
                     todaySummary,
                     repository.summary(UsageCalculator.previousPeriod(todayEffective)),
@@ -1636,10 +1634,11 @@ class AppViewModel(
                     val eligibleDates = statsTrend
                         .filter { it.isEligibleForFullDayStats(today) }
                         .map { it.date }
-                    val eligibleHours = if (eligibleDates.isEmpty()) {
-                        emptyList()
+                    // D-07 Review 修复（P1-3）：严禁 .ifEmpty 回退全区间，统一走独立小时日质量仲裁
+                    val qualifiedHourly = if (eligibleDates.isEmpty()) {
+                        com.screentrace.app.contract.QualifiedHourlyDistribution(emptyList(), 0)
                     } else {
-                        repository.hourlyDistributionForDates(eligibleDates).ifEmpty { statsHours }
+                        repository.qualifiedHourlyDistribution(eligibleDates)
                     }
                     _statsState.value = LoadState(
                         data = StatsData(
@@ -1647,8 +1646,8 @@ class AppViewModel(
                             compare = statsCompare,
                             trend = statsTrend,
                             periods = UsageCalculator.dailyAveragePeriods(
-                                UsageCalculator.periodBuckets(eligibleHours),
-                                eligibleDates.size
+                                UsageCalculator.periodBuckets(qualifiedHourly.buckets),
+                                qualifiedHourly.eligibleDays
                             ),
                             extremes = repository.extremes(statsSel, threshold),
                             topAppsPerDay = repository.topAppsPerDay(statsSel, limit = 3),
@@ -1703,11 +1702,11 @@ class AppViewModel(
                 val eligibleDates = trend
                     .filter { it.isEligibleForFullDayStats(today) }
                     .map { it.date }
-                val hours = if (eligibleDates.isEmpty()) {
-                    emptyList()
+                // D-07 Review 修复（P1-3）：严禁 .ifEmpty 回退全区间，统一走独立小时日质量仲裁
+                val qualifiedHourly = if (eligibleDates.isEmpty()) {
+                    com.screentrace.app.contract.QualifiedHourlyDistribution(emptyList(), 0)
                 } else {
-                    repository.hourlyDistributionForDates(eligibleDates)
-                        .ifEmpty { repository.hourlyDistribution(range.selection) }
+                    repository.qualifiedHourlyDistribution(eligibleDates)
                 }
                 val latestPulledAt = repository.latestOkPulledAt()
                 val period = PeriodSummaryCalculator.build(
@@ -1716,8 +1715,9 @@ class AppViewModel(
                     trend = trend,
                     previousSummary = previous,
                     apps = apps,
-                    hours = hours,
-                    lastUpdatedAtMs = latestPulledAt
+                    hours = qualifiedHourly.buckets,
+                    lastUpdatedAtMs = latestPulledAt,
+                    hourEligibleDays = qualifiedHourly.eligibleDays
                 )
                 if (!period.summary.hasAnyRecord) {
                     LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)

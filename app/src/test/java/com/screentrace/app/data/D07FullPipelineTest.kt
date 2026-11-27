@@ -100,7 +100,15 @@ class D07FullPipelineTest {
         // M-CB1：拍板 2 —— 新装首日仅有今天 180m 数据，完整日为 0，日均必须为 null（UI 渲染 — 而非 0分钟）
         val today = LocalDate.of(2026, 11, 26)
         insertDay(today, 180, DataQualityValues.PARTIAL)
-        db.pullLogDao().insert(PullLogEntity(pulledAt = 1_764_129_600_000L, source = "shizuku", ok = true, note = "ok"))
+        db.pullLogDao().insert(
+            PullLogEntity(
+                pulledAt = 1_764_129_600_000L,
+                source = "shizuku",
+                ok = true,
+                note = "ok",
+                sourceDeviceId = "dev-a"
+            )
+        )
 
         val range = DateSelection.lastDays(7, today)
         val records = db.daySummaryDao().sumRange(range.startDate.toString(), range.endDate.toString()).map {
@@ -115,7 +123,7 @@ class D07FullPipelineTest {
                 dayQuality = DayQuality.fromSql(it.dayQuality)
             )
         }
-        val summary = UsageCalculator.summarize(range, records, today = today, lastUpdatedAtMs = db.pullLogDao().latestOkPulledAt())
+        val summary = UsageCalculator.summarize(range, records, today = today, lastUpdatedAtMs = db.pullLogDao().latestOkPulledAtForDevice("dev-a"))
         assertTrue(summary.hasAnyRecord)
         assertEquals(1, summary.recordedDays)
         assertEquals(0, summary.completeDays)

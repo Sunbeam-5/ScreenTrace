@@ -19,6 +19,7 @@ import com.screentrace.app.data.db.UsageWindowEntity
 import java.time.ZoneId
 import com.screentrace.app.data.parse.AppNames
 import com.screentrace.app.data.parse.ParseResult
+import com.screentrace.app.data.parse.ScreenStreamAudit
 
 /**
  * 解析入库管道（批 6a）：ParseResult（日聚合 + 事件流）→ 合并入 Room + pull_log。
@@ -85,12 +86,15 @@ class IngestPipeline(
             val src = localDeviceId()
             val isPrimaryChannel = source == "shizuku"
             val pullDate = java.time.Instant.ofEpochMilli(pulledAtMs).atZone(zone).toLocalDate()
-            val windowStartMs = if (isPrimaryChannel && result.rawEventMinMs != null && result.rawEventMinMs <= pulledAtMs) {
-                result.rawEventMinMs
-            } else {
-                null
+            // D-07 Review 修复（P1-2）：彻底禁止 rawEventMinMs/rawEventMaxMs 参与 G2；
+            // 仅采用经单通道有界观测与 28h 约束校验的 result.observedWindow。
+            val validObserved = result.observedWindow?.takeIf {
+                isPrimaryChannel &&
+                    it.endMs > it.startMs &&
+                    (it.endMs - it.startMs) <= ScreenStreamAudit.MAX_SINGLE_PULL_WINDOW_MS
             }
-            val windowEndMs = if (windowStartMs != null) pulledAtMs else null
+            val windowStartMs = validObserved?.startMs
+            val windowEndMs = validObserved?.endMs
             val sessionDates = buildSet {
                 for (span in result.screenSessions) {
                     if (span.endMs <= span.startMs) continue
@@ -110,8 +114,9 @@ class IngestPipeline(
                 }
             }
             db.withTransaction {
+                // D-07 Review 修复（P1-1）：仅合并本机（sourceDeviceId = src）的 Shizuku 有界观测窗口
                 val historicalWindows = if (isPrimaryChannel) {
-                    db.pullLogDao().shizukuEventWindows().map {
+                    db.pullLogDao().shizukuEventWindows(src).map {
                         SessionUnion.Span(it.eventWindowStartMs, it.eventWindowEndMs)
                     }
                 } else {
@@ -125,10 +130,14 @@ class IngestPipeline(
                 val coveredSpans = SessionUnion.union(historicalWindows + currentWindow)
 
                 fun isExactDay(date: java.time.LocalDate, hasSession: Boolean): Boolean {
-                    if (!isPrimaryChannel || !hasSession || date in anchorConflictDates) return false
+                    // G3: 存在 E3 锚点冲突或屏幕状态机截断/异常日一律拦截降级为 PARTIAL
+                    if (!isPrimaryChannel || !hasSession) return false
+                    if (date in anchorConflictDates || date in result.truncatedScreenDates) return false
                     val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
                     val dayEndMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-                    // G1: 自然日已闭合；G2: 历次主通道事件窗口并集完整覆盖真实 DST 自然日
+                    // G1: 自然日已闭合；G2: 本机历次主通道有界连续观测窗口并集完整覆盖真实 DST 自然日
+                    // 口径声明：EXACT 是基于单通道有界观测 + 屏幕状态机完整性检查的保守工程完整性判定策略，
+                    // 而非 Android dumpsys usagestats 的 OS 级零丢包证明。
                     if (pulledAtMs < dayEndMs) return false
                     return coveredSpans.any { it.startMs <= dayStartMs && it.endMs >= dayEndMs }
                 }
@@ -355,7 +364,8 @@ class IngestPipeline(
                         note = finalNote,
                         collectionStatus = pullStatus,
                         eventWindowStartMs = windowStartMs,
-                        eventWindowEndMs = windowEndMs
+                        eventWindowEndMs = windowEndMs,
+                        sourceDeviceId = src
                     )
                 )
             }
@@ -382,13 +392,15 @@ class IngestPipeline(
         collectionStatus: String? = null
     ) {
         runCatching {
+            val src = runCatching { localDeviceId() }.getOrNull()
             db.pullLogDao().insert(
                 PullLogEntity(
                     pulledAt = pulledAtMs,
                     source = source,
                     ok = ok,
                     note = note,
-                    collectionStatus = collectionStatus
+                    collectionStatus = collectionStatus,
+                    sourceDeviceId = src
                 )
             )
         }
