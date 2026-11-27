@@ -207,7 +207,8 @@ class PeriodSummaryCalculatorTest {
             add(point(LocalDate.of(2026, 1, 6), 200)) // 1 月日均 = 150
             add(point(LocalDate.of(2026, 3, 1), 60))  // 3 月日均 = 60
             add(point(LocalDate.of(2026, 3, 2), null))
-            add(point(thursday, 300))                 // 11 月
+            add(point(thursday.minusDays(1), 300))    // 11 月已闭合完整日
+            add(point(thursday, 60))                  // 11 月今日进行中（拍板 2 排除，不拉低 11 月日均）
         }
         val period = PeriodSummaryCalculator.build(
             type = PeriodType.YEAR,
@@ -309,7 +310,8 @@ class PeriodSummaryCalculatorTest {
         val text = PeriodSummaryCalculator.toPlainText(period)
         assertTrue(text.contains("本周")) // 标题
         assertTrue(text.contains("总时长 10小时"))
-        assertTrue(text.contains("日均 2小时30分钟"))
+        // D-07 拍板 2：今日（周四 180m）不入完整日日均，仅周一~周三 (120+240+60)/3 = 140m
+        assertTrue(text.contains("日均 2小时20分钟"))
         assertTrue(text.contains("有记录 4 天 / 共 4 天"))
         assertTrue(text.contains("微信"))
         // 隐藏应用名称：同源数据只换显示名，占比与时长不变

@@ -51,6 +51,10 @@ data class DaySummary(
     /** D-07 方案 C+ 统计准入：完整日（EXACT）与互斥历史兼容日（LEGACY）可参与；PARTIAL/UNKNOWN 排除。 */
     val isCompleteForStats: Boolean
         get() = dayQuality == DayQuality.EXACT || dayQuality == DayQuality.LEGACY
+
+    /** 完整日统计唯一准入函数（拍板 1+2）：必须已跨过今日（date < today）且质量为 EXACT 或兼容 LEGACY。 */
+    fun isEligibleForFullDayStats(today: LocalDate): Boolean =
+        date.isBefore(today) && isCompleteForStats
 }
 
 data class AppUsage(

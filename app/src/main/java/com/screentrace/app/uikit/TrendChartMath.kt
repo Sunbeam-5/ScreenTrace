@@ -35,10 +35,10 @@ object TrendChartMath {
      * 平均线：**有记录日**柱值的算术平均，四舍五入到分钟。
      * 无记录日不计入（否则「没采集到」会被当成 0 拉低平均），全无记录返回 null（不画线）。
      */
-    fun averageMinutes(points: List<DailyPoint>): Int? {
-        val recorded = points.filter { it.recorded }
-        if (recorded.isEmpty()) return null
-        return (recorded.sumOf { it.minutes }.toDouble() / recorded.size).roundToInt()
+    fun averageMinutes(points: List<DailyPoint>, today: java.time.LocalDate = java.time.LocalDate.now()): Int? {
+        val eligible = points.filter { it.isEligibleForFullDayStats(today) }
+        if (eligible.isEmpty()) return null
+        return eligible.sumOf { it.minutes } / eligible.size
     }
 
     /**

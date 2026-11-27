@@ -177,33 +177,39 @@ object PeriodSummaryCalculator {
         trend: List<DailyPoint>,
         previousSummary: Summary?,
         apps: List<AppUsage>,
-        hours: List<HourBucket>
+        hours: List<HourBucket>,
+        lastUpdatedAtMs: Long? = null
     ): PeriodSummary {
         val range = type.natural(today)
         val inWindow = trend.filter { it.date in range.start..range.dataEnd }
-        val summary = UsageCalculator.summarizePoints(range.selection, inWindow)
+        val summary = UsageCalculator.summarizePoints(
+            selection = range.selection,
+            points = inWindow,
+            today = today,
+            lastUpdatedAtMs = lastUpdatedAtMs
+        )
         val previous = previousSummary?.let {
             PeriodComparison(range.previousEqualLength(), it)
         }
         val compare = UsageCalculator.compareAverage(summary, previousSummary, type.previousLabel)
-        val longestShortest = UsageCalculator.longestShortest(inWindow)
+        val longestShortest = UsageCalculator.longestShortest(inWindow, today = today)
         val appTotal = apps.sumOf { it.minutes }
         val periods = UsageCalculator.dailyAveragePeriods(
             UsageCalculator.periodBuckets(hours),
-            summary.recordedDays
+            summary.completeDays
         )
         val totalHourMinutes = periods.sum()
         val nightPercent =
             if (totalHourMinutes <= 0) 0 else periods[3] * 100 / totalHourMinutes
 
         val monthTrend =
-            if (type == PeriodType.YEAR) monthlyPoints(range, inWindow) else emptyList()
+            if (type == PeriodType.YEAR) monthlyPoints(range, inWindow, today) else emptyList()
 
         val top5 = apps.sortedWith(
             compareByDescending<AppUsage> { it.minutes }.thenBy { it.name }
         ).take(5)
 
-        val insufficient = summary.recordedDays < MIN_RECORDED_DAYS_FOR_INSIGHT
+        val insufficient = summary.completeDays < MIN_RECORDED_DAYS_FOR_INSIGHT
         val insights = if (insufficient) {
             emptyList()
         } else {
@@ -260,8 +266,8 @@ object PeriodSummaryCalculator {
      * 总量会把 31 天的月份天然抬高；日均与 §5.3 的「日均」口径一致，且未记录的月份
      * 整根不出现（不画成 0，也就不会假装「这个月没怎么用手机」）。
      */
-    private fun monthlyPoints(range: PeriodRange, trend: List<DailyPoint>): List<MonthPoint> {
-        val byMonth = trend.filter { it.recorded }.groupBy { it.date.monthValue }
+    private fun monthlyPoints(range: PeriodRange, trend: List<DailyPoint>, today: LocalDate): List<MonthPoint> {
+        val byMonth = trend.filter { it.isEligibleForFullDayStats(today) }.groupBy { it.date.monthValue }
         return (1..12).mapNotNull { month ->
             val days = byMonth[month] ?: return@mapNotNull null
             MonthPoint(
@@ -290,13 +296,15 @@ object PeriodSummaryCalculator {
         topApps: List<AppUsage>,
         appTotalMinutes: Int
     ): List<String> = buildList {
-        // ① 与上一等长周期对比（两边日均）
-        if (previous != null && previous.hasAnyRecord) {
-            val delta = summary.averageScreenUnlockMin - previous.averageScreenUnlockMin
+        // ① 与上一等长周期对比（两边完整日日均）
+        val curAvg = summary.averageScreenUnlockMin
+        val prevAvg = previous?.averageScreenUnlockMin
+        if (previous != null && previous.hasAnyRecord && curAvg != null && prevAvg != null) {
+            val delta = curAvg - prevAvg
             val direction = if (delta >= 0) "多" else "少"
             add(
-                "${type.label}日均 ${UsageCalculator.formatDuration(summary.averageScreenUnlockMin)}，" +
-                    "比${type.previousLabel}（${UsageCalculator.formatDuration(previous.averageScreenUnlockMin)}）" +
+                "${type.label}日均 ${UsageCalculator.formatDuration(curAvg)}，" +
+                    "比${type.previousLabel}（${UsageCalculator.formatDuration(prevAvg)}）" +
                     "$direction ${UsageCalculator.formatDuration(kotlin.math.abs(delta))}"
             )
         }
@@ -344,7 +352,7 @@ object PeriodSummaryCalculator {
     fun toPlainText(period: PeriodSummary, hideAppNames: Boolean = false): String = buildString {
         appendLine("${period.title} · ${period.subtitle}")
         appendLine("总时长 ${UsageCalculator.formatDuration(period.summary.totalScreenUnlockMin)}")
-        appendLine("日均 ${UsageCalculator.formatDuration(period.summary.averageScreenUnlockMin)}")
+        appendLine("日均 ${period.summary.averageScreenUnlockMin?.let { UsageCalculator.formatDuration(it) } ?: "—"}")
         appendLine(period.compare.text)
         appendLine(
             "有记录 ${period.summary.recordedDays} 天 / 共 ${period.summary.totalDays} 天" +

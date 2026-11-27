@@ -140,26 +140,27 @@ class R11QualityPipelineTest {
             DaySummary(d4, 5, 5, 0, 1, 5, 4L, screenQuality = DataQualityValues.UNKNOWN)
         )
 
-        val summary = UsageCalculator.summarize(range, records)
+        val summary = UsageCalculator.summarize(range, records, today = LocalDate.of(2026, 11, 25))
         assertTrue(summary.hasAnyRecord)
-        assertEquals(2, summary.recordedDays)
+        assertEquals(4, summary.recordedDays)
+        assertEquals(2, summary.completeDays)
         assertEquals(250, summary.averageScreenUnlockMin)
         assertEquals(15, summary.averageUnlocks)
 
-        val extremes = UsageCalculator.extremes(range, records, lowThresholdMin = 120)
+        val extremes = UsageCalculator.extremes(range, records, lowThresholdMin = 120, today = LocalDate.of(2026, 11, 25))
         assertEquals(d1, extremes.longestDate)
         assertEquals(300, extremes.longestMinutes)
         assertEquals(d2, extremes.shortestDate)
         assertEquals(200, extremes.shortestMinutes)
         assertEquals(0, extremes.underThresholdDays)
 
-        val points = UsageCalculator.dailyPoints(range, records)
+        val points = UsageCalculator.dailyPoints(range, records, today = LocalDate.of(2026, 11, 25))
         assertEquals(DataQualityValues.EXACT, points[0].quality)
         assertNull(points[1].quality)
         assertEquals(DataQualityValues.PARTIAL, points[2].quality)
         assertEquals(DataQualityValues.UNKNOWN, points[3].quality)
 
-        val periodExtremes = UsageCalculator.longestShortest(points)
+        val periodExtremes = UsageCalculator.longestShortest(points, today = LocalDate.of(2026, 11, 25))
         assertEquals(d1, periodExtremes.longestDate)
         assertEquals(d2, periodExtremes.shortestDate)
     }

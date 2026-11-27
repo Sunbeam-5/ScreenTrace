@@ -112,8 +112,9 @@ private fun TodayContent(
 ) {
     val palette = LocalFreshPalette.current
     val single = data.summary.selection is DateSelection.Day
-    val usageMin =
+    val rawUsageMin: Int? =
         if (single) data.summary.totalScreenUnlockMin else data.summary.averageScreenUnlockMin
+    val usageMin = rawUsageMin ?: 0
     // CR-09 验收 40：caption 写实际显示日（今天才叫「今日亮屏」，昨天写「11月12日亮屏」）
     val displayDate = (data.summary.selection as? DateSelection.Day)?.date
     val caption = when {
@@ -127,14 +128,14 @@ private fun TodayContent(
         // CR-07（新规格 §4.2）：目标环双层——progress = 使用/目标，可超 1 上限 2；
         // 超目标部分由第二圈（更深主色）从 12 点叠画
         RingProgress(
-            progress = if (dailyGoalMin > 0) usageMin.toFloat() / dailyGoalMin else 0f,
+            progress = if (dailyGoalMin > 0 && rawUsageMin != null) rawUsageMin.toFloat() / dailyGoalMin else 0f,
             usageMinutes = usageMin,
             goalMinutes = dailyGoalMin,
             caption = caption
         )
         // 标签行（§5.7-4）：「超出目标」仅超目标出现；对比标签无数据时整行不显示
-        val overMinutes = (usageMin - dailyGoalMin).coerceAtLeast(0)
-        val showOver = shouldShowOverChip(usageMin, dailyGoalMin)
+        val overMinutes = if (rawUsageMin != null) (rawUsageMin - dailyGoalMin).coerceAtLeast(0) else 0
+        val showOver = rawUsageMin != null && shouldShowOverChip(rawUsageMin, dailyGoalMin)
         val showCompare = shouldShowCompare(data.compare)
         if (showOver || showCompare) {
             FlowRow(

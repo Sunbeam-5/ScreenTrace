@@ -171,7 +171,7 @@ private fun CalendarContent(
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = "连续记录",
+                text = "连续使用",
                 style = FreshType.bodySmall,
                 color = palette.onSecondaryContainer
             )
@@ -377,6 +377,10 @@ private fun CalendarContent(
     // 「共 N 个有记录日」；N 从 20 周年视图 levels 统计——contract 未提供该计数，
     // UI 层可从既有数据推出，不动数据口径）
     val recordedDays = data.yearLevels.count { it.recorded }
+    val completeDays = data.yearLevels.count {
+        it.recorded && !it.isToday &&
+            (it.dayQuality == null || it.dayQuality == com.screentrace.app.contract.DayQuality.EXACT || it.dayQuality == com.screentrace.app.contract.DayQuality.LEGACY)
+    }
     MetricCardPair(
         leftLabel = "最久的一天",
         leftValue = MetricValue.Duration(data.extremes.longestMinutes),
@@ -385,7 +389,7 @@ private fun CalendarContent(
         // 整小时显示「低于 3 小时」，非整小时（如 90 分钟）退回「低于 90 分钟」。
         rightLabel = thresholdLabel(lowThresholdMin),
         rightValue = MetricValue.Number("${data.extremes.underThresholdDays}"),
-        rightNote = "共 $recordedDays 个有记录日",
+        rightNote = "共 $recordedDays 个有记录日（完整 $completeDays 天）",
         compact = true
     )
 }

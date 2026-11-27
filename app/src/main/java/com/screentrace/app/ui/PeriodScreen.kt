@@ -153,16 +153,38 @@ private fun PeriodContent(
             style = FreshType.label,
             color = palette.onSurfaceMuted
         )
+        Text(
+            text = "完整日日均",
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
         MetricValueText(
-            value = MetricValue.Duration(period.summary.totalScreenUnlockMin),
+            value = period.summary.averageScreenUnlockMin?.let { MetricValue.Duration(it) }
+                ?: MetricValue.Number("—"),
             numberColor = palette.onSurface,
             unitColor = palette.onSurfaceMuted
         )
-        Text(
-            text = "日均 ${UsageCalculator.formatDuration(period.summary.averageScreenUnlockMin)}",
-            style = FreshType.body,
-            color = palette.onSurface
-        )
+        val periodNote = buildList {
+            if (period.summary.inProgressDays > 0 && period.summary.lastUpdatedAtMs != null) {
+                val hhmm = java.time.Instant.ofEpochMilli(period.summary.lastUpdatedAtMs)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                add("使用时长（截止今天 $hhmm）")
+            }
+            if (period.summary.legacyCompleteDays > 0) {
+                add("含 ${period.summary.legacyCompleteDays} 天历史未标注数据")
+            }
+            if (period.summary.incompleteDays > 0) {
+                add("${period.summary.incompleteDays} 天数据不完整未计入")
+            }
+        }
+        if (periodNote.isNotEmpty()) {
+            Text(
+                text = periodNote.joinToString(" · "),
+                style = FreshType.label,
+                color = palette.onSurfaceVariant
+            )
+        }
         CompareLine(text = period.compare.text, up = period.compare.increase)
     }
 

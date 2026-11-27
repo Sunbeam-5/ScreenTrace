@@ -15,17 +15,39 @@ const val DEFAULT_LOW_THRESHOLD_MIN = 120
 data class Summary(
     val selection: DateSelection,
     val totalDays: Int,
+    /** 有任意 day_summary 行的自然日数（还原原义，供「共 N 天有记录」展示）。 */
     val recordedDays: Int,
     val hasAnyRecord: Boolean,
     val totalScreenUnlockMin: Int,
-    /** §5.6：日均只除以「有记录」日，缺失日不按 0 拉低平均。 */
-    val averageScreenUnlockMin: Int,
+    /** D-07 方案 C+（拍板 2）：仅完整日（date < today 且 EXACT/LEGACY）均值；无合格日时为 null（UI 显示 —）。 */
+    val averageScreenUnlockMin: Int?,
     val averageUnlocks: Int,
-    val longestSessionMin: Int
+    val longestSessionMin: Int,
+    /** 合格完整日数（= 日均分母）。 */
+    val completeDays: Int = recordedDays,
+    /** 其中属于 LEGACY 历史兼容的天数（>0 时 UI 标注「含 N 天历史未标注数据」）。 */
+    val legacyCompleteDays: Int = 0,
+    /** 已过去但质量为 PARTIAL / UNKNOWN 的天数。 */
+    val incompleteDays: Int = 0,
+    /** 窗口内是否包含未结束的今日（0 或 1）。 */
+    val inProgressDays: Int = 0,
+    /** 最近一次成功采集时刻（毫秒，供拍板 4「使用时长（截止今天 HH:mm）」）。 */
+    val lastUpdatedAtMs: Long? = null
 )
 
 /** 趋势图每个自然日一个点；无记录日 minutes = 0 且 recorded = false（§5.6 / §7-8）。 */
-data class DailyPoint(val date: LocalDate, val minutes: Int, val recorded: Boolean, val quality: String? = null)
+data class DailyPoint(
+    val date: LocalDate,
+    val minutes: Int,
+    val recorded: Boolean,
+    val quality: String? = null,
+    val dayQuality: DayQuality? = quality?.let(DayQuality::fromSingleRowQuality),
+    val isToday: Boolean = false
+) {
+    fun isEligibleForFullDayStats(today: LocalDate): Boolean =
+        recorded && !isToday && date.isBefore(today) &&
+            (dayQuality == null || dayQuality == DayQuality.EXACT || dayQuality == DayQuality.LEGACY)
+}
 
 data class HourBucket(val hour: Int, val minutes: Int)
 
@@ -37,7 +59,9 @@ data class CalendarLevel(
     val date: LocalDate,
     val level: Int,
     val recorded: Boolean,
-    val minutes: Int? = null
+    val minutes: Int? = null,
+    val dayQuality: DayQuality? = null,
+    val isToday: Boolean = false
 )
 
 data class PullResult(val ok: Boolean, val message: String)
@@ -193,6 +217,12 @@ interface UsageRepository {
     suspend fun dailyTrend(selection: DateSelection): List<DailyPoint>
     suspend fun appRanking(selection: DateSelection, limit: Int = 20): List<AppUsage>
     suspend fun hourlyDistribution(selection: DateSelection): List<HourBucket>
+
+    /** D-07 方案 C+：按指定合格日期集合汇总时段分布（保证时段日均分子与分母同集合）。 */
+    suspend fun hourlyDistributionForDates(dates: List<LocalDate>): List<HourBucket> = emptyList()
+
+    /** D-07 方案 C+（拍板 4）：最近一次成功拉取的本地时间戳（用于「使用时长（截止今天 HH:mm）」）。 */
+    suspend fun latestOkPulledAt(): Long? = null
 
     /**
      * 趋势图「点柱看详情」（§5.7-5）：区间内**每个自然日**的 top N 应用（按 minutes 降序）。

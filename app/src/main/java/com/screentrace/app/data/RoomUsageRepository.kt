@@ -105,8 +105,21 @@ class RoomUsageRepository(
 
     override suspend fun summary(selection: DateSelection): Summary =
         com.screentrace.app.uikit.PerfProbe.measure("Room/summary") {
-            UsageCalculator.summarize(selection, recordsBetween(selection.startDate, selection.endDate))
+            val latestPulledAt = db.pullLogDao().latestOkPulledAt()
+            UsageCalculator.summarize(
+                selection = selection,
+                records = recordsBetween(selection.startDate, selection.endDate),
+                lastUpdatedAtMs = latestPulledAt
+            )
         }
+
+    override suspend fun hourlyDistributionForDates(dates: List<LocalDate>): List<HourBucket> {
+        if (dates.isEmpty()) return (0..23).map { HourBucket(it, 0) }
+        val byHour = db.hourUsageDao().sumForDates(dates.map { it.toString() }).associateBy { it.hour }
+        return (0..23).map { hour -> HourBucket(hour, byHour[hour]?.minutes ?: 0) }
+    }
+
+    override suspend fun latestOkPulledAt(): Long? = db.pullLogDao().latestOkPulledAt()
 
     override suspend fun dailyTrend(selection: DateSelection): List<DailyPoint> =
         com.screentrace.app.uikit.PerfProbe.measure("Room/dailyTrend") {

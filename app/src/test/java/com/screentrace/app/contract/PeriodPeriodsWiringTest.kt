@@ -18,11 +18,11 @@ class PeriodPeriodsWiringTest {
 
     @Test
     fun `周期总结时段分布用有记录日日均而不是区间累计`() {
-        // 4 天都有记录 → recordedDays = 4（无记录日不进分母）
+        // 4 天有记录，其中 11/12 为今日进行中（D-07 拍板 2 排除）→ recordedDays = 4, completeDays = 3
         val trend = (0L..3L).map {
             DailyPoint(LocalDate.of(2026, 11, 9).plusDays(it), 120, true)
         }
-        // 06–11 时各 40 分钟 → 06–12 段累计 240 分钟；日均 = 240 / 4 = 60
+        // 06–11 时各 40 分钟 → 06–12 段累计 240 分钟；完整日日均 = 240 / 3 = 80
         val hours = (6..11).map { HourBucket(it, 40) }
 
         val period = PeriodSummaryCalculator.build(
@@ -35,7 +35,8 @@ class PeriodPeriodsWiringTest {
         )
 
         assertEquals(4, period.summary.recordedDays)
-        assertEquals("周期页接线必须走 dailyAveragePeriods", 60, period.periods[0])
-        assertEquals(60, period.periods.sum())
+        assertEquals(3, period.summary.completeDays)
+        assertEquals("周期页接线必须走 dailyAveragePeriods", 80, period.periods[0])
+        assertEquals(80, period.periods.sum())
     }
 }

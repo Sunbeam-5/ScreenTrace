@@ -90,8 +90,9 @@ class PeriodReminderWorker(
             for (due in dueList) {
                 val selection = DateSelection.Range(due.startDate, due.endDate)
                 val summary = runCatching { container.repository.summary(selection) }.getOrNull()
-                if (summary != null && summary.hasAnyRecord && summary.recordedDays > 0) {
-                    postReminderNotification(applicationContext, due, summary.averageScreenUnlockMin)
+                val avgMin = summary?.averageScreenUnlockMin
+                if (summary != null && summary.hasAnyRecord && summary.completeDays > 0 && avgMin != null) {
+                    postReminderNotification(applicationContext, due, avgMin)
                     when (due.periodType) {
                         PeriodType.WEEK -> settings.setLastWeeklyReminderKey(due.periodKey)
                         PeriodType.MONTH -> settings.setLastMonthlyReminderKey(due.periodKey)

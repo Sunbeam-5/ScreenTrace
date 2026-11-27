@@ -33,27 +33,44 @@ object UsageCalculator {
      * SUM 含全部有记录行；AVG 的分母只含有记录日。
      * 「有记录」= 数据库存在该日 day_summary，真实 0 分钟仍算有记录。
      */
-    fun summarize(selection: DateSelection, records: List<DaySummary>): Summary {
+    fun summarize(
+        selection: DateSelection,
+        records: List<DaySummary>,
+        today: LocalDate = LocalDate.now(),
+        lastUpdatedAtMs: Long? = null
+    ): Summary {
         val inRange = records.filter { !it.date.isBefore(selection.startDate) && !it.date.isAfter(selection.endDate) }
-        val complete = inRange.filter { it.isCompleteForStats }
+        val complete = inRange.filter { it.isEligibleForFullDayStats(today) }
         val completeDays = complete.size
+        val legacyCompleteDays = complete.count { it.dayQuality == DayQuality.LEGACY }
+        val inProgressDays = inRange.count { !it.date.isBefore(today) }
+        val incompleteDays = inRange.count { it.date.isBefore(today) && !it.isCompleteForStats }
         val total = inRange.sumOf { it.screenUnlockMin }
         val completeTotal = complete.sumOf { it.screenUnlockMin }
         val completeUnlocks = complete.sumOf { it.unlocks }
         return Summary(
             selection = selection,
             totalDays = selection.days,
-            recordedDays = completeDays,
+            recordedDays = inRange.size,
             hasAnyRecord = inRange.isNotEmpty(),
             totalScreenUnlockMin = total,
-            averageScreenUnlockMin = if (completeDays == 0) 0 else completeTotal / completeDays,
+            averageScreenUnlockMin = if (completeDays == 0) null else completeTotal / completeDays,
             averageUnlocks = if (completeDays == 0) 0 else completeUnlocks / completeDays,
-            longestSessionMin = inRange.maxOfOrNull { it.longestSessionMin } ?: 0
+            longestSessionMin = inRange.maxOfOrNull { it.longestSessionMin } ?: 0,
+            completeDays = completeDays,
+            legacyCompleteDays = legacyCompleteDays,
+            incompleteDays = incompleteDays,
+            inProgressDays = inProgressDays,
+            lastUpdatedAtMs = lastUpdatedAtMs
         )
     }
 
     /** 每个自然日都有数据点：有记录按真实值，无记录高度为 0 且标「无记录」。 */
-    fun dailyPoints(selection: DateSelection, records: List<DaySummary>): List<DailyPoint> {
+    fun dailyPoints(
+        selection: DateSelection,
+        records: List<DaySummary>,
+        today: LocalDate = LocalDate.now()
+    ): List<DailyPoint> {
         val byDate = records.associateBy { it.date }
         return daysOf(selection).map { date ->
             val record = byDate[date]
@@ -61,7 +78,9 @@ object UsageCalculator {
                 date = date,
                 minutes = record?.screenUnlockMin ?: 0,
                 recorded = record != null,
-                quality = record?.screenQuality
+                quality = record?.screenQuality,
+                dayQuality = record?.dayQuality,
+                isToday = date == today
             )
         }
     }
@@ -74,21 +93,36 @@ object UsageCalculator {
      * 与 [summarize] 的唯一区别：本函数不认识 `longestSessionMin`（逐日点里没有），
      * 因此 `longestSessionMin` 记 0，周期页不展示该字段。
      */
-    fun summarizePoints(selection: DateSelection, points: List<DailyPoint>): Summary {
+    fun summarizePoints(
+        selection: DateSelection,
+        points: List<DailyPoint>,
+        today: LocalDate = LocalDate.now(),
+        lastUpdatedAtMs: Long? = null
+    ): Summary {
         val inRange = points.filter {
             !it.date.isBefore(selection.startDate) && !it.date.isAfter(selection.endDate)
         }
         val recorded = inRange.filter { it.recorded }
+        val complete = recorded.filter { it.isEligibleForFullDayStats(today) }
+        val legacyCompleteDays = complete.count { it.dayQuality == DayQuality.LEGACY }
+        val inProgressDays = recorded.count { it.isToday || !it.date.isBefore(today) }
+        val incompleteDays = recorded.count { !it.isToday && it.date.isBefore(today) && !it.isEligibleForFullDayStats(today) }
         val total = recorded.sumOf { it.minutes }
+        val completeTotal = complete.sumOf { it.minutes }
         return Summary(
             selection = selection,
             totalDays = selection.days,
             recordedDays = recorded.size,
             hasAnyRecord = recorded.isNotEmpty(),
             totalScreenUnlockMin = total,
-            averageScreenUnlockMin = if (recorded.isEmpty()) 0 else total / recorded.size,
+            averageScreenUnlockMin = if (complete.isEmpty()) null else completeTotal / complete.size,
             averageUnlocks = 0,
-            longestSessionMin = 0
+            longestSessionMin = 0,
+            completeDays = complete.size,
+            legacyCompleteDays = legacyCompleteDays,
+            incompleteDays = incompleteDays,
+            inProgressDays = inProgressDays,
+            lastUpdatedAtMs = lastUpdatedAtMs
         )
     }
 
@@ -96,8 +130,8 @@ object UsageCalculator {
      * §5.11 周期的「最长 / 最短一天」：只看有记录的日，真实 0 分钟参与最短竞争；
      * 并列取更早日期（与 [extremes] 同规则）。周期页不需要阈值计数，故单独拆出。
      */
-    fun longestShortest(points: List<DailyPoint>): ExtremesInfo {
-        val recorded = points.filter { it.recorded && (it.quality == null || it.quality == "EXACT") }.sortedBy { it.date }
+    fun longestShortest(points: List<DailyPoint>, today: LocalDate = LocalDate.now()): ExtremesInfo {
+        val recorded = points.filter { it.isEligibleForFullDayStats(today) }.sortedBy { it.date }
         if (recorded.isEmpty()) return ExtremesInfo(null, 0, null, 0, 0)
         val longest = recorded.maxBy { it.minutes }
         val shortest = recorded.minBy { it.minutes }
@@ -245,13 +279,14 @@ object UsageCalculator {
     fun extremes(
         selection: DateSelection,
         records: List<DaySummary>,
-        lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN
+        lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN,
+        today: LocalDate = LocalDate.now()
     ): ExtremesInfo {
         val inRange = records.associateBy { it.date }.values
             .filter {
                 !it.date.isBefore(selection.startDate) &&
                     !it.date.isAfter(selection.endDate) &&
-                    it.isCompleteForStats
+                    it.isEligibleForFullDayStats(today)
             }
             .sortedBy { it.date }
         if (inRange.isEmpty()) {
@@ -318,6 +353,7 @@ object UsageCalculator {
     ): CompareInfo {
         val prevAvg = previous.averageScreenUnlockMin
         val curAvg = current.averageScreenUnlockMin
+        if (prevAvg == null || curAvg == null) return CompareInfo("暂无可比完整日数据", null)
         if (prevAvg <= 0) {
             // 上一周期日均为 0，百分比无意义——退化为分钟差文案
             val delta = curAvg - prevAvg
@@ -512,11 +548,13 @@ object UsageCalculator {
         }
         val total = points.sumOf { it.value }
         val recordedCount = points.count { it.coverage == Coverage.RECORDED }
+        val todayDate = LocalDate.now()
         val dailyAverage = if (single || recordedCount == 0) {
             null
         } else {
-            // §5.6：AVG 分母只含记录日（RECORDED 含真实 0），窗口外/缺口不拉低平均
-            points.filter { it.coverage == Coverage.RECORDED }.sumOf { it.value } / recordedCount
+            // §5.6 + D-07 拍板 2：事件区间日均排除未结束的今天
+            val eligiblePoints = points.filter { it.coverage == Coverage.RECORDED && it.date.isBefore(todayDate) }
+            if (eligiblePoints.isEmpty()) null else eligiblePoints.sumOf { it.value } / eligiblePoints.size
         }
         return Pair3(total, dailyAverage, points)
     }
@@ -525,7 +563,11 @@ object UsageCalculator {
     private data class Pair3(val total: Int, val dailyAverage: Int?, val points: List<MetricPoint>)
 
     /** 月视图任意月份：整月每个自然日一个色档点（§5.7 三档，真实 0 与无记录同为 0 档但 recorded 区分）。 */
-    fun monthLevels(yearMonth: YearMonth, records: List<DaySummary>): List<CalendarLevel> {
+    fun monthLevels(
+        yearMonth: YearMonth,
+        records: List<DaySummary>,
+        today: LocalDate = LocalDate.now()
+    ): List<CalendarLevel> {
         val byDate = records.associateBy { it.date }
         return (1..yearMonth.lengthOfMonth()).map { day ->
             val date = yearMonth.atDay(day)
@@ -534,7 +576,9 @@ object UsageCalculator {
                 date = date,
                 level = monthLevel(record?.screenUnlockMin ?: 0, record != null),
                 recorded = record != null,
-                minutes = record?.screenUnlockMin
+                minutes = record?.screenUnlockMin,
+                dayQuality = record?.dayQuality,
+                isToday = date == today
             )
         }
     }
@@ -562,7 +606,9 @@ object UsageCalculator {
                         date = cursor,
                         level = yearLevel(record?.screenUnlockMin ?: 0, record != null, lowThresholdMin),
                         recorded = record != null,
-                        minutes = record?.screenUnlockMin
+                        minutes = record?.screenUnlockMin,
+                        dayQuality = record?.dayQuality,
+                        isToday = cursor == anchor
                     )
                 )
                 cursor = cursor.plusDays(1)

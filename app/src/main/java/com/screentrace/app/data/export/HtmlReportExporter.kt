@@ -90,15 +90,19 @@ object HtmlReportExporter {
             appendLine("<h2>概览</h2>")
             appendLine("<div class=\"cards\">")
             appendLine(card("屏幕使用合计", UsageCalculator.formatDuration(s.totalScreenUnlockMin)))
-            appendLine(card("有记录日日均", UsageCalculator.formatDuration(s.averageScreenUnlockMin)))
+            appendLine(card("完整日日均", s.averageScreenUnlockMin?.let { UsageCalculator.formatDuration(it) } ?: "—"))
             appendLine(card("日均解锁", if (s.averageUnlocks > 0) "${s.averageUnlocks} 次" else "—"))
             appendLine(card("有记录天数", "${s.recordedDays} / ${s.totalDays} 天"))
             appendLine("</div>")
             input.dailyGoalMin?.let { goal ->
                 val goalText = UsageCalculator.formatDuration(goal)
                 val avg = s.averageScreenUnlockMin
-                val pct = if (goal > 0) (avg * 100 / goal).coerceAtLeast(0) else 0
-                appendLine("<p class=\"sub\">日均 $avg 分钟 / 目标 ${escape(goalText)}（$pct%）</p>")
+                if (avg != null) {
+                    val pct = if (goal > 0) (avg * 100 / goal).coerceAtLeast(0) else 0
+                    appendLine("<p class=\"sub\">日均 $avg 分钟 / 目标 ${escape(goalText)}（$pct%）</p>")
+                } else {
+                    appendLine("<p class=\"sub\">日均 — / 目标 ${escape(goalText)}</p>")
+                }
             }
             appendLine("</section>")
 

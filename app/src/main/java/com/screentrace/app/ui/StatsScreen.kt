@@ -128,7 +128,8 @@ private fun StatsContent(
                     color = palette.onSurfaceVariant
                 )
                 MetricValueText(
-                    value = MetricValue.Duration(data.summary.averageScreenUnlockMin),
+                    value = data.summary.averageScreenUnlockMin?.let { MetricValue.Duration(it) }
+                        ?: MetricValue.Number("—"),
                     numberColor = palette.onSurface,
                     unitColor = palette.onSurfaceMuted,
                     numberFontSize = 40,
@@ -178,13 +179,42 @@ private fun StatsContent(
         rolling = true
     )
 
+    // D-07 方案 C+（拍板 1/2/4）：完整日口径与截止时刻说明
+    val statsFootnotes = buildList {
+        if (data.summary.inProgressDays > 0 && data.summary.lastUpdatedAtMs != null) {
+            val hhmm = java.time.Instant.ofEpochMilli(data.summary.lastUpdatedAtMs)
+                .atZone(java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+            add("使用时长（截止今天 $hhmm）")
+        }
+        if (data.summary.completeDays > 0) {
+            val base = "日均按 ${data.summary.completeDays} 个完整日计算" +
+                if (data.summary.inProgressDays > 0) " · 不含今日进行中" else ""
+            add(base)
+        }
+        if (data.summary.legacyCompleteDays > 0) {
+            add("含 ${data.summary.legacyCompleteDays} 天历史未标注数据")
+        }
+        if (data.summary.incompleteDays > 0) {
+            add("${data.summary.incompleteDays} 天数据不完整未计入")
+        }
+    }
+    if (statsFootnotes.isNotEmpty()) {
+        Text(
+            text = statsFootnotes.joinToString(" · "),
+            style = FreshType.label,
+            color = palette.onSurfaceVariant
+        )
+    }
+
     // 洞察：数据足够才显示（§5.7）
-    if (data.summary.recordedDays >= 3 && data.extremes.longestDate != null) {
+    val avgMin = data.summary.averageScreenUnlockMin
+    if (data.summary.completeDays >= 3 && avgMin != null && data.extremes.longestDate != null) {
         FreshCard(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = "洞察", style = FreshType.sectionTitle, color = palette.onSurface)
             FadeText(
-                text = "共 ${data.summary.recordedDays} 天有记录，日均 " +
-                    "${UsageCalculator.formatDuration(data.summary.averageScreenUnlockMin)}；" +
+                text = "共 ${data.summary.recordedDays} 天有记录（完整 ${data.summary.completeDays} 天），日均 " +
+                    "${UsageCalculator.formatDuration(avgMin)}；" +
                     "最久的一天是 ${data.extremes.longestDate.monthValue}月${data.extremes.longestDate.dayOfMonth}日" +
                     "（${UsageCalculator.formatDuration(data.extremes.longestMinutes)}）。",
                 style = FreshType.body,

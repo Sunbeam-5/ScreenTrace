@@ -1555,8 +1555,9 @@ class AppViewModel(
                 // ---- 日历页：固定今天锚点 + 全量历史，与两份筛选都无关（CR-15 B）----
                 // extremes 内部按 historySel 取全部 day_summary；longestDate == null
                 // 等价于「整个历史都没有日聚合」，正是日历页该显示 NO_EVENT_DATA 的条件。
+                val historySummary = repository.summary(historySel)
                 val calendarExtremes = repository.extremes(historySel, threshold)
-                if (calendarExtremes.longestDate == null) {
+                if (!historySummary.hasAnyRecord) {
                     _calendarState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
                     _monthLevelsState.value = LoadState(data = emptyList())
                 } else {
@@ -1631,14 +1632,23 @@ class AppViewModel(
                 if (!statsSummary.hasAnyRecord) {
                     _statsState.value = LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
                 } else {
+                    val statsTrend = repository.dailyTrend(statsSel)
+                    val eligibleDates = statsTrend
+                        .filter { it.isEligibleForFullDayStats(today) }
+                        .map { it.date }
+                    val eligibleHours = if (eligibleDates.isEmpty()) {
+                        emptyList()
+                    } else {
+                        repository.hourlyDistributionForDates(eligibleDates).ifEmpty { statsHours }
+                    }
                     _statsState.value = LoadState(
                         data = StatsData(
                             summary = statsSummary,
                             compare = statsCompare,
-                            trend = repository.dailyTrend(statsSel),
+                            trend = statsTrend,
                             periods = UsageCalculator.dailyAveragePeriods(
-                                UsageCalculator.periodBuckets(statsHours),
-                                statsSummary.recordedDays
+                                UsageCalculator.periodBuckets(eligibleHours),
+                                eligibleDates.size
                             ),
                             extremes = repository.extremes(statsSel, threshold),
                             topAppsPerDay = repository.topAppsPerDay(statsSel, limit = 3),
@@ -1690,14 +1700,24 @@ class AppViewModel(
                 val trend = repository.dailyTrend(range.selection)
                 val previous = repository.summary(range.previousEqualLength().selection)
                 val apps = repository.appRanking(range.selection, limit = Int.MAX_VALUE)
-                val hours = repository.hourlyDistribution(range.selection)
+                val eligibleDates = trend
+                    .filter { it.isEligibleForFullDayStats(today) }
+                    .map { it.date }
+                val hours = if (eligibleDates.isEmpty()) {
+                    emptyList()
+                } else {
+                    repository.hourlyDistributionForDates(eligibleDates)
+                        .ifEmpty { repository.hourlyDistribution(range.selection) }
+                }
+                val latestPulledAt = repository.latestOkPulledAt()
                 val period = PeriodSummaryCalculator.build(
                     type = type,
                     today = today,
                     trend = trend,
                     previousSummary = previous,
                     apps = apps,
-                    hours = hours
+                    hours = hours,
+                    lastUpdatedAtMs = latestPulledAt
                 )
                 if (!period.summary.hasAnyRecord) {
                     LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
