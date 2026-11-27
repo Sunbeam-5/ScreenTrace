@@ -3,7 +3,14 @@ package com.screentrace.app.uikit
 import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+
+/**
+ * 离屏静态导出（如 PNG 长截图）强制关闭入场动画的 CompositionLocal，
+ * 让圆环、柱图、时段条在首帧直接落终值，不影响前台交互页面。
+ */
+val LocalForceReduceMotion = staticCompositionLocalOf { false }
 
 /**
  * §5.7 / §5.9：系统「减少动画」判定（`ANIMATOR_DURATION_SCALE <= 0`）。
@@ -14,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
  */
 @Composable
 fun rememberReduceMotion(): Boolean {
+    if (LocalForceReduceMotion.current) return true
     val context = LocalContext.current
     return remember(context) {
         runCatching {

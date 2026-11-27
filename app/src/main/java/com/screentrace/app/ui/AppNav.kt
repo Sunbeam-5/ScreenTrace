@@ -899,8 +899,8 @@ fun AppNav(
                                     buildReport = { hideNames ->
                                         viewModel.buildHtmlReport(hideNames, appVersion)
                                     },
-                                    buildPngReport = { hideNames, pngTheme ->
-                                        viewModel.buildPngReport(hideNames, appVersion, pngTheme)
+                                    buildPngPosterData = { hideNames, modules ->
+                                        viewModel.buildPngPosterData(hideNames, appVersion, modules)
                                     },
                                     onBuildBackupJson = { viewModel.buildBackupJson(appVersion) },
                                     onBackupCompatWarning = { viewModel.backupCompatWarning(appVersion) },

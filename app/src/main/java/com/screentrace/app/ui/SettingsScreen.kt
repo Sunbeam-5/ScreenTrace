@@ -40,8 +40,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -69,6 +67,7 @@ import com.screentrace.app.data.wallpaper.WallpaperConfig
 import com.screentrace.app.data.wallpaper.WallpaperTuning
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
+import com.screentrace.app.theme.LocalWallpaper
 import com.screentrace.app.theme.ThemeVariant
 import com.screentrace.app.uikit.NumberWheelSheet
 import com.screentrace.app.uikit.PrimaryButton
@@ -135,9 +134,11 @@ fun SettingsScreen(
     appVersion: String,
     /** 生成 HTML 报告：入参 = 是否隐藏应用名称，返回（建议文件名, HTML 全文）。 */
     buildReport: suspend (Boolean) -> Pair<String, String>?,
-    /** 14a 余项：生成与当前主题同步的离线 PNG 长图报告。 */
-    buildPngReport: suspend (Boolean, com.screentrace.app.data.export.PngReportTheme) -> Pair<String, ByteArray>? =
-        { _, _ -> null },
+    /** 14a 余项（v3）：按用户勾选模块查询同源数据，用于离屏渲染 Tab 长截图 PNG。 */
+    buildPngPosterData: suspend (
+        Boolean,
+        Set<com.screentrace.app.data.export.PngExportModule>
+    ) -> Pair<String, com.screentrace.app.data.export.PngPosterData>? = { _, _ -> null },
     /** 批 8：备份导出/恢复（§5.10）。 */
     onBuildBackupJson: suspend () -> Pair<String, String>? = { null },
     /** CR-28 三层兼容：导出含多来源分量时的旧版本兼容警告。 */
@@ -204,7 +205,7 @@ fun SettingsScreen(
                 onOpenAppCategories = onOpenAppCategories,
                 appVersion = appVersion,
                 buildReport = buildReport,
-                buildPngReport = buildPngReport,
+                buildPngPosterData = buildPngPosterData,
                 onNotice = onNotice
             )
         }
@@ -481,10 +482,14 @@ private fun PermissionGroup(
     onOpenAppCategories: () -> Unit,
     appVersion: String,
     buildReport: suspend (Boolean) -> Pair<String, String>?,
-    buildPngReport: suspend (Boolean, com.screentrace.app.data.export.PngReportTheme) -> Pair<String, ByteArray>?,
+    buildPngPosterData: suspend (
+        Boolean,
+        Set<com.screentrace.app.data.export.PngExportModule>
+    ) -> Pair<String, com.screentrace.app.data.export.PngPosterData>?,
     onNotice: (String) -> Unit
 ) {
     val palette = LocalFreshPalette.current
+    val wallpaper = LocalWallpaper.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -607,7 +612,7 @@ private fun PermissionGroup(
 
         Text(text = "导出使用报告", style = FreshType.body, color = palette.onSurface)
         Text(
-            text = "导出当前筛选区间的使用概览，支持 HTML 网页与 PNG 长图，本机离线生成。",
+            text = "导出当前筛选区间的使用概览，支持 HTML 网页与自选模块 PNG 长图，本机离线生成。",
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )
@@ -621,7 +626,7 @@ private fun PermissionGroup(
         ReportExportSheet(
             appVersion = appVersion,
             onDismiss = { showExportSheet = false },
-            onExport = { format, hideNames ->
+            onExport = { format, hideNames, modules ->
                 scope.launch {
                     when (format) {
                         ReportExportFormat.HTML -> {
@@ -635,15 +640,26 @@ private fun PermissionGroup(
                             htmlLauncher.launch(payload.first)
                         }
                         ReportExportFormat.PNG -> {
-                            val pngTheme = palette.toPngReportTheme()
-                            val payload = buildPngReport(hideNames, pngTheme)
+                            val prepared = buildPngPosterData(hideNames, modules)
+                            val bytes = if (prepared != null) {
+                                runCatching {
+                                    capturePosterToPngBytes(
+                                        context = context,
+                                        palette = palette,
+                                        wallpaper = wallpaper,
+                                        rawData = prepared.second
+                                    )
+                                }.getOrNull()
+                            } else {
+                                null
+                            }
                             showExportSheet = false
-                            if (payload == null) {
+                            if (prepared == null || bytes == null) {
                                 onNotice("长图生成失败，请稍后再试")
                                 return@launch
                             }
-                            pendingPng = payload
-                            pngLauncher.launch(payload.first)
+                            pendingPng = prepared.first to bytes
+                            pngLauncher.launch(prepared.first)
                         }
                     }
                 }
@@ -657,61 +673,25 @@ private enum class ReportExportFormat(val label: String) {
     PNG("PNG 长图")
 }
 
-/** 将当前 App 的 [com.screentrace.app.theme.FreshPalette] 转为不透明 PNG 渲染主题（含深浅色与壁纸配色）。 */
-private fun com.screentrace.app.theme.FreshPalette.toPngReportTheme():
-    com.screentrace.app.data.export.PngReportTheme {
-    val solidBg = background.copy(alpha = 1f)
-    val solidCard = panelSurface.copy(alpha = 1f)
-    fun androidx.compose.ui.graphics.Color.opaqueOverCard(): Int =
-        compositeOver(solidCard).toArgb()
-    fun androidx.compose.ui.graphics.Color.opaqueOverBg(): Int =
-        compositeOver(solidBg).toArgb()
-
-    return com.screentrace.app.data.export.PngReportTheme(
-        darkTheme = darkTheme,
-        background = solidBg.toArgb(),
-        gradientTop = gradientTop.opaqueOverBg(),
-        gradientMid = gradientMid.opaqueOverBg(),
-        cardSurface = solidCard.toArgb(),
-        surfaceVariant = surfaceVariant.opaqueOverCard(),
-        primary = primary.copy(alpha = 1f).toArgb(),
-        ringGradientEnd = ringGradientEnd.copy(alpha = 1f).toArgb(),
-        ringOver = ringOver.copy(alpha = 1f).toArgb(),
-        primaryContainer = primaryContainer.opaqueOverBg(),
-        onPrimaryContainer = onPrimaryContainer.copy(alpha = 1f).toArgb(),
-        secondaryContainer = secondaryContainer.opaqueOverBg(),
-        onSecondaryContainer = onSecondaryContainer.copy(alpha = 1f).toArgb(),
-        onSurface = onSurface.copy(alpha = 1f).toArgb(),
-        onSurfaceVariant = onSurfaceVariant.copy(alpha = 1f).toArgb(),
-        onSurfaceMuted = onSurfaceMuted.copy(alpha = 1f).toArgb(),
-        track = track.opaqueOverCard(),
-        barSurface = barSurface.opaqueOverCard(),
-        outline = outline.opaqueOverCard(),
-        shadow = shadow.toArgb(),
-        overTarget = overTarget.copy(alpha = 1f).toArgb(),
-        overTargetSurface = overTargetSurface.opaqueOverCard(),
-        chipSurface = chipSurface.opaqueOverCard(),
-        chipOn = chipOn.copy(alpha = 1f).toArgb(),
-        nightIcon = nightIcon.copy(alpha = 1f).toArgb(),
-        chartColors = listOf(
-            chart1, chart2, chart3, chart4, chart5,
-            primary, month1, month2, month3, nightIcon
-        ).map { it.copy(alpha = 1f).toArgb() }
-    )
-}
-
-/** 导出前的选项：格式切换（HTML / PNG 长图）与隐藏应用名称（§5.11「导出前可选」）。 */
-@OptIn(ExperimentalMaterial3Api::class)
+/** 导出前的选项：格式切换（HTML / 自选模块 PNG 长图）与隐藏应用名称（§5.11「导出前可选」）。 */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun ReportExportSheet(
     appVersion: String,
     onDismiss: () -> Unit,
-    onExport: (format: ReportExportFormat, hideAppNames: Boolean) -> Unit
+    onExport: (
+        format: ReportExportFormat,
+        hideAppNames: Boolean,
+        modules: Set<com.screentrace.app.data.export.PngExportModule>
+    ) -> Unit
 ) {
     val palette = LocalFreshPalette.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var format by remember { mutableStateOf(ReportExportFormat.HTML) }
+    var format by remember { mutableStateOf(ReportExportFormat.PNG) }
     var hideNames by remember { mutableStateOf(false) }
+    var selectedModules by remember {
+        mutableStateOf(com.screentrace.app.data.export.PngExportModule.DEFAULT_SET)
+    }
     var exporting by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
@@ -743,27 +723,66 @@ private fun ReportExportSheet(
                 text = if (format == ReportExportFormat.HTML) {
                     "单文件 HTML，断网可用浏览器打开。"
                 } else {
-                    "跟随当前主题配色的离线 PNG 长图，方便保存相册或分享。"
+                    "按 390dp 主流手机分享宽度 1:1 复刻当前主题与壁纸界面，可自由勾选要导出的模块。"
                 },
                 style = FreshType.label,
                 color = palette.onSurfaceVariant
             )
+            if (format == ReportExportFormat.PNG) {
+                Text(
+                    text = "选择包含模块（已选 ${selectedModules.size} / ${com.screentrace.app.data.export.PngExportModule.entries.size}）",
+                    style = FreshType.body,
+                    color = palette.onSurface
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    com.screentrace.app.data.export.PngExportModule.entries.forEach { module ->
+                        val checked = module in selectedModules
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(if (checked) palette.primary else palette.surfaceVariant)
+                                .toggleable(
+                                    value = checked,
+                                    role = Role.Checkbox,
+                                    onValueChange = { on ->
+                                        selectedModules = if (on) {
+                                            selectedModules + module
+                                        } else {
+                                            selectedModules - module
+                                        }
+                                    }
+                                )
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = module.label,
+                                style = FreshType.label,
+                                color = if (checked) palette.onPrimary else palette.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
             SettingSwitchRow(
                 label = "隐藏应用名称",
                 checked = hideNames,
                 onCheckedChange = { hideNames = it }
             )
             Text(
-                text = "开启后应用只显示为「应用 1」「应用 2」，保留占比与颜色。",
+                text = "开启后应用只显示为「应用 1」「应用 2」，同步隐藏图标，保留占比与颜色。",
                 style = FreshType.label,
                 color = palette.onSurfaceVariant
             )
+            val canExport = !exporting && (format == ReportExportFormat.HTML || selectedModules.isNotEmpty())
             PrimaryButton(
                 text = if (exporting) "生成中…" else "导出",
-                enabled = !exporting,
+                enabled = canExport,
                 onClick = {
                     exporting = true
-                    onExport(format, hideNames)
+                    onExport(format, hideNames, selectedModules)
                 },
                 modifier = Modifier.fillMaxWidth()
             )

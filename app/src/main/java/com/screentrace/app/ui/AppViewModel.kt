@@ -439,6 +439,13 @@ class AppViewModel(
     val collectionVerdict: State<com.screentrace.app.data.pull.DataCollectionVerdict?> =
         _collectionVerdict
 
+    /**
+     * 当前正在查看哪台设备（空串 = 本机）。设备列表用它标「· 当前」。
+     * 必须声明在 `init` 之前，避免 `viewModelScope.launch` 在同步主线程调度器上抢先写入时 NPE。
+     */
+    private val _currentDeviceId = mutableStateOf("")
+    val currentDeviceId: State<String> = _currentDeviceId
+
     init {
         observeSettings()
         loadWallpaper()
@@ -1130,24 +1137,80 @@ class AppViewModel(
     }
 
     /**
-     * 14a 余项（§5.11 / §7-12）：生成纯离线 Fresh UI 风格 PNG 长图报告（写盘交给 UI 层的 SAF）。
+     * 14a 余项（v3）：按用户勾选模块现查同源仓库数据，供真实 Compose 离屏渲染为 Tab 长截图 PNG。
      *
-     * 与 [buildHtmlReport] 共享 [buildReportInput]，确保 HTML / PNG / 页内数字 100% 同源；
-     * 接收当前界面的 [theme]，确保导出长图与用户当前主题及深浅色模式一致；
-     * Bitmap 绘制与 PNG 压缩在 [Dispatchers.Default] 执行，避免阻塞主线程。
+     * 与「今日 / 统计 / 日历」及 [buildHtmlReport] 使用完全同一套查询与 D-07 小时质量仲裁，
+     * 开启 `hideAppNames` 时同步脱敏应用名与包名。
      */
-    suspend fun buildPngReport(
+    suspend fun buildPngPosterData(
         hideAppNames: Boolean,
         appVersion: String,
-        theme: com.screentrace.app.data.export.PngReportTheme =
-            com.screentrace.app.data.export.PngReportTheme.Default
-    ): Pair<String, ByteArray>? {
+        modules: Set<com.screentrace.app.data.export.PngExportModule> =
+            com.screentrace.app.data.export.PngExportModule.DEFAULT_SET
+    ): Pair<String, com.screentrace.app.data.export.PngPosterData>? {
         return runCatching {
-            val (now, input) = buildReportInput(hideAppNames, appVersion)
-            val bytes = withContext(Dispatchers.Default) {
-                com.screentrace.app.data.export.PngReportExporter.renderPngBytes(input, theme)
+            val selection = currentSelection()
+            val (now, base) = buildReportInput(hideAppNames, appVersion)
+            val today = todayProvider()
+            val unlock = if (com.screentrace.app.data.export.PngExportModule.UNLOCK_NOTIFICATION in modules) {
+                repository.metricDetail(MetricKind.UNLOCK, selection)
+            } else {
+                null
             }
-            com.screentrace.app.data.export.PngReportExporter.fileName(now) to bytes
+            val notification = if (com.screentrace.app.data.export.PngExportModule.UNLOCK_NOTIFICATION in modules) {
+                repository.metricDetail(MetricKind.NOTIFICATION, selection)
+            } else {
+                null
+            }
+            val topAppsPerDay = if (com.screentrace.app.data.export.PngExportModule.DAILY_TREND in modules) {
+                repository.topAppsPerDay(selection, limit = 3)
+            } else {
+                emptyMap()
+            }
+            val periods = if (com.screentrace.app.data.export.PngExportModule.PERIOD_DISTRIBUTION in modules) {
+                val eligibleDates = base.daily
+                    .filter { it.isEligibleForFullDayStats(today) }
+                    .map { it.date }
+                val qualifiedHourly = if (eligibleDates.isEmpty()) {
+                    com.screentrace.app.contract.QualifiedHourlyDistribution(emptyList(), 0)
+                } else {
+                    repository.qualifiedHourlyDistribution(eligibleDates)
+                }
+                UsageCalculator.dailyAveragePeriods(
+                    UsageCalculator.periodBuckets(qualifiedHourly.buckets),
+                    qualifiedHourly.eligibleDays
+                )
+            } else {
+                listOf(0, 0, 0, 0)
+            }
+            val yearMonth = YearMonth.from(selection.endDate)
+            val monthLevels = if (com.screentrace.app.data.export.PngExportModule.MONTH_CALENDAR in modules) {
+                repository.monthLevels(yearMonth)
+            } else {
+                emptyList()
+            }
+            val raw = com.screentrace.app.data.export.PngPosterData(
+                selection = selection,
+                rangeLabel = base.rangeLabel,
+                exportedAt = base.exportedAt,
+                appVersion = appVersion,
+                summary = base.summary,
+                dailyGoalMin = _dailyGoalMin.value,
+                daily = base.daily,
+                apps = base.apps,
+                topAppsPerDay = topAppsPerDay,
+                hours = base.hours,
+                periods = periods,
+                unlock = unlock,
+                notification = notification,
+                yearMonth = yearMonth,
+                monthLevels = monthLevels,
+                today = today,
+                hideAppNames = hideAppNames,
+                modules = modules
+            )
+            com.screentrace.app.data.export.PngReportExporter.fileName(now) to
+                com.screentrace.app.data.export.PngReportExporter.sanitize(raw)
         }.getOrNull()
     }
 
@@ -1348,12 +1411,6 @@ class AppViewModel(
     }
 
     // ---- CR-21：切换设备 / 跨设备合并 ----
-
-    /**
-     * 当前正在查看哪台设备（空串 = 本机）。设备列表用它标「· 当前」。
-     */
-    private val _currentDeviceId = mutableStateOf("")
-    val currentDeviceId: State<String> = _currentDeviceId
 
     /**
      * CR-21 ③：切到某台设备。
