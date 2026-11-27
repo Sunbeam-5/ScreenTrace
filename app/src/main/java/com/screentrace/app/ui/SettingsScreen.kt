@@ -40,6 +40,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -133,8 +135,9 @@ fun SettingsScreen(
     appVersion: String,
     /** 生成 HTML 报告：入参 = 是否隐藏应用名称，返回（建议文件名, HTML 全文）。 */
     buildReport: suspend (Boolean) -> Pair<String, String>?,
-    /** 14a 余项：生成离线 PNG 长图报告，入参 = 是否隐藏应用名称，返回（建议文件名, PNG 字节流）。 */
-    buildPngReport: suspend (Boolean) -> Pair<String, ByteArray>? = { null },
+    /** 14a 余项：生成与当前主题同步的离线 PNG 长图报告。 */
+    buildPngReport: suspend (Boolean, com.screentrace.app.data.export.PngReportTheme) -> Pair<String, ByteArray>? =
+        { _, _ -> null },
     /** 批 8：备份导出/恢复（§5.10）。 */
     onBuildBackupJson: suspend () -> Pair<String, String>? = { null },
     /** CR-28 三层兼容：导出含多来源分量时的旧版本兼容警告。 */
@@ -478,7 +481,7 @@ private fun PermissionGroup(
     onOpenAppCategories: () -> Unit,
     appVersion: String,
     buildReport: suspend (Boolean) -> Pair<String, String>?,
-    buildPngReport: suspend (Boolean) -> Pair<String, ByteArray>?,
+    buildPngReport: suspend (Boolean, com.screentrace.app.data.export.PngReportTheme) -> Pair<String, ByteArray>?,
     onNotice: (String) -> Unit
 ) {
     val palette = LocalFreshPalette.current
@@ -632,7 +635,8 @@ private fun PermissionGroup(
                             htmlLauncher.launch(payload.first)
                         }
                         ReportExportFormat.PNG -> {
-                            val payload = buildPngReport(hideNames)
+                            val pngTheme = palette.toPngReportTheme()
+                            val payload = buildPngReport(hideNames, pngTheme)
                             showExportSheet = false
                             if (payload == null) {
                                 onNotice("长图生成失败，请稍后再试")
@@ -653,6 +657,49 @@ private enum class ReportExportFormat(val label: String) {
     PNG("PNG 长图")
 }
 
+/** 将当前 App 的 [com.screentrace.app.theme.FreshPalette] 转为不透明 PNG 渲染主题（含深浅色与壁纸配色）。 */
+private fun com.screentrace.app.theme.FreshPalette.toPngReportTheme():
+    com.screentrace.app.data.export.PngReportTheme {
+    val solidBg = background.copy(alpha = 1f)
+    val solidCard = panelSurface.copy(alpha = 1f)
+    fun androidx.compose.ui.graphics.Color.opaqueOverCard(): Int =
+        compositeOver(solidCard).toArgb()
+    fun androidx.compose.ui.graphics.Color.opaqueOverBg(): Int =
+        compositeOver(solidBg).toArgb()
+
+    return com.screentrace.app.data.export.PngReportTheme(
+        darkTheme = darkTheme,
+        background = solidBg.toArgb(),
+        gradientTop = gradientTop.opaqueOverBg(),
+        gradientMid = gradientMid.opaqueOverBg(),
+        cardSurface = solidCard.toArgb(),
+        surfaceVariant = surfaceVariant.opaqueOverCard(),
+        primary = primary.copy(alpha = 1f).toArgb(),
+        ringGradientEnd = ringGradientEnd.copy(alpha = 1f).toArgb(),
+        ringOver = ringOver.copy(alpha = 1f).toArgb(),
+        primaryContainer = primaryContainer.opaqueOverBg(),
+        onPrimaryContainer = onPrimaryContainer.copy(alpha = 1f).toArgb(),
+        secondaryContainer = secondaryContainer.opaqueOverBg(),
+        onSecondaryContainer = onSecondaryContainer.copy(alpha = 1f).toArgb(),
+        onSurface = onSurface.copy(alpha = 1f).toArgb(),
+        onSurfaceVariant = onSurfaceVariant.copy(alpha = 1f).toArgb(),
+        onSurfaceMuted = onSurfaceMuted.copy(alpha = 1f).toArgb(),
+        track = track.opaqueOverCard(),
+        barSurface = barSurface.opaqueOverCard(),
+        outline = outline.opaqueOverCard(),
+        shadow = shadow.toArgb(),
+        overTarget = overTarget.copy(alpha = 1f).toArgb(),
+        overTargetSurface = overTargetSurface.opaqueOverCard(),
+        chipSurface = chipSurface.opaqueOverCard(),
+        chipOn = chipOn.copy(alpha = 1f).toArgb(),
+        nightIcon = nightIcon.copy(alpha = 1f).toArgb(),
+        chartColors = listOf(
+            chart1, chart2, chart3, chart4, chart5,
+            primary, month1, month2, month3, nightIcon
+        ).map { it.copy(alpha = 1f).toArgb() }
+    )
+}
+
 /** 导出前的选项：格式切换（HTML / PNG 长图）与隐藏应用名称（§5.11「导出前可选」）。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -671,7 +718,8 @@ private fun ReportExportSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = palette.surface
+        // CR-20 ③：弹层底色必须不透明（壁纸模式下 palette.surface 半透明会导致与底层文字重叠）
+        containerColor = palette.panelSurface
     ) {
         Column(
             modifier = Modifier
@@ -695,7 +743,7 @@ private fun ReportExportSheet(
                 text = if (format == ReportExportFormat.HTML) {
                     "单文件 HTML，断网可用浏览器打开。"
                 } else {
-                    "单张离线 PNG 长图，方便保存相册或直接分享。"
+                    "跟随当前主题配色的离线 PNG 长图，方便保存相册或分享。"
                 },
                 style = FreshType.label,
                 color = palette.onSurfaceVariant

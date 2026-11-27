@@ -1130,16 +1130,22 @@ class AppViewModel(
     }
 
     /**
-     * 14a 余项（§5.11 / §7-12）：生成纯离线 PNG 长图报告（字节流返回值，写盘交给 UI 层的 SAF）。
+     * 14a 余项（§5.11 / §7-12）：生成纯离线 Fresh UI 风格 PNG 长图报告（写盘交给 UI 层的 SAF）。
      *
      * 与 [buildHtmlReport] 共享 [buildReportInput]，确保 HTML / PNG / 页内数字 100% 同源；
+     * 接收当前界面的 [theme]，确保导出长图与用户当前主题及深浅色模式一致；
      * Bitmap 绘制与 PNG 压缩在 [Dispatchers.Default] 执行，避免阻塞主线程。
      */
-    suspend fun buildPngReport(hideAppNames: Boolean, appVersion: String): Pair<String, ByteArray>? {
+    suspend fun buildPngReport(
+        hideAppNames: Boolean,
+        appVersion: String,
+        theme: com.screentrace.app.data.export.PngReportTheme =
+            com.screentrace.app.data.export.PngReportTheme.Default
+    ): Pair<String, ByteArray>? {
         return runCatching {
             val (now, input) = buildReportInput(hideAppNames, appVersion)
             val bytes = withContext(Dispatchers.Default) {
-                com.screentrace.app.data.export.PngReportExporter.renderPngBytes(input)
+                com.screentrace.app.data.export.PngReportExporter.renderPngBytes(input, theme)
             }
             com.screentrace.app.data.export.PngReportExporter.fileName(now) to bytes
         }.getOrNull()

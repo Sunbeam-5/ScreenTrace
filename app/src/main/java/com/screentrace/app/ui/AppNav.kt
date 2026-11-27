@@ -899,8 +899,8 @@ fun AppNav(
                                     buildReport = { hideNames ->
                                         viewModel.buildHtmlReport(hideNames, appVersion)
                                     },
-                                    buildPngReport = { hideNames ->
-                                        viewModel.buildPngReport(hideNames, appVersion)
+                                    buildPngReport = { hideNames, pngTheme ->
+                                        viewModel.buildPngReport(hideNames, appVersion, pngTheme)
                                     },
                                     onBuildBackupJson = { viewModel.buildBackupJson(appVersion) },
                                     onBackupCompatWarning = { viewModel.backupCompatWarning(appVersion) },
@@ -1027,33 +1027,7 @@ fun AppNav(
                 }
             }
 
-            // 纯确认类短时条：底部安全区上方轻提示胶囊（主页面避让 50dp 导航胶囊；二级页底距 24dp，不用 Toast）
-            val bottomFeedback = activeFeedback?.takeIf { it.channel == FeedbackChannel.TRANSIENT }
-            val isRoot = isRootPage(page)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .widthIn(max = 600.dp)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = if (isRoot) 84.dp else 24.dp)
-            ) {
-                AnimatedVisibility(
-                    visible = bottomFeedback != null,
-                    enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                    exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
-                ) {
-                    bottomFeedback?.let { fb ->
-                        NoticeBar(
-                            text = fb.text,
-                            isError = false,
-                            onDismiss = viewModel::consumeTransient
-                        )
-                    }
-                }
-            }
-
-            // ---- 底部导航：画在最上层，二级页里也保持选中项不跳变（§5.2/§5.5）----
+            // ---- 底部导航：二级页里也保持选中项不跳变（§5.2/§5.5）----
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -1084,6 +1058,31 @@ fun AppNav(
                     },
                     progress = navProgress
                 )
+            }
+
+            // 纯确认类短时条：画在底部导航胶囊之上并统一留出 88dp 底距（二级页也有悬浮导航栏，避免被遮挡，不用 Toast）
+            val bottomFeedback = activeFeedback?.takeIf { it.channel == FeedbackChannel.TRANSIENT }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .widthIn(max = 600.dp)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 88.dp)
+            ) {
+                AnimatedVisibility(
+                    visible = bottomFeedback != null,
+                    enter = expandVertically(tween(140)) + fadeIn(tween(140)),
+                    exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                ) {
+                    bottomFeedback?.let { fb ->
+                        NoticeBar(
+                            text = fb.text,
+                            isError = false,
+                            onDismiss = viewModel::consumeTransient
+                        )
+                    }
+                }
             }
 
             // ---- §5.2 CR-20 ①：设备列表面板浮层（最上层，盖住导航胶囊与提示条）----
