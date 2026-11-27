@@ -2590,3 +2590,21 @@ checkin dump 头部 `Currently Active:com.screentrace.app`；今日 `day_summary
 | 本地补修（4 处） | **通过** | ① `TodayScreen.kt` 补齐 `averageScreenUnlockMin: Int?` 可空解包与 `showOver` 守卫；② `PeriodSummaryCalculatorTest`（`yearTrendIsMonthlyAverageAndHidesEmptyMonths`、`plainTextExportSharesSameNumbers`）与 `PeriodPeriodsWiringTest` 对齐拍板 2 今日隔离口径；③ `D07FullPipelineTest` 补齐 Room 同步执行器（`.setQueryExecutor { it.run() }.setTransactionExecutor { it.run() }`）并强化 M-CB1 `EXACT` 今日隔离断言 |
 | 单元测试与变异（M-CB1 ~ M-CB6） | **通过** | **M-CB1**（`Models.kt` 去掉 `date.isBefore(today)`）、**M-CB2**（`UsageCalculator.summarizePoints` 改回只看 `recorded`）、**M-CB3**（`AppViewModel` 时段日均改回全区间 `statsHours`）、**M-CB4**（`TrendChartMath.averageMinutes` 改回全部 `recorded`）、**M-CB5**（`AppViewModel` 日历空态改回 `calendarExtremes.longestDate == null`）、**M-CB6**（`PeriodSummary.monthlyPoints` 改回 `trend.filter { it.recorded }`）均在 `-Pksp.incremental=false` 下真实变红并无条件还原；Debug（`--rerun-tasks`）与 Release 双变体均 **107 suites / 720 tests / 0 fail / 0 error / 0 skip** |
 | 构建与 vivo 真机实测 | **通过** | `:app:assembleDebug`（`14,343,293` bytes）、`:app:assembleRelease`（`3,110,875` bytes，R8 规则未动）；vivo（`10CEB40M5G001DK`）实机核对：统计页近 7 天主卡与趋势平均线严格同为 `10小时38分钟`（排除今日 `11/27 54分钟`）、说明区显示 `使用时长（截止今天 08:39） · 日均按 6 个完整日计算 · 不含今日进行中 · 含 3 天历史未标注数据`；周期总结页（本周）顶部单口径展示 `完整日日均 10小时2分钟` 与 `使用时长（截止今天 08:39） · 含 1 天历史未标注数据`；日历页显示 `连续使用 20 天` 与 `共 20 个有记录日（完整 19 天）`；`logcat` 0 crash |
+
+---
+
+## D-07 GPT Codex Review 定向修复本地验证与 vivo `v11 → v12` 平滑升级补记（2026-11-27，代码提交 `d5d5e0d`）
+
+> 审阅基线：`main` 代码提交 `d5d5e0d`（基线 `de75388`，Room `v11 → v12`，导出并入库 `12.json`，备份维持 `schemaVersion = 7` 向后兼容）
+> 审阅结论：**通过（3 项 P1 + 1 项 P2 + 2 项边界加固全部落地闭环；M-CR1 ~ M-CR6 全红后还原；Debug/Release 双变体 110 suites / 733 tests 全绿；vivo `v11 → v12` 平滑升级零丢失、存量 `pull_log` 零伪造、0 crash）**
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| CR-28 / RL-14 / 仓库红线 | **通过** | CR-28 `SUM / MAX / UNION` 数值口径、`__legacy__` 只读保护、RL-14、`widget/*`、`app/proguard-rules.pro` 与 `README.md` 零改动；未引入 `android.widget.Toast` |
+| Room `v11 → v12` 与 schema | **通过** | `MIGRATION_11_12` 仅执行 `ALTER TABLE pull_log ADD COLUMN sourceDeviceId TEXT`（无 DEFAULT、不回填存量行）；清理 `app/build/generated/ksp` + `kspCaches` 并以 `-Pksp.incremental=false --rerun-tasks` 生成并入库 `12.json`；`MigrationTest` 验证迁移后旧 `pull_log` 行 `sourceDeviceId == null` |
+| 核心修复（P1-1 / P1-2 / P1-3 / P2） | **通过** | ① **P1-1**：`pull_log.sourceDeviceId` 按设备隔离 `shizukuEventWindows(sourceDeviceId)` / `latestOkPulledAtForDevice(sourceDeviceId)`，备份导出/恢复/合并四路径原样透传零伪造；② **P1-2**：新增 `ScreenStreamAudit.kt`（单通道 `BoundedObservedWindow` ≤ 28h、跨账户 `±1000ms` 镜像收敛、6 类屏幕状态机截断门禁），`IngestPipeline` 彻底禁止 `rawEventMinMs` 参与 G2；③ **P1-3**：`MergePolicy.compareHour` / `mergeHour` 质量保护交换律、`HourUsageDao.dayQualitiesForDates`（`COUNT(DISTINCT sourceDeviceId) > 1`）、`RoomUsageRepository.qualifiedHourlyDistribution` 四类小时日仲裁（含完整零使用日）并拔除 `AppViewModel` 两处 `.ifEmpty` 回退；④ **P2**：`PeriodScreen.periodInsufficientCopy(completeDays)` 与 `toPlainText` 对齐完整日口径 |
+| 本地补修（2 处） | **通过** | 修复新测试文件 `D07ReviewFixTest.kt:84` 与 `ScreenStreamAuditTest.kt:31` 中 `humanLine` 双引号未转义导致的 KSP 语法报错 |
+| 单元测试与变异（M-CR1 ~ M-CR6） | **通过** | **M-CR1**（`Daos.shizukuEventWindows` `OR 1 = 1` 破坏设备隔离，运行时断言真红）、**M-CR2**（`SCREEN_STATE_TYPES` 加入 `KEYGUARD_HIDDEN`）、**M-CR3**（绕过 `convergeCrossAccountMirrors`）、**M-CR4**（`MergePolicy.mergeHour` 改回只比 `minutes`）、**M-CR5**（关闭 `RoomUsageRepository` 完整零使用日分支）、**M-CR6**（`PeriodScreen.periodInsufficientCopy` 改回 `"天有记录"`）均在 `-Pksp.incremental=false` 下真实变红并无条件还原；Debug 与 Release（`-Pksp.incremental=false --rerun-tasks`）双变体均 **110 suites / 733 tests / 0 fail / 0 error / 0 skip** |
+| 构建与 vivo `v11 → v12` 平滑升级 | **通过** | `:app:assembleDebug`（`14,343,293` bytes）、`:app:assembleRelease`（`3,110,875` bytes，R8 启用）；vivo（`10CEB40M5G001DK`）升级前 `user_version=11`（`day_summary=20`、`app_usage=625`、`hour_usage=384`、`screen_session=2704`、`unlock_event=2012`、`notification_event=14179`、`usage_window=65`、`screen_evidence=6`、`pull_log=156`）→ 覆盖安装冷启动后 `user_version=12`、全部历史表行数零丢失、`PRAGMA table_info(pull_log)` 含可空 `sourceDeviceId`（`notnull=0, dflt_value=None`）、156 条存量 `pull_log` 行 `sourceDeviceId IS NULL`（零伪造）；统计页完整日日均 `10小时38分钟` 与四时段日均渲染正常，`logcat` 0 crash |
