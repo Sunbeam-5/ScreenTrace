@@ -326,10 +326,38 @@ class MultiDeviceAdaptationTest {
         assertFalse("有效 checkin 样本不应误走明文主导", dualLoaded.warning.orEmpty().contains("明文主导"))
 
         val res = dualLoaded.result
-        // Golden 日期范围：事件流覆盖 2026-10-31 ~ 2026-11-08 共 9 个自然日（checkin 聚合区间进 W1 screenEvidence）
+        // Golden 日期范围与亮屏时长/小时桶（独立依据 reference/sample-checkin.txt + sample-human.txt 原始事件流）
+        val oct31 = LocalDate.of(2026, 10, 31)
+        val nov8 = LocalDate.of(2026, 11, 8)
         assertEquals(9, res.days.size)
-        assertEquals(LocalDate.of(2026, 10, 31), res.days.keys.min())
-        assertEquals(LocalDate.of(2026, 11, 8), res.days.keys.max())
+        assertEquals(oct31, res.days.keys.min())
+        assertEquals(nov8, res.days.keys.max())
+
+        // 2026-10-31：09:05:21~09:06:10 (49s) + 09:06:46~24:00:00 (53594s) = 53643s -> 894m；09 时 54m，08 时 0m
+        assertEquals(894, res.days[oct31]?.screenMin)
+        assertEquals(894, res.days[oct31]?.screenUnlockMin)
+        assertEquals(0, res.hourMinutes[oct31]?.get(8))
+        assertEquals(54, res.hourMinutes[oct31]?.get(9))
+        assertEquals(60, res.hourMinutes[oct31]?.get(10))
+
+        // 2026-11-01 ~ 2026-11-07 跨日未闭合区间日 + W1 聚合日：均不在 observedWindow 内，绝不可误升 EXACT
+        for (d in 1..7) {
+            val midDay = LocalDate.of(2026, 11, d)
+            assertEquals(1440, res.days[midDay]?.screenMin)
+            assertEquals(1440, res.days[midDay]?.screenUnlockMin)
+            assertTrue(
+                "未覆盖观测窗口的日期 $midDay 绝不能落入 observedWindow 升格 EXACT",
+                res.observedWindow!!.startMs > ms(midDay.plusDays(1), 0, 0) - 1
+            )
+        }
+
+        // 2026-11-08：00:00:00~16:34:10 = 59650s -> 994m；16 时 34m，17 时 0m；尾部未闭合 ON 必入 truncatedScreenDates（禁入 EXACT）
+        assertEquals(994, res.days[nov8]?.screenMin)
+        assertEquals(994, res.days[nov8]?.screenUnlockMin)
+        assertEquals(1, res.days[nov8]?.unlocks)
+        assertEquals(34, res.hourMinutes[nov8]?.get(16))
+        assertEquals(0, res.hourMinutes[nov8]?.get(17))
+        assertTrue("2026-11-08 含未闭合 SCREEN_INTERACTIVE，必须标记截断日拦截 EXACT", nov8 in res.truncatedScreenDates)
 
         // Golden 通知事件：sample-checkin.txt 含 7 条 NOTIFICATION_INTERRUPTION、0 条 SEEN
         assertEquals(7, res.notificationEvents.size)
@@ -365,11 +393,7 @@ class MultiDeviceAdaptationTest {
         )
         assertNull(res.mirrorAudit?.anomalyWarning)
 
-        // 2) 元信息 checkin + 真实 sample-human.txt（明文主导分支）走真实解析器
-        val expectedPlain = UsageDumpParser.parse("", realHuman, zone, capturedAtMs = capturedAtMs)
-        assertTrue("真实明文样本单独解析必须产出日汇总", expectedPlain.days.isNotEmpty())
-        assertTrue("真实明文样本单独解析必须产出应用时长", expectedPlain.appUsage.isNotEmpty())
-
+        // 2) 元信息 checkin + 真实 sample-human.txt（明文主导回退分支）同样用独立固定 Golden 断言（消除自比）
         val plainProvider = ShizukuUsageProvider(
             shell = FakeShell(
                 ShizukuShell.CHECKIN_CMD to Result.success(HYPEROS_META_ONLY_CHECKIN),
@@ -382,11 +406,26 @@ class MultiDeviceAdaptationTest {
         assertTrue("真实明文主导样本必须解析成功", plainLoaded is LoadedUsage.Parsed)
         plainLoaded as LoadedUsage.Parsed
         assertTrue("元信息 checkin 配真实明文必须走明文主导分支", plainLoaded.warning.orEmpty().contains("明文主导"))
-        assertEquals(expectedPlain.days, plainLoaded.result.days)
-        assertEquals(expectedPlain.hourMinutes, plainLoaded.result.hourMinutes)
-        assertEquals(expectedPlain.appUsage, plainLoaded.result.appUsage)
-        assertEquals(expectedPlain.unlockEvents, plainLoaded.result.unlockEvents)
-        assertEquals(expectedPlain.notificationEvents, plainLoaded.result.notificationEvents)
+
+        val plainRes = plainLoaded.result
+        // 仅 2026-11-08 单日 16:33:13~16:34:10 (57s -> 1m)，16 时为 1m、其余 23 小时均为 0m（绝不伪造其他小时）
+        assertEquals(setOf(nov8), plainRes.days.keys)
+        assertEquals(1, plainRes.days[nov8]?.screenMin)
+        assertEquals(1, plainRes.days[nov8]?.screenUnlockMin)
+        assertEquals(1, plainRes.days[nov8]?.unlocks)
+        val plainNov8Hours = plainRes.hourMinutes[nov8]
+        assertNotNull(plainNov8Hours)
+        assertEquals(1, plainNov8Hours!![16])
+        assertEquals("除 16 时外其余 23 小时不得伪造非零分钟", 1, plainNov8Hours.sum())
+        assertTrue("明文样本 2026-11-08 同样因未闭合 ON 被截断保护，不得升格 EXACT", nov8 in plainRes.truncatedScreenDates)
+        assertEquals(1, plainRes.unlockEvents.size)
+        assertEquals(ms(nov8, 16, 33, 13), plainRes.unlockEvents.single().occurredAtMs)
+        assertEquals(0, plainRes.notificationEvents.size)
+        fun plainAppOn(pkg: String) = plainRes.appUsage.firstOrNull { it.date == dayNov9 && it.pkg == pkg }
+        // 明文回退仅 11-08 有 57s (0.95m) 亮屏，跨日窗口按 950 / (950 + 0.95) 分配至 11-09
+        assertEquals(4_343_656L, plainAppOn("com.example.piliplus")?.totalMs)
+        assertEquals(2_099_900L, plainAppOn("com.tencent.mm")?.totalMs)
+        assertEquals(1_211_788L, plainAppOn("tv.danmaku.bili")?.totalMs)
     }
 
     private class FakeShell(
