@@ -2608,3 +2608,23 @@ checkin dump 头部 `Currently Active:com.screentrace.app`；今日 `day_summary
 | 本地补修（2 处） | **通过** | 修复新测试文件 `D07ReviewFixTest.kt:84` 与 `ScreenStreamAuditTest.kt:31` 中 `humanLine` 双引号未转义导致的 KSP 语法报错 |
 | 单元测试与变异（M-CR1 ~ M-CR6） | **通过** | **M-CR1**（`Daos.shizukuEventWindows` `OR 1 = 1` 破坏设备隔离，运行时断言真红）、**M-CR2**（`SCREEN_STATE_TYPES` 加入 `KEYGUARD_HIDDEN`）、**M-CR3**（绕过 `convergeCrossAccountMirrors`）、**M-CR4**（`MergePolicy.mergeHour` 改回只比 `minutes`）、**M-CR5**（关闭 `RoomUsageRepository` 完整零使用日分支）、**M-CR6**（`PeriodScreen.periodInsufficientCopy` 改回 `"天有记录"`）均在 `-Pksp.incremental=false` 下真实变红并无条件还原；Debug 与 Release（`-Pksp.incremental=false --rerun-tasks`）双变体均 **110 suites / 733 tests / 0 fail / 0 error / 0 skip** |
 | 构建与 vivo `v11 → v12` 平滑升级 | **通过** | `:app:assembleDebug`（`14,343,293` bytes）、`:app:assembleRelease`（`3,110,875` bytes，R8 启用）；vivo（`10CEB40M5G001DK`）升级前 `user_version=11`（`day_summary=20`、`app_usage=625`、`hour_usage=384`、`screen_session=2704`、`unlock_event=2012`、`notification_event=14179`、`usage_window=65`、`screen_evidence=6`、`pull_log=156`）→ 覆盖安装冷启动后 `user_version=12`、全部历史表行数零丢失、`PRAGMA table_info(pull_log)` 含可空 `sourceDeviceId`（`notnull=0, dflt_value=None`）、156 条存量 `pull_log` 行 `sourceDeviceId IS NULL`（零伪造）；统计页完整日日均 `10小时38分钟` 与四时段日均渲染正常，`logcat` 0 crash |
+
+
+---
+
+## Batch 13 Carbon 终审裁断（路径 A · 双 ROM 真机文件级 Golden 全闭环）本地验证与 Redmi 真机冒烟补记（2026-11-28）
+
+> 审阅基线：`main` 基线 `70e3097`（Room `v12`、备份 `schemaVersion = 7`）
+> 审阅结论：**通过（Carbon 裁断一至三 + 裁断四路径 A 全面落地闭环；M-C1 / M-C2 / M-C3 三项必做行为变异全部真红后逐字节还原；Debug / Release 双变体 114 suites / 763 tests / 0 fail / 0 err / 0 skip；Redmi HyperOS 真机 Shizuku 明文主导拉取 OK、logcat 0 crash）**
+
+### 1. 核验摘要
+
+| 核验维度 | 结果 | 依据 |
+|---|---|---|
+| 红线核对 | **通过** | `README.md`、`app/proguard-rules.pro` 零改动；CR-28 / D-07 / RL-14 与小组件零应用名红线零触碰；未引入 `android.widget.Toast` |
+| 裁断一（未闭合亮屏） | **通过** | `UsageDumpParser.kt` 彻底移除尾部未闭合 `SCREEN_INTERACTIVE` 延展入 `screens`，尾部与流内非镜像 `ON -> ON`（`> 1000ms`）孤儿一律按 R11 E3 落 `ANCHOR_ONLY (endMs = null)`；`checkinEvents` / `humanEvents` 分通道独立配对后再 `SessionUnion.union` |
+| 裁断二（前景收紧） | **通过** | `foregroundFromEvents` 分通道运行、`checkin` 跨块断档（`> 60s` 或空块）清空 `open`、`SCREEN_NON_INTERACTIVE` 强制收口所有账户 `open`、彻底移除尾部 `open.values -> endMs` 延展，异包切换按 E1/同清醒段闭合证据放行 |
+| 裁断三 + 路径 A 真机切片 | **通过** | 新增 `reference/sample-hyperos-checkin.txt`（25 行，真实 Redmi HyperOS 元信息 checkin + `user=0/999` 分区头，零个人敏感信息）与 `reference/sample-hyperos-human.txt`（302 行，同刻抓取 `user=0` + `user=999` 5 组完整闭合镜像亮屏、`35` 条通知含 `10` 条 `mipush|`、`In-memory daily stats` 公开包行）；`MultiDeviceAdaptationTest` 新增独立手算 Golden 测试（`明文主导`、`2026-11-28` `173m`、`hour[11..15] = 15/34/27/59/37` 其余 19 桶严为 `0`、`35` 通知、`com.screentrace.app = 7_576_000L`、`observedWindow = 11:45:18..17:14:00`、`mirrorAudit = NORMAL (20->10)`、`IngestPipeline` `screenQuality = PARTIAL`），并保留原合成契约测试与 vivo 3 条独立测试 |
+| 三项必做行为变异 | **通过** | **M-C1**（恢复尾部未闭合 `ON` 延展入 `screens`）→ `UsageDumpParserTest.unclosedScreenIntervalTruncatedToLastEvent` + `MultiDeviceAdaptationTest` 转红（2 failed）；**M-C2**（注释 `SCREEN_NON_INTERACTIVE` 收口 `open`）→ `UsageDumpParserTest.screenNonInteractiveTruncatesOpenForegroundApp` 转红（1 failed）；**M-C3**（恢复 `foregroundFromEvents` 尾部 `open.values -> endMs` 延展）→ `UsageDumpParserTest.trailingUnclosedForegroundDoesNotExtendToEndMs` 转红（1 failed）；逐字节还原（`BYTE_EXACT_EXIT=0`）后复跑全绿 |
+| 双变体全量单测与构建 | **通过** | `:app:testDebugUnitTest` 与 `:app:testReleaseUnitTest`（`-Pksp.incremental=false --rerun-tasks`，含 `realDumpReconciliationInvariants`）均 **114 suites / 763 tests / 0 fail / 0 err / 0 skip**；`:app:assembleDebug`（`14,474,817` B）、`:app:assembleRelease`（`3,144,067` B，R8 + `lintVitalRelease` 通过） |
+| Redmi 真机冒烟 | **通过** | Redmi（`GAQOHMNFQWFUPBQO`）覆盖安装 Debug APK，冷启动自动触发 Shizuku 明文主导拉取；「设置 → 关于与诊断」实见 `最近成功拉取：今天 17:31`、`来源 shizuku · 状态 OK · checkin 无数据（0.4MB/plain-nodata），本次明文主导；明文 1.0MB/plain+data`、`已入库 11月10日 – 11月28日，共 19 天`、`近 7 天无拉取缺口（失败记录 0 次）`；`logcat` **0 crash** |
