@@ -13,4 +13,10 @@ object TrendSelectionMath {
 
     fun step(current: Int, delta: Int, count: Int): Int =
         if (count <= 0) -1 else (current + delta).coerceIn(0, count - 1)
+
+    /** 批 14c：按手指相对绘图区左边缘的 X 坐标直接命中对应柱体下标（真正跟手，不反向）。 */
+    fun indexForTouchX(touchX: Float, slotWidthPx: Float, count: Int): Int {
+        if (count <= 0 || slotWidthPx <= 0f) return -1
+        return (touchX / slotWidthPx).toInt().coerceIn(0, count - 1)
+    }
 }

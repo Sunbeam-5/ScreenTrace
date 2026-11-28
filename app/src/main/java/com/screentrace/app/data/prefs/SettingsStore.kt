@@ -57,8 +57,23 @@ class SettingsStore(
     }
     suspend fun setThemeVariant(value: ThemeVariant) = dataStore.edit { it[THEME_VARIANT] = value.name }
 
+    val themeMode: Flow<ThemeMode> = dataStore.data.map { prefs ->
+        val raw = prefs[THEME_MODE]
+        when {
+            raw != null -> runCatching { ThemeMode.valueOf(raw) }.getOrDefault(ThemeMode.SYSTEM)
+            prefs[DARK_THEME] == true -> ThemeMode.DARK
+            else -> ThemeMode.SYSTEM
+        }
+    }
+
+    suspend fun setThemeMode(value: ThemeMode) = dataStore.edit {
+        it[THEME_MODE] = value.name
+        it[DARK_THEME] = (value == ThemeMode.DARK)
+    }
+
     val darkTheme: Flow<Boolean> = dataStore.data.map { it[DARK_THEME] ?: false }
-    suspend fun setDarkTheme(value: Boolean) = dataStore.edit { it[DARK_THEME] = value }
+    suspend fun setDarkTheme(value: Boolean) =
+        setThemeMode(if (value) ThemeMode.DARK else ThemeMode.LIGHT)
 
     val dynamicColor: Flow<Boolean> = dataStore.data.map { it[DYNAMIC_COLOR] ?: false }
     suspend fun setDynamicColor(value: Boolean) = dataStore.edit { it[DYNAMIC_COLOR] = value }
@@ -342,6 +357,7 @@ class SettingsStore(
         private val PULL_FREQUENCY = stringPreferencesKey("pull_frequency")
         private val THEME_VARIANT = stringPreferencesKey("theme_variant")
         private val DARK_THEME = booleanPreferencesKey("dark_theme")
+        private val THEME_MODE = stringPreferencesKey("theme_mode")
         private val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         private val LOW_USAGE_THRESHOLD_MIN = intPreferencesKey("low_usage_threshold_min")
         private val CATEGORY_OVERRIDES = stringSetPreferencesKey("category_overrides")
@@ -386,6 +402,19 @@ class SettingsStore(
  * 「随便给几个选项」，而是「至少一天一次」到「更保险」的区间：
  * 9 天窗口 + 一天一次的余量已经很紧，12/6 小时只是给爱关机的人留的双保险。
  */
+/** 批 14c：日夜间外观模式（默认跟随系统，兼容旧版 `dark_theme` 布尔值）。 */
+enum class ThemeMode(val label: String) {
+    SYSTEM("跟随系统"),
+    LIGHT("浅色"),
+    DARK("深色");
+
+    fun resolveDark(systemDark: Boolean): Boolean = when (this) {
+        SYSTEM -> systemDark
+        LIGHT -> false
+        DARK -> true
+    }
+}
+
 enum class PullFrequency(val label: String, val hours: Long) {
     DAILY("每天", 24),
     TWELVE_HOURS("每 12 小时", 12),

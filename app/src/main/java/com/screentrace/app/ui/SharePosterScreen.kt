@@ -88,10 +88,17 @@ fun SharePosterScreen(
     var loading by remember { mutableStateOf(true) }
     var exporting by remember { mutableStateOf(false) }
     var inlineMessage by remember { mutableStateOf<String?>(null) }
+    var lastInlineMessage by remember { mutableStateOf<String?>(null) }
+    var savedGalleryUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var lastSavedUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    if (inlineMessage != null) {
+        lastInlineMessage = inlineMessage
+        lastSavedUri = savedGalleryUri
+    }
 
     LaunchedEffect(inlineMessage) {
         if (inlineMessage != null) {
-            kotlinx.coroutines.delay(2_500L)
+            kotlinx.coroutines.delay(2_800L)
             inlineMessage = null
         }
     }
@@ -226,21 +233,54 @@ fun SharePosterScreen(
                     )
                 }
             }
-            inlineMessage?.let { msg ->
-                Surface(
-                    shape = CircleShape,
-                    color = palette.primary,
-                    shadowElevation = 6.dp,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 14.dp, start = 20.dp, end = 20.dp)
-                ) {
-                    Text(
-                        text = msg,
-                        style = FreshType.label,
-                        color = palette.onPrimary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
-                    )
+            androidx.compose.animation.AnimatedVisibility(
+                visible = inlineMessage != null,
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                    androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(200)) { it / 2 },
+                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(220)) +
+                    androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(220)) { it / 2 },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 14.dp, start = 20.dp, end = 20.dp)
+            ) {
+                lastInlineMessage?.let { msg ->
+                    Surface(
+                        shape = CircleShape,
+                        color = palette.primary,
+                        shadowElevation = 6.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = msg,
+                                style = FreshType.label,
+                                color = palette.onPrimary
+                            )
+                            lastSavedUri?.let { uri ->
+                                Text(
+                                    text = "查看",
+                                    style = FreshType.bodySmallBold,
+                                    color = palette.onPrimary,
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(palette.onPrimary.copy(alpha = 0.2f))
+                                        .clickable {
+                                            runCatching {
+                                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(uri, "image/png")
+                                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                context.startActivity(intent)
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -344,12 +384,14 @@ fun SharePosterScreen(
                                     inlineMessage = "长图生成失败，请稍后再试" 
                                     return@launch
                                 }
-                                val savedToAlbum = savePosterToGallery(context, pair.first, bytes)
-                                if (savedToAlbum) {
+                                val savedUri = savePosterToGallery(context, pair.first, bytes)
+                                if (savedUri != null) {
+                                    savedGalleryUri = savedUri
                                     val msg = "已保存到相册「${PngPosterSpec.ALBUM_SUBDIR}」"
                                     inlineMessage = msg
                                     onNotice(msg)
                                 } else {
+                                    savedGalleryUri = null
                                     pendingSafBytes = pair.first to bytes
                                     safLauncher.launch(pair.first)
                                 }

@@ -180,7 +180,9 @@ fun AppNav(
         }
     })
     val variant by viewModel.themeVariant
-    val darkTheme by viewModel.darkTheme
+    val themeMode by viewModel.themeMode
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val darkTheme = themeMode.resolveDark(systemDark)
     // §5.4 批 E：壁纸参数只有一份，位图由 ScreenTimeTheme 以 CompositionLocal 下发
     val wallpaperBitmap by viewModel.wallpaperBitmap
     val wallpaperConfig by viewModel.wallpaperConfig
@@ -883,6 +885,8 @@ fun AppNav(
                                     onOpenCustomTheme = { showCustomThemeSheet = true },
                                     darkTheme = darkTheme,
                                     onDarkThemeChange = viewModel::setDarkTheme,
+                                    themeMode = themeMode,
+                                    onThemeModeChange = viewModel::setThemeMode,
                                     dynamicColor = dynamicColor,
                                     onDynamicColorChange = viewModel::setDynamicColor,
                                     wallpaperBitmap = wallpaperBitmap,
@@ -996,6 +1000,8 @@ fun AppNav(
             )
             // 需行动/错误提示留在顶部覆盖层（AppHeader 下方 108dp）
             val topFeedback = activeFeedback?.takeIf { it.channel != FeedbackChannel.TRANSIENT }
+            var lastTopFeedback by remember { mutableStateOf(topFeedback) }
+            if (topFeedback != null) lastTopFeedback = topFeedback
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -1005,10 +1011,10 @@ fun AppNav(
             ) {
                 AnimatedVisibility(
                     visible = topFeedback != null,
-                    enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                    exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                    enter = expandVertically(tween(160)) + fadeIn(tween(160)),
+                    exit = shrinkVertically(tween(200)) + fadeOut(tween(200))
                 ) {
-                    topFeedback?.let { fb ->
+                    lastTopFeedback?.let { fb ->
                         when (fb.channel) {
                             FeedbackChannel.PULL_ERROR -> NoticeBar(
                                 text = fb.text,
@@ -1061,8 +1067,10 @@ fun AppNav(
                 )
             }
 
-            // 纯确认类短时条：画在底部导航胶囊之上并统一留出 88dp 底距（二级页也有悬浮导航栏，避免被遮挡，不用 Toast）
+            // 批 14c：缓存最近一次短时提示，确保 AnimatedVisibility 退场淡出滑下而不是瞬间闪没
             val bottomFeedback = activeFeedback?.takeIf { it.channel == FeedbackChannel.TRANSIENT }
+            var lastBottomFeedback by remember { mutableStateOf(bottomFeedback) }
+            if (bottomFeedback != null) lastBottomFeedback = bottomFeedback
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -1073,10 +1081,12 @@ fun AppNav(
             ) {
                 AnimatedVisibility(
                     visible = bottomFeedback != null,
-                    enter = expandVertically(tween(140)) + fadeIn(tween(140)),
-                    exit = shrinkVertically(tween(140)) + fadeOut(tween(100))
+                    enter = fadeIn(tween(180)) +
+                        androidx.compose.animation.slideInVertically(tween(200)) { it / 2 },
+                    exit = fadeOut(tween(240)) +
+                        androidx.compose.animation.slideOutVertically(tween(240)) { it / 2 }
                 ) {
-                    bottomFeedback?.let { fb ->
+                    lastBottomFeedback?.let { fb ->
                         NoticeBar(
                             text = fb.text,
                             isError = false,
@@ -1153,13 +1163,28 @@ fun AppNav(
             StyleSheet(
                 current = variant,
                 customSeedActive = customThemeSeed != null,
+                wallpaperEnabled = wallpaperConfig.enabled,
                 wallpaperDrivenTheme = wallpaperDriven,
                 dynamicColorActive = dynamicColor && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S,
-                onSelect = { variant ->
-                    // 评审 P1-5 + CR-30 §7-65：点哪套就是哪套——选预设即退出自定义与动态取色
-                    viewModel.setThemeVariant(variant)
+                onSelect = { selected ->
+                    // 批 14c：点哪套立刻生效——若当前壁纸驱动整套主题，自动切回「仅卡片」并应用该预设
+                    if (wallpaperDriven) {
+                        tabScope.launch {
+                            viewModel.setWallpaperColorScope(
+                                com.screentrace.app.data.wallpaper.WallpaperColorScope.CARDS_ONLY
+                            )
+                        }
+                    }
+                    viewModel.setThemeVariant(selected)
                     viewModel.setCustomThemeSeed(null)
                     if (dynamicColor) viewModel.setDynamicColor(false)
+                },
+                onSelectWallpaperTheme = {
+                    tabScope.launch {
+                        viewModel.setWallpaperColorScope(
+                            com.screentrace.app.data.wallpaper.WallpaperColorScope.FULL_THEME
+                        )
+                    }
                 },
                 onDismiss = { showStyleSheet = false }
             )

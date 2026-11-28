@@ -63,6 +63,7 @@ fun MonthCalendar(
     onDayClick: (CalendarLevel) -> Unit = {}
 ) {
     val palette = LocalFreshPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
     val byDate = levels.associateBy { it.date }
     val firstOfMonth = yearMonth.atDay(1)
     val gridStart = firstOfMonth.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -140,7 +141,10 @@ fun MonthCalendar(
                                     if (desc != null) {
                                         Modifier
                                             .semantics { contentDescription = desc }
-                                            .clickable { onDayClick(cell!!) }
+                                            .clickable {
+                                                performTickHaptic(view)
+                                                onDayClick(cell!!)
+                                            }
                                     } else {
                                         Modifier
                                     }

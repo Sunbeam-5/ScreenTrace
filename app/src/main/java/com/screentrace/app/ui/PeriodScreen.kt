@@ -79,22 +79,17 @@ fun PeriodScreen(
     resetKey: Any? = null
 ) {
     when {
-        state.data != null -> Crossfade(
-            targetState = state.data,
-            animationSpec = tween(200),
-            label = "periodDataSwap",
-            modifier = Modifier.fillMaxWidth()
-        ) { period ->
-            // Crossfade 内容是**单插槽**（内部一个 Box），多根节点会全部叠在 top-start
-            // （本项目已踩三次：TodayContent / StatsContent / DateSheet）。必须包 Column。
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                PeriodContent(
-                    period = period,
-                    onTypeChange = onTypeChange,
-                    onOpenAllApps = onOpenAllApps,
-                    resetKey = resetKey
-                )
-            }
+        // 批 14c：去掉整页 Crossfade（重建整棵内容树会导致切周/月/年卡顿闪一帧），原地平滑刷新
+        state.data != null -> Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            PeriodContent(
+                period = state.data,
+                onTypeChange = onTypeChange,
+                onOpenAllApps = onOpenAllApps,
+                resetKey = resetKey
+            )
         }
         state.loading -> LoadingSkeleton()
         state.error != null -> ErrorRetry(message = state.error, onRetry = onRetry)
@@ -117,10 +112,14 @@ private fun PeriodContent(
     // ① 周期切换。选中态读 **period.type**（数据自带的类型）而不是入参 `type`：
     // 切周期时数据有一小段时间还是旧的，若选中态先跳过去、图表还是旧数据，
     // 就会出现「选中年、画的却是月柱」的半帧错位。等新数据落地两者自然一致。
+    val view = androidx.compose.ui.platform.LocalView.current
     SegmentedControl(
         items = listOf("周", "月", "年"),
         selectedIndex = period.type.ordinal,
-        onSelect = { index -> onTypeChange(PeriodType.entries[index]) }
+        onSelect = { index ->
+            com.screentrace.app.uikit.performTickHaptic(view)
+            onTypeChange(PeriodType.entries[index])
+        }
     )
 
     // ② hero：总时长 + 日均 + 对比 + 未结束标识

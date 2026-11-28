@@ -100,6 +100,7 @@ fun FreshNavBar(
 ) {
     com.screentrace.app.uikit.PerfProbe.tick("Compose/FreshNavBar")
     val palette = LocalFreshPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
     val reduceMotion = rememberReduceMotion()
     val widthSpec: AnimationSpec<Float> = if (reduceMotion) tween(0) else spring(
         dampingRatio = Spring.DampingRatioNoBouncy,
@@ -187,7 +188,10 @@ fun FreshNavBar(
                     .width(52.dp + (expandedWidth - 52.dp) * expand)
                     .clip(CircleShape) // 兼作标签的裁剪框
                     .background(container)
-                    .selectable(selected = selected, role = Role.Tab) { onSelect(index) },
+                    .selectable(selected = selected, role = Role.Tab) {
+                        if (!selected) performTickHaptic(view)
+                        onSelect(index)
+                    },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(

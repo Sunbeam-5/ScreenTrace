@@ -6,7 +6,17 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Icon
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -112,6 +122,13 @@ fun SettingsScreen(
     onOpenCustomTheme: () -> Unit,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
+    /** 批 14c：日夜间三态模式（默认兼容旧 darkTheme 调用）。 */
+    themeMode: com.screentrace.app.data.prefs.ThemeMode =
+        if (darkTheme) com.screentrace.app.data.prefs.ThemeMode.DARK
+        else com.screentrace.app.data.prefs.ThemeMode.LIGHT,
+    onThemeModeChange: (com.screentrace.app.data.prefs.ThemeMode) -> Unit = { mode ->
+        onDarkThemeChange(mode == com.screentrace.app.data.prefs.ThemeMode.DARK)
+    },
     dynamicColor: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
     /** §5.4 批 E：自定义壁纸（全部给默认值，Preview / 单测零改动）。 */
@@ -164,7 +181,32 @@ fun SettingsScreen(
     collectionVerdict: com.screentrace.app.data.pull.DataCollectionVerdict? = null,
     diagnosticSnapshot: com.screentrace.app.data.pull.PullDiagnosticSnapshot? = null
 ) {
-    if (selectedCategory == null) {
+    val reduceMotion = com.screentrace.app.uikit.rememberReduceMotion()
+    androidx.compose.animation.AnimatedContent(
+        targetState = selectedCategory,
+        transitionSpec = {
+            if (reduceMotion) {
+                androidx.compose.animation.EnterTransition.None togetherWith
+                    androidx.compose.animation.ExitTransition.None
+            } else if (initialState == null && targetState != null) {
+                (androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(220)) { it / 3 } +
+                    androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200))) togetherWith
+                    (androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(180)) { -it / 6 } +
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)))
+            } else {
+                (androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(220)) { -it / 4 } +
+                    androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200))) togetherWith
+                    (androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(200)) { it / 3 } +
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)))
+            }
+        },
+        label = "settingsCategoryTransition"
+    ) { activeCategory ->
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+    if (activeCategory == null) {
         SettingsCategoryHome(
             dailyGoalMin = dailyGoalMin,
             pullFrequency = pullFrequency,
@@ -176,15 +218,13 @@ fun SettingsScreen(
             customThemeEnabled = customThemeEnabled,
             dynamicColor = dynamicColor,
             wallpaperConfig = wallpaperConfig,
+            themeMode = themeMode,
             darkTheme = darkTheme,
             appVersion = appVersion,
             onOpenSharePoster = onOpenSharePoster,
             onSelectCategory = onSelectCategory
         )
-        return
-    }
-
-    when (selectedCategory) {
+    } else when (activeCategory) {
         SettingsCategory.DATA -> {
             GoalGroup(
                 dailyGoalMin = dailyGoalMin,
@@ -241,8 +281,8 @@ fun SettingsScreen(
                 onOpenStyleSheet = onOpenStyleSheet,
                 customThemeEnabled = customThemeEnabled,
                 onOpenCustomTheme = onOpenCustomTheme,
-                darkTheme = darkTheme,
-                onDarkThemeChange = onDarkThemeChange,
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
                 dynamicColor = dynamicColor,
                 onDynamicColorChange = onDynamicColorChange,
                 wallpaperConfig = wallpaperConfig,
@@ -283,6 +323,8 @@ fun SettingsScreen(
             }
         }
     }
+    }
+    }
 }
 
 @Composable
@@ -297,6 +339,7 @@ private fun SettingsCategoryHome(
     customThemeEnabled: Boolean,
     dynamicColor: Boolean,
     wallpaperConfig: WallpaperConfig,
+    themeMode: com.screentrace.app.data.prefs.ThemeMode,
     darkTheme: Boolean,
     appVersion: String,
     onOpenSharePoster: () -> Unit,
@@ -325,19 +368,34 @@ private fun SettingsCategoryHome(
         SettingsCategory.DATA to "目标 ${dailyGoalMin / 60}h · ${pullFrequency.label}",
         SettingsCategory.BACKUP to cloudSummary.ifEmpty { "本地导出 / 恢复" },
         SettingsCategory.REMINDERS to reminderSummary,
-        SettingsCategory.APPEARANCE to "$themeLabel · ${if (darkTheme) "深色" else "浅色"}",
+        SettingsCategory.APPEARANCE to "$themeLabel · ${themeMode.label}",
         SettingsCategory.ABOUT to "v$appVersion"
     )
+    // 批 14c：设置首页图标化卡片视觉升级（顶部「分享长图」强调卡 + 五分类图标徽章行）
     SettingsGroup("分享与导出") {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .clickable(onClick = onOpenSharePoster)
-                .padding(vertical = 8.dp, horizontal = 4.dp),
+                .padding(vertical = 6.dp, horizontal = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(palette.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = null,
+                    tint = palette.onPrimaryContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -353,30 +411,69 @@ private fun SettingsCategoryHome(
         }
     }
 
+    val catIcons = mapOf(
+        SettingsCategory.DATA to Icons.Default.Refresh,
+        SettingsCategory.BACKUP to Icons.Default.DateRange,
+        SettingsCategory.REMINDERS to Icons.Default.Notifications,
+        SettingsCategory.APPEARANCE to Icons.Default.Star,
+        SettingsCategory.ABOUT to Icons.Default.Info
+    )
     SettingsGroup("设置分类") {
         SettingsCategory.entries.forEach { cat ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .semantics {
                         role = Role.Button
                         contentDescription = "${cat.title}，${summaries[cat]}"
                     }
                     .clickable { onSelectCategory(cat) }
-                    .padding(vertical = 10.dp),
+                    .padding(vertical = 8.dp, horizontal = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(text = cat.title, style = FreshType.body, color = palette.onSurface)
-                    Text(text = cat.subtitle, style = FreshType.label, color = palette.onSurfaceVariant)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(palette.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = catIcons[cat] ?: Icons.Default.Info,
+                        contentDescription = null,
+                        tint = palette.primary,
+                        modifier = Modifier.size(19.dp)
+                    )
                 }
-                Text(
-                    text = "${summaries[cat]} ›",
-                    style = FreshType.label,
-                    color = palette.onSurfaceVariant
-                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(text = cat.title, style = FreshType.body, color = palette.onSurface)
+                    Text(
+                        text = cat.subtitle,
+                        style = FreshType.label,
+                        color = palette.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = summaries[cat].orEmpty(),
+                        style = FreshType.label,
+                        color = palette.primary
+                    )
+                    Text(text = "›", style = FreshType.sectionTitle, color = palette.onSurfaceVariant)
+                }
+            }
+            if (cat != SettingsCategory.entries.last()) {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(palette.track))
             }
         }
     }
@@ -415,11 +512,12 @@ private fun GoalGroup(
             color = palette.onSurfaceVariant
         )
         if (showGoalWheel) {
-            NumberWheelSheet(
+            com.screentrace.app.uikit.RulerGoalSheet(
                 title = "每日目标",
                 range = GOAL_HOURS.start.roundToInt()..GOAL_HOURS.endInclusive.roundToInt(),
                 value = goalHours,
                 unit = "小时",
+                quickPresets = listOf(2, 4, 6, 8),
                 hint = "到达目标只做提示，不会锁机",
                 onConfirm = { onDailyGoalChange(it * 60) },
                 onDismiss = { showGoalWheel = false }
@@ -755,8 +853,8 @@ private fun AppearanceGroup(
     onOpenStyleSheet: () -> Unit,
     customThemeEnabled: Boolean,
     onOpenCustomTheme: () -> Unit,
-    darkTheme: Boolean,
-    onDarkThemeChange: (Boolean) -> Unit,
+    themeMode: com.screentrace.app.data.prefs.ThemeMode,
+    onThemeModeChange: (com.screentrace.app.data.prefs.ThemeMode) -> Unit,
     dynamicColor: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
     wallpaperBitmap: androidx.compose.ui.graphics.ImageBitmap?,
@@ -800,10 +898,13 @@ private fun AppearanceGroup(
             },
             onClick = onOpenCustomTheme
         )
-        SettingSwitchRow(
-            label = "深色模式",
-            checked = darkTheme,
-            onCheckedChange = onDarkThemeChange
+        Text(text = "日夜间模式", style = FreshType.body, color = palette.onSurface)
+        SegmentedControl(
+            items = com.screentrace.app.data.prefs.ThemeMode.entries.map { it.label },
+            selectedIndex = themeMode.ordinal,
+            onSelect = { idx ->
+                onThemeModeChange(com.screentrace.app.data.prefs.ThemeMode.entries[idx])
+            }
         )
         SettingSwitchRow(
             label = "跟随壁纸动态取色",

@@ -161,8 +161,8 @@ suspend fun savePosterToGallery(
     context: Context,
     fileName: String,
     pngBytes: ByteArray
-): Boolean = withContext(Dispatchers.IO) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@withContext false
+): android.net.Uri? = withContext(Dispatchers.IO) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@withContext null
     val resolver = context.contentResolver
     val values = ContentValues().apply {
         put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
@@ -174,20 +174,19 @@ suspend fun savePosterToGallery(
         put(MediaStore.Images.Media.IS_PENDING, 1)
     }
     val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-        ?: return@withContext false
-    val written = runCatching {
+        ?: return@withContext null
+    runCatching {
         resolver.openOutputStream(uri)?.use { out ->
             out.write(pngBytes)
         } ?: error("无法写入相册")
         values.clear()
         values.put(MediaStore.Images.Media.IS_PENDING, 0)
         resolver.update(uri, values, null, null)
-        true
+        uri
     }.getOrElse {
         runCatching { resolver.delete(uri, null, null) }
-        false
+        null
     }
-    written
 }
 
 /** 写入应用私有缓存目录并通过 [FileProvider] 拉起系统分享面板（无需存储权限）。 */

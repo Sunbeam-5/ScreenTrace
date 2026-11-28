@@ -156,6 +156,7 @@ object PaletteEngine {
             chart3 = charts[2],
             chart4 = charts[3],
             chart5 = charts[4],
+            barSurface = ensureBarSurfaceContrast(p.barSurface, p.surface, primary, dark),
             // 单位色与主色同源重新派生：主色被校正过，旧的 muted 可能又不够了
             onSurfaceMuted = muteForeground(p.onSurface, p.surface, dark)
         )
@@ -210,6 +211,28 @@ object PaletteEngine {
      */
     fun ensureContrast(fg: Color, bg: Color, dark: Boolean, target: Double = 4.5): Color =
         fit(fg, darkenFirst = !dark) { candidate -> contrastRatio(candidate, bg) >= target }
+
+    /**
+     * 批 14c：未选中柱体色对比度保护。
+     *
+     * 浅色自定义种子（如浅黄/浅粉）或暗色种子派生出的 `barSurface` 容易与卡片底色重合；
+     * 对比度低于 [target] 时沿 `primary` 方向平滑拉深/提亮，保证柱体清晰可辨且仍弱于选中柱 `primary`。
+     */
+    fun ensureBarSurfaceContrast(
+        barSurface: Color,
+        cardSurface: Color,
+        primary: Color,
+        dark: Boolean,
+        target: Double = 1.65
+    ): Color {
+        if (contrastRatio(barSurface, cardSurface) >= target) return barSurface
+        var candidate = barSurface
+        repeat(10) {
+            candidate = candidate.mix(primary, 0.18f)
+            if (contrastRatio(candidate, cardSurface) >= target) return candidate
+        }
+        return fit(candidate, darkenFirst = !dark) { c -> contrastRatio(c, cardSurface) >= target }
+    }
 
     /** chart 与 month 的色相旋转量（等距 24°，§5.4「色轮上等距旋转」）。 */
     const val CHART_HUE_STEP = 24f

@@ -198,6 +198,7 @@ object WallpaperPalette {
         val safeChart3 = PaletteEngine.ensureContrast(base.chart3, effSurface, dark, GRAPHICAL_CONTRAST_TARGET)
         val safeChart4 = PaletteEngine.ensureContrast(base.chart4, effSurface, dark, GRAPHICAL_CONTRAST_TARGET)
         val safeChart5 = PaletteEngine.ensureContrast(base.chart5, effSurface, dark, GRAPHICAL_CONTRAST_TARGET)
+        val safeBarSurface = PaletteEngine.ensureBarSurfaceContrast(base.barSurface, effSurface, safePrimary, dark)
 
         return base.copy(
             surface = surface.copy(alpha = alpha),
@@ -214,6 +215,7 @@ object WallpaperPalette {
             chart3 = safeChart3,
             chart4 = safeChart4,
             chart5 = safeChart5,
+            barSurface = safeBarSurface,
             // 卡片变半透明后，次要正文与单位色要按「实际底色」重新兜底
             onSurfaceVariant = PaletteEngine.ensureContrast(base.onSurfaceVariant, effSurface, dark),
             onPrimaryContainer = PaletteEngine.ensureContrast(

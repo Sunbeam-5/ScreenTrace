@@ -280,8 +280,25 @@ fun AppHeader(
                 HeaderActionIcon(HeaderAction.Devices)
             }
         }
-        if (onDateClick != null) {
-            HeaderActionButton(contentDescription = "选择日期", onClick = onDateClick) {
+        // 批 14c：切至日历 Tab 时日期按钮平滑收起淡出，不再瞬间跳变消失
+        val lastDateClick = androidx.compose.runtime.remember {
+            androidx.compose.runtime.mutableStateOf<(() -> Unit)?>(onDateClick)
+        }
+        if (onDateClick != null) lastDateClick.value = onDateClick
+        val reduceMotion = rememberReduceMotion()
+        androidx.compose.animation.AnimatedVisibility(
+            visible = onDateClick != null,
+            enter = if (reduceMotion) androidx.compose.animation.EnterTransition.None else
+                androidx.compose.animation.fadeIn(tween(180)) +
+                    androidx.compose.animation.expandHorizontally(tween(200)),
+            exit = if (reduceMotion) androidx.compose.animation.ExitTransition.None else
+                androidx.compose.animation.fadeOut(tween(140)) +
+                    androidx.compose.animation.shrinkHorizontally(tween(180))
+        ) {
+            HeaderActionButton(
+                contentDescription = "选择日期",
+                onClick = { lastDateClick.value?.invoke() }
+            ) {
                 HeaderActionIcon(HeaderAction.Date)
             }
         }

@@ -1,10 +1,25 @@
 package com.screentrace.app.uikit
 
 import android.provider.Settings
+import android.view.HapticFeedbackConstants
+import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+
+/**
+ * 批 14c：统一线性马达轻震（`CLOCK_TICK`）。
+ *
+ * Compose 自带的 `HapticFeedbackType.TextHandleMove` 底层走 `TEXT_HANDLE_MOVE`，
+ * 在 vivo OriginOS 非文本控件上默认静默；`CLOCK_TICK` 为系统刻度/滚轮/图表专用震动，
+ * 在小米 HyperOS 与 vivo OriginOS 上均可触发清脆线性马达反馈且无需额外权限。
+ */
+fun performTickHaptic(view: View) {
+    runCatching {
+        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+    }
+}
 
 /**
  * 离屏静态导出与长图预览强制关闭入场动画的 CompositionLocal，

@@ -78,7 +78,10 @@ class ScreenTraceWidget : GlanceAppWidget() {
         val colors = runCatching {
             val s = app.container.settings
             val variant = s.themeVariant.first()
-            val dark = s.darkTheme.first()
+            val systemDark = (context.resources.configuration.uiMode and
+                android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val dark = s.themeMode.first().resolveDark(systemDark)
             val dynamic = s.dynamicColor.first()
             val customSeed = s.customThemeSeed.first()
             val wallpaper = s.wallpaper.first()

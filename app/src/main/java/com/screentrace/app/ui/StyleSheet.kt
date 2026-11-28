@@ -49,11 +49,14 @@ import com.screentrace.app.theme.ThemeVariant
 fun StyleSheet(
     current: ThemeVariant,
     customSeedActive: Boolean = false,
-    /** CR-30 §7-65：壁纸「整套主题」生效时明确提示「由壁纸驱动」，九套预设禁点不假生效。 */
+    /** 批 14c：是否已启用自定义壁纸（启用后在弹层内提供「跟随壁纸」快捷格）。 */
+    wallpaperEnabled: Boolean = false,
+    /** 当前是否由壁纸驱动整套主题。 */
     wallpaperDrivenTheme: Boolean = false,
-    /** CR-30 §7-65：系统动态取色已开启时明确说明语义，点选预设将切换为预设主题。 */
+    /** Android 12+ 动态取色生效时，点选预设会自动退出动态取色。 */
     dynamicColorActive: Boolean = false,
     onSelect: (ThemeVariant) -> Unit,
+    onSelectWallpaperTheme: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     com.screentrace.app.uikit.PerfProbe.tick("Compose/StyleSheet")
@@ -75,31 +78,15 @@ fun StyleSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(text = "界面风格", style = FreshType.sectionTitle, color = palette.onSurface)
-            if (wallpaperDrivenTheme) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(palette.primaryContainer)
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                ) {
-                    Text(
-                        text = "当前由壁纸驱动整套主题。如需切换预设风格，请在「设置 → 外观与阈值」切回「仅卡片」或恢复默认背景。",
-                        style = FreshType.label,
-                        color = palette.onPrimaryContainer
-                    )
-                }
-            } else {
-                Text(
-                    text = if (dynamicColorActive && !customSeedActive) {
-                        "当前已启用系统动态取色；点选下方预设将切换为该预设风格。"
-                    } else {
-                        "点选即生效；自定义主题的修改入口在「设置 → 外观与阈值」。"
-                    },
-                    style = FreshType.label,
-                    color = palette.onSurfaceVariant
-                )
-            }
+            Text(
+                text = when {
+                    wallpaperDrivenTheme -> "当前跟随壁纸配色；点选下方任意预设会立即切换为该风格。"
+                    dynamicColorActive && !customSeedActive -> "当前已启用系统动态取色；点选下方预设将切换为该预设风格。"
+                    else -> "点选即生效；自定义取色与壁纸设置位于「设置 → 外观与阈值」。"
+                },
+                style = FreshType.label,
+                color = palette.onSurfaceVariant
+            )
             val entries = ThemeVariant.values().toList()
             entries.chunked(5).forEach { rowItems ->
                 Row(
@@ -111,15 +98,25 @@ fun StyleSheet(
                             label = variant.label,
                             seed = variant.seed,
                             selected = !wallpaperDrivenTheme && !dynamicColorActive && variant == current && !customSeedActive,
-                            enabled = !wallpaperDrivenTheme,
+                            enabled = true,
                             onClick = { onSelect(variant) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    // 第二行只有 4 套预设，刚好补齐第 5 格放「跟随壁纸」或「自定义」
+                    if (rowItems.size < 5 && wallpaperEnabled) {
+                        StyleSwatch(
+                            label = "跟随壁纸",
+                            custom = true,
+                            selected = wallpaperDrivenTheme,
+                            enabled = true,
+                            onClick = onSelectWallpaperTheme,
                             modifier = Modifier.weight(1f)
                         )
                     }
                 }
             }
             if (!wallpaperDrivenTheme && customSeedActive) {
-                // 自定义主题格：显示为多彩圆点（种子色的派生示意），选中态描边
                 Row(modifier = Modifier.fillMaxWidth()) {
                     StyleSwatch(
                         label = "自定义",

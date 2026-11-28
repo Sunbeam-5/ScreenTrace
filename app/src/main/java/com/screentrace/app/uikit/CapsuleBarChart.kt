@@ -36,10 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -94,7 +93,7 @@ fun CapsuleBarChart(
     val axisWidth = 32.dp
     val labelIndices = TrendChartMath.labelIndices(count)
     val reduceMotion = rememberReduceMotion()
-    val haptic = LocalHapticFeedback.current
+    val view = LocalView.current
 
     // §4.5：默认选中最后一天；切主页面时回到默认，避免切走再回来还停在几天前。
     // 只用 remember 的 key 做「换数据/切页回到默认」，**不要再配一个 LaunchedEffect 重置**：
@@ -163,20 +162,24 @@ fun CapsuleBarChart(
                     modifier = Modifier
                         .weight(1f)
                         .height(plotHeight + labelRowHeight)
-                        // §6.1 / §5.7：左右滑动切换选中日，30dp 阈值防误触并轻震
-                        .pointerInput(count) {
-                            var accumulated = 0f
-                            val threshold = 30.dp.toPx()
+                        // 批 14c：绝对坐标跟手命中（手指滑到哪根柱立刻高亮并更新上方详情 + CLOCK_TICK 轻震）
+                        .pointerInput(count, scrollable) {
+                            fun selectAt(localX: Float) {
+                                val slotPx = if (scrollable) {
+                                    16.dp.toPx()
+                                } else {
+                                    size.width.toFloat() / count.coerceAtLeast(1)
+                                }
+                                val next = TrendSelectionMath.indexForTouchX(localX, slotPx, count)
+                                if (next in 0 until count && next != currentIndex) {
+                                    selectedIndex = next
+                                    performTickHaptic(view)
+                                }
+                            }
                             detectHorizontalDragGestures(
-                                onDragStart = { accumulated = 0f },
-                                onHorizontalDrag = { change, dragAmount ->
-                                    accumulated += dragAmount
-                                    if (abs(accumulated) >= threshold) {
-                                        val step = if (accumulated > 0) -1 else 1
-                                        selectedIndex = TrendSelectionMath.step(currentIndex, step, count)
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        accumulated = 0f
-                                    }
+                                onDragStart = { offset -> selectAt(offset.x) },
+                                onHorizontalDrag = { change, _ ->
+                                    selectAt(change.position.x)
                                     change.consume()
                                 }
                             )
@@ -251,7 +254,7 @@ fun CapsuleBarChart(
                                                 indication = null
                                             ) {
                                                 selectedIndex = index
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                performTickHaptic(view)
                                             },
                                         contentAlignment = Alignment.BottomCenter
                                     ) {

@@ -207,3 +207,237 @@ private fun Line() {
 /** 滚轮固定几何：5 格可见，单格 44dp（≥48dp 的可点区在 `clickable` 上补足到整格）。 */
 private val ItemHeight = 44.dp
 private const val VisibleItems = 5
+
+
+/**
+ * 批 14c：1~16 小时横向精密刻度尺目标选择器（方案 A：大号读数 + 横向标尺 + 线性马达 + 快捷胶囊）。
+ *
+ * 与原有 [NumberWheelSheet] 互补：每日目标用精密横向标尺（1..16 小时，每格 4 道细刻度），
+ * 单手左右滑动即可带 `CLOCK_TICK` 线性马达轻震精准落档，下方附常用 2h/4h/6h/8h 一键胶囊。
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun RulerGoalSheet(
+    title: String,
+    range: IntRange = 1..16,
+    value: Int,
+    unit: String = "小时",
+    quickPresets: List<Int> = listOf(2, 4, 6, 8),
+    hint: String? = null,
+    onConfirm: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val palette = LocalFreshPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val values = remember(range) { range.toList() }
+    val clampedInitial = value.coerceIn(range.first, range.last)
+    val startIndex = (clampedInitial - range.first).coerceIn(0, (values.size - 1).coerceAtLeast(0))
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = startIndex)
+    val fling = rememberSnapFlingBehavior(lazyListState = listState)
+    val scope = rememberCoroutineScope()
+    val slotDp = 56.dp
+    val slotPx = with(LocalDensity.current) { slotDp.toPx() }
+    var picked by remember(range, clampedInitial) { mutableIntStateOf(clampedInitial) }
+
+    LaunchedEffect(listState, slotPx) {
+        snapshotFlow {
+            val idx = listState.firstVisibleItemIndex
+            val off = listState.firstVisibleItemScrollOffset
+            (idx + if (off > slotPx / 2f) 1 else 0).coerceIn(0, (values.size - 1).coerceAtLeast(0))
+        }
+            .distinctUntilChanged()
+            .collect { idx ->
+                val next = values.getOrElse(idx) { clampedInitial }
+                if (next != picked) {
+                    picked = next
+                    performTickHaptic(view)
+                }
+            }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = palette.panelSurface,
+        dragHandle = {
+            Box(
+                Modifier
+                    .padding(top = 12.dp)
+                    .width(32.dp)
+                    .height(4.dp)
+                    .clip(CircleShape)
+                    .background(palette.onSurfaceVariant)
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 26.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(text = title, style = FreshType.sectionTitle, color = palette.onSurface)
+
+            // 大号实时读数
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "$picked",
+                    style = FreshType.heroNumber,
+                    color = palette.primary
+                )
+                Text(
+                    text = unit,
+                    style = FreshType.sectionTitle,
+                    color = palette.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
+            // 横向精密刻度尺（中央固定主色指针 + 左右自由滑动吸附）
+            androidx.compose.foundation.layout.BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(92.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(palette.surfaceVariant)
+                    .semantics {
+                        contentDescription = title
+                        stateDescription = "$picked $unit"
+                    }
+            ) {
+                val sidePad = ((maxWidth - slotDp) / 2f).coerceAtLeast(0.dp)
+                androidx.compose.foundation.lazy.LazyRow(
+                    state = listState,
+                    flingBehavior = fling,
+                    contentPadding = PaddingValues(horizontal = sidePad),
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    itemsIndexed(values) { index, item ->
+                        val isSelected = item == picked
+                        Column(
+                            modifier = Modifier
+                                .width(slotDp)
+                                .height(86.dp)
+                                .clickable {
+                                    scope.launch { listState.animateScrollToItem(index) }
+                                },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "$item",
+                                style = if (isSelected) FreshType.bodySmallBold else FreshType.label,
+                                color = if (isSelected) palette.primary else palette.onSurfaceMuted,
+                                modifier = Modifier.padding(top = 10.dp)
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                // 左侧 2 道细刻度 + 中央主刻度 + 右侧 2 道细刻度
+                                Box(
+                                    Modifier
+                                        .width(1.5.dp)
+                                        .height(10.dp)
+                                        .clip(CircleShape)
+                                        .background(palette.outline)
+                                )
+                                Box(
+                                    Modifier
+                                        .width(1.5.dp)
+                                        .height(14.dp)
+                                        .clip(CircleShape)
+                                        .background(palette.outline)
+                                )
+                                Box(
+                                    Modifier
+                                        .width(if (isSelected) 3.dp else 2.dp)
+                                        .height(if (isSelected) 28.dp else 22.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isSelected) palette.primary else palette.onSurfaceVariant)
+                                )
+                                Box(
+                                    Modifier
+                                        .width(1.5.dp)
+                                        .height(14.dp)
+                                        .clip(CircleShape)
+                                        .background(palette.outline)
+                                )
+                                Box(
+                                    Modifier
+                                        .width(1.5.dp)
+                                        .height(10.dp)
+                                        .clip(CircleShape)
+                                        .background(palette.outline)
+                                )
+                            }
+                        }
+                    }
+                }
+                // 中央固定指针（主色胶囊）
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp)
+                        .width(4.dp)
+                        .height(34.dp)
+                        .clip(CircleShape)
+                        .background(palette.primary)
+                )
+            }
+
+            // 常用快捷胶囊
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                quickPresets.filter { it in range }.forEach { preset ->
+                    val active = preset == picked
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(CircleShape)
+                            .background(if (active) palette.primary else palette.surfaceVariant)
+                            .clickable {
+                                val targetIdx = (preset - range.first).coerceIn(0, values.lastIndex)
+                                performTickHaptic(view)
+                                scope.launch { listState.animateScrollToItem(targetIdx) }
+                            }
+                            .padding(vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${preset}h",
+                            style = FreshType.bodySmallBold,
+                            color = if (active) palette.onPrimary else palette.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            if (hint != null) {
+                Text(text = hint, style = FreshType.label, color = palette.onSurfaceVariant)
+            }
+
+            PrimaryButton(
+                text = "确定",
+                onClick = {
+                    onConfirm(picked)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}

@@ -39,6 +39,8 @@ import com.screentrace.app.theme.ThemeVariant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -311,6 +313,9 @@ class AppViewModel(
 
     private val _themeVariant = mutableStateOf(ThemeVariant.MINT)
     val themeVariant: State<ThemeVariant> = _themeVariant
+
+    private val _themeMode = mutableStateOf(com.screentrace.app.data.prefs.ThemeMode.SYSTEM)
+    val themeMode: State<com.screentrace.app.data.prefs.ThemeMode> = _themeMode
 
     private val _darkTheme = mutableStateOf(false)
     val darkTheme: State<Boolean> = _darkTheme
@@ -636,7 +641,12 @@ class AppViewModel(
             }
         }
         viewModelScope.launch {
-            runCatching { store.darkTheme.collect { _darkTheme.value = it } }
+            runCatching {
+                store.themeMode.collect { mode ->
+                    _themeMode.value = mode
+                    _darkTheme.value = (mode == com.screentrace.app.data.prefs.ThemeMode.DARK)
+                }
+            }
         }
         viewModelScope.launch {
             runCatching { store.dynamicColor.collect { _dynamicColor.value = it } }
@@ -878,8 +888,12 @@ class AppViewModel(
                     DateScope.STATS -> _statsSelection.value = newSelection
                 }
                 _notice.value = null
-                // 已经在外面 cancel 过旧 job，这里别再取消当前协程
-                loadAll(cancelPrevious = false)
+                // 批 14c：在统计页切换近 7 天 / 近 30 天时只精准并行重查统计页，避免连带重查日历/今日导致卡顿
+                if (scope == DateScope.STATS && _page.value === AppPage.Stats) {
+                    loadStatsOnly()
+                } else {
+                    loadAll(cancelPrevious = false)
+                }
             }
         }
     }
@@ -919,9 +933,17 @@ class AppViewModel(
         persist(onDone = onWidgetRefresh) { it.setThemeVariant(variant) }
     }
 
+    fun setThemeMode(mode: com.screentrace.app.data.prefs.ThemeMode) {
+        _themeMode.value = mode
+        _darkTheme.value = (mode == com.screentrace.app.data.prefs.ThemeMode.DARK)
+        persist(onDone = onWidgetRefresh) { it.setThemeMode(mode) }
+    }
+
     fun setDarkTheme(dark: Boolean) {
-        _darkTheme.value = dark
-        persist(onDone = onWidgetRefresh) { it.setDarkTheme(dark) }
+        setThemeMode(
+            if (dark) com.screentrace.app.data.prefs.ThemeMode.DARK
+            else com.screentrace.app.data.prefs.ThemeMode.LIGHT
+        )
     }
 
     fun setDynamicColor(enabled: Boolean) {
@@ -1774,25 +1796,89 @@ class AppViewModel(
      * `previous` 取**上一等长窗口**的摘要（未结束时截断到相同天数），与页面上的
      * 「较上周日均」严格同源。
      */
+    private var periodJob: Job? = null
+
+    /** 批 14c：仅精准并行刷新统计页状态（切近 7/30 天时零无关查库、零卡顿）。 */
+    private suspend fun loadStatsOnly() {
+        val today = todayProvider()
+        val statsSel = _statsSelection.value
+        val threshold = _lowThresholdMin.value
+        _statsState.value = try {
+            coroutineScope {
+                val summaryDef = async { repository.summary(statsSel) }
+                val prevDef = async { repository.summary(UsageCalculator.previousPeriod(statsSel)) }
+                val trendDef = async { repository.dailyTrend(statsSel) }
+                val extremesDef = async { repository.extremes(statsSel, threshold) }
+                val topAppsDef = async { repository.topAppsPerDay(statsSel, limit = 3) }
+                val clockDef = async { repository.clockOccupied(statsSel) }
+
+                val statsSummary = summaryDef.await()
+                if (!statsSummary.hasAnyRecord) {
+                    LoadState(data = null, empty = EmptyReason.NO_EVENT_DATA)
+                } else {
+                    val statsTrend = trendDef.await()
+                    val eligibleDates = statsTrend
+                        .filter { it.isEligibleForFullDayStats(today) }
+                        .map { it.date }
+                    val qualifiedHourly = if (eligibleDates.isEmpty()) {
+                        com.screentrace.app.contract.QualifiedHourlyDistribution(emptyList(), 0)
+                    } else {
+                        repository.qualifiedHourlyDistribution(eligibleDates)
+                    }
+                    val statsCompare = UsageCalculator.compare(
+                        statsSummary,
+                        prevDef.await(),
+                        statsSel is DateSelection.Day
+                    )
+                    LoadState(
+                        data = StatsData(
+                            summary = statsSummary,
+                            compare = statsCompare,
+                            trend = statsTrend,
+                            periods = UsageCalculator.dailyAveragePeriods(
+                                UsageCalculator.periodBuckets(qualifiedHourly.buckets),
+                                qualifiedHourly.eligibleDays
+                            ),
+                            extremes = extremesDef.await(),
+                            topAppsPerDay = topAppsDef.await(),
+                            clockOccupiedMin = clockDef.await().values.sum()
+                        )
+                    )
+                }
+            }
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (t: Throwable) {
+            LoadState(error = t.message ?: "统计加载失败", data = _statsState.value.data)
+        }
+    }
+
     private fun loadPeriod() {
-        viewModelScope.launch {
-            // 同其它页：重算期间保留上一条结果，切周/月/年不闪骨架
-            _periodState.value = LoadState(loading = true, data = _periodState.value.data)
+        periodJob?.cancel()
+        periodJob = viewModelScope.launch {
             val type = _periodType.value
             val today = todayProvider()
             val range = type.natural(today)
+            // 若尚无任何数据才显 loading，已有数据时后台并行算完原地切换，零闪帧
+            if (_periodState.value.data == null) {
+                _periodState.value = LoadState(loading = true)
+            }
             _periodState.value = try {
-                val trend = repository.dailyTrend(range.selection)
-                val previous = repository.summary(range.previousEqualLength().selection)
-                val apps = repository.appRanking(range.selection, limit = Int.MAX_VALUE)
-                val eligibleDates = trend
-                    .filter { it.isEligibleForFullDayStats(today) }
-                    .map { it.date }
-                // D-07 Review 修复（P1-3）：严禁 .ifEmpty 回退全区间，统一走独立小时日质量仲裁
-                val qualifiedHourly = if (eligibleDates.isEmpty()) {
-                    com.screentrace.app.contract.QualifiedHourlyDistribution(emptyList(), 0)
-                } else {
-                    repository.qualifiedHourlyDistribution(eligibleDates)
+                val (trend, previous, apps, qualifiedHourly) = coroutineScope {
+                    val trendDef = async { repository.dailyTrend(range.selection) }
+                    val prevDef = async { repository.summary(range.previousEqualLength().selection) }
+                    val appsDef = async { repository.appRanking(range.selection, limit = Int.MAX_VALUE) }
+                    val t = trendDef.await()
+                    val eligibleDates = t
+                        .filter { it.isEligibleForFullDayStats(today) }
+                        .map { it.date }
+                    // D-07 Review 修复（P1-3）：严禁 .ifEmpty 回退全区间，统一走独立小时日质量仲裁
+                    val qh = if (eligibleDates.isEmpty()) {
+                        com.screentrace.app.contract.QualifiedHourlyDistribution(emptyList(), 0)
+                    } else {
+                        repository.qualifiedHourlyDistribution(eligibleDates)
+                    }
+                    Quad(t, prevDef.await(), appsDef.await(), qh)
                 }
                 val latestPulledAt = repository.latestOkPulledAt()
                 val period = PeriodSummaryCalculator.build(
@@ -1860,3 +1946,5 @@ class AppViewModel(
         const val REPORT_APP_LIMIT = 20
     }
 }
+
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
