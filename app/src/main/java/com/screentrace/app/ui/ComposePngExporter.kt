@@ -1,10 +1,15 @@
 package com.screentrace.app.ui
 
 import android.app.Activity
+import android.content.ContentValues
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ScrollView
@@ -17,6 +22,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -33,22 +39,28 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.screentrace.app.contract.DateSelection
 import com.screentrace.app.contract.MetricDetail
 import com.screentrace.app.contract.UsageCalculator
+import com.screentrace.app.data.export.PngBackgroundMode
 import com.screentrace.app.data.export.PngExportModule
 import com.screentrace.app.data.export.PngPosterData
 import com.screentrace.app.data.export.PngPosterSpec
 import com.screentrace.app.data.export.PngReportExporter
+import com.screentrace.app.data.wallpaper.WallpaperCropMath
 import com.screentrace.app.theme.FreshPalette
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
@@ -70,15 +82,12 @@ import com.screentrace.app.uikit.PeriodDistribution
 import com.screentrace.app.uikit.RingProgress
 import com.screentrace.app.uikit.StatusChip
 import com.screentrace.app.uikit.TrendChartMath
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 14a 余项（v3）：离屏渲染真实 Compose Tab 卡片为高分长截图 PNG。
- *
- * 直接复用「今日 / 统计 / 日历」页的真实 UIKit 组件与当前 [FreshPalette] / [WallpaperState]，
- * 宽度锁定为主流手机分享尺寸（390dp @ 3x = 1170px），通过临时隐形 [ScrollView] 容器让
- * [ComposeView] 自然展开到完整高度，避免被屏幕可视高度截断。
+ * 14a 余项（v4）：离屏渲染真实 Compose Tab 卡片为高分长截图 PNG。
  */
 suspend fun capturePosterToPngBytes(
     context: Context,
@@ -127,7 +136,6 @@ suspend fun capturePosterToPngBytes(
             )
         )
         try {
-            // 等待 3 帧，确保 Compose 首帧组合、LaunchedEffect（如 RingProgress.snapTo）与测量全部落定
             repeat(3) { withFrameNanos { } }
             val w = composeView.width.takeIf { it > 0 } ?: PngPosterSpec.POSTER_WIDTH_PX
             val h = composeView.height.coerceIn(1, PngPosterSpec.MAX_POSTER_HEIGHT_PX)
@@ -145,6 +153,79 @@ suspend fun capturePosterToPngBytes(
     }
 }
 
+/**
+ * Android 10+（API 29+）免权限直接写入专属相册 `Pictures/屏迹`；
+ * 返回 true 表示已保存，false 表示需在旧系统（API 26–28）回退 SAF 选择位置。
+ */
+suspend fun savePosterToGallery(
+    context: Context,
+    fileName: String,
+    pngBytes: ByteArray
+): Boolean = withContext(Dispatchers.IO) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@withContext false
+    val resolver = context.contentResolver
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+        put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+        put(
+            MediaStore.Images.Media.RELATIVE_PATH,
+            "${Environment.DIRECTORY_PICTURES}/${PngPosterSpec.ALBUM_SUBDIR}"
+        )
+        put(MediaStore.Images.Media.IS_PENDING, 1)
+    }
+    val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+        ?: return@withContext false
+    val written = runCatching {
+        resolver.openOutputStream(uri)?.use { out ->
+            out.write(pngBytes)
+        } ?: error("无法写入相册")
+        values.clear()
+        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+        resolver.update(uri, values, null, null)
+        true
+    }.getOrElse {
+        runCatching { resolver.delete(uri, null, null) }
+        false
+    }
+    written
+}
+
+/** 写入应用私有缓存目录并通过 [FileProvider] 拉起系统分享面板（无需存储权限）。 */
+suspend fun sharePosterViaSystemSheet(
+    context: Context,
+    fileName: String,
+    pngBytes: ByteArray
+): Boolean {
+    val file = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = File(context.cacheDir, "shared_posters").apply { mkdirs() }
+            // 清理旧的临时分享图，避免缓存堆积
+            dir.listFiles()?.forEach { old -> runCatching { old.delete() } }
+            File(dir, fileName).apply { writeBytes(pngBytes) }
+        }.getOrNull()
+    } ?: return false
+
+    return withContext(Dispatchers.Main) {
+        runCatching {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val chooser = Intent.createChooser(intent, "分享使用长图").apply {
+                if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
+            true
+        }.getOrDefault(false)
+    }
+}
+
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
@@ -152,16 +233,20 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 }
 
 /**
- * 与 App 真实 Tab 视觉完全一致的可自选模块长图界面（无状态栏、无底栏、无交互按钮）。
+ * 与 App 真实 Tab 视觉一致的可自选模块长图内容（实时预览与离屏渲染共用同一份 Composable）。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun PngPosterContent(data: PngPosterData) {
+internal fun PngPosterContent(
+    data: PngPosterData,
+    modifier: Modifier = Modifier
+) {
     val palette = LocalFreshPalette.current
     val wallpaper = LocalWallpaper.current
+    val displayData = PngReportExporter.sanitize(data)
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .width(PngPosterSpec.POSTER_WIDTH_DP.dp)
             .wrapContentHeight()
             .then(
@@ -179,24 +264,84 @@ internal fun PngPosterContent(data: PngPosterData) {
             )
     ) {
         if (wallpaper != null) {
-            Image(
-                bitmap = wallpaper.blurred,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize()
-            )
-            if (wallpaper.dimAlpha > 0f) {
-                Box(
-                    Modifier
-                        .matchParentSize()
-                        .background(palette.scrim.copy(alpha = wallpaper.dimAlpha))
-                )
+            when (displayData.backgroundMode) {
+                PngBackgroundMode.TOP_FADE -> {
+                    // 顶部约 1 屏区域严格按壁纸编辑器裁切构图清晰展示，底部平滑渐隐融入主题底色
+                    val bmpW = wallpaper.blurred.width.toFloat()
+                    val bmpH = wallpaper.blurred.height.toFloat()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(PngPosterSpec.TOP_WALLPAPER_HEIGHT_DP.dp)
+                            .align(Alignment.TopCenter)
+                            .clipToBounds()
+                    ) {
+                        Image(
+                            bitmap = wallpaper.blurred,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    val geo = WallpaperCropMath.geometry(bmpW, bmpH, size.width, size.height)
+                                    val zoom = if (geo != null) {
+                                        maxOf(wallpaper.cropScale, geo.minZoom)
+                                    } else {
+                                        wallpaper.cropScale
+                                    }
+                                    scaleX = zoom
+                                    scaleY = zoom
+                                    translationX = wallpaper.cropOffsetX * size.width
+                                    translationY = wallpaper.cropOffsetY * size.height
+                                }
+                        )
+                        if (wallpaper.dimAlpha > 0f) {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .background(palette.scrim.copy(alpha = wallpaper.dimAlpha))
+                            )
+                        }
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(palette.background.copy(alpha = wallpaper.themeScrimAlpha))
+                        )
+                        // 底部平滑渐隐过渡带，无缝衔接下方主题底色
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        0.0f to Color.Transparent,
+                                        0.58f to Color.Transparent,
+                                        1.0f to palette.background
+                                    )
+                                )
+                        )
+                    }
+                }
+                PngBackgroundMode.FULL_FILL -> {
+                    Image(
+                        bitmap = wallpaper.blurred,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize()
+                    )
+                    if (wallpaper.dimAlpha > 0f) {
+                        Box(
+                            Modifier
+                                .matchParentSize()
+                                .background(palette.scrim.copy(alpha = wallpaper.dimAlpha))
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .matchParentSize()
+                            .background(palette.background.copy(alpha = wallpaper.themeScrimAlpha))
+                    )
+                }
             }
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .background(palette.background.copy(alpha = wallpaper.themeScrimAlpha))
-            )
         }
 
         Column(
@@ -205,7 +350,7 @@ internal fun PngPosterContent(data: PngPosterData) {
                 .padding(horizontal = 20.dp, vertical = 22.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ---- 顶部轻头部：品牌名 + 日期区间胶囊 ----
+            // ---- 顶部轻头部：品牌名 + 日期区间 ----
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -218,37 +363,37 @@ internal fun PngPosterContent(data: PngPosterData) {
                         color = palette.onSurface
                     )
                     Text(
-                        text = data.rangeLabel,
+                        text = displayData.rangeLabel,
                         style = FreshType.label,
                         color = palette.onSurfaceVariant
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (data.hideAppNames) {
+                    if (displayData.hideAppNames) {
                         PosterBadge(text = "已隐应用名")
                     }
-                    PosterBadge(text = data.exportedAt)
+                    PosterBadge(text = displayData.range.label)
                 }
             }
 
-            if (!data.hasAnyContent) {
+            if (!displayData.hasAnyContent) {
                 FreshCard {
                     EmptyState(title = "该区间暂无可用记录")
                 }
             } else {
-                val single = data.selection is DateSelection.Day
+                val single = displayData.selection is DateSelection.Day
                 val rawUsageMin: Int? = if (single) {
-                    data.summary.totalScreenUnlockMin
+                    displayData.summary.totalScreenUnlockMin
                 } else {
-                    data.summary.averageScreenUnlockMin
+                    displayData.summary.averageScreenUnlockMin
                 }
 
                 // ① 目标圆环卡（复刻「今日」页 ①）
-                if (PngExportModule.HERO_RING in data.modules) {
-                    val displayDate = (data.selection as? DateSelection.Day)?.date
+                if (PngExportModule.HERO_RING in displayData.modules) {
+                    val displayDate = (displayData.selection as? DateSelection.Day)?.date
                     val caption = when {
                         !single -> "日均亮屏"
-                        displayDate == data.today -> "今日亮屏"
+                        displayDate == displayData.today -> "今日亮屏"
                         else -> "${displayDate?.monthValue}月${displayDate?.dayOfMonth}日亮屏"
                     }
                     FreshCard(
@@ -257,17 +402,17 @@ internal fun PngPosterContent(data: PngPosterData) {
                     ) {
                         if (rawUsageMin != null) {
                             RingProgress(
-                                progress = if (data.dailyGoalMin > 0) {
-                                    rawUsageMin.toFloat() / data.dailyGoalMin
+                                progress = if (displayData.dailyGoalMin > 0) {
+                                    rawUsageMin.toFloat() / displayData.dailyGoalMin
                                 } else {
                                     0f
                                 },
                                 usageMinutes = rawUsageMin,
-                                goalMinutes = data.dailyGoalMin,
+                                goalMinutes = displayData.dailyGoalMin,
                                 caption = caption
                             )
-                            val overMinutes = (rawUsageMin - data.dailyGoalMin).coerceAtLeast(0)
-                            if (data.dailyGoalMin > 0 && overMinutes > 0) {
+                            val overMinutes = (rawUsageMin - displayData.dailyGoalMin).coerceAtLeast(0)
+                            if (displayData.dailyGoalMin > 0 && overMinutes > 0) {
                                 FlowRow(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -279,17 +424,16 @@ internal fun PngPosterContent(data: PngPosterData) {
                                 }
                             }
                         } else {
-                            // D-07：无完整日时不伪造 0 分钟圆环读数
                             Text(text = caption, style = FreshType.label, color = palette.onSurfaceVariant)
                             Text(text = "—", style = FreshType.pageTitle, color = palette.onSurface)
                             Text(
-                                text = "当前区间暂无完整日统计（合计 ${UsageCalculator.formatDuration(data.summary.totalScreenUnlockMin)}）",
+                                text = "当前区间暂无完整日统计（合计 ${UsageCalculator.formatDuration(displayData.summary.totalScreenUnlockMin)}）",
                                 style = FreshType.label,
                                 color = palette.onSurfaceVariant
                             )
                         }
                         Text(
-                            text = "最长连续 ${UsageCalculator.formatDuration(data.summary.longestSessionMin)}",
+                            text = "最长连续 ${UsageCalculator.formatDuration(displayData.summary.longestSessionMin)}",
                             style = FreshType.label,
                             color = palette.onSurfaceVariant
                         )
@@ -297,11 +441,11 @@ internal fun PngPosterContent(data: PngPosterData) {
                 }
 
                 // ② 解锁与通知双卡（复刻「今日」页 ②，纯摘要态无箭头）
-                if (PngExportModule.UNLOCK_NOTIFICATION in data.modules) {
-                    val unlockAvailable = data.unlock?.hasEventSource == true
-                    val notifAvailable = data.notification?.hasEventSource == true
-                    val unlockValue = posterMetricCardValue(data.unlock, single)
-                    val notifValue = posterMetricCardValue(data.notification, single)
+                if (PngExportModule.UNLOCK_NOTIFICATION in displayData.modules) {
+                    val unlockAvailable = displayData.unlock?.hasEventSource == true
+                    val notifAvailable = displayData.notification?.hasEventSource == true
+                    val unlockValue = posterMetricCardValue(displayData.unlock, single)
+                    val notifValue = posterMetricCardValue(displayData.notification, single)
                     MetricCardPair(
                         leftLabel = if (single) "解锁次数" else "日均解锁",
                         leftValue = MetricValue.Number(unlockValue),
@@ -309,7 +453,7 @@ internal fun PngPosterContent(data: PngPosterData) {
                         rightValue = MetricValue.Number(notifValue),
                         leftNote = if (unlockAvailable) null else "未采集到解锁事件",
                         rightNote = if (notifAvailable) {
-                            data.notification?.notification?.let { "已查看 ${it.seen} 次" }
+                            displayData.notification?.notification?.let { "已查看 ${it.seen} 次" }
                         } else {
                             "未采集到通知事件"
                         },
@@ -320,9 +464,9 @@ internal fun PngPosterContent(data: PngPosterData) {
                 }
 
                 // ③ 应用构成卡（复刻「今日」页 ③ 色带 + 图例 + 日间/夜间条）
-                if (PngExportModule.APP_BREAKDOWN in data.modules) {
-                    val rows = AppBreakdownMath.rows(data.topBreakdownApps, data.otherAppsMinutes)
-                    val totalAppMinutes = data.apps.sumOf { it.minutes }
+                if (PngExportModule.APP_BREAKDOWN in displayData.modules) {
+                    val rows = AppBreakdownMath.rows(displayData.topBreakdownApps, displayData.otherAppsMinutes)
+                    val totalAppMinutes = displayData.apps.sumOf { it.minutes }
                     FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -339,22 +483,22 @@ internal fun PngPosterContent(data: PngPosterData) {
                         if (rows.isEmpty()) {
                             EmptyState(title = "暂无应用数据")
                         } else {
-                            AppBreakdownSection(rows = rows, dayPercent = data.dayPercent)
+                            AppBreakdownSection(rows = rows, dayPercent = displayData.dayPercent)
                         }
                     }
                 }
 
-                // ④ 每日趋势卡（复刻「统计」页 ① 胶囊柱图 + 虚线日均线）
-                if (PngExportModule.DAILY_TREND in data.modules && data.daily.isNotEmpty()) {
+                // ④ 每日趋势卡（复刻「统计」页 ① 胶囊柱图 + 虚线日均线；选「今日」时自动取近 7 天）
+                if (PngExportModule.DAILY_TREND in displayData.modules && displayData.trendDaily.isNotEmpty()) {
                     FreshCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column {
                             Text(
-                                text = "日均亮屏",
+                                text = displayData.trendTitle,
                                 style = FreshType.label,
                                 color = palette.onSurfaceVariant
                             )
                             MetricValueText(
-                                value = data.summary.averageScreenUnlockMin?.let { MetricValue.Duration(it) }
+                                value = displayData.trendAverageMin?.let { MetricValue.Duration(it) }
                                     ?: MetricValue.Number("—"),
                                 numberColor = palette.onSurface,
                                 unitColor = palette.onSurfaceMuted,
@@ -363,10 +507,10 @@ internal fun PngPosterContent(data: PngPosterData) {
                             )
                         }
                         CapsuleBarChart(
-                            points = data.daily,
-                            topAppsPerDay = data.topAppsPerDay
+                            points = displayData.trendDaily,
+                            topAppsPerDay = displayData.topAppsPerDay
                         )
-                        TrendChartMath.averageMinutes(data.daily)?.let { avg ->
+                        TrendChartMath.averageMinutes(displayData.trendDaily)?.let { avg ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -390,15 +534,18 @@ internal fun PngPosterContent(data: PngPosterData) {
                     }
                 }
 
-                // ⑤ 时段分布卡（复刻「统计」页 ② 36dp 四段条 + 2×2 图例）
-                if (PngExportModule.PERIOD_DISTRIBUTION in data.modules) {
+                // ⑤ 时段分布卡（复刻「统计」页 ②；选「今日」时标「今日」展示当日累计，不再空态）
+                if (PngExportModule.PERIOD_DISTRIBUTION in displayData.modules) {
                     FreshCard {
-                        PeriodDistribution(periods = data.periods)
+                        PeriodDistribution(
+                            periods = displayData.periods,
+                            subtitle = displayData.periodSubtitle
+                        )
                     }
                 }
 
                 // ⑥ 月度日历卡（复刻「日历」页月视图）
-                if (PngExportModule.MONTH_CALENDAR in data.modules) {
+                if (PngExportModule.MONTH_CALENDAR in displayData.modules) {
                     FreshCard(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -406,7 +553,7 @@ internal fun PngPosterContent(data: PngPosterData) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${data.yearMonth.year}年${data.yearMonth.monthValue}月",
+                                text = "${displayData.yearMonth.year}年${displayData.yearMonth.monthValue}月",
                                 style = FreshType.sectionTitle,
                                 color = palette.onSurface
                             )
@@ -417,28 +564,29 @@ internal fun PngPosterContent(data: PngPosterData) {
                             )
                         }
                         MonthCalendar(
-                            yearMonth = data.yearMonth,
-                            levels = data.monthLevels,
-                            goalMinutes = data.dailyGoalMin,
-                            today = data.today
+                            yearMonth = displayData.yearMonth,
+                            levels = displayData.monthLevels,
+                            goalMinutes = displayData.dailyGoalMin,
+                            today = displayData.today
                         )
                         MonthCalendarLegend()
                     }
                 }
             }
 
-            // ---- 极简底标 ----
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "屏迹 · v${data.appVersion} · 本机离线生成",
-                    style = FreshType.label,
-                    color = palette.onSurfaceMuted
-                )
+            if (displayData.showWatermark) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "屏迹 · ${displayData.exportedAt}",
+                        style = FreshType.label,
+                        color = palette.onSurfaceMuted
+                    )
+                }
             }
         }
     }

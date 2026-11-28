@@ -7,7 +7,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * 离屏静态导出（如 PNG 长截图）强制关闭入场动画的 CompositionLocal，
+ * 离屏静态导出与长图预览强制关闭入场动画的 CompositionLocal，
  * 让圆环、柱图、时段条在首帧直接落终值，不影响前台交互页面。
  */
 val LocalForceReduceMotion = staticCompositionLocalOf { false }

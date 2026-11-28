@@ -42,7 +42,8 @@ import com.screentrace.app.theme.ScreenTimeTheme
 @Composable
 fun PeriodDistribution(
     periods: List<Int>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    subtitle: String = "日均"
 ) {
     val palette = LocalFreshPalette.current
     val values = (0 until 4).map { periods.getOrElse(it) { 0 }.coerceAtLeast(0) }
@@ -67,7 +68,7 @@ fun PeriodDistribution(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = "时段分布", style = FreshType.sectionTitle, color = palette.onSurface)
-            Text(text = "日均", style = FreshType.bodySmall, color = palette.onSurfaceVariant)
+            Text(text = subtitle, style = FreshType.bodySmall, color = palette.onSurfaceVariant)
         }
 
         if (values.sum() <= 0) {

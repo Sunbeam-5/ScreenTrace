@@ -69,6 +69,17 @@
             </intent-filter>
         </activity>
 
+        <!-- 14a 余项（v4）：私有缓存目录分享长图（仅授权临时读取，零存储权限） -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- §5.12 批 12：Glance 桌面小组件（纯离线只读 Room，不申请新权限） -->
         <receiver
             android:name=".widget.ScreenTraceWidgetReceiver"

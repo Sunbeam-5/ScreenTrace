@@ -67,7 +67,6 @@ import com.screentrace.app.data.wallpaper.WallpaperConfig
 import com.screentrace.app.data.wallpaper.WallpaperTuning
 import com.screentrace.app.theme.FreshType
 import com.screentrace.app.theme.LocalFreshPalette
-import com.screentrace.app.theme.LocalWallpaper
 import com.screentrace.app.theme.ThemeVariant
 import com.screentrace.app.uikit.NumberWheelSheet
 import com.screentrace.app.uikit.PrimaryButton
@@ -132,13 +131,10 @@ fun SettingsScreen(
     lowThresholdMin: Int = DEFAULT_LOW_THRESHOLD_MIN,
     onLowThresholdChange: (Int) -> Unit = {},
     appVersion: String,
-    /** 生成 HTML 报告：入参 = 是否隐藏应用名称，返回（建议文件名, HTML 全文）。 */
+    /** 生成报告：入参 = 是否隐藏应用名称，返回（建议文件名, HTML 全文）。 */
     buildReport: suspend (Boolean) -> Pair<String, String>?,
-    /** 14a 余项（v3）：按用户勾选模块查询同源数据，用于离屏渲染 Tab 长截图 PNG。 */
-    buildPngPosterData: suspend (
-        Boolean,
-        Set<com.screentrace.app.data.export.PngExportModule>
-    ) -> Pair<String, com.screentrace.app.data.export.PngPosterData>? = { _, _ -> null },
+    /** 14a 余项（v4）：打开独立的「分享长图」实时预览页。 */
+    onOpenSharePoster: () -> Unit = {},
     /** 批 8：备份导出/恢复（§5.10）。 */
     onBuildBackupJson: suspend () -> Pair<String, String>? = { null },
     /** CR-28 三层兼容：导出含多来源分量时的旧版本兼容警告。 */
@@ -182,6 +178,7 @@ fun SettingsScreen(
             wallpaperConfig = wallpaperConfig,
             darkTheme = darkTheme,
             appVersion = appVersion,
+            onOpenSharePoster = onOpenSharePoster,
             onSelectCategory = onSelectCategory
         )
         return
@@ -205,7 +202,6 @@ fun SettingsScreen(
                 onOpenAppCategories = onOpenAppCategories,
                 appVersion = appVersion,
                 buildReport = buildReport,
-                buildPngPosterData = buildPngPosterData,
                 onNotice = onNotice
             )
         }
@@ -303,6 +299,7 @@ private fun SettingsCategoryHome(
     wallpaperConfig: WallpaperConfig,
     darkTheme: Boolean,
     appVersion: String,
+    onOpenSharePoster: () -> Unit,
     onSelectCategory: (SettingsCategory) -> Unit
 ) {
     val palette = LocalFreshPalette.current
@@ -331,6 +328,31 @@ private fun SettingsCategoryHome(
         SettingsCategory.APPEARANCE to "$themeLabel · ${if (darkTheme) "深色" else "浅色"}",
         SettingsCategory.ABOUT to "v$appVersion"
     )
+    SettingsGroup("分享与导出") {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .clickable(onClick = onOpenSharePoster)
+                .padding(vertical = 8.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(text = "分享长图", style = FreshType.body, color = palette.onSurface)
+                Text(
+                    text = "自由组合模块，实时预览并保存到相册或分享",
+                    style = FreshType.label,
+                    color = palette.onSurfaceVariant
+                )
+            }
+            Text(text = "›", style = FreshType.sectionTitle, color = palette.onSurfaceVariant)
+        }
+    }
+
     SettingsGroup("设置分类") {
         SettingsCategory.entries.forEach { cat ->
             Row(
@@ -482,14 +504,9 @@ private fun PermissionGroup(
     onOpenAppCategories: () -> Unit,
     appVersion: String,
     buildReport: suspend (Boolean) -> Pair<String, String>?,
-    buildPngPosterData: suspend (
-        Boolean,
-        Set<com.screentrace.app.data.export.PngExportModule>
-    ) -> Pair<String, com.screentrace.app.data.export.PngPosterData>?,
     onNotice: (String) -> Unit
 ) {
     val palette = LocalFreshPalette.current
-    val wallpaper = LocalWallpaper.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -497,31 +514,17 @@ private fun PermissionGroup(
     val usageStats = channelStatuses.firstOrNull { it.first == PullChannel.USAGE_STATS }?.second
 
     // 导出：先备好内容，再由系统文件选择器决定落盘位置（SAF，不需要存储权限）
-    var pendingHtml by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var pendingPng by remember { mutableStateOf<Pair<String, ByteArray>?>(null) }
+    var pending by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showExportSheet by remember { mutableStateOf(false) }
-    val htmlLauncher = rememberLauncherForActivityResult(
+    val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/html")
     ) { uri ->
-        val payload = pendingHtml
-        pendingHtml = null
+        val payload = pending
+        pending = null
         if (uri == null || payload == null) return@rememberLauncherForActivityResult
         val ok = runCatching {
             context.contentResolver.openOutputStream(uri)?.use { out ->
                 out.write(payload.second.toByteArray(Charsets.UTF_8))
-            } ?: error("无法写入所选位置")
-        }.isSuccess
-        onNotice(if (ok) "已导出 ${payload.first}" else "导出失败，请换个位置再试")
-    }
-    val pngLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("image/png")
-    ) { uri ->
-        val payload = pendingPng
-        pendingPng = null
-        if (uri == null || payload == null) return@rememberLauncherForActivityResult
-        val ok = runCatching {
-            context.contentResolver.openOutputStream(uri)?.use { out ->
-                out.write(payload.second)
             } ?: error("无法写入所选位置")
         }.isSuccess
         onNotice(if (ok) "已导出 ${payload.first}" else "导出失败，请换个位置再试")
@@ -610,9 +613,9 @@ private fun PermissionGroup(
 
         Box(Modifier.fillMaxWidth().height(1.dp).background(palette.track))
 
-        Text(text = "导出使用报告", style = FreshType.body, color = palette.onSurface)
+        Text(text = "导出 HTML 报告", style = FreshType.body, color = palette.onSurface)
         Text(
-            text = "导出当前筛选区间的使用概览，支持 HTML 网页与自选模块 PNG 长图，本机离线生成。",
+            text = "导出当前筛选区间的使用概览，单文件、断网可看。",
             style = FreshType.label,
             color = palette.onSurfaceVariant
         )
@@ -626,79 +629,39 @@ private fun PermissionGroup(
         ReportExportSheet(
             appVersion = appVersion,
             onDismiss = { showExportSheet = false },
-            onExport = { format, hideNames, modules ->
+            onExport = { hideNames ->
                 scope.launch {
-                    when (format) {
-                        ReportExportFormat.HTML -> {
-                            val payload = buildReport(hideNames)
-                            showExportSheet = false
-                            if (payload == null) {
-                                onNotice("报告生成失败，请稍后再试")
-                                return@launch
-                            }
-                            pendingHtml = payload
-                            htmlLauncher.launch(payload.first)
-                        }
-                        ReportExportFormat.PNG -> {
-                            val prepared = buildPngPosterData(hideNames, modules)
-                            val bytes = if (prepared != null) {
-                                runCatching {
-                                    capturePosterToPngBytes(
-                                        context = context,
-                                        palette = palette,
-                                        wallpaper = wallpaper,
-                                        rawData = prepared.second
-                                    )
-                                }.getOrNull()
-                            } else {
-                                null
-                            }
-                            showExportSheet = false
-                            if (prepared == null || bytes == null) {
-                                onNotice("长图生成失败，请稍后再试")
-                                return@launch
-                            }
-                            pendingPng = prepared.first to bytes
-                            pngLauncher.launch(prepared.first)
-                        }
+                    val payload = buildReport(hideNames)
+                    showExportSheet = false
+                    if (payload == null) {
+                        onNotice("报告生成失败，请稍后再试")
+                        return@launch
                     }
+                    pending = payload
+                    launcher.launch(payload.first)
                 }
             }
         )
     }
 }
 
-private enum class ReportExportFormat(val label: String) {
-    HTML("HTML 报告"),
-    PNG("PNG 长图")
-}
-
-/** 导出前的选项：格式切换（HTML / 自选模块 PNG 长图）与隐藏应用名称（§5.11「导出前可选」）。 */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+/** 导出前的选项：隐藏应用名称（§5.11「导出前可选」）。 */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReportExportSheet(
     appVersion: String,
     onDismiss: () -> Unit,
-    onExport: (
-        format: ReportExportFormat,
-        hideAppNames: Boolean,
-        modules: Set<com.screentrace.app.data.export.PngExportModule>
-    ) -> Unit
+    onExport: (hideAppNames: Boolean) -> Unit
 ) {
     val palette = LocalFreshPalette.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var format by remember { mutableStateOf(ReportExportFormat.PNG) }
     var hideNames by remember { mutableStateOf(false) }
-    var selectedModules by remember {
-        mutableStateOf(com.screentrace.app.data.export.PngExportModule.DEFAULT_SET)
-    }
-    var exporting by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        // CR-20 ③：弹层底色必须不透明（壁纸模式下 palette.surface 半透明会导致与底层文字重叠）
+        // CR-20 ③：弹层底色必须不透明（壁纸模式下 palette.surface 半透明会与底层文字重叠）
         containerColor = palette.panelSurface
     ) {
         Column(
@@ -708,82 +671,25 @@ private fun ReportExportSheet(
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(text = "导出使用报告", style = FreshType.sectionTitle, color = palette.onSurface)
+            Text(text = "导出 HTML 报告", style = FreshType.sectionTitle, color = palette.onSurface)
             Text(
                 text = "报告使用当前日期筛选的区间，数字与页面同源；v$appVersion。",
                 style = FreshType.label,
                 color = palette.onSurfaceVariant
             )
-            SegmentedControl(
-                items = ReportExportFormat.entries.map { it.label },
-                selectedIndex = format.ordinal,
-                onSelect = { format = ReportExportFormat.entries[it] }
-            )
-            Text(
-                text = if (format == ReportExportFormat.HTML) {
-                    "单文件 HTML，断网可用浏览器打开。"
-                } else {
-                    "按 390dp 主流手机分享宽度 1:1 复刻当前主题与壁纸界面，可自由勾选要导出的模块。"
-                },
-                style = FreshType.label,
-                color = palette.onSurfaceVariant
-            )
-            if (format == ReportExportFormat.PNG) {
-                Text(
-                    text = "选择包含模块（已选 ${selectedModules.size} / ${com.screentrace.app.data.export.PngExportModule.entries.size}）",
-                    style = FreshType.body,
-                    color = palette.onSurface
-                )
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    com.screentrace.app.data.export.PngExportModule.entries.forEach { module ->
-                        val checked = module in selectedModules
-                        Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(if (checked) palette.primary else palette.surfaceVariant)
-                                .toggleable(
-                                    value = checked,
-                                    role = Role.Checkbox,
-                                    onValueChange = { on ->
-                                        selectedModules = if (on) {
-                                            selectedModules + module
-                                        } else {
-                                            selectedModules - module
-                                        }
-                                    }
-                                )
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = module.label,
-                                style = FreshType.label,
-                                color = if (checked) palette.onPrimary else palette.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
             SettingSwitchRow(
                 label = "隐藏应用名称",
                 checked = hideNames,
                 onCheckedChange = { hideNames = it }
             )
             Text(
-                text = "开启后应用只显示为「应用 1」「应用 2」，同步隐藏图标，保留占比与颜色。",
+                text = "开启后应用只显示为「应用 1」「应用 2」，保留占比与颜色。",
                 style = FreshType.label,
                 color = palette.onSurfaceVariant
             )
-            val canExport = !exporting && (format == ReportExportFormat.HTML || selectedModules.isNotEmpty())
             PrimaryButton(
-                text = if (exporting) "生成中…" else "导出",
-                enabled = canExport,
-                onClick = {
-                    exporting = true
-                    onExport(format, hideNames, selectedModules)
-                },
+                text = "导出",
+                onClick = { onExport(hideNames) },
                 modifier = Modifier.fillMaxWidth()
             )
         }

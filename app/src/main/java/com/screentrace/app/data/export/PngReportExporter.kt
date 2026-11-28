@@ -15,7 +15,7 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
 /**
- * 14a 余项（v3）：主流手机分享长图规格常量。
+ * 14a 余项（v4）：主流手机分享长图规格常量。
  *
  * 390dp × 3.0 density = 1170px 宽，与主流全面屏手机原生页面长截图比例一致，
  * 不受平板宽屏或超大系统字体缩放影响；高度按勾选模块自然展开，设上限防 OOM。
@@ -25,49 +25,93 @@ object PngPosterSpec {
     const val POSTER_DENSITY = 3f
     const val POSTER_WIDTH_PX = 1170
     const val MAX_POSTER_HEIGHT_PX = 6400
+    const val TOP_WALLPAPER_HEIGHT_DP = 780
+    const val ALBUM_SUBDIR = "屏迹"
 }
 
-/**
- * 用户可在导出前自由勾选的长图模块（1:1 复刻「今日 / 统计 / 日历」真实 Compose 卡片）。
- */
-enum class PngExportModule(
-    val label: String,
-    val defaultSelected: Boolean
-) {
-    HERO_RING("目标圆环", true),
-    UNLOCK_NOTIFICATION("解锁与通知", true),
-    APP_BREAKDOWN("应用构成", true),
-    DAILY_TREND("每日趋势", true),
-    PERIOD_DISTRIBUTION("时段分布", true),
-    MONTH_CALENDAR("月度日历", false);
+/** 预览页内置时间范围切换（解决单日「今日」下趋势只有 1 天且日均为 — 的问题）。 */
+enum class PngExportRange(val label: String) {
+    TODAY("今日"),
+    LAST_7_DAYS("近7天"),
+    LAST_30_DAYS("近30天");
 
-    companion object {
-        val DEFAULT_SET: Set<PngExportModule> = entries.filter { it.defaultSelected }.toSet()
+    fun toDateSelection(today: LocalDate): DateSelection = when (this) {
+        TODAY -> DateSelection.Day(today)
+        LAST_7_DAYS -> DateSelection.Range(today.minusDays(6), today)
+        LAST_30_DAYS -> DateSelection.Range(today.minusDays(29), today)
+    }
+
+    /** 每个周期的默认推荐模块组合，切周期后也可继续逐项自由勾选。 */
+    fun defaultModules(): Set<PngExportModule> = when (this) {
+        TODAY -> setOf(
+            PngExportModule.HERO_RING,
+            PngExportModule.UNLOCK_NOTIFICATION,
+            PngExportModule.APP_BREAKDOWN,
+            PngExportModule.PERIOD_DISTRIBUTION
+        )
+        LAST_7_DAYS -> setOf(
+            PngExportModule.HERO_RING,
+            PngExportModule.UNLOCK_NOTIFICATION,
+            PngExportModule.APP_BREAKDOWN,
+            PngExportModule.DAILY_TREND,
+            PngExportModule.PERIOD_DISTRIBUTION
+        )
+        LAST_30_DAYS -> setOf(
+            PngExportModule.HERO_RING,
+            PngExportModule.APP_BREAKDOWN,
+            PngExportModule.DAILY_TREND,
+            PngExportModule.PERIOD_DISTRIBUTION,
+            PngExportModule.MONTH_CALENDAR
+        )
     }
 }
 
+/** 自定义壁纸在超长图上的铺底模式。 */
+enum class PngBackgroundMode(val label: String) {
+    TOP_FADE("顶部渐隐"),
+    FULL_FILL("整图铺满")
+}
+
+/** 用户可在预览页自由开关的 6 大原生模块（即时显隐）。 */
+enum class PngExportModule(val label: String) {
+    HERO_RING("目标圆环"),
+    UNLOCK_NOTIFICATION("解锁通知"),
+    APP_BREAKDOWN("应用构成"),
+    DAILY_TREND("每日趋势"),
+    PERIOD_DISTRIBUTION("时段分布"),
+    MONTH_CALENDAR("月度日历")
+}
+
 /**
- * 长图渲染所需的完整同源数据快照（直接来自 [com.screentrace.app.contract.UsageRepository]，零二次聚合）。
+ * 长图渲染与实时预览共用的同源数据快照（直接来自 [com.screentrace.app.contract.UsageRepository]）。
  */
 data class PngPosterData(
+    val range: PngExportRange,
     val selection: DateSelection,
     val rangeLabel: String,
     val exportedAt: String,
     val appVersion: String,
     val summary: Summary,
     val dailyGoalMin: Int,
-    val daily: List<DailyPoint>,
+    /** 每日趋势点集：选「今日」时自动补取含今日的近 7 天趋势，避免出现单根柱子。 */
+    val trendDaily: List<DailyPoint>,
+    val trendTitle: String,
+    val trendAverageMin: Int?,
     val apps: List<AppUsage>,
     val topAppsPerDay: Map<LocalDate, List<AppUsage>>,
     val hours: List<HourBucket>,
+    /** 时段分布四段分钟数：选「今日」时为今日累计，选「近7天/近30天」时为 D-07 合格日日均。 */
     val periods: List<Int>,
+    val periodSubtitle: String,
     val unlock: MetricDetail?,
     val notification: MetricDetail?,
     val yearMonth: YearMonth,
     val monthLevels: List<CalendarLevel>,
     val today: LocalDate,
-    val hideAppNames: Boolean,
-    val modules: Set<PngExportModule>
+    val hideAppNames: Boolean = false,
+    val showWatermark: Boolean = true,
+    val backgroundMode: PngBackgroundMode = PngBackgroundMode.TOP_FADE,
+    val modules: Set<PngExportModule> = range.defaultModules()
 ) {
     val hasAnyContent: Boolean
         get() = summary.hasAnyRecord || apps.isNotEmpty() || monthLevels.any { it.recorded }
@@ -81,7 +125,6 @@ data class PngPosterData(
             return ((total - night) * 100 / total).coerceIn(0, 100)
         }
 
-    /** 今日页应用构成卡使用的 Top 4 应用与其余合计分钟数。 */
     val topBreakdownApps: List<AppUsage>
         get() = apps.take(4)
 
@@ -94,7 +137,7 @@ data class PngPosterData(
  */
 object PngReportExporter {
 
-    /** SAF 建议文件名：`screen-time-report-YYYYMMDD-HHmm.png`。 */
+    /** 建议文件名：`screen-time-report-YYYYMMDD-HHmm.png`。 */
     fun fileName(at: LocalDateTime): String =
         "screen-time-report-${at.format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))}.png"
 

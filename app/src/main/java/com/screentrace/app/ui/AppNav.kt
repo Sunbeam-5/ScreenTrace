@@ -318,6 +318,8 @@ fun AppNav(
     var headerBottomPx by remember { mutableStateOf(0f) }
     // §5.4 CR-19 ②：壁纸裁切编辑浮层（从设置页壁纸卡片进入）
     var showWallpaperEditor by rememberSaveable { mutableStateOf(false) }
+    // 14a 余项（v4）：设置首页独立「分享长图」实时预览页
+    var showSharePoster by rememberSaveable { mutableStateOf(false) }
 
     // §5.5 / §7-22：二级页容器变换的起点（最近一次在主页面层按下的位置）。
     // 进入与退出共用同一起点，所以「返回手势」和「返回按钮」缩回的是同一个地方。
@@ -545,6 +547,7 @@ fun AppNav(
         // CR-20 ①：设备面板打开时系统返回先收面板，不直接退到桌面。
         BackHandler(enabled = showDevicePanel) { showDevicePanel = false }
         BackHandler(enabled = showWallpaperEditor) { showWallpaperEditor = false }
+        BackHandler(enabled = showSharePoster) { showSharePoster = false }
 
         Box(
             Modifier
@@ -899,9 +902,7 @@ fun AppNav(
                                     buildReport = { hideNames ->
                                         viewModel.buildHtmlReport(hideNames, appVersion)
                                     },
-                                    buildPngPosterData = { hideNames, modules ->
-                                        viewModel.buildPngPosterData(hideNames, appVersion, modules)
-                                    },
+                                    onOpenSharePoster = { showSharePoster = true },
                                     onBuildBackupJson = { viewModel.buildBackupJson(appVersion) },
                                     onBackupCompatWarning = { viewModel.backupCompatWarning(appVersion) },
                                     onBuildCsv = { viewModel.buildCsvFiles(appVersion) },
@@ -1098,6 +1099,17 @@ fun AppNav(
                 onSwitchDevice = { id -> viewModel.switchToDevice(id) },
                 onMergeDevice = { id -> viewModel.mergeDeviceIntoLocal(id) }
             )
+
+            // ---- 14a 余项（v4）：分享长图实时预览页（全屏，盖住底栏）----
+            if (showSharePoster) {
+                SharePosterScreen(
+                    loadPosterData = { range ->
+                        viewModel.buildPngPosterData(range, appVersion)
+                    },
+                    onDismiss = { showSharePoster = false },
+                    onNotice = viewModel::showNotice
+                )
+            }
 
             // ---- §5.4 CR-19 ②：壁纸裁切编辑（全屏，盖住一切含下拉面板）----
             if (showWallpaperEditor && wallpaperState != null) {

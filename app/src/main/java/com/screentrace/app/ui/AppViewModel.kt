@@ -51,7 +51,7 @@ import java.time.YearMonth
  * 白名单未命中一律常驻（安全默认）——失败/需引导类文案绝不能被几秒抹掉。
  */
 private val TRANSIENT_NOTICE_PREFIXES = listOf(
-    "已导出", "已恢复", "云端配置已保存", "连接成功", "已上传", "刚刚已更新", "已复制"
+    "已导出", "已保存", "已恢复", "云端配置已保存", "连接成功", "已上传", "刚刚已更新", "已复制"
 )
 
 fun isTransientNotice(message: String): Boolean =
@@ -1099,76 +1099,74 @@ class AppViewModel(
     }
 
     /**
-     * §7-12：HTML 与 PNG 长图报告共享同一套现查仓库输入，杜绝跨格式数字漂移。
-     */
-    private suspend fun buildReportInput(
-        hideAppNames: Boolean,
-        appVersion: String
-    ): Pair<java.time.LocalDateTime, com.screentrace.app.data.export.HtmlReportInput> {
-        val selection = currentSelection()
-        val now = java.time.LocalDateTime.now()
-        val summary = repository.summary(selection)
-        val input = com.screentrace.app.data.export.HtmlReportInput(
-            rangeLabel = reportRangeLabel(selection),
-            exportedAt = now.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
-            summary = summary,
-            daily = repository.dailyTrend(selection),
-            apps = repository.appRanking(selection, limit = REPORT_APP_LIMIT),
-            hours = repository.hourlyDistribution(selection),
-            appVersion = appVersion,
-            hideAppNames = hideAppNames,
-            dailyGoalMin = _dailyGoalMin.value
-        )
-        return now to input
-    }
-
-    /**
      * §7-12：生成自包含 HTML 报告（纯文本返回值，写盘交给 UI 层的 SAF）。
      *
      * 数据全部**现查一次仓库**（与页面同一套查询），而不是从 `statsState` 里捡——
      * 页面状态可能还挂着上一次筛选的旧数据，导出时切过日期就会导错区间。
      */
     suspend fun buildHtmlReport(hideAppNames: Boolean, appVersion: String): Pair<String, String>? {
+        val selection = currentSelection()
         return runCatching {
-            val (now, input) = buildReportInput(hideAppNames, appVersion)
-            com.screentrace.app.data.export.HtmlReportExporter.fileName(now) to
+            val summary = repository.summary(selection)
+            val input = com.screentrace.app.data.export.HtmlReportInput(
+                rangeLabel = reportRangeLabel(selection),
+                exportedAt = java.time.LocalDateTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
+                summary = summary,
+                daily = repository.dailyTrend(selection),
+                apps = repository.appRanking(selection, limit = REPORT_APP_LIMIT),
+                hours = repository.hourlyDistribution(selection),
+                appVersion = appVersion,
+                hideAppNames = hideAppNames,
+                dailyGoalMin = _dailyGoalMin.value
+            )
+            com.screentrace.app.data.export.HtmlReportExporter.fileName(java.time.LocalDateTime.now()) to
                 com.screentrace.app.data.export.HtmlReportExporter.build(input)
         }.getOrNull()
     }
 
     /**
-     * 14a 余项（v3）：按用户勾选模块现查同源仓库数据，供真实 Compose 离屏渲染为 Tab 长截图 PNG。
+     * 14a 余项（v4）：按预览页选中的周期（今日 / 近7天 / 近30天）一次性查齐同源数据快照。
      *
-     * 与「今日 / 统计 / 日历」及 [buildHtmlReport] 使用完全同一套查询与 D-07 小时质量仲裁，
-     * 开启 `hideAppNames` 时同步脱敏应用名与包名。
+     * - 选「今日」时：时段分布展示今日累计（副标题「今日」），避免单日无完整日导致空态；
+     *   每日趋势自动补取含今日在内的近 7 天数据，用户勾选趋势卡时直接展示完整 7 天柱图与日均。
+     * - 选「近7天 / 近30天」时：时段分布严格走 D-07 合格日质量仲裁算「日均」。
      */
     suspend fun buildPngPosterData(
-        hideAppNames: Boolean,
-        appVersion: String,
-        modules: Set<com.screentrace.app.data.export.PngExportModule> =
-            com.screentrace.app.data.export.PngExportModule.DEFAULT_SET
+        range: com.screentrace.app.data.export.PngExportRange,
+        appVersion: String
     ): Pair<String, com.screentrace.app.data.export.PngPosterData>? {
         return runCatching {
-            val selection = currentSelection()
-            val (now, base) = buildReportInput(hideAppNames, appVersion)
             val today = todayProvider()
-            val unlock = if (com.screentrace.app.data.export.PngExportModule.UNLOCK_NOTIFICATION in modules) {
-                repository.metricDetail(MetricKind.UNLOCK, selection)
+            val now = java.time.LocalDateTime.now()
+            val selection = range.toDateSelection(today)
+            val summary = repository.summary(selection)
+            val daily = repository.dailyTrend(selection)
+            val apps = repository.appRanking(selection, limit = REPORT_APP_LIMIT)
+            val hours = repository.hourlyDistribution(selection)
+            val unlock = repository.metricDetail(MetricKind.UNLOCK, selection)
+            val notification = repository.metricDetail(MetricKind.NOTIFICATION, selection)
+
+            // 趋势卡：今日模式自动补取近 7 天趋势，杜绝 1 根柱子 + "—"
+            val trendSelection = if (range == com.screentrace.app.data.export.PngExportRange.TODAY) {
+                DateSelection.Range(today.minusDays(6), today)
             } else {
-                null
+                selection
             }
-            val notification = if (com.screentrace.app.data.export.PngExportModule.UNLOCK_NOTIFICATION in modules) {
-                repository.metricDetail(MetricKind.NOTIFICATION, selection)
+            val trendDaily = if (trendSelection == selection) daily else repository.dailyTrend(trendSelection)
+            val trendSummary = if (trendSelection == selection) summary else repository.summary(trendSelection)
+            val topAppsPerDay = repository.topAppsPerDay(trendSelection, limit = 3)
+            val trendTitle = if (range == com.screentrace.app.data.export.PngExportRange.TODAY) {
+                "近 7 天日均亮屏"
             } else {
-                null
+                "日均亮屏"
             }
-            val topAppsPerDay = if (com.screentrace.app.data.export.PngExportModule.DAILY_TREND in modules) {
-                repository.topAppsPerDay(selection, limit = 3)
+
+            // 时段分布：今日看当日累计，多日看 D-07 合格完整日日均
+            val (periods, periodSubtitle) = if (range == com.screentrace.app.data.export.PngExportRange.TODAY) {
+                UsageCalculator.periodBuckets(hours) to "今日"
             } else {
-                emptyMap()
-            }
-            val periods = if (com.screentrace.app.data.export.PngExportModule.PERIOD_DISTRIBUTION in modules) {
-                val eligibleDates = base.daily
+                val eligibleDates = daily
                     .filter { it.isEligibleForFullDayStats(today) }
                     .map { it.date }
                 val qualifiedHourly = if (eligibleDates.isEmpty()) {
@@ -1179,38 +1177,36 @@ class AppViewModel(
                 UsageCalculator.dailyAveragePeriods(
                     UsageCalculator.periodBuckets(qualifiedHourly.buckets),
                     qualifiedHourly.eligibleDays
-                )
-            } else {
-                listOf(0, 0, 0, 0)
+                ) to "日均"
             }
+
             val yearMonth = YearMonth.from(selection.endDate)
-            val monthLevels = if (com.screentrace.app.data.export.PngExportModule.MONTH_CALENDAR in modules) {
-                repository.monthLevels(yearMonth)
-            } else {
-                emptyList()
-            }
-            val raw = com.screentrace.app.data.export.PngPosterData(
+            val monthLevels = repository.monthLevels(yearMonth)
+
+            val data = com.screentrace.app.data.export.PngPosterData(
+                range = range,
                 selection = selection,
-                rangeLabel = base.rangeLabel,
-                exportedAt = base.exportedAt,
+                rangeLabel = reportRangeLabel(selection),
+                exportedAt = now.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
                 appVersion = appVersion,
-                summary = base.summary,
+                summary = summary,
                 dailyGoalMin = _dailyGoalMin.value,
-                daily = base.daily,
-                apps = base.apps,
+                trendDaily = trendDaily,
+                trendTitle = trendTitle,
+                trendAverageMin = trendSummary.averageScreenUnlockMin,
+                apps = apps,
                 topAppsPerDay = topAppsPerDay,
-                hours = base.hours,
+                hours = hours,
                 periods = periods,
+                periodSubtitle = periodSubtitle,
                 unlock = unlock,
                 notification = notification,
                 yearMonth = yearMonth,
                 monthLevels = monthLevels,
                 today = today,
-                hideAppNames = hideAppNames,
-                modules = modules
+                modules = range.defaultModules()
             )
-            com.screentrace.app.data.export.PngReportExporter.fileName(now) to
-                com.screentrace.app.data.export.PngReportExporter.sanitize(raw)
+            com.screentrace.app.data.export.PngReportExporter.fileName(now) to data
         }.getOrNull()
     }
 
