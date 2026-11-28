@@ -253,6 +253,7 @@ class BackupRepository(
             lowThresholdMin = runCatching { store.lowUsageThresholdMin.first() }.getOrNull(),
             themeVariant = runCatching { store.themeVariant.first().name }.getOrNull(),
             darkTheme = runCatching { store.darkTheme.first() }.getOrNull(),
+            themeMode = runCatching { store.themeMode.first().name }.getOrNull(),
             dynamicColor = runCatching { store.dynamicColor.first() }.getOrNull(),
             customThemeSeed = runCatching { store.customThemeSeed.first() }.getOrNull(),
             pullFrequency = runCatching { store.pullFrequency.first().name }.getOrNull(),
@@ -894,7 +895,14 @@ class BackupRepository(
         if (restored == null) return false
         restored.dailyGoalMin?.let { store.setDailyGoalMin(it) }
         restored.lowThresholdMin?.let { store.setLowUsageThresholdMin(it) }
-        restored.darkTheme?.let { store.setDarkTheme(it) }
+        val restoredMode = restored.themeMode?.let { raw ->
+            runCatching { com.screentrace.app.data.prefs.ThemeMode.valueOf(raw) }.getOrNull()
+        }
+        if (restoredMode != null) {
+            store.setThemeMode(restoredMode)
+        } else {
+            restored.darkTheme?.let { store.setDarkTheme(it) }
+        }
         restored.dynamicColor?.let { store.setDynamicColor(it) }
         store.setCustomThemeSeed(restored.customThemeSeed)
         restored.pullFrequency?.let { store.setPullFrequency(PullFrequency.of(it)) }

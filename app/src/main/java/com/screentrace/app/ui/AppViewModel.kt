@@ -1158,7 +1158,7 @@ class AppViewModel(
         range: com.screentrace.app.data.export.PngExportRange,
         appVersion: String
     ): Pair<String, com.screentrace.app.data.export.PngPosterData>? {
-        return runCatching {
+        return try {
             val today = todayProvider()
             val now = java.time.LocalDateTime.now()
             val selection = range.toDateSelection(today)
@@ -1229,7 +1229,11 @@ class AppViewModel(
                 modules = range.defaultModules()
             )
             com.screentrace.app.data.export.PngReportExporter.fileName(now) to data
-        }.getOrNull()
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     // ---- 批 8b：云同步（§5.10）----

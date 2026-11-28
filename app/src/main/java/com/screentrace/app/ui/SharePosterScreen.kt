@@ -122,15 +122,22 @@ fun SharePosterScreen(
     }
 
     LaunchedEffect(range) {
+        // ReviewFix P2-4：切换周期立即清空旧周期数据，加载失败亦不保留旧数据
         loading = true
-        val res = loadPosterData(range)
-        if (res != null) {
-            loadedPair = res
+        loadedPair = null
+        val requestedRange = range
+        val res = loadPosterData(requestedRange)
+        if (requestedRange == range) {
+            loadedPair = res?.takeIf { it.second.range == requestedRange }
+            loading = false
         }
-        loading = false
     }
 
-    val livePosterData: PngPosterData? = loadedPair?.second?.copy(
+    val matchedData = com.screentrace.app.data.export.SharePosterGuard.matchedData(
+        activeRange = range,
+        loadedData = loadedPair?.second
+    )
+    val livePosterData: PngPosterData? = matchedData?.copy(
         modules = selectedModules,
         hideAppNames = hideAppNames,
         showWatermark = showWatermark,
@@ -362,8 +369,14 @@ fun SharePosterScreen(
                     }
                 }
 
-                // 4. 保存到相册 + 系统分享双按钮
-                val canExport = !exporting && livePosterData != null && selectedModules.isNotEmpty()
+                // 4. 保存到相册 + 系统分享双按钮（加载中或周期不匹配时严格禁用）
+                val canExport = com.screentrace.app.data.export.SharePosterGuard.canExport(
+                    loading = loading,
+                    exporting = exporting,
+                    activeRange = range,
+                    loadedData = loadedPair?.second,
+                    selectedModules = selectedModules
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)

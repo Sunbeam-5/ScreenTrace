@@ -102,6 +102,12 @@ fun CapsuleBarChart(
         mutableStateOf(TrendSelectionMath.defaultIndex(count))
     }
     val currentIndex by rememberUpdatedState(selectedIndex)
+    // ReviewFix：用 rememberUpdatedState 包装写入口，避免切 Tab 重建 selectedIndex 时
+    // pointerInput 闭包仍写向旧 MutableState（导致 currentIndex 锁死、每像素狂触发震动）。
+    val updateSelectedIndex by rememberUpdatedState<(Int) -> Unit> { next ->
+        selectedIndex = next
+    }
+    val scrollState = rememberScrollState()
 
     // CR-17 ③：入场生长只在**首次组合**播一次。原 `remember(points)` 会在每次切区间
     // 把 started 重置成 false、柱子从 0 重新长（真机中间帧柱图几乎空白）。换数据的
@@ -162,17 +168,22 @@ fun CapsuleBarChart(
                     modifier = Modifier
                         .weight(1f)
                         .height(plotHeight + labelRowHeight)
-                        // 批 14c：绝对坐标跟手命中（手指滑到哪根柱立刻高亮并更新上方详情 + CLOCK_TICK 轻震）
-                        .pointerInput(count, scrollable) {
+                        // ReviewFix P2-1 + 切 Tab 修复：使用实际 slotDp（12dp）+ scrollState.value，
+                        // 且 key 绑定 points/resetKey/scrollable/slotDp，彻底杜绝旧闭包与 31 天偏移错位。
+                        .pointerInput(points, resetKey, scrollable, slotDp) {
+                            val actualSlotPx = slotDp.toPx()
                             fun selectAt(localX: Float) {
-                                val slotPx = if (scrollable) {
-                                    16.dp.toPx()
-                                } else {
-                                    size.width.toFloat() / count.coerceAtLeast(1)
-                                }
-                                val next = TrendSelectionMath.indexForTouchX(localX, slotPx, count)
+                                val scrollOffsetPx = if (scrollable) scrollState.value.toFloat() else 0f
+                                val next = TrendSelectionMath.indexForDrag(
+                                    localX = localX,
+                                    scrollOffsetPx = scrollOffsetPx,
+                                    viewportWidthPx = size.width.toFloat(),
+                                    scrollable = scrollable,
+                                    scrollableSlotPx = actualSlotPx,
+                                    count = count
+                                )
                                 if (next in 0 until count && next != currentIndex) {
-                                    selectedIndex = next
+                                    updateSelectedIndex(next)
                                     performTickHaptic(view)
                                 }
                             }
@@ -214,7 +225,7 @@ fun CapsuleBarChart(
                         modifier = Modifier
                             .fillMaxSize()
                             .then(
-                                if (scrollable) Modifier.horizontalScroll(rememberScrollState()) else Modifier
+                                if (scrollable) Modifier.horizontalScroll(scrollState) else Modifier
                             )
                     ) {
                         Column(modifier = Modifier.width(contentWidth)) {

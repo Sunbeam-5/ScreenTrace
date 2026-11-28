@@ -133,6 +133,28 @@ data class PngPosterData(
 }
 
 /**
+ * ReviewFix P2-4：分享长图预览与导出一致性守卫（纯函数，供 UI 与 JVM 单测共用）。
+ *
+ * 确保切换周期后加载期间禁用保存/分享，且仅当已加载数据的 `range` 与当前选中周期严格匹配时
+ * 才允许预览与导出，杜绝「界面显示近 30 天、实际导出旧 7 天数据」。
+ */
+object SharePosterGuard {
+    fun matchedData(activeRange: PngExportRange, loadedData: PngPosterData?): PngPosterData? =
+        loadedData?.takeIf { it.range == activeRange }
+
+    fun canExport(
+        loading: Boolean,
+        exporting: Boolean,
+        activeRange: PngExportRange,
+        loadedData: PngPosterData?,
+        selectedModules: Set<PngExportModule>
+    ): Boolean = !loading &&
+        !exporting &&
+        matchedData(activeRange, loadedData) != null &&
+        selectedModules.isNotEmpty()
+}
+
+/**
  * 14a 余项 PNG 导出纯逻辑工具（文件名、隐私脱敏与位图编码回收）。
  */
 object PngReportExporter {

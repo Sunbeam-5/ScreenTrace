@@ -310,12 +310,8 @@ class MultiDeviceAdaptationTest {
         val realHuman = humanFile.readText()
         val capturedAtMs = 1_794_203_723_476L + 60_000L
 
-        // 1) 真实双路样本（checkin + human）走 ShizukuUsageProvider 默认真实解析器
-        val expectedDual = UsageDumpParser.parse(realCheckin, realHuman, zone, capturedAtMs = capturedAtMs)
-        assertTrue("真实样本应解析出日汇总", expectedDual.days.isNotEmpty())
-        assertTrue("真实样本应解析出应用时长", expectedDual.appUsage.isNotEmpty())
-        assertTrue("真实样本应解析出通知事件", expectedDual.notificationEvents.isNotEmpty())
-
+        // 1) 真实 vivo 双路样本（reference/sample-checkin.txt + sample-human.txt）走真实解析器，
+        //    直接用独立于解析器的固定 Golden 预期值逐项断言（不再仅与 UsageDumpParser 自比）
         val dualProvider = ShizukuUsageProvider(
             shell = FakeShell(
                 ShizukuShell.CHECKIN_CMD to Result.success(realCheckin),
@@ -325,21 +321,49 @@ class MultiDeviceAdaptationTest {
             clock = { capturedAtMs }
         )
         val dualLoaded = dualProvider.load()
-        assertTrue("真实双路样本必须解析成功", dualLoaded is LoadedUsage.Parsed)
+        assertTrue("真实 vivo 双路样本必须解析成功", dualLoaded is LoadedUsage.Parsed)
         dualLoaded as LoadedUsage.Parsed
         assertFalse("有效 checkin 样本不应误走明文主导", dualLoaded.warning.orEmpty().contains("明文主导"))
-        assertEquals(expectedDual.days, dualLoaded.result.days)
-        assertEquals(expectedDual.hourMinutes, dualLoaded.result.hourMinutes)
-        assertEquals(expectedDual.appUsage, dualLoaded.result.appUsage)
-        assertEquals(expectedDual.unlockEvents, dualLoaded.result.unlockEvents)
-        assertEquals(expectedDual.notificationEvents, dualLoaded.result.notificationEvents)
-        assertEquals(expectedDual.observedWindow, dualLoaded.result.observedWindow)
+
+        val res = dualLoaded.result
+        // Golden 日期范围：事件流覆盖 2026-10-31 ~ 2026-11-08 共 9 个自然日（checkin 聚合区间进 W1 screenEvidence）
+        assertEquals(9, res.days.size)
+        assertEquals(LocalDate.of(2026, 10, 31), res.days.keys.min())
+        assertEquals(LocalDate.of(2026, 11, 8), res.days.keys.max())
+
+        // Golden 通知事件：sample-checkin.txt 含 7 条 NOTIFICATION_INTERRUPTION、0 条 SEEN
+        assertEquals(7, res.notificationEvents.size)
+        assertEquals(7, res.notificationEvents.count { it.type == NotificationType.INTERRUPTION })
+        assertEquals(0, res.notificationEvents.count { it.type == NotificationType.SEEN })
+        assertEquals(2, res.notificationEvents.count { it.pkg == "com.max.xiaoheihe" })
+        assertEquals(1, res.notificationEvents.count { it.pkg == "com.vivo.health" })
+        assertEquals(1, res.notificationEvents.count { it.pkg == "android" })
+        assertEquals(3, res.notificationEvents.count { it.pkg == "com.xiaomi.smarthome" })
+
+        // Golden 解锁事件：sample-human.txt 含 1 条 KEYGUARD_HIDDEN（2026-11-08 16:33:13 +08:00）
+        assertEquals(1, res.unlockEvents.size)
+        assertEquals(ms(LocalDate.of(2026, 11, 8), 16, 33, 13), res.unlockEvents.single().occurredAtMs)
+
+        // Golden 应用时长：sample-human.txt 2026-11-09 关键应用精确毫秒与启动次数
+        val dayNov9 = LocalDate.of(2026, 11, 9)
+        fun appOn(pkg: String) = res.appUsage.firstOrNull { it.date == dayNov9 && it.pkg == pkg }
+        assertEquals(4_081_621L, appOn("com.example.piliplus")?.totalMs) // 1:12:28 × 950/1012 跨日分摊
+        assertEquals(7, appOn("com.example.piliplus")?.launches)
+        assertEquals(1_973_221L, appOn("com.tencent.mm")?.totalMs)       // 35:02 × 950/1012 跨日分摊
+        assertEquals(25, appOn("com.tencent.mm")?.launches)              // 27 × 950/1012 跨日分摊
+        assertEquals(1_138_686L, appOn("tv.danmaku.bili")?.totalMs)      // 20:13 × 950/1012 跨日分摊
+        assertEquals(7, appOn("tv.danmaku.bili")?.launches)
+
+        // Golden 观测窗口与审计：human 通道 16:33:13 SCREEN_INTERACTIVE → capturedAtMs 签发有界观测窗口，且无 user=N 头
+        assertEquals(ms(LocalDate.of(2026, 11, 8), 16, 33, 13), res.observedWindow?.startMs)
+        assertEquals(capturedAtMs, res.observedWindow?.endMs)
+        assertTrue("checkin 含 27 条 screen-interactive 聚合证据", res.screenEvidence.size >= 27)
         assertEquals(
             "reference 节选无 user=N 分区头，审计应明确标记 INDETERMINATE",
             MirrorAuditStatus.INDETERMINATE,
-            dualLoaded.result.mirrorAudit?.status
+            res.mirrorAudit?.status
         )
-        assertNull(dualLoaded.result.mirrorAudit?.anomalyWarning)
+        assertNull(res.mirrorAudit?.anomalyWarning)
 
         // 2) 元信息 checkin + 真实 sample-human.txt（明文主导分支）走真实解析器
         val expectedPlain = UsageDumpParser.parse("", realHuman, zone, capturedAtMs = capturedAtMs)

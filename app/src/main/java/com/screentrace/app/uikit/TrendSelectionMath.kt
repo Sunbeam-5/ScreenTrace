@@ -19,4 +19,25 @@ object TrendSelectionMath {
         if (count <= 0 || slotWidthPx <= 0f) return -1
         return (touchX / slotWidthPx).toInt().coerceIn(0, count - 1)
     }
+
+    /**
+     * ReviewFix P2-1：统一跟手命中换算。
+     *
+     * 可滚动长图（>30 天，如 31 天月周期）必须使用实际槽宽 [scrollableSlotPx]（12dp）并加上
+     * 当前横向滚动偏移 [scrollOffsetPx]；不可滚动图按 [viewportWidthPx] / [count] 均分。
+     */
+    fun indexForDrag(
+        localX: Float,
+        scrollOffsetPx: Float,
+        viewportWidthPx: Float,
+        scrollable: Boolean,
+        scrollableSlotPx: Float,
+        count: Int
+    ): Int {
+        if (count <= 0) return -1
+        val slotPx = if (scrollable) scrollableSlotPx else viewportWidthPx / count
+        if (slotPx <= 0f) return -1
+        val contentX = if (scrollable) localX + scrollOffsetPx.coerceAtLeast(0f) else localX
+        return (contentX / slotPx).toInt().coerceIn(0, count - 1)
+    }
 }

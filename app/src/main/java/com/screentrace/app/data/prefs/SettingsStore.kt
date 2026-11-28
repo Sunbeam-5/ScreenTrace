@@ -61,7 +61,7 @@ class SettingsStore(
         val raw = prefs[THEME_MODE]
         when {
             raw != null -> runCatching { ThemeMode.valueOf(raw) }.getOrDefault(ThemeMode.SYSTEM)
-            prefs[DARK_THEME] == true -> ThemeMode.DARK
+            DARK_THEME in prefs -> if (prefs[DARK_THEME] == true) ThemeMode.DARK else ThemeMode.LIGHT
             else -> ThemeMode.SYSTEM
         }
     }

@@ -86,6 +86,8 @@ data class BackupSettings(
     val lowThresholdMin: Int? = null,
     val themeVariant: String? = null,
     val darkTheme: Boolean? = null,
+    /** ReviewFix P2-3：三态日夜间模式（SYSTEM/LIGHT/DARK）；旧备份为 null 时回退 darkTheme。 */
+    val themeMode: String? = null,
     val dynamicColor: Boolean? = null,
     val customThemeSeed: Long? = null,
     val pullFrequency: String? = null,
