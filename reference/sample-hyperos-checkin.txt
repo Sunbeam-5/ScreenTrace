@@ -1,0 +1,25 @@
+Flags:
+    android.app.usage.user_interaction_type_api: true
+    android.app.usage.use_parceled_list: true
+    android.app.usage.filter_based_event_query_api: true
+    android.app.usage.disable_idle_check: true
+user=0 
+user=999 
+
+Usage Source=TASK_ROOT_ACTIVITY 
+
+  App Time Limits
+   User  userId=0
+ Currently Active:com.miui.home, 
+ Observed Entities:
+   User  userId=999
+ Currently Active:
+ Observed Entities:
+
+
+Broadcast response stats:
+  Broadcast events:
+  
+  Response stats:
+  
+  Role holders:

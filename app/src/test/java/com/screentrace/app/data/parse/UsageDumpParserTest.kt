@@ -93,7 +93,41 @@ class UsageDumpParserTest {
             ev(ms(day1, 23, 0), "KEYGUARD_HIDDEN") // 末事件，亮屏未闭合
         )
         val result = parseOf(checkin(emptyList(), events))
-        assertEquals(60, result.days.getValue(day1).screenUnlockMin)
+        assertTrue("R11 E3：未闭合亮屏不得伪造 screenSessions", result.screenSessions.isEmpty())
+        assertEquals(0, result.days.getValue(day1).screenUnlockMin)
+        assertEquals(1, result.days.getValue(day1).unlocks)
+        assertTrue(day1 in result.truncatedScreenDates)
+        val anchor = result.screenEvidence.single()
+        assertEquals("ANCHOR", anchor.evidenceType)
+        assertEquals("ANCHOR_ONLY", anchor.quality)
+        assertEquals(ms(day1, 22, 0), anchor.startMs)
+        assertEquals(null, anchor.endMs)
+    }
+
+    @Test
+    fun onToOnOrphanRecordsAnchorOnlyWithoutBridgingToLaterOff() {
+        val events = listOf(
+            ev(ms(day1, 8, 0), "SCREEN_INTERACTIVE"),  // 缺 OFF 的孤儿 ON
+            ev(ms(day1, 12, 0), "SCREEN_INTERACTIVE"), // 4 小时后新的正常 ON->OFF
+            ev(ms(day1, 12, 30), "SCREEN_NON_INTERACTIVE")
+        )
+        val result = parseOf(checkin(emptyList(), events))
+        assertEquals("只应统计 12:00-12:30 = 30m，绝不把 08:00 孤儿连到 12:30", 30, result.days.getValue(day1).screenMin)
+        val anchor = result.screenEvidence.single()
+        assertEquals("ANCHOR_ONLY", anchor.quality)
+        assertEquals(ms(day1, 8, 0), anchor.startMs)
+        assertEquals(null, anchor.endMs)
+    }
+
+    @Test
+    fun crossChannelUnclosedScreenDoesNotBridgeAcrossChannels() {
+        val checkinText = checkin(emptyList(), listOf(ev(ms(day1, 8, 0), "SCREEN_INTERACTIVE")))
+        val humanText = listOf(
+            humanEv(ms(day1, 12, 0), "SCREEN_NON_INTERACTIVE")
+        ).joinToString("\n")
+        val result = parseOf(checkinText, humanText)
+        assertTrue("checkin 未闭合 ON 不得跨通道拼接到 human OFF", result.screenSessions.isEmpty())
+        assertEquals(1, result.screenEvidence.count { it.quality == "ANCHOR_ONLY" && it.endMs == null })
     }
 
     // ---- §7-5：小时合计与同日 screen_unlock 一致（§6 红线口径）----
@@ -515,6 +549,26 @@ class UsageDumpParserTest {
     @Test
     fun screenDurationIncludesAppForegroundSpans() {
         val human = listOf(
+            // 早间 SCREEN 事件已滚出缓冲，仅存 07:00-09:00 闭合应用前台；09:00-10:00 闭合亮屏
+            humanEv(ms(day1, 7), "ACTIVITY_RESUMED", "com.foo"),
+            humanEv(ms(day1, 9), "ACTIVITY_PAUSED", "com.foo"),
+            humanEv(ms(day1, 9), "SCREEN_INTERACTIVE"),
+            humanEv(ms(day1, 9), "ACTIVITY_RESUMED", "com.bar"),
+            humanEv(ms(day1, 10), "SCREEN_NON_INTERACTIVE"),
+            humanEv(ms(day1, 10), "ACTIVITY_PAUSED", "com.bar")
+        ).joinToString("\n")
+
+        val result = parseOf("", human)
+        // 早间闭合前台 07:00-09:00 (120m) + 闭合亮屏 09:00-10:00 (60m) = 180m
+        assertEquals("屏幕时长以早间闭合应用前台为下界", 180, result.days.getValue(day1).screenMin)
+        val appSum = result.appUsage.sumOf { it.totalMs } / 60_000
+        assertEquals(180, appSum)
+        assertTrue("应用合计不得超屏幕时长", appSum <= result.days.getValue(day1).screenMin)
+    }
+
+    @Test
+    fun screenNonInteractiveTruncatesOpenForegroundApp() {
+        val human = listOf(
             humanEv(ms(day1, 9), "SCREEN_INTERACTIVE"),
             humanEv(ms(day1, 9), "ACTIVITY_RESUMED", "com.foo"),
             humanEv(ms(day1, 9, 30), "ACTIVITY_RESUMED", "com.bar"),
@@ -523,11 +577,23 @@ class UsageDumpParserTest {
         ).joinToString("\n")
 
         val result = parseOf("", human)
-        // SCREEN 只覆盖 09:00–10:00，但 bar 一直前台到 12:00 → 屏幕应补到 3 小时
-        assertEquals("屏幕时长以应用前台为下界", 180, result.days.getValue(day1).screenMin)
-        val appSum = result.appUsage.sumOf { it.totalMs } / 60_000
-        assertEquals(180, appSum)
-        assertTrue("应用合计不得超屏幕时长", appSum <= result.days.getValue(day1).screenMin)
+        // 10:00 物理息屏必须强制收口 com.bar，息屏后的 10:00-12:00 绝不计入亮屏或应用时长
+        assertEquals(60, result.days.getValue(day1).screenMin)
+        assertEquals(60L, result.appUsage.sumOf { it.totalMs } / 60_000)
+    }
+
+    @Test
+    fun trailingUnclosedForegroundDoesNotExtendToEndMs() {
+        val human = listOf(
+            humanEv(ms(day1, 9), "ACTIVITY_RESUMED", "com.foo"),
+            humanEv(ms(day1, 11), "NOTIFICATION_INTERRUPTION", "com.other")
+        ).joinToString("\n")
+
+        val result = parseOf("", human)
+        assertTrue("尾部未闭合 ACTIVITY_RESUMED 绝不得延展到后续事件", result.screenSessions.isEmpty())
+        assertTrue(result.appUsage.isEmpty())
+        assertEquals(0, result.days[day1]?.screenMin ?: 0)
+        assertEquals(1, result.days[day1]?.launches)
     }
 
     @Test

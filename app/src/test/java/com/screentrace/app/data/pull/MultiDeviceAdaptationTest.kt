@@ -1,7 +1,12 @@
 package com.screentrace.app.data.pull
 
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
 import com.screentrace.app.contract.MetricKind
 import com.screentrace.app.contract.NotificationType
+import com.screentrace.app.data.IngestPipeline
+import com.screentrace.app.data.db.DataQualityValues
+import com.screentrace.app.data.db.ScreenTraceDatabase
 import com.screentrace.app.data.parse.MirrorAuditStatus
 import com.screentrace.app.data.parse.MirrorConvergenceAudit
 import com.screentrace.app.data.parse.UsageDumpParser
@@ -16,9 +21,12 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
- * 批 13（§2.3 & §7-32）+ GPT Review P2-1/P2-2/P2-3 定向修复回归测试（纯 JVM，无 Android 依赖）。
+ * 批 13（§2.3 & §7-32）+ GPT Review P2-1/P2-2/P2-3 + Carbon 终审裁断回归测试。
  *
  * 覆盖三条行为变异锚点：
  * - **M-13R1（P2-1）**：账户数来自整个 dump 的 `user=N` 分区（某账户缺失镜像事件必报 ANOMALY），
@@ -26,8 +34,12 @@ import org.junit.Test
  * - **M-13R2（P2-2）**：`detailMissingEventCopy` 标题统一为「当前暂无可用事件数据」，
  *   避免将 `windowStart == null` 过度断言为机型不支持，且绝不伪造 0 次；
  * - **M-13R3（P2-3）**：不注入假 `parse` lambda，直接驱动 `ShizukuUsageProvider` 默认解析路径
- *   （真实 `UsageDumpParser.parse`）解析 vivo 与 HyperOS 脱敏完整样本，校验屏幕/应用/小时/解锁/通知/窗口全字段。
+ *   （真实 `UsageDumpParser.parse`）解析 vivo 真实样本（`reference/sample-checkin.txt`、
+ *   `reference/sample-human.txt` 各自独立 Golden + 跨 8 天错配反伪造回归）与 HyperOS 形态合成契约样本
+ *   （真实 Redmi HyperOS 设备原始切片待连机补录）。
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 class MultiDeviceAdaptationTest {
 
     private val zone: ZoneId = ZoneId.of("Asia/Shanghai")
@@ -230,7 +242,7 @@ class MultiDeviceAdaptationTest {
     }
 
     @Test
-    fun `M-13R3 HyperOS 元信息checkin加完整明文走真实UsageDumpParser无静默漏数据`() = runBlocking {
+    fun `M-13R3 HyperOS 形态合成契约样本走真实UsageDumpParser无静默漏数据`() = runBlocking {
         val day = LocalDate.of(2026, 11, 26)
         val capturedAtMs = ms(day, 11, 0)
 
@@ -301,65 +313,40 @@ class MultiDeviceAdaptationTest {
     }
 
     @Test
-    fun `M-13R3 真实采集样本文件 reference sample-checkin 与 sample-human 走真实解析器双形态端到端对齐`() = runBlocking {
+    fun `M-13R3 vivo 真实 sample-checkin 独立 Golden 断言`() = runBlocking {
         val checkinFile = File("../reference/sample-checkin.txt")
-        val humanFile = File("../reference/sample-human.txt")
         assertTrue("缺少真实样本文件 ${checkinFile.absolutePath}", checkinFile.exists())
-        assertTrue("缺少真实样本文件 ${humanFile.absolutePath}", humanFile.exists())
         val realCheckin = checkinFile.readText()
-        val realHuman = humanFile.readText()
         val capturedAtMs = 1_794_203_723_476L + 60_000L
 
-        // 1) 真实 vivo 双路样本（reference/sample-checkin.txt + sample-human.txt）走真实解析器，
-        //    直接用独立于解析器的固定 Golden 预期值逐项断言（不再仅与 UsageDumpParser 自比）
-        val dualProvider = ShizukuUsageProvider(
+        val provider = ShizukuUsageProvider(
             shell = FakeShell(
                 ShizukuShell.CHECKIN_CMD to Result.success(realCheckin),
-                ShizukuShell.PLAIN_CMD to Result.success(realHuman)
+                ShizukuShell.PLAIN_CMD to Result.success("")
             ),
             zone = zone,
             clock = { capturedAtMs }
         )
-        val dualLoaded = dualProvider.load()
-        assertTrue("真实 vivo 双路样本必须解析成功", dualLoaded is LoadedUsage.Parsed)
-        dualLoaded as LoadedUsage.Parsed
-        assertFalse("有效 checkin 样本不应误走明文主导", dualLoaded.warning.orEmpty().contains("明文主导"))
+        val loaded = provider.load()
+        assertTrue("真实 sample-checkin.txt 必须解析成功", loaded is LoadedUsage.Parsed)
+        loaded as LoadedUsage.Parsed
+        assertFalse("有效 checkin 样本不应误走明文主导", loaded.warning.orEmpty().contains("明文主导"))
 
-        val res = dualLoaded.result
-        // Golden 日期范围与亮屏时长/小时桶（独立依据 reference/sample-checkin.txt + sample-human.txt 原始事件流）
+        val res = loaded.result
         val oct31 = LocalDate.of(2026, 10, 31)
-        val nov8 = LocalDate.of(2026, 11, 8)
-        assertEquals(9, res.days.size)
-        assertEquals(oct31, res.days.keys.min())
-        assertEquals(nov8, res.days.keys.max())
+        // 仅产出 2026-10-31 单日：09:05:21~09:06:10 (49s) + 09:06:46~09:07:36 (50s) = 99s -> 2m，绝非 894m
+        assertEquals(setOf(oct31), res.days.keys)
+        assertEquals(2, res.days[oct31]?.screenMin)
+        assertEquals(2, res.days[oct31]?.screenUnlockMin)
+        assertEquals(6, res.days[oct31]?.launches)
+        assertEquals(0, res.days[oct31]?.unlocks)
 
-        // 2026-10-31：09:05:21~09:06:10 (49s) + 09:06:46~24:00:00 (53594s) = 53643s -> 894m；09 时 54m，08 时 0m
-        assertEquals(894, res.days[oct31]?.screenMin)
-        assertEquals(894, res.days[oct31]?.screenUnlockMin)
-        assertEquals(0, res.hourMinutes[oct31]?.get(8))
-        assertEquals(54, res.hourMinutes[oct31]?.get(9))
-        assertEquals(60, res.hourMinutes[oct31]?.get(10))
+        val oct31Hours = res.hourMinutes[oct31]
+        assertNotNull(oct31Hours)
+        assertEquals(2, oct31Hours!![9])
+        assertEquals("除 09 时外其余 23 桶必须全为 0", 2, oct31Hours.sum())
 
-        // 2026-11-01 ~ 2026-11-07 跨日未闭合区间日 + W1 聚合日：均不在 observedWindow 内，绝不可误升 EXACT
-        for (d in 1..7) {
-            val midDay = LocalDate.of(2026, 11, d)
-            assertEquals(1440, res.days[midDay]?.screenMin)
-            assertEquals(1440, res.days[midDay]?.screenUnlockMin)
-            assertTrue(
-                "未覆盖观测窗口的日期 $midDay 绝不能落入 observedWindow 升格 EXACT",
-                res.observedWindow!!.startMs > ms(midDay.plusDays(1), 0, 0) - 1
-            )
-        }
-
-        // 2026-11-08：00:00:00~16:34:10 = 59650s -> 994m；16 时 34m，17 时 0m；尾部未闭合 ON 必入 truncatedScreenDates（禁入 EXACT）
-        assertEquals(994, res.days[nov8]?.screenMin)
-        assertEquals(994, res.days[nov8]?.screenUnlockMin)
-        assertEquals(1, res.days[nov8]?.unlocks)
-        assertEquals(34, res.hourMinutes[nov8]?.get(16))
-        assertEquals(0, res.hourMinutes[nov8]?.get(17))
-        assertTrue("2026-11-08 含未闭合 SCREEN_INTERACTIVE，必须标记截断日拦截 EXACT", nov8 in res.truncatedScreenDates)
-
-        // Golden 通知事件：sample-checkin.txt 含 7 条 NOTIFICATION_INTERRUPTION、0 条 SEEN
+        // 7 条通知打扰明细不变
         assertEquals(7, res.notificationEvents.size)
         assertEquals(7, res.notificationEvents.count { it.type == NotificationType.INTERRUPTION })
         assertEquals(0, res.notificationEvents.count { it.type == NotificationType.SEEN })
@@ -368,32 +355,24 @@ class MultiDeviceAdaptationTest {
         assertEquals(1, res.notificationEvents.count { it.pkg == "android" })
         assertEquals(3, res.notificationEvents.count { it.pkg == "com.xiaomi.smarthome" })
 
-        // Golden 解锁事件：sample-human.txt 含 1 条 KEYGUARD_HIDDEN（2026-11-08 16:33:13 +08:00）
-        assertEquals(1, res.unlockEvents.size)
-        assertEquals(ms(LocalDate.of(2026, 11, 8), 16, 33, 13), res.unlockEvents.single().occurredAtMs)
+        // 无 SCREEN 事件 -> observedWindow == null；27 条 screen-interactive 全部落 WINDOW 证据，11-01~11-08 零日聚合行
+        assertNull(res.observedWindow)
+        assertEquals(27, res.screenEvidence.count { it.evidenceType == "WINDOW" && it.quality == "WINDOW" })
+        for (d in 1..8) {
+            val emptyDay = LocalDate.of(2026, 11, d)
+            assertNull("W1 聚合日 $emptyDay 不得生成 day_summary 行", res.days[emptyDay])
+            assertNull("W1 聚合日 $emptyDay 不得生成 hourMinutes 行", res.hourMinutes[emptyDay])
+        }
+    }
 
-        // Golden 应用时长：sample-human.txt 2026-11-09 关键应用精确毫秒与启动次数
-        val dayNov9 = LocalDate.of(2026, 11, 9)
-        fun appOn(pkg: String) = res.appUsage.firstOrNull { it.date == dayNov9 && it.pkg == pkg }
-        assertEquals(4_081_621L, appOn("com.example.piliplus")?.totalMs) // 1:12:28 × 950/1012 跨日分摊
-        assertEquals(7, appOn("com.example.piliplus")?.launches)
-        assertEquals(1_973_221L, appOn("com.tencent.mm")?.totalMs)       // 35:02 × 950/1012 跨日分摊
-        assertEquals(25, appOn("com.tencent.mm")?.launches)              // 27 × 950/1012 跨日分摊
-        assertEquals(1_138_686L, appOn("tv.danmaku.bili")?.totalMs)      // 20:13 × 950/1012 跨日分摊
-        assertEquals(7, appOn("tv.danmaku.bili")?.launches)
+    @Test
+    fun `M-13R3 元信息 checkin 回退分支配 vivo 真实明文样本独立 Golden 断言`() = runBlocking {
+        val humanFile = File("../reference/sample-human.txt")
+        assertTrue("缺少真实样本文件 ${humanFile.absolutePath}", humanFile.exists())
+        val realHuman = humanFile.readText()
+        val capturedAtMs = 1_794_203_723_476L + 60_000L
 
-        // Golden 观测窗口与审计：human 通道 16:33:13 SCREEN_INTERACTIVE → capturedAtMs 签发有界观测窗口，且无 user=N 头
-        assertEquals(ms(LocalDate.of(2026, 11, 8), 16, 33, 13), res.observedWindow?.startMs)
-        assertEquals(capturedAtMs, res.observedWindow?.endMs)
-        assertTrue("checkin 含 27 条 screen-interactive 聚合证据", res.screenEvidence.size >= 27)
-        assertEquals(
-            "reference 节选无 user=N 分区头，审计应明确标记 INDETERMINATE",
-            MirrorAuditStatus.INDETERMINATE,
-            res.mirrorAudit?.status
-        )
-        assertNull(res.mirrorAudit?.anomalyWarning)
-
-        // 2) 元信息 checkin + 真实 sample-human.txt（明文主导回退分支）同样用独立固定 Golden 断言（消除自比）
+        // 元信息 checkin 回退分支配 vivo 真实明文样本（非 HyperOS 真机文件）
         val plainProvider = ShizukuUsageProvider(
             shell = FakeShell(
                 ShizukuShell.CHECKIN_CMD to Result.success(HYPEROS_META_ONLY_CHECKIN),
@@ -403,29 +382,208 @@ class MultiDeviceAdaptationTest {
             clock = { capturedAtMs }
         )
         val plainLoaded = plainProvider.load()
-        assertTrue("真实明文主导样本必须解析成功", plainLoaded is LoadedUsage.Parsed)
+        assertTrue("元信息 checkin 配 vivo 真实明文必须解析成功", plainLoaded is LoadedUsage.Parsed)
         plainLoaded as LoadedUsage.Parsed
         assertTrue("元信息 checkin 配真实明文必须走明文主导分支", plainLoaded.warning.orEmpty().contains("明文主导"))
 
         val plainRes = plainLoaded.result
-        // 仅 2026-11-08 单日 16:33:13~16:34:10 (57s -> 1m)，16 时为 1m、其余 23 小时均为 0m（绝不伪造其他小时）
+        val nov8 = LocalDate.of(2026, 11, 8)
+        val nov9 = LocalDate.of(2026, 11, 9)
+
+        // 仅产出 2026-11-08 单日：已闭合 Activity 并集 38s -> 1m；16:33:13 未闭合 ON 落 E3 ANCHOR_ONLY
         assertEquals(setOf(nov8), plainRes.days.keys)
         assertEquals(1, plainRes.days[nov8]?.screenMin)
         assertEquals(1, plainRes.days[nov8]?.screenUnlockMin)
         assertEquals(1, plainRes.days[nov8]?.unlocks)
-        val plainNov8Hours = plainRes.hourMinutes[nov8]
-        assertNotNull(plainNov8Hours)
-        assertEquals(1, plainNov8Hours!![16])
-        assertEquals("除 16 时外其余 23 小时不得伪造非零分钟", 1, plainNov8Hours.sum())
-        assertTrue("明文样本 2026-11-08 同样因未闭合 ON 被截断保护，不得升格 EXACT", nov8 in plainRes.truncatedScreenDates)
+        val nov8Hours = plainRes.hourMinutes[nov8]
+        assertNotNull(nov8Hours)
+        assertEquals(1, nov8Hours!![16])
+        assertEquals("除 16 时外其余 23 小时不得伪造非零分钟", 1, nov8Hours.sum())
+
+        val anchor = plainRes.screenEvidence.single { it.evidenceType == "ANCHOR" }
+        assertEquals("ANCHOR_ONLY", anchor.quality)
+        assertEquals(ms(nov8, 16, 33, 13), anchor.startMs)
+        assertNull("E3 锚点不得伪造 endMs", anchor.endMs)
+        assertTrue("2026-11-08 含未闭合 ON，必须进入 truncatedScreenDates 拦截 EXACT", nov8 in plainRes.truncatedScreenDates)
+
         assertEquals(1, plainRes.unlockEvents.size)
         assertEquals(ms(nov8, 16, 33, 13), plainRes.unlockEvents.single().occurredAtMs)
         assertEquals(0, plainRes.notificationEvents.size)
-        fun plainAppOn(pkg: String) = plainRes.appUsage.firstOrNull { it.date == dayNov9 && it.pkg == pkg }
-        // 明文回退仅 11-08 有 57s (0.95m) 亮屏，跨日窗口按 950 / (950 + 0.95) 分配至 11-09
-        assertEquals(4_343_656L, plainAppOn("com.example.piliplus")?.totalMs)
-        assertEquals(2_099_900L, plainAppOn("com.tencent.mm")?.totalMs)
-        assertEquals(1_211_788L, plainAppOn("tv.danmaku.bili")?.totalMs)
+        assertEquals(ms(nov8, 16, 33, 13), plainRes.observedWindow?.startMs)
+        assertEquals(capturedAtMs, plainRes.observedWindow?.endMs)
+        assertEquals(MirrorAuditStatus.INDETERMINATE, plainRes.mirrorAudit?.status)
+        assertNull(plainRes.mirrorAudit?.anomalyWarning)
+
+        // 2026-11-09 In-memory 跨日分摊固定 Golden 常量（权重 = 950.0 / (950.0 + 38.0/60.0)，严禁调解析器自算）
+        fun plainAppOn(pkg: String) = plainRes.appUsage.firstOrNull { it.date == nov9 && it.pkg == pkg }
+        assertEquals(4_345_103L, plainAppOn("com.example.piliplus")?.totalMs)
+        assertEquals(7, plainAppOn("com.example.piliplus")?.launches)
+        assertEquals(2_100_600L, plainAppOn("com.tencent.mm")?.totalMs)
+        assertEquals(27, plainAppOn("com.tencent.mm")?.launches)
+        assertEquals(1_212_192L, plainAppOn("tv.danmaku.bili")?.totalMs)
+        assertEquals(7, plainAppOn("tv.danmaku.bili")?.launches)
+    }
+
+    @Test
+    fun `M-13R3 跨8天错配双源输入反伪造回归与IngestPipeline PARTIAL门禁`() = runBlocking {
+        val checkinFile = File("../reference/sample-checkin.txt")
+        val humanFile = File("../reference/sample-human.txt")
+        assertTrue(checkinFile.exists())
+        assertTrue(humanFile.exists())
+        val realCheckin = checkinFile.readText()
+        val realHuman = humanFile.readText()
+        val capturedAtMs = 1_794_203_723_476L + 60_000L
+
+        val provider = ShizukuUsageProvider(
+            shell = FakeShell(
+                ShizukuShell.CHECKIN_CMD to Result.success(realCheckin),
+                ShizukuShell.PLAIN_CMD to Result.success(realHuman)
+            ),
+            zone = zone,
+            clock = { capturedAtMs }
+        )
+        val loaded = provider.load()
+        assertTrue(loaded is LoadedUsage.Parsed)
+        val res = (loaded as LoadedUsage.Parsed).result
+
+        val oct31 = LocalDate.of(2026, 10, 31)
+        val nov8 = LocalDate.of(2026, 11, 8)
+        // 严禁跨 8 天桥接伪造 11-01~11-07 的 1440m、10-31 的 894m 或 11-08 的 994m
+        assertEquals(setOf(oct31, nov8), res.days.keys)
+        for (d in 1..7) {
+            val midDay = LocalDate.of(2026, 11, d)
+            assertNull("跨 8 天错配输入绝不得伪造 $midDay 的日聚合", res.days[midDay])
+            assertNull("跨 8 天错配输入绝不得伪造 $midDay 的小时分布", res.hourMinutes[midDay])
+        }
+        assertEquals(2, res.days[oct31]?.screenMin)
+        assertEquals(1, res.days[nov8]?.screenMin)
+        assertTrue(nov8 in res.truncatedScreenDates)
+
+        // 叠加真实 IngestPipeline 入库质量门禁断言：10-31 与 11-08 均必为 PARTIAL，绝不升格 EXACT
+        val db = Room.inMemoryDatabaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            ScreenTraceDatabase::class.java
+        )
+            .allowMainThreadQueries()
+            .setQueryExecutor { it.run() }
+            .setTransactionExecutor { it.run() }
+            .build()
+        try {
+            val pipeline = IngestPipeline(db = db, localDeviceId = { "vivo-test" }, zone = zone)
+            val outcome = pipeline.ingest(res, source = "shizuku", pulledAtMs = capturedAtMs)
+            assertTrue("入库应成功", outcome.ok)
+            assertEquals(
+                "10-31 不在有界观测窗口内，必须落 PARTIAL",
+                DataQualityValues.PARTIAL,
+                db.daySummaryDao().get(oct31.toString(), "vivo-test")?.screenQuality
+            )
+            assertEquals(
+                "11-08 含未闭合 ON 截断，必须落 PARTIAL",
+                DataQualityValues.PARTIAL,
+                db.daySummaryDao().get(nov8.toString(), "vivo-test")?.screenQuality
+            )
+            for (d in 1..7) {
+                val midDay = LocalDate.of(2026, 11, d)
+                assertNull(
+                    "跨 8 天错配输入绝不得在数据库写入 $midDay",
+                    db.daySummaryDao().get(midDay.toString(), "vivo-test")
+                )
+            }
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun `M-13R3 HyperOS 真实 Redmi 脱敏切片 sample-hyperos-checkin 与 sample-hyperos-human 端到端独立 Golden`() = runBlocking {
+        val checkinFile = File("../reference/sample-hyperos-checkin.txt")
+        val humanFile = File("../reference/sample-hyperos-human.txt")
+        assertTrue("缺少 HyperOS 真实 checkin 切片 ${checkinFile.absolutePath}", checkinFile.exists())
+        assertTrue("缺少 HyperOS 真实明文切片 ${humanFile.absolutePath}", humanFile.exists())
+        val hyperCheckin = checkinFile.readText()
+        val hyperHuman = humanFile.readText()
+        val nov28 = LocalDate.of(2026, 11, 28)
+        val capturedAtMs = ms(nov28, 17, 14, 0)
+
+        val provider = ShizukuUsageProvider(
+            shell = FakeShell(
+                ShizukuShell.CHECKIN_CMD to Result.success(hyperCheckin),
+                ShizukuShell.PLAIN_CMD to Result.success(hyperHuman)
+            ),
+            zone = zone,
+            clock = { capturedAtMs }
+        )
+        val loaded = provider.load()
+        assertTrue("HyperOS 真实脱敏切片必须解析成功", loaded is LoadedUsage.Parsed)
+        loaded as LoadedUsage.Parsed
+        assertTrue("HyperOS 元信息 checkin 必须命中明文主导回退", loaded.warning.orEmpty().contains("明文主导"))
+
+        val res = loaded.result
+        // 1) 独立手算 5 段闭合亮屏区间（11:45:18~12:34:25=2947s, 13:32:45~14:37:47=3902s,
+        //    14:38:51~14:53:53=902s, 14:53:54~15:37:21=2607s, 15:39:31~15:39:34=3s -> 10361s = 172.68m -> 173m）
+        assertEquals(setOf(nov28), res.days.keys)
+        assertEquals(173, res.days[nov28]?.screenMin)
+        assertEquals(173, res.days[nov28]?.screenUnlockMin)
+        assertEquals(0, res.days[nov28]?.unlocks)
+
+        // 2) 小时桶独立 Golden：仅 11~15 时有值，其余 19 个空小时严格为 0
+        val hours = res.hourMinutes[nov28]
+        assertNotNull(hours)
+        val expectedHours = mapOf(11 to 15, 12 to 34, 13 to 27, 14 to 59, 15 to 37)
+        for (h in 0..23) {
+            assertEquals("hour[$h] 必须精确匹配独立手算值", expectedHours[h] ?: 0, hours!![h])
+        }
+
+        // 3) 真实通知事件（含 mipush 通道）
+        assertEquals(35, res.notificationEvents.size)
+        assertEquals(30, res.notificationEvents.count { it.type == NotificationType.INTERRUPTION })
+        assertEquals(5, res.notificationEvents.count { it.type == NotificationType.SEEN })
+        assertEquals(10, res.notificationEvents.count { it.channelId.orEmpty().startsWith("mipush|") })
+        assertEquals(8, res.notificationEvents.count { it.pkg == "com.ss.android.ugc.aweme" })
+        assertEquals(2, res.notificationEvents.count { it.pkg == "tv.danmaku.bili" })
+        assertEquals(9, res.notificationEvents.count { it.pkg == "android" })
+        assertEquals(2, res.notificationEvents.count { it.pkg == "com.xiaomi.smarthome" })
+
+        // 4) In-memory daily stats 应用时长（2:06:16 = 7_576_000L, 00:03 = 3_000L）
+        fun appOn(pkg: String) = res.appUsage.firstOrNull { it.date == nov28 && it.pkg == pkg }
+        assertEquals(7_576_000L, appOn("com.screentrace.app")?.totalMs)
+        assertEquals(3_000L, appOn("com.miui.securitycenter")?.totalMs)
+
+        // 5) 有界观测窗口与无截断
+        assertEquals(ms(nov28, 11, 45, 18), res.observedWindow?.startMs)
+        assertEquals(capturedAtMs, res.observedWindow?.endMs)
+        assertTrue("5 段亮屏区间全部闭合，不应存在截断日", res.truncatedScreenDates.isEmpty())
+
+        // 6) 双账户（user=0 + user=999）镜像收敛审计：10 原始 ON/OFF 收敛为 5 组，倍率 2.0x -> NORMAL 无误报
+        val audit = res.mirrorAudit
+        assertNotNull(audit)
+        assertEquals(2, audit!!.distinctUsers)
+        assertEquals(20, audit.rawMirrorEvents)
+        assertEquals(10, audit.convergedMirrorEvents)
+        assertEquals(MirrorAuditStatus.NORMAL, audit.status)
+        assertNull(audit.anomalyWarning)
+
+        // 7) 真实 IngestPipeline 入库质量门禁：窗口始于 11:45:18 未覆盖全天 00:00~24:00 -> PARTIAL
+        val db = Room.inMemoryDatabaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            ScreenTraceDatabase::class.java
+        )
+            .allowMainThreadQueries()
+            .setQueryExecutor { it.run() }
+            .setTransactionExecutor { it.run() }
+            .build()
+        try {
+            val pipeline = IngestPipeline(db = db, localDeviceId = { "redmi-hyperos-test" }, zone = zone)
+            val outcome = pipeline.ingest(res, source = "shizuku", pulledAtMs = capturedAtMs)
+            assertTrue("HyperOS 切片入库应成功", outcome.ok)
+            assertEquals(
+                "窗口 11:45:18~17:14:00 仅覆盖当日部分时段，screenQuality 必须为 PARTIAL",
+                DataQualityValues.PARTIAL,
+                db.daySummaryDao().get(nov28.toString(), "redmi-hyperos-test")?.screenQuality
+            )
+        } finally {
+            db.close()
+        }
     }
 
     private class FakeShell(

@@ -1,0 +1,302 @@
+user=0 
+  Last 24 hour events (timeRange="2026/11/27 17:14 – 2026/11/28 17:14" )
+    time="2026-11-28 11:45:18" type=SCREEN_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 11:45:25" type=STANDBY_BUCKET_CHANGED package=com.mfashiongallery.emag standbyBucket=45 reason=t flags=0x0 
+    time="2026-11-28 11:47:16" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.smarthome class=com.xiaomi.smarthome.control.MijiaStateService flags=0x0 
+    time="2026-11-28 11:47:24" type=ACTIVITY_RESUMED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 11:47:26" type=ACTIVITY_PAUSED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 11:47:26" type=ACTIVITY_STOPPED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 11:48:01" type=FOREGROUND_SERVICE_START package=com.android.mms class=com.xiaomi.rcs.im.RcsImSenderService flags=0x0 
+    time="2026-11-28 11:48:01" type=FOREGROUND_SERVICE_STOP package=com.android.mms class=com.xiaomi.rcs.im.RcsImSenderService flags=0x0 
+    time="2026-11-28 11:48:03" type=FOREGROUND_SERVICE_START package=com.xiaomi.market class=com.xiaomi.market.service.CloudConfigSyncService flags=0x0 
+    time="2026-11-28 11:48:03" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.market class=com.xiaomi.market.service.CloudConfigSyncService flags=0x0 
+    time="2026-11-28 11:48:28" type=NOTIFICATION_INTERRUPTION package=com.ss.android.ugc.aweme channelId=mipush|com.ss.android.ugc.aweme|103642 flags=0x0 
+    time="2026-11-28 11:49:24" type=STANDBY_BUCKET_CHANGED package=com.android.soundrecorder standbyBucket=50 reason=t flags=0x0 
+    time="2026-11-28 11:49:30" type=FOREGROUND_SERVICE_START package=com.android.mtp class=com.android.mtp.MtpService flags=0x0 
+    time="2026-11-28 11:49:30" type=FOREGROUND_SERVICE_STOP package=com.android.mtp class=com.android.mtp.MtpService flags=0x0 
+    time="2026-11-28 11:49:30" type=NOTIFICATION_INTERRUPTION package=android channelId=USB flags=0x0 
+    time="2026-11-28 11:49:30" type=NOTIFICATION_INTERRUPTION package=android channelId=DEVELOPER_IMPORTANT flags=0x0 
+    time="2026-11-28 11:49:30" type=NOTIFICATION_INTERRUPTION package=com.android.mtp channelId=device_notification_channel flags=0x0 
+    time="2026-11-28 11:50:00" type=ACTIVITY_RESUMED package=com.miui.securitycenter class=com.miui.permcenter.install.AdbInstallActivity instanceId=75473935 taskRootPackage=com.miui.securitycenter taskRootClass=com.miui.permcenter.install.AdbInstallActivity flags=0x0 
+    time="2026-11-28 11:50:00" type=ACTIVITY_PAUSED package=com.miui.securitycenter class=com.miui.permcenter.install.AdbInstallActivity instanceId=75473935 taskRootPackage=com.miui.securitycenter taskRootClass=com.miui.permcenter.install.AdbInstallActivity flags=0x0 
+    time="2026-11-28 11:50:00" type=ACTIVITY_STOPPED package=com.miui.securitycenter class=com.miui.permcenter.install.AdbInstallActivity instanceId=75473935 taskRootPackage=com.miui.securitycenter taskRootClass=com.miui.permcenter.install.AdbInstallActivity flags=0x0 
+    time="2026-11-28 11:50:01" type=ACTIVITY_RESUMED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=155907834 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 11:50:02" type=STANDBY_BUCKET_CHANGED package=com.mfashiongallery.emag standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 11:50:03" type=STANDBY_BUCKET_CHANGED package=com.xiaomi.vipaccount standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 11:50:03" type=STANDBY_BUCKET_CHANGED package=com.android.browser standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 11:50:03" type=STANDBY_BUCKET_CHANGED package=com.android.camera standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 11:50:03" type=STANDBY_BUCKET_CHANGED package=com.android.contacts standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 11:50:04" type=STANDBY_BUCKET_CHANGED package=com.android.calendar standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 11:50:04" type=STANDBY_BUCKET_CHANGED package=com.android.soundrecorder standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 11:52:09" type=FOREGROUND_SERVICE_START package=com.xiaomi.market class=com.xiaomi.market.business_core.update.auto.CheckUpdateService flags=0x0 
+    time="2026-11-28 11:52:09" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.market class=com.xiaomi.market.business_core.update.auto.CheckUpdateService flags=0x0 
+    time="2026-11-28 12:00:02" type=STANDBY_BUCKET_CHANGED package=com.mfashiongallery.emag standbyBucket=45 reason=t flags=0x0 
+    time="2026-11-28 12:00:03" type=STANDBY_BUCKET_CHANGED package=com.xiaomi.vipaccount standbyBucket=50 reason=t flags=0x0 
+    time="2026-11-28 12:00:03" type=STANDBY_BUCKET_CHANGED package=com.android.browser standbyBucket=40 reason=t flags=0x0 
+    time="2026-11-28 12:00:03" type=STANDBY_BUCKET_CHANGED package=com.android.camera standbyBucket=40 reason=t flags=0x0 
+    time="2026-11-28 12:00:03" type=STANDBY_BUCKET_CHANGED package=com.android.contacts standbyBucket=45 reason=t flags=0x0 
+    time="2026-11-28 12:00:04" type=STANDBY_BUCKET_CHANGED package=com.android.calendar standbyBucket=20 reason=t flags=0x0 
+    time="2026-11-28 12:00:04" type=STANDBY_BUCKET_CHANGED package=com.android.soundrecorder standbyBucket=50 reason=t flags=0x0 
+    time="2026-11-28 12:15:44" type=NOTIFICATION_INTERRUPTION package=tv.danmaku.bili channelId=mipush|tv.danmaku.bili|100031 flags=0x0 
+    time="2026-11-28 12:19:54" type=NOTIFICATION_INTERRUPTION package=com.ss.android.ugc.aweme channelId=mipush|com.ss.android.ugc.aweme|114282 flags=0x0 
+    time="2026-11-28 12:34:24" type=ACTIVITY_RESUMED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 12:34:25" type=SCREEN_NON_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 12:34:25" type=ACTIVITY_PAUSED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=155907834 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 12:34:25" type=ACTIVITY_PAUSED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 12:34:25" type=ACTIVITY_STOPPED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=155907834 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 12:34:25" type=ACTIVITY_STOPPED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 12:34:26" type=STANDBY_BUCKET_CHANGED package=com.android.soundrecorder standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 12:34:26" type=FOREGROUND_SERVICE_START package=com.xiaomi.aicr class=com.xiaomi.aicr.searchpro.service.AiCrSearchDataBaseService flags=0x0 
+    time="2026-11-28 12:36:43" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.aicr class=com.xiaomi.aicr.searchpro.service.AiCrSearchDataBaseService flags=0x0 
+    time="2026-11-28 12:44:26" type=STANDBY_BUCKET_CHANGED package=com.android.soundrecorder standbyBucket=50 reason=t flags=0x0 
+    time="2026-11-28 12:55:32" type=FOREGROUND_SERVICE_START package=com.xiaomi.market class=com.xiaomi.market.business_core.update.auto.CheckUpdateService flags=0x0 
+    time="2026-11-28 12:55:34" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.market class=com.xiaomi.market.business_core.update.auto.CheckUpdateService flags=0x0 
+    time="2026-11-28 12:56:32" type=NOTIFICATION_INTERRUPTION package=com.ss.android.ugc.aweme channelId=mipush|com.ss.android.ugc.aweme|103642 flags=0x0 
+    time="2026-11-28 13:03:12" type=NOTIFICATION_INTERRUPTION package=com.ss.android.ugc.aweme channelId=mipush|com.ss.android.ugc.aweme|103642 flags=0x0 
+    time="2026-11-28 13:10:25" type=STANDBY_BUCKET_CHANGED package=com.mfashiongallery.emag standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 13:10:26" type=FOREGROUND_SERVICE_START package=com.miui.gallery class=com.miui.gallery.search.statistics.SearchStatReportService flags=0x0 
+    time="2026-11-28 13:10:26" type=FOREGROUND_SERVICE_STOP package=com.miui.gallery class=com.miui.gallery.search.statistics.SearchStatReportService flags=0x0 
+    time="2026-11-28 13:10:41" type=NOTIFICATION_INTERRUPTION package=com.miui.securitycenter channelId=com.miui.securitycenter flags=0x0 
+    time="2026-11-28 13:20:25" type=STANDBY_BUCKET_CHANGED package=com.mfashiongallery.emag standbyBucket=45 reason=t flags=0x0 
+    time="2026-11-28 13:24:33" type=FOREGROUND_SERVICE_START package=com.android.mms class=com.xiaomi.rcs.im.RcsImSenderService flags=0x0 
+    time="2026-11-28 13:24:33" type=FOREGROUND_SERVICE_STOP package=com.android.mms class=com.xiaomi.rcs.im.RcsImSenderService flags=0x0 
+    time="2026-11-28 13:24:33" type=FOREGROUND_SERVICE_START package=com.android.mms class=com.xiaomi.mms.transaction.MxActivateService flags=0x0 
+    time="2026-11-28 13:24:33" type=FOREGROUND_SERVICE_STOP package=com.android.mms class=com.xiaomi.mms.transaction.MxActivateService flags=0x0 
+    time="2026-11-28 13:24:35" type=FOREGROUND_SERVICE_START package=com.android.mms class=com.xiaomi.mms.transaction.MxMessageTrackService flags=0x0 
+    time="2026-11-28 13:24:35" type=FOREGROUND_SERVICE_STOP package=com.android.mms class=com.xiaomi.mms.transaction.MxMessageTrackService flags=0x0 
+    time="2026-11-28 13:29:33" type=FOREGROUND_SERVICE_START package=com.xiaomi.market class=com.xiaomi.market.data.CheckDownloadService flags=0x0 
+    time="2026-11-28 13:29:33" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.market class=com.xiaomi.market.data.CheckDownloadService flags=0x0 
+    time="2026-11-28 13:32:45" type=SCREEN_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 13:32:45" type=ACTIVITY_RESUMED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 13:32:47" type=ACTIVITY_PAUSED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 13:32:47" type=ACTIVITY_RESUMED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=21179692 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 13:32:48" type=ACTIVITY_STOPPED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 13:37:32" type=FOREGROUND_SERVICE_START package=com.xiaomi.mi_connect_service class=com.xiaomi.mi_connect_service.MiConnectService flags=0x0 
+    time="2026-11-28 13:37:33" type=FOREGROUND_SERVICE_START package=com.milink.service class=com.xiaomi.miplay.mylibrary.MiPlayAudioService flags=0x0 
+    time="2026-11-28 13:37:33" type=NOTIFICATION_INTERRUPTION package=com.xiaomi.mi_connect_service channelId=com.xiaomi.mi_connect_service flags=0x0 
+    time="2026-11-28 13:37:33" type=NOTIFICATION_INTERRUPTION package=com.milink.service channelId=hide_foreground flags=0x0 
+    time="2026-11-28 13:37:37" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.mi_connect_service class=com.xiaomi.mi_connect_service.MiConnectService flags=0x0 
+    time="2026-11-28 13:42:46" type=NOTIFICATION_INTERRUPTION package=tv.danmaku.bili channelId=mipush|tv.danmaku.bili|100031 flags=0x0 
+    time="2026-11-28 13:47:24" type=FOREGROUND_SERVICE_START package=com.android.mtp class=com.android.mtp.MtpService flags=0x0 
+    time="2026-11-28 13:47:24" type=FOREGROUND_SERVICE_STOP package=com.android.mtp class=com.android.mtp.MtpService flags=0x0 
+    time="2026-11-28 13:47:24" type=NOTIFICATION_INTERRUPTION package=android channelId=USB flags=0x0 
+    time="2026-11-28 13:47:24" type=NOTIFICATION_INTERRUPTION package=android channelId=DEVELOPER_IMPORTANT flags=0x0 
+    time="2026-11-28 13:47:24" type=NOTIFICATION_INTERRUPTION package=com.android.mtp channelId=device_notification_channel flags=0x0 
+    time="2026-11-28 13:58:52" type=NOTIFICATION_INTERRUPTION package=com.ss.android.ugc.aweme channelId=mipush|com.ss.android.ugc.aweme|103642 flags=0x0 
+    time="2026-11-28 14:12:17" type=FOREGROUND_SERVICE_STOP package=com.milink.service class=com.xiaomi.miplay.mylibrary.MiPlayAudioService flags=0x0 
+    time="2026-11-28 14:13:19" type=ACTIVITY_RESUMED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 14:13:21" type=ACTIVITY_PAUSED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=21179692 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 14:13:21" type=ACTIVITY_STOPPED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=21179692 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 14:13:22" type=ACTIVITY_PAUSED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 14:13:22" type=ACTIVITY_STOPPED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 14:13:30" type=FOREGROUND_SERVICE_START package=com.android.mms class=com.xiaomi.rcs.im.RcsImSenderService flags=0x0 
+    time="2026-11-28 14:13:30" type=FOREGROUND_SERVICE_STOP package=com.android.mms class=com.xiaomi.rcs.im.RcsImSenderService flags=0x0 
+    time="2026-11-28 14:13:32" type=FOREGROUND_SERVICE_START package=com.xiaomi.market class=com.xiaomi.market.service.CloudConfigSyncService flags=0x0 
+    time="2026-11-28 14:13:32" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.market class=com.xiaomi.market.service.CloudConfigSyncService flags=0x0 
+    time="2026-11-28 14:13:38" type=FOREGROUND_SERVICE_START package=com.xiaomi.finddevice class=com.xiaomi.finddevice.coreserver.CoreWorkService flags=0x0 
+    time="2026-11-28 14:13:41" type=FOREGROUND_SERVICE_START package=com.xiaomi.mi_connect_service class=com.xiaomi.mi_connect_service.MiConnectService flags=0x0 
+    time="2026-11-28 14:13:42" type=FOREGROUND_SERVICE_START package=com.milink.service class=com.xiaomi.miplay.mylibrary.MiPlayAudioService flags=0x0 
+    time="2026-11-28 14:13:42" type=NOTIFICATION_INTERRUPTION package=com.xiaomi.mi_connect_service channelId=com.xiaomi.mi_connect_service flags=0x0 
+    time="2026-11-28 14:13:42" type=NOTIFICATION_INTERRUPTION package=com.milink.service channelId=hide_foreground flags=0x0 
+    time="2026-11-28 14:13:43" type=FOREGROUND_SERVICE_START package=com.xiaomi.smarthome class=com.xiaomi.smarthome.control.MijiaStateService flags=0x0 
+    time="2026-11-28 14:13:44" type=NOTIFICATION_INTERRUPTION package=com.xiaomi.smarthome channelId=hide_foreground flags=0x0 
+    time="2026-11-28 14:13:48" type=NOTIFICATION_INTERRUPTION package=com.xiaomi.finddevice channelId=FGS_HIDE flags=0x0 
+    time="2026-11-28 14:13:48" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.finddevice class=com.xiaomi.finddevice.coreserver.CoreWorkService flags=0x0 
+    time="2026-11-28 14:13:51" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.mi_connect_service class=com.xiaomi.mi_connect_service.MiConnectService flags=0x0 
+    time="2026-11-28 14:13:51" type=FOREGROUND_SERVICE_STOP package=com.milink.service class=com.xiaomi.miplay.mylibrary.MiPlayAudioService flags=0x0 
+    time="2026-11-28 14:33:00" type=NOTIFICATION_INTERRUPTION package=com.ss.android.ugc.aweme channelId=mipush|com.ss.android.ugc.aweme|103642 flags=0x0 
+    time="2026-11-28 14:37:47" type=SCREEN_NON_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 14:37:48" type=STANDBY_BUCKET_CHANGED package=com.android.soundrecorder standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 14:37:48" type=FOREGROUND_SERVICE_START package=com.xiaomi.aicr class=com.xiaomi.aicr.searchpro.service.AiCrSearchDataBaseService flags=0x0 
+    time="2026-11-28 14:38:51" type=SCREEN_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 14:38:51" type=STANDBY_BUCKET_CHANGED package=com.mfashiongallery.emag standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 14:38:52" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.smarthome class=com.xiaomi.smarthome.control.MijiaStateService flags=0x0 
+    time="2026-11-28 14:40:29" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.aicr class=com.xiaomi.aicr.searchpro.service.AiCrSearchDataBaseService flags=0x0 
+    time="2026-11-28 14:47:35" type=FOREGROUND_SERVICE_START package=com.xiaomi.smarthome class=com.xiaomi.smarthome.control.MijiaStateService flags=0x0 
+    time="2026-11-28 14:47:35" type=FOREGROUND_SERVICE_START package=com.xiaomi.mi_connect_service class=com.xiaomi.mi_connect_service.MiConnectService flags=0x0 
+    time="2026-11-28 14:47:35" type=FOREGROUND_SERVICE_START package=com.milink.service class=com.xiaomi.miplay.mylibrary.MiPlayAudioService flags=0x0 
+    time="2026-11-28 14:47:35" type=NOTIFICATION_INTERRUPTION package=com.xiaomi.smarthome channelId=hide_foreground flags=0x0 
+    time="2026-11-28 14:47:35" type=NOTIFICATION_INTERRUPTION package=com.xiaomi.mi_connect_service channelId=com.xiaomi.mi_connect_service flags=0x0 
+    time="2026-11-28 14:47:35" type=NOTIFICATION_INTERRUPTION package=com.milink.service channelId=hide_foreground flags=0x0 
+    time="2026-11-28 14:47:41" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.mi_connect_service class=com.xiaomi.mi_connect_service.MiConnectService flags=0x0 
+    time="2026-11-28 14:47:41" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.smarthome class=com.xiaomi.smarthome.control.MijiaStateService flags=0x0 
+    time="2026-11-28 14:48:21" type=STANDBY_BUCKET_CHANGED package=com.android.soundrecorder standbyBucket=50 reason=t flags=0x0 
+    time="2026-11-28 14:48:51" type=STANDBY_BUCKET_CHANGED package=com.mfashiongallery.emag standbyBucket=45 reason=t flags=0x0 
+    time="2026-11-28 14:53:53" type=SCREEN_NON_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 14:53:54" type=SCREEN_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 14:53:54" type=STANDBY_BUCKET_CHANGED package=com.android.soundrecorder standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 14:54:16" type=FOREGROUND_SERVICE_START package=com.android.mms class=com.xiaomi.rcs.im.RcsImSenderService flags=0x0 
+    time="2026-11-28 14:54:16" type=FOREGROUND_SERVICE_STOP package=com.android.mms class=com.xiaomi.rcs.im.RcsImSenderService flags=0x0 
+    time="2026-11-28 14:54:18" type=FOREGROUND_SERVICE_START package=com.xiaomi.market class=com.xiaomi.market.service.CloudConfigSyncService flags=0x0 
+    time="2026-11-28 14:54:18" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.market class=com.xiaomi.market.service.CloudConfigSyncService flags=0x0 
+    time="2026-11-28 14:55:39" type=ACTIVITY_RESUMED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 14:55:39" type=ACTIVITY_PAUSED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 14:55:39" type=ACTIVITY_STOPPED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 14:55:41" type=FOREGROUND_SERVICE_START package=com.xiaomi.market class=com.xiaomi.market.business_core.update.auto.CheckUpdateService flags=0x0 
+    time="2026-11-28 14:55:41" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.market class=com.xiaomi.market.business_core.update.auto.CheckUpdateService flags=0x0 
+    time="2026-11-28 14:55:41" type=FOREGROUND_SERVICE_START package=com.android.mtp class=com.android.mtp.MtpService flags=0x0 
+    time="2026-11-28 14:55:41" type=FOREGROUND_SERVICE_STOP package=com.android.mtp class=com.android.mtp.MtpService flags=0x0 
+    time="2026-11-28 14:55:41" type=NOTIFICATION_INTERRUPTION package=android channelId=USB flags=0x0 
+    time="2026-11-28 14:55:41" type=NOTIFICATION_INTERRUPTION package=android channelId=DEVELOPER_IMPORTANT flags=0x0 
+    time="2026-11-28 14:55:41" type=NOTIFICATION_INTERRUPTION package=com.android.mtp channelId=device_notification_channel flags=0x0 
+    time="2026-11-28 14:55:42" type=STANDBY_BUCKET_CHANGED package=com.android.camera standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 14:55:42" type=ACTIVITY_RESUMED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=220484631 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 14:55:59" type=ACTIVITY_PAUSED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=220484631 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 14:55:59" type=ACTIVITY_RESUMED package=com.miui.securitycenter class=com.miui.permcenter.install.AdbInstallActivity instanceId=124818129 taskRootPackage=com.miui.securitycenter taskRootClass=com.miui.permcenter.install.AdbInstallActivity flags=0x0 
+    time="2026-11-28 14:55:59" type=ACTIVITY_PAUSED package=com.miui.securitycenter class=com.miui.permcenter.install.AdbInstallActivity instanceId=124818129 taskRootPackage=com.miui.securitycenter taskRootClass=com.miui.permcenter.install.AdbInstallActivity flags=0x0 
+    time="2026-11-28 14:55:59" type=ACTIVITY_RESUMED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=220484631 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 14:55:59" type=ACTIVITY_STOPPED package=com.miui.securitycenter class=com.miui.permcenter.install.AdbInstallActivity instanceId=124818129 taskRootPackage=com.miui.securitycenter taskRootClass=com.miui.permcenter.install.AdbInstallActivity flags=0x0 
+    time="2026-11-28 14:55:59" type=ACTIVITY_STOPPED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=220484631 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 14:56:01" type=STANDBY_BUCKET_CHANGED package=com.mfashiongallery.emag standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 14:56:01" type=STANDBY_BUCKET_CHANGED package=com.android.browser standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 14:56:01" type=STANDBY_BUCKET_CHANGED package=com.xiaomi.vipaccount standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 14:56:01" type=STANDBY_BUCKET_CHANGED package=com.android.contacts standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 14:56:02" type=STANDBY_BUCKET_CHANGED package=com.android.calendar standbyBucket=10 reason=u-si flags=0x0 
+    time="2026-11-28 14:56:18" type=ACTIVITY_RESUMED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=55584342 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 14:56:18" type=FOREGROUND_SERVICE_STOP package=com.milink.service class=com.xiaomi.miplay.mylibrary.MiPlayAudioService flags=0x0 
+    time="2026-11-28 15:02:09" type=NOTIFICATION_INTERRUPTION package=com.ss.android.ugc.aweme channelId=mipush|com.ss.android.ugc.aweme|103642 flags=0x0 
+    time="2026-11-28 15:04:13" type=CONFIGURATION_CHANGE package=android config=night-v36 flags=0x0 
+    time="2026-11-28 15:04:15" type=CONFIGURATION_CHANGE package=android config=notnight-v36 flags=0x0 
+    time="2026-11-28 15:06:01" type=STANDBY_BUCKET_CHANGED package=com.mfashiongallery.emag standbyBucket=45 reason=t flags=0x0 
+    time="2026-11-28 15:06:01" type=STANDBY_BUCKET_CHANGED package=com.xiaomi.vipaccount standbyBucket=50 reason=t flags=0x0 
+    time="2026-11-28 15:06:01" type=STANDBY_BUCKET_CHANGED package=com.android.contacts standbyBucket=45 reason=t flags=0x0 
+    time="2026-11-28 15:06:02" type=STANDBY_BUCKET_CHANGED package=com.android.calendar standbyBucket=20 reason=t flags=0x0 
+    time="2026-11-28 15:22:28" type=ACTIVITY_RESUMED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 15:22:28" type=ACTIVITY_PAUSED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 15:22:28" type=ACTIVITY_STOPPED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 15:23:48" type=NOTIFICATION_SEEN package=android flags=0x0 
+    time="2026-11-28 15:23:48" type=NOTIFICATION_SEEN package=android flags=0x0 
+    time="2026-11-28 15:23:48" type=NOTIFICATION_SEEN package=com.android.systemui flags=0x0 
+    time="2026-11-28 15:23:48" type=NOTIFICATION_INTERRUPTION package=com.android.systemui channelId=id_aggregate flags=0x0 
+    time="2026-11-28 15:23:48" type=NOTIFICATION_SEEN package=android flags=0x0 
+    time="2026-11-28 15:23:48" type=NOTIFICATION_SEEN package=com.miui.securitycenter flags=0x0 
+    time="2026-11-28 15:28:45" type=FOREGROUND_SERVICE_START package=com.xiaomi.market class=com.xiaomi.market.business_ui.main.mine.app_security.auto_scanner.AutoScannerJobService flags=0x0 
+    time="2026-11-28 15:28:45" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.market class=com.xiaomi.market.business_ui.main.mine.app_security.auto_scanner.AutoScannerJobService flags=0x0 
+    time="2026-11-28 15:29:45" type=FOREGROUND_SERVICE_START package=com.xiaomi.market class=com.xiaomi.market.data.CheckDownloadService flags=0x0 
+    time="2026-11-28 15:29:45" type=FOREGROUND_SERVICE_STOP package=com.xiaomi.market class=com.xiaomi.market.data.CheckDownloadService flags=0x0 
+    time="2026-11-28 15:35:11" type=NOTIFICATION_INTERRUPTION package=com.ss.android.ugc.aweme channelId=mipush|com.ss.android.ugc.aweme|103642 flags=0x0 
+    time="2026-11-28 15:37:20" type=ACTIVITY_RESUMED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 15:37:21" type=SCREEN_NON_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 15:37:21" type=ACTIVITY_PAUSED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=55584342 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 15:37:21" type=ACTIVITY_PAUSED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 15:37:21" type=ACTIVITY_STOPPED package=com.screentrace.app class=com.screentrace.app.MainActivity instanceId=55584342 taskRootPackage=com.screentrace.app taskRootClass=com.screentrace.app.MainActivity flags=0x0 
+    time="2026-11-28 15:37:21" type=ACTIVITY_STOPPED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 15:37:22" type=FOREGROUND_SERVICE_START package=com.xiaomi.aicr class=com.xiaomi.aicr.searchpro.service.AiCrSearchDataBaseService flags=0x0 
+    time="2026-11-28 15:39:31" type=SCREEN_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 15:39:31" type=ACTIVITY_RESUMED package=com.miui.home class=com.miui.home.launcher.Launcher instanceId=143658133 taskRootPackage=com.miui.home taskRootClass=com.miui.home.launcher.Launcher flags=0x0 
+    time="2026-11-28 15:39:34" type=SCREEN_NON_INTERACTIVE package=android flags=0x0 
+  In-memory daily stats
+  timeRange="2026/11/28 09:24–17:14" 
+    packages
+      package=com.miui.securitycenter totalTimeUsed="00:03" lastTimeUsed="2026-11-28 14:55:59" totalTimeVisible="00:03" lastTimeVisible="2026-11-28 14:55:59" lastTimeComponentUsed="2026-11-28 14:55:59" totalTimeFS="7:44:27" lastTimeFS="2026-11-28 17:08:58" appLaunchCount=4 
+      package=com.screentrace.app totalTimeUsed="2:06:16" lastTimeUsed="2026-11-28 15:37:21" totalTimeVisible="2:06:16" lastTimeVisible="2026-11-28 15:37:21" lastTimeComponentUsed="2026-11-28 17:12:31" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=5 
+  In-memory weekly stats
+user=999 
+  Last 24 hour events (timeRange="2026/11/27 17:14 – 2026/11/28 17:14" )
+    time="2026-11-28 11:45:18" type=SCREEN_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 11:45:18" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=57585886 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 11:50:00" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=57585886 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 11:50:00" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=57585886 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 11:50:01" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=57585886 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 11:50:02" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=57585886 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 12:34:25" type=SCREEN_NON_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 13:32:45" type=SCREEN_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 14:13:22" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=57585886 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:37" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=57585886 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:37" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.SmartHomeMainActivity instanceId=157444779 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:37" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=57585886 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:40" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.SmartHomeMainActivity instanceId=157444779 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:40" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:41" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.SmartHomeMainActivity instanceId=157444779 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:47" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:47" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=255491107 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:48" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:51" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=255491107 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:51" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:13:52" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=255491107 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:09" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:09" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=242991520 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:10" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:15" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=242991520 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:15" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:15" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=242991520 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:16" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:16" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=27513592 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:17" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:17" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=27513592 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:17" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:18" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=27513592 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:29" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:29" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=93264418 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:29" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:36" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=93264418 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:36" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindActivity instanceId=98316307 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:37" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSelectActivity instanceId=93264418 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:47" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindActivity instanceId=98316307 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:47" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSetRoomActivity instanceId=57552694 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:14:48" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindActivity instanceId=98316307 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:04" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSetRoomActivity instanceId=57552694 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:04" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:05" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.blemeshbatchbind.BLEMeshBatchBindSetRoomActivity instanceId=57552694 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:14" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:14" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.SmartHomeMainActivity instanceId=157444779 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:14" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.device.choosedevice.ChooseDeviceActivity instanceId=176870738 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:15" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.SmartHomeMainActivity instanceId=157444779 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:15" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=26823968 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:16" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.SmartHomeMainActivity instanceId=157444779 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:30" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=26823968 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:30" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.LoadingRNActivity instanceId=25022895 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:30" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.LoadingRNActivity instanceId=25022895 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:30" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivityIsolate instanceId=80697093 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:30" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=26823968 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:30" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.LoadingRNActivity instanceId=25022895 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:31" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivityIsolate instanceId=80697093 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:31" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=26823968 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:32" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivityIsolate instanceId=80697093 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:39" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=26823968 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:39" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.SmartHomeMainActivity instanceId=157444779 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:40" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=26823968 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:40" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.SmartHomeMainActivity instanceId=157444779 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:40" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:15:41" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.SmartHomeMainActivity instanceId=157444779 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:17:00" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:17:00" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.LoadingRNActivity instanceId=185085085 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:17:00" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.LoadingRNActivity instanceId=185085085 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:17:00" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivityIsolate instanceId=60988190 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:17:00" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:17:00" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.LoadingRNActivity instanceId=185085085 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:17:45" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivityIsolate instanceId=60988190 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:17:45" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:17:46" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivityIsolate instanceId=60988190 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:37:47" type=SCREEN_NON_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 14:37:47" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:37:47" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:38:51" type=SCREEN_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 14:38:51" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:50:03" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:50:03" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.LoadingRNActivity instanceId=17160237 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:50:03" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.LoadingRNActivity instanceId=17160237 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:50:03" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivityIsolate instanceId=147770478 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:50:03" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:50:04" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.LoadingRNActivity instanceId=17160237 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:50:12" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivityIsolate instanceId=147770478 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:50:12" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:50:12" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivityIsolate instanceId=147770478 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:53:53" type=SCREEN_NON_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 14:53:53" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:53:53" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:53:54" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:53:54" type=SCREEN_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 14:55:42" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:55:43" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:55:59" type=ACTIVITY_RESUMED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:56:18" type=ACTIVITY_PAUSED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 14:56:19" type=ACTIVITY_STOPPED package=com.xiaomi.smarthome class=com.xiaomi.smarthome.framework.plugin.rn.PluginRNActivity instanceId=7653970 taskRootPackage=com.xiaomi.smarthome taskRootClass=com.xiaomi.smarthome.SmartHomeMainActivity flags=0x0 
+    time="2026-11-28 15:37:21" type=SCREEN_NON_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 15:39:31" type=SCREEN_INTERACTIVE package=android flags=0x0 
+    time="2026-11-28 15:39:34" type=SCREEN_NON_INTERACTIVE package=android flags=0x0 
+  In-memory daily stats
+  timeRange="2026/11/28 10:06–17:08" 
+    packages
+      package=com.android.permissioncontroller totalTimeUsed="00:00" lastTimeUsed="1970-01-01 08:00:00" totalTimeVisible="00:00" lastTimeVisible="1970-01-01 08:00:00" lastTimeComponentUsed="2026-11-28 14:54:13" totalTimeFS="00:00" lastTimeFS="1970-01-01 08:00:00" appLaunchCount=0 
+  In-memory weekly stats

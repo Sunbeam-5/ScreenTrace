@@ -10,6 +10,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -339,64 +340,52 @@ object UsageDumpParser {
         val converged = convergeMirrorEvents(merged, dumpUserCount = observedDumpUsers.size)
         val counting = converged.events
 
-        // ---------- 区间层：秒级去重（跨账户天然去重，已对账时长口径）----------
-        val intervalEvents = (checkinEvents + humanEvents)
-            .map { it.copy(ms = it.ms / 1000) }
-            .distinctBy { Triple(it.ms, it.type, it.pkg) }
-            .sortedBy { it.ms }
-
-        // ---------- 应用前台区间（提到屏幕会话之前）----------
-        // 应用在前台时屏幕必然是亮的（不灭屏挂机只会让屏幕更长，不会更短），所以
-        // **应用前台区间是屏幕时长的可靠下界**。MIUI 的 SCREEN 事件是滚动窗口，早间
-        // 时段早就过期掉了：真机单次 dump 只切出 194 分钟亮屏，而应用前台有 13 小时。
-        // 不并进来，就会出现「应用合计 > 屏幕时长」和「时段分布合计 ≠ 屏幕时长」——
-        // 用户看到的就是「这几个应用加起来都 13 小时了，怎么才写 11 小时」。
-        val eventEndMs = maxOf(
-            merged.maxOfOrNull { it.ms } ?: 0L,
-            humanRanges.values.maxOfOrNull { it.second } ?: 0L
-        )
-        val foreground = foregroundFromEvents(counting, zone, eventEndMs)
-
-        val kg = mutableListOf<Pair<Long, Long>>()
-        var kgOn: Long? = null
-        for (e in intervalEvents) {
-            when {
-                e.type == "KEYGUARD_SHOWN" && kgOn == null -> kgOn = e.ms
-                e.type == "KEYGUARD_HIDDEN" && kgOn != null -> {
-                    kg.add(kgOn!! to e.ms); kgOn = null
-                }
+        // ---------- 区间层：分通道独立配对屏幕/锁屏（R11 裁断一）----------
+        // checkinEvents 与 humanEvents 各自独立做跨账户 ±1000ms 镜像收敛与状态机配对，
+        // 严禁把 checkin 未闭合的 ON/KEYGUARD 跨通道拼接到 human；
+        // 流内连续 ON->ON 孤儿与尾部未闭合 ON 一律落 E3 ANCHOR_ONLY，永不伪造 screenSessions。
+        val checkinScreen = pairChannelScreensAndKeyguard(checkinEvents)
+        val humanScreen = pairChannelScreensAndKeyguard(humanEvents)
+        val screens = checkinScreen.screensSec + humanScreen.screensSec
+        val kg = SessionUnion.union(
+            (checkinScreen.kgSec + humanScreen.kgSec).map {
+                SessionUnion.Span(it.first * 1000, it.second * 1000)
             }
-        }
-        kgOn?.let { kg.add(it to intervalEvents.last().ms) }
+        ).map { it.startMs / 1000 to it.endMs / 1000 }
 
-        val screens = mutableListOf<Pair<Long, Long>>()
-        var on: Long? = null
-        for (e in intervalEvents) {
-            when {
-                e.type == "SCREEN_INTERACTIVE" && on == null -> on = e.ms
-                e.type == "SCREEN_NON_INTERACTIVE" && on != null -> {
-                    screens.add(on!! to e.ms); on = null
-                }
-            }
-        }
         val evidenceRows = mutableListOf<ScreenEvidenceRow>()
-        on?.let { openStartSec ->
-            val lastEventSec = intervalEvents.last().ms
-            if (lastEventSec == openStartSec) {
-                // E3：仅有未闭合 SCREEN_INTERACTIVE 锚点、没有后续事件可截断 → 只记锚点，不伪造时长
+        (checkinScreen.anchorsMs + humanScreen.anchorsMs)
+            .distinct()
+            .sorted()
+            .forEach { anchorMs ->
                 evidenceRows.add(
                     ScreenEvidenceRow(
-                        startMs = openStartSec * 1000L,
+                        startMs = anchorMs,
                         endMs = null,
                         kind = "SCREEN",
                         evidenceType = "ANCHOR",
                         quality = "ANCHOR_ONLY"
                     )
                 )
-            } else {
-                screens.add(openStartSec to lastEventSec)
             }
-        }
+
+        // ---------- 应用前台区间：分通道 + 块断档 + 屏幕生命周期门控（R11 裁断二）----------
+        // 应用在前台时屏幕必然是亮的（MIUI 早间 SCREEN 滚出缓冲时靠正常闭合前台补下界），
+        // 但严禁跨通道混流、跨息屏延伸、跨块断档桥接或尾部无条件延展至 endMs。
+        val checkinBlockBreaksMs = computeCheckinBlockBreaks(intervals, checkinEvents)
+        val checkinFg = foregroundFromEvents(
+            events = checkinEvents,
+            zone = zone,
+            e1ScreensMs = checkinScreen.screensMs,
+            blockBreaksMs = checkinBlockBreaksMs
+        )
+        val humanFg = foregroundFromEvents(
+            events = humanEvents,
+            zone = zone,
+            e1ScreensMs = humanScreen.screensMs,
+            blockBreaksMs = emptyList()
+        )
+        val foreground = mergeChannelForegrounds(checkinFg, humanFg)
         // W1：checkin 区间内出现的 screen-interactive 聚合读数只入独立证据表（永不进 screenSessions）
         intervals.filter { it.screenAggMs > 0L }.forEach { iv ->
             evidenceRows.add(
@@ -793,6 +782,129 @@ object UsageDumpParser {
      * 跨零点按自然日切开：23:50 用到 00:10 必须拆成两天的 10 分钟与 10 分钟，
      * 否则单日应用合计会凭空多出一截（与自洽性校验冲突）。
      */
+    private data class ChannelScreenResult(
+        val screensSec: List<Pair<Long, Long>>,
+        val screensMs: List<Pair<Long, Long>>,
+        val kgSec: List<Pair<Long, Long>>,
+        val anchorsMs: List<Long>
+    )
+
+    /**
+     * 单通道屏幕与锁屏状态机配对（R11 裁断一）：
+     * - 仅在单通道内执行跨账户 ±1000ms 镜像收敛后配对；
+     * - 流内连续非镜像 `ON -> ON` 将旧孤儿 `ON` 记为 `ANCHOR_ONLY` 并切换为新 `ON`；
+     * - 尾部未闭合 `ON` 无条件记为 `ANCHOR_ONLY`，绝不延伸到后续事件伪造时长。
+     */
+    private fun pairChannelScreensAndKeyguard(events: List<RawEvent>): ChannelScreenResult {
+        if (events.isEmpty()) {
+            return ChannelScreenResult(emptyList(), emptyList(), emptyList(), emptyList())
+        }
+        val screenEvents = events.filter {
+            it.type == "SCREEN_INTERACTIVE" || it.type == "SCREEN_NON_INTERACTIVE"
+        }
+        val convergedScreens = screenEvents
+            .groupBy { it.type }
+            .flatMap { (_, group) ->
+                val sorted = group.sortedWith(compareBy<RawEvent>({ it.ms }, { it.user }))
+                val kept = mutableListOf<RawEvent>()
+                for (e in sorted) {
+                    val mirrored = kept.any {
+                        it.user != e.user && abs(it.ms - e.ms) <= MIRROR_TOLERANCE_MS
+                    }
+                    if (!mirrored) kept.add(e)
+                }
+                kept
+            }
+            .sortedWith(
+                compareBy<RawEvent>(
+                    { it.ms },
+                    { if (it.type == "SCREEN_NON_INTERACTIVE") 0 else 1 },
+                    { it.user }
+                )
+            )
+
+        val screensSec = mutableListOf<Pair<Long, Long>>()
+        val screensMs = mutableListOf<Pair<Long, Long>>()
+        val anchorsMs = mutableListOf<Long>()
+        var onMs: Long? = null
+        for (e in convergedScreens) {
+            if (e.type == "SCREEN_INTERACTIVE") {
+                val prevOn = onMs
+                if (prevOn == null) {
+                    onMs = e.ms
+                } else if (e.ms - prevOn > MIRROR_TOLERANCE_MS) {
+                    anchorsMs.add(prevOn)
+                    onMs = e.ms
+                }
+            } else {
+                val prevOn = onMs
+                if (prevOn != null) {
+                    if (e.ms > prevOn) {
+                        screensSec.add(prevOn / 1000 to e.ms / 1000)
+                        screensMs.add(prevOn to e.ms)
+                    }
+                    onMs = null
+                }
+            }
+        }
+        onMs?.let { anchorsMs.add(it) }
+
+        val kgEvents = events
+            .asSequence()
+            .filter { it.type == "KEYGUARD_SHOWN" || it.type == "KEYGUARD_HIDDEN" }
+            .map { it.ms / 1000 to it.type }
+            .distinct()
+            .sortedWith(compareBy<Pair<Long, String>>({ it.first }, { if (it.second == "KEYGUARD_HIDDEN") 0 else 1 }))
+            .toList()
+        val kgSec = mutableListOf<Pair<Long, Long>>()
+        var kgOn: Long? = null
+        for ((sec, type) in kgEvents) {
+            when {
+                type == "KEYGUARD_SHOWN" && kgOn == null -> kgOn = sec
+                type == "KEYGUARD_HIDDEN" && kgOn != null -> {
+                    if (sec > kgOn!!) kgSec.add(kgOn!! to sec)
+                    kgOn = null
+                }
+            }
+        }
+        val channelLastSec = events.maxOf { it.ms / 1000 }
+        kgOn?.let { openKgSec ->
+            if (channelLastSec > openKgSec) kgSec.add(openKgSec to channelLastSec)
+        }
+        return ChannelScreenResult(screensSec, screensMs, kgSec, anchorsMs)
+    }
+
+    /**
+     * 计算 checkin 离散块边界时间戳：
+     * - 同账户相邻 RawInterval 不连续（`next.beginMs - prev.endMs > 60_000L`）时记录断档边界；
+     * - 区间块内完全无事件时记录该块起点为断档边界，防止跨空块桥接未闭合前台。
+     */
+    private fun computeCheckinBlockBreaks(
+        intervals: List<RawInterval>,
+        checkinEvents: List<RawEvent>
+    ): List<Long> {
+        if (intervals.isEmpty()) return emptyList()
+        val breaks = mutableSetOf<Long>()
+        val eventMsByUser = checkinEvents.groupBy({ it.user }) { it.ms }
+        for ((user, userIntervals) in intervals.groupBy { it.user }) {
+            val sorted = userIntervals.sortedWith(compareBy<RawInterval>({ it.beginMs }, { it.endMs }))
+            val evTimes = eventMsByUser[user].orEmpty()
+            for (i in sorted.indices) {
+                val cur = sorted[i]
+                if (evTimes.none { it in cur.beginMs..cur.endMs }) {
+                    breaks.add(cur.beginMs)
+                }
+                if (i > 0) {
+                    val prev = sorted[i - 1]
+                    if (cur.beginMs - prev.endMs > 60_000L) {
+                        breaks.add(prev.endMs)
+                    }
+                }
+            }
+        }
+        return breaks.sorted()
+    }
+
     private data class ForegroundResult(
         val ms: Map<Triple<Int, LocalDate, String>, Long>,
         val launches: Map<Triple<Int, LocalDate, String>, Int>,
@@ -800,56 +912,144 @@ object UsageDumpParser {
         val spans: List<Pair<Long, Long>>
     )
 
+    private fun mergeChannelForegrounds(a: ForegroundResult, b: ForegroundResult): ForegroundResult {
+        val ms = mutableMapOf<Triple<Int, LocalDate, String>, Long>()
+        for (k in a.ms.keys + b.ms.keys) {
+            ms[k] = maxOf(a.ms[k] ?: 0L, b.ms[k] ?: 0L)
+        }
+        val launches = mutableMapOf<Triple<Int, LocalDate, String>, Int>()
+        for (k in a.launches.keys + b.launches.keys) {
+            launches[k] = maxOf(a.launches[k] ?: 0, b.launches[k] ?: 0)
+        }
+        return ForegroundResult(ms = ms, launches = launches, spans = a.spans + b.spans)
+    }
+
+    private fun fgTypePriority(type: String): Int = when (type) {
+        "SCREEN_NON_INTERACTIVE" -> 0
+        "ACTIVITY_PAUSED", "ACTIVITY_STOPPED" -> 1
+        "SCREEN_INTERACTIVE" -> 2
+        "ACTIVITY_RESUMED" -> 3
+        else -> 4
+    }
+
     private fun foregroundFromEvents(
         events: List<RawEvent>,
         zone: ZoneId,
-        endMs: Long
+        e1ScreensMs: List<Pair<Long, Long>>,
+        blockBreaksMs: List<Long>
     ): ForegroundResult {
         val ms = mutableMapOf<Triple<Int, LocalDate, String>, Long>()
         val launches = mutableMapOf<Triple<Int, LocalDate, String>, Int>()
         val spans = mutableListOf<Pair<Long, Long>>()
         val sorted = events.asSequence()
             .filter {
-                it.type == "ACTIVITY_RESUMED" ||
+                it.type == "SCREEN_NON_INTERACTIVE" ||
+                    it.type == "SCREEN_INTERACTIVE" ||
+                    it.type == "ACTIVITY_RESUMED" ||
                     it.type == "ACTIVITY_PAUSED" ||
                     it.type == "ACTIVITY_STOPPED"
             }
-            .sortedBy { it.ms }
+            .sortedWith(compareBy<RawEvent>({ it.ms }, { fgTypePriority(it.type) }, { it.user }))
             .toList()
-        val open = mutableMapOf<Int, RawEvent>() // user → 当前前台的 RESUMED 事件
 
-        for (e in sorted) {
+        val silentGapMaxMs = 6L * 3600L * 1000L
+        fun inE1(startMs: Long, endMs: Long): Boolean =
+            e1ScreensMs.any { (s, t) ->
+                startMs >= s - MIRROR_TOLERANCE_MS && endMs <= t + MIRROR_TOLERANCE_MS
+            }
+
+        fun hasBlockBreakBetween(fromMs: Long, toMs: Long): Boolean =
+            blockBreaksMs.any { it > fromMs && it <= toMs }
+
+        fun hasClosingInWakeSegment(startIdx: Int, user: Int, pkg: String): Boolean {
+            val anchorMs = sorted[startIdx].ms
+            var scanPrevMs = anchorMs
+            for (j in (startIdx + 1) until sorted.size) {
+                val ev = sorted[j]
+                if (hasBlockBreakBetween(scanPrevMs, ev.ms)) return false
+                if (ev.ms - scanPrevMs > silentGapMaxMs && !inE1(anchorMs, ev.ms)) return false
+                scanPrevMs = ev.ms
+                if (ev.type == "SCREEN_NON_INTERACTIVE") return false
+                if (ev.type == "SCREEN_INTERACTIVE" && ev.ms - anchorMs > MIRROR_TOLERANCE_MS) return false
+                if (ev.user == user && ev.pkg == pkg &&
+                    (ev.type == "ACTIVITY_PAUSED" || ev.type == "ACTIVITY_STOPPED")
+                ) {
+                    return true
+                }
+            }
+            return false
+        }
+
+        val open = mutableMapOf<Int, RawEvent>() // user → 当前前台的 RESUMED 事件
+        var prevEvMs: Long? = null
+
+        for (idx in sorted.indices) {
+            val e = sorted[idx]
+            val lastMs = prevEvMs
+            if (lastMs != null) {
+                if (hasBlockBreakBetween(lastMs, e.ms)) {
+                    open.clear()
+                } else if (e.ms - lastMs > silentGapMaxMs) {
+                    for ((u, prev) in open.entries.toList()) {
+                        if (!inE1(prev.ms, e.ms)) open.remove(u)
+                    }
+                }
+            }
+            prevEvMs = e.ms
+
             when (e.type) {
+                "SCREEN_NON_INTERACTIVE" -> {
+                    for (prev in open.values) {
+                        if (e.ms > prev.ms) {
+                            spans.add(prev.ms / 1000 to e.ms / 1000)
+                            addSpanToDay(ms, prev.user, prev.pkg, prev.ms, e.ms, zone)
+                        }
+                    }
+                    open.clear()
+                }
+                "SCREEN_INTERACTIVE" -> {
+                    for ((u, prev) in open.entries.toList()) {
+                        if (e.ms - prev.ms > MIRROR_TOLERANCE_MS) {
+                            open.remove(u)
+                        }
+                    }
+                }
                 "ACTIVITY_RESUMED" -> {
                     val prev = open[e.user]
                     if (prev != null && prev.pkg != e.pkg) {
-                        spans.add(prev.ms / 1000 to e.ms / 1000)
-                        addSpanToDay(ms, prev.user, prev.pkg, prev.ms, e.ms, zone)
-                    }
-                    // 同一应用重复 RESUMED（没有中间的 PAUSED）不重开区间，
-                    // 否则会把「一直前台」切成若干段并各丢失一段
-                    if (prev == null || prev.pkg != e.pkg) {
+                        val hasEvidence = inE1(prev.ms, e.ms) ||
+                            hasClosingInWakeSegment(idx, prev.user, prev.pkg)
+                        if (hasEvidence && e.ms > prev.ms) {
+                            spans.add(prev.ms / 1000 to e.ms / 1000)
+                            addSpanToDay(ms, prev.user, prev.pkg, prev.ms, e.ms, zone)
+                        }
                         open[e.user] = e
                         val key = Triple(e.user, Instant.ofEpochMilli(e.ms).atZone(zone).toLocalDate(), e.pkg)
                         launches[key] = (launches[key] ?: 0) + 1
+                    } else if (prev == null) {
+                        open[e.user] = e
+                        val key = Triple(e.user, Instant.ofEpochMilli(e.ms).atZone(zone).toLocalDate(), e.pkg)
+                        launches[key] = (launches[key] ?: 0) + 1
+                    } else {
+                        // 无 E1 保护且同包重复 RESUMED 间隔 > 60s 时重置起点，防跨夜孤儿虚增
+                        if (!inE1(prev.ms, e.ms) && e.ms - prev.ms > 60_000L) {
+                            open[e.user] = e
+                        }
                     }
                 }
                 else -> {
                     val prev = open[e.user]
                     if (prev != null && prev.pkg == e.pkg) {
-                        spans.add(prev.ms / 1000 to e.ms / 1000)
-                        addSpanToDay(ms, prev.user, prev.pkg, prev.ms, e.ms, zone)
+                        if (e.ms > prev.ms) {
+                            spans.add(prev.ms / 1000 to e.ms / 1000)
+                            addSpanToDay(ms, prev.user, prev.pkg, prev.ms, e.ms, zone)
+                        }
                         open.remove(e.user)
                     }
                 }
             }
         }
-        for (prev in open.values) {
-            if (endMs > prev.ms) {
-                spans.add(prev.ms / 1000 to endMs / 1000)
-                addSpanToDay(ms, prev.user, prev.pkg, prev.ms, endMs, zone)
-            }
-        }
+        // R11 裁断二：尾部未闭合 ACTIVITY_RESUMED 仅保留启动次数，绝不延展至 endMs 伪造时长
         return ForegroundResult(ms, launches, spans)
     }
 
